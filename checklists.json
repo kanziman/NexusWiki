@@ -378,8 +378,34 @@
           ],
           "priority": "P1",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "prompt_templates에서 target_type='ask' 4행, 'compile' 1행 조회. is_default=true인 행이 target_type별로 정확히 1개"
+          "status": "done",
+          "verification": "prompt_templates에서 target_type='ask' 4행, 'compile' 1행 조회. is_default=true인 행이 target_type별로 정확히 1개",
+          "completed_at": "2026-08-01",
+          "deviations_from_plan": [
+            "플레이스홀더를 {{변수}} 이중 중괄호로 규약화. 파이썬 str.format을 쓰면 프롬프트와 주입 본문에 들어있는 마크다운/코드/JSON의 단일 중괄호 때문에 KeyError로 터지거나 내용이 망가집니다. 단순 문자열 치환을 쓰세요.",
+            "prompt_templates_global_name_idx (전역 템플릿 이름 유일) 신설 + on conflict do nothing. 0001이 강제하는 건 is_default 유일성뿐이라 시드를 재적용하면 중복이 쌓입니다. 이 인덱스로 시드가 멱등해집니다.",
+            "ask 4종 전부에 동일한 이중 Citation 표기를 강제: 위키는 [[wiki:slug]], 원문은 [[src:청크id]]. 프론트가 파싱할 형식이 하나여야 하므로 템플릿마다 다르면 안 됩니다.",
+            "'원문과 위키가 어긋나면 원문 우선 + 그 사실을 답변에 명시'를 ask 4종 공통 규칙으로. P2-QC-01의 지식 충돌 감지(disputed)로 넘어갈 입력이 됩니다.",
+            "compile 출력 스키마의 열거값(category, confidence)을 0001의 CHECK 제약 문자열과 정확히 일치시킴. 어긋나면 Pydantic 검증은 통과하고 INSERT에서 터집니다.",
+            "compile 프롬프트에 {{existing_slugs}} 주입 — 기존 slug를 재사용하지 않으면 (workspace_id, slug) upsert가 무력해져 같은 주제의 중복 문서가 생깁니다. 멱등성의 실질적 근거.",
+            "각 템플릿에 '자료에 없으면 지어내지 말고 빈칸을 드러내라'는 규칙을 명시. 특히 실행 항목 추출은 그럴듯한 다음 단계를 지어내는 것이 가장 흔한 실패 모드라 별도로 경고."
+          ],
+          "verification_result": {
+            "date": "2026-08-01",
+            "method": "시드 적용 후 9종 검증",
+            "results": [
+              "target_type='ask' 4행, 'compile' 1행, 전부 workspace_id NULL(전역) ✅",
+              "is_default=true가 target_type별로 정확히 1개 (ask=기술 심층 분석, compile=위키 컴파일러) ✅",
+              "플레이스홀더가 문서화한 변수 집합과 정확히 일치 (ask 3종, compile 4종, 초과/누락 0) ✅",
+              "이중 Citation 표기가 ask 4/4 전부에 존재 ✅",
+              "compile 스키마의 category/confidence 열거값이 0001 CHECK와 문자열 일치 ✅",
+              "두 번째 전역 ask 기본값 삽입이 unique_violation으로 거부됨 (0001 partial unique index) ✅",
+              "0006 전체를 재실행해도 행수 불변 (ask 4, compile 1) — 시드 멱등 ✅",
+              "RLS: 어떤 워크스페이스에도 속하지 않은 사용자가 전역 템플릿 5개 모두 조회 가능 ✅",
+              "RLS: anon(비로그인)은 0행 ✅"
+            ]
+          },
+          "notes": "마이그레이션 번호 0006은 계획서 지정값 그대로입니다. 0005는 P1-STO-01(Storage) 자리로 비어 있습니다. 클라우드에 push한 적이 없어 로컬 reset에서는 파일명 순서대로 적용되므로 문제 없지만, 클라우드 생성 후에 0005를 추가하면 순서가 어긋납니다 — P1-STO-01을 P0-INIT-04(배포) 전에 끝내세요."
         }
       ]
     },

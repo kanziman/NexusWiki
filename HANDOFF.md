@@ -1,8 +1,8 @@
 # NexusWiki — 세션 핸드오프
 
 **최종 갱신:** 2026-08-01
-**단계:** Phase 1 (데이터 계층) — 스키마 레이어 완료 · 32개 태스크 중 4개 완료
-**다음 작업:** `P1-SEED-01` 프롬프트 템플릿 시드, 그다음 Phase 2 (`P0-INIT-01/02` → `P2-*`)
+**단계:** Phase 1 (데이터 계층) 사실상 완료 · 32개 태스크 중 5개 완료
+**다음 작업:** `P0-INIT-01` monorepo 구조 → `P0-INIT-02` FastAPI 스캐폴딩 — **여기서부터 코드**
 
 ---
 
@@ -12,7 +12,7 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 
 이전 세션에서 한 일은 두 가지입니다. **(1)** 원래 계획서 기반 체크리스트를 리뷰해 핵심 기능 3개가 데이터 모델에 대응물이 없다는 걸 찾아내고, 인터뷰로 9개 결정을 확정한 뒤 체크리스트를 전면 재작성(19 → 32 태스크). **(2)** 로컬 Supabase 스택을 띄우고 코어 스키마(`0001`)를 적용·검증.
 
-이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`) · 잡 큐(`0003`) · RLS 정책(`0004`)을 작성·적용·검증했습니다. **Phase 2의 병목이던 스키마 레이어가 전부 끝났습니다.** 9개 테이블에 정책이 붙었고 38개 격리 케이스가 통과합니다. 이제 백엔드 코드를 붙일 차례입니다.
+이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`) · 잡 큐(`0003`) · RLS 정책(`0004`) · 프롬프트 시드(`0006`)를 작성·적용·검증했습니다. **DB 레이어가 끝났습니다.** 9개 테이블 + 정책 + 큐 함수 + 전역 템플릿 5종이 전부 올라가 있고, 남은 스키마 작업은 Storage 버킷(`P1-STO-01`, `0005`) 하나뿐입니다. 이제 애플리케이션 코드 차례입니다.
 
 ---
 
@@ -52,13 +52,14 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 [x] P1-DB-02   검색 스키마          — 적용·검증 완료 (EXPLAIN 5채널 전부 인덱스 사용 확인)
 [x] P1-DB-03   jobs 테이블 + 큐 함수 — 적용·검증 완료 (8워커 400잡 동시성 통과)
 [x] P1-SEC-01  RLS 정책            — 적용·검증 완료 (38/38 격리 케이스 통과)
+[x] P1-SEED-01 프롬프트 템플릿 시드   — 적용·검증 완료 (ask 4 + compile 1, 멱등)
 [~] P0-INIT-00 Supabase 셋업        — 로컬만 완료, 클라우드 미생성
-[ ] P1-SEED-01 프롬프트 템플릿 시드   ← 다음 (0006, 스키마 의존 없음)
-[ ] P0-INIT-01 monorepo 구조        ← 그다음. 여기서부터 코드
+[ ] P1-STO-01  Storage 버킷 (0005)  — 번호가 0006보다 앞이라 클라우드 push 전에 끝낼 것
+[ ] P0-INIT-01 monorepo 구조        ← 다음. 여기서부터 코드
 [ ] P0-INIT-02 FastAPI 스캐폴딩
 ```
 
-**스키마 레이어는 끝났습니다.** 남은 Phase 1 작업은 시드 하나뿐이고, 이후는 전부 애플리케이션 코드입니다.
+**DB 레이어는 끝났습니다.** 남은 스키마 작업은 Storage 버킷 하나이고, 이후는 전부 애플리케이션 코드입니다.
 
 ### 디스크상의 파일
 
@@ -69,6 +70,7 @@ supabase/migrations/0001_core_schema.sql
 supabase/migrations/0002_search_schema.sql
 supabase/migrations/0003_jobs.sql
 supabase/migrations/0004_rls_policies.sql
+supabase/migrations/0006_seed_prompts.sql    ← 0005는 P1-STO-01 자리로 비어 있음
 HANDOFF.md                             이 문서
 ```
 
@@ -190,13 +192,59 @@ reap_stale_jobs(timeout)                       -- 락 타임아웃 잡을 queued
 
 ---
 
-## 3d. 다음 작업: `P1-SEED-01` 프롬프트 템플릿 시드
+## 3d. 방금 끝난 것 (4): `P1-SEED-01` 프롬프트 템플릿 시드
 
-`supabase/migrations/0006_seed_prompts.sql`. 전역 기본 템플릿(`workspace_id IS NULL`) 5종 — `target_type='ask'` 4개(Technical Deep-Dive, Executive Summary, Action Items Extractor, FAQ & Guide Generator) + `target_type='compile'` 1개.
+`supabase/migrations/0006_seed_prompts.sql`. 전역 기본 템플릿 5종 (`workspace_id IS NULL`).
 
-`0001`의 partial unique index가 `is_default=true`를 `target_type`당 1개로 이미 강제하므로, 시드가 규칙을 어기면 마이그레이션이 실패합니다. `0004`가 전역 템플릿을 모든 로그인 사용자에게 읽히도록 해 뒀습니다.
+| | 이름 | 기본값 |
+|---|---|---|
+| `compile` | 🧱 위키 컴파일러 | ✔ |
+| `ask` | 🔬 기술 심층 분석 | ✔ |
+| `ask` | 📋 경영진 요약 | |
+| `ask` | ✅ 실행 항목 추출 | |
+| `ask` | 📖 FAQ·가이드 생성 | |
 
-그 뒤로는 스키마 작업이 없습니다. `P0-INIT-01`(monorepo) → `P0-INIT-02`(FastAPI 스캐폴딩)부터 코드입니다.
+### 플레이스홀더 규약 — `P2-LLM-01`/`P2-BE-01`이 바인딩할 것
+
+`{{변수}}` 이중 중괄호입니다. **`str.format`을 쓰지 마세요.** 프롬프트와 주입될 본문에 마크다운·코드·JSON의 단일 중괄호가 그대로 들어오므로 `KeyError`로 터지거나 내용이 망가집니다. 단순 문자열 치환을 쓰세요.
+
+```text
+ask      {{question}}  {{wiki_context}}  {{source_context}}
+compile  {{source_title}}  {{source_type}}  {{existing_slugs}}  {{source_content}}
+```
+
+⚠️ **컨텍스트를 조립하는 쪽이 각 청크 앞에 인용 앵커를 붙여야 합니다.** 위키 청크는 `[[wiki:slug]]`, 원문 청크는 `[[src:청크id]]`. 앵커가 없으면 모델이 인용 표기를 만들어낼 근거 자체가 없어서, 이중 Citation이 조용히 무너집니다.
+
+### 프롬프트에 박아 넣은 제품 규칙
+
+- **이중 Citation 표기를 `ask` 4종 전부에 동일하게 강제** — 프론트가 파싱할 형식이 하나여야 하므로 템플릿마다 다르면 안 됩니다
+- **"원문과 위키가 어긋나면 원문 우선 + 그 사실을 답변에 명시"** — 이게 `P2-QC-01`의 지식 충돌 감지(`disputed`)로 넘어갈 입력이 됩니다
+- **`compile`의 slug 안정성 규칙 + `{{existing_slugs}}` 주입** — 같은 개념이면 항상 같은 slug여야 `(workspace_id, slug)` upsert가 성립합니다. 기존 slug를 재사용하지 않으면 멱등성이 무력해지고 중복 문서가 쌓입니다
+- **`compile` 출력 스키마의 열거값을 `0001`의 CHECK 문자열과 일치시킴** — 어긋나면 Pydantic 검증은 통과하고 INSERT에서 터집니다
+- **"자료에 없으면 지어내지 말고 빈칸을 드러내라"** — 특히 실행 항목 추출은 그럴듯한 다음 단계를 지어내는 게 가장 흔한 실패 모드라 별도로 경고해 뒀습니다
+
+### 검증 (9종 전부 통과)
+
+`ask` 4행 / `compile` 1행, `is_default`가 `target_type`당 정확히 1개, 플레이스홀더가 문서화한 집합과 정확히 일치(초과·누락 0), 두 번째 전역 기본값은 `unique_violation`으로 거부, **`0006` 전체를 재실행해도 행수 불변**(시드 멱등), 비멤버도 전역 템플릿 5개 조회 가능 / `anon`은 0행.
+
+---
+
+## 3e. 다음 작업: `P0-INIT-01` → `P0-INIT-02` (여기서부터 코드)
+
+DB 레이어가 끝났으므로 다음은 애플리케이션 스캐폴딩입니다. 상세는 `checklists.json`.
+
+`P0-INIT-02`에서 특히 중요한 것 — Supabase 클라이언트 팩토리를 `decisions.db_access`(hybrid)에 따라 **두 종류로 분리**해야 합니다.
+
+```text
+user_client(access_token)  요청자 JWT. RLS가 격리를 강제 → 사용자 요청 경로 전부
+service_client()           service_role. BYPASSRLS → 워커와 마이그레이션 전용
+```
+
+`service_client()`를 사용자 요청 경로에서 쓰는 순간 이번 세션에 만든 격리가 통째로 무의미해집니다. 두 팩토리를 파일 단위로 분리하고, 워커 코드에는 `workspace_id` 필터를 항상 명시하세요 (§5).
+
+### 남은 스키마 작업 하나: `P1-STO-01` (`0005_storage.sql`)
+
+Storage 버킷과 정책. **번호가 `0006`보다 앞입니다.** 로컬은 항상 `db reset`이라 파일명 순서대로 적용돼 문제가 없지만, 클라우드 프로젝트를 만든 뒤에 `0005`를 추가하면 순서가 어긋납니다. **`P0-INIT-04`(배포) 전에 끝내세요.**
 
 ---
 
@@ -303,7 +351,7 @@ cd /Users/zorba/projects/NexusWiki
 git log --oneline | head -3                   # 저장소는 이미 초기화됨
 docker ps --filter name=NexusWiki | head -3   # 스택 살아있나
 supabase start                                 # 없으면 기동
-supabase db reset                              # 0001~0004 재적용 확인
+supabase db reset                              # 0001~0006 재적용 확인
 ```
 
-그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-SEED-01`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
+그다음 `checklists.json`의 `decisions` 블록을 읽고 `P0-INIT-01`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
