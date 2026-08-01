@@ -1,8 +1,8 @@
 # NexusWiki — 세션 핸드오프
 
 **최종 갱신:** 2026-08-01
-**단계:** Phase 1 (데이터 계층) 진행 중 · 32개 태스크 중 3개 완료
-**다음 작업:** `P1-SEC-01` RLS 정책 — Phase 2 전체의 병목
+**단계:** Phase 1 (데이터 계층) — 스키마 레이어 완료 · 32개 태스크 중 4개 완료
+**다음 작업:** `P1-SEED-01` 프롬프트 템플릿 시드, 그다음 Phase 2 (`P0-INIT-01/02` → `P2-*`)
 
 ---
 
@@ -12,7 +12,7 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 
 이전 세션에서 한 일은 두 가지입니다. **(1)** 원래 계획서 기반 체크리스트를 리뷰해 핵심 기능 3개가 데이터 모델에 대응물이 없다는 걸 찾아내고, 인터뷰로 9개 결정을 확정한 뒤 체크리스트를 전면 재작성(19 → 32 태스크). **(2)** 로컬 Supabase 스택을 띄우고 코어 스키마(`0001`)를 적용·검증.
 
-이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`)와 잡 큐(`0003`)를 작성·적용·검증했습니다. 5-Way 검색 채널 5개가 전부 물리적으로 존재하고, 워커가 붙을 큐도 준비됐습니다. **스키마 레이어에서 남은 건 RLS 정책 하나입니다.**
+이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`) · 잡 큐(`0003`) · RLS 정책(`0004`)을 작성·적용·검증했습니다. **Phase 2의 병목이던 스키마 레이어가 전부 끝났습니다.** 9개 테이블에 정책이 붙었고 38개 격리 케이스가 통과합니다. 이제 백엔드 코드를 붙일 차례입니다.
 
 ---
 
@@ -51,13 +51,14 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 [x] P1-DB-01   코어 스키마          — 적용·검증 완료
 [x] P1-DB-02   검색 스키마          — 적용·검증 완료 (EXPLAIN 5채널 전부 인덱스 사용 확인)
 [x] P1-DB-03   jobs 테이블 + 큐 함수 — 적용·검증 완료 (8워커 400잡 동시성 통과)
+[x] P1-SEC-01  RLS 정책            — 적용·검증 완료 (38/38 격리 케이스 통과)
 [~] P0-INIT-00 Supabase 셋업        — 로컬만 완료, 클라우드 미생성
-[ ] P0-INIT-01 monorepo 구조        — 건너뜀 (마이그레이션은 이에 의존 안 함)
-[ ] P1-SEC-01  RLS 정책             ← 다음. Phase 2 전체의 병목
-[ ] P1-SEED-01 프롬프트 템플릿 시드   (0006, P1-DB-01에만 의존하므로 언제든 가능)
+[ ] P1-SEED-01 프롬프트 템플릿 시드   ← 다음 (0006, 스키마 의존 없음)
+[ ] P0-INIT-01 monorepo 구조        ← 그다음. 여기서부터 코드
+[ ] P0-INIT-02 FastAPI 스캐폴딩
 ```
 
-RLS까지 남은 추정: **1일**
+**스키마 레이어는 끝났습니다.** 남은 Phase 1 작업은 시드 하나뿐이고, 이후는 전부 애플리케이션 코드입니다.
 
 ### 디스크상의 파일
 
@@ -67,6 +68,7 @@ supabase/config.toml                   포트를 544xx로 수정함 (§4 참조)
 supabase/migrations/0001_core_schema.sql
 supabase/migrations/0002_search_schema.sql
 supabase/migrations/0003_jobs.sql
+supabase/migrations/0004_rls_policies.sql
 HANDOFF.md                             이 문서
 ```
 
@@ -154,19 +156,47 @@ reap_stale_jobs(timeout)                       -- 락 타임아웃 잡을 queued
 
 ---
 
-## 3c. 다음 작업: `P1-SEC-01` RLS 정책
+## 3c. 방금 끝난 것 (3): `P1-SEC-01` RLS 정책
 
-`supabase/migrations/0004_rls_policies.sql`. **Phase 2 전체의 병목이자 Phase 1의 마지막 스키마 작업입니다.**
+`supabase/migrations/0004_rls_policies.sql`. **9개 테이블 전부에 정책이 붙었습니다.** 워크스페이스 A(owner/editor/viewer) + B(owner) + 외부인/비멤버 픽스처로 **38개 케이스 전부 통과**.
 
-지금 `0001`~`0003`의 **9개 테이블 전부가 RLS 켜짐 + 정책 0개 = 전면 거부** 상태입니다. 이 파일이 들어가기 전까지 사용자 JWT로는 아무것도 못 읽습니다.
+### 권한 모델
 
-- `is_workspace_member(ws_id)` / `workspace_role(ws_id)`를 `SECURITY DEFINER` + `STABLE` + `SET search_path = public`으로 정의하고 모든 정책이 이걸 호출 (§5의 무한 재귀 함정 — 스니펫 있음)
-- 멤버면 SELECT, editor 이상 INSERT/UPDATE, owner만 DELETE
-- `jobs`는 SELECT 정책만 (생성/전이는 전부 `service_role` 경로)
-- `prompt_templates`는 `workspace_id IS NULL`(전역 기본)도 읽히게 해야 합니다 — 빠뜨리기 쉬운 지점
-- `source_chunks`/`wiki_embeddings`/`wiki_links`는 `workspace_id`를 직접 들고 있으므로 조인 없이 정책을 쓸 수 있습니다 (`0002`에서 비정규화해 둔 이유 중 하나)
+| | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `workspaces` | 멤버 | 본인 소유로만 | **owner** | owner |
+| `workspace_members` | 멤버 | **owner** | **owner** | **owner** |
+| `raw_sources` | 멤버 | editor | **없음(불변)** | owner |
+| `wiki_pages` | 멤버 | editor | editor | owner |
+| `source_chunks` / `wiki_embeddings` / `wiki_links` | 멤버 | **없음** | **없음** | **없음** |
+| `prompt_templates` | 멤버 + 전역 | editor | editor | owner |
+| `jobs` | 멤버 | **없음** | **없음** | **없음** |
 
-**합격 기준:** 워크스페이스 A 멤버 토큰으로 B의 `wiki_pages`/`raw_sources`/`source_chunks`를 조회하면 **에러가 아니라 0행**. viewer 역할로 INSERT 시 정책 위반 에러.
+굵은 칸이 "멤버=SELECT / editor=INSERT·UPDATE / owner=DELETE" 기본 규칙에서 벗어난 곳이고, 이유는 각각 마이그레이션 주석과 `checklists.json` → `P1-SEC-01.deviations_from_plan`에 있습니다. 요약하면:
+
+- **`workspaces` UPDATE = owner** — 이 UPDATE는 곧 `owner_id` 이전(소유권 양도)입니다. editor에게 열면 editor가 스스로를 소유자로 만듭니다
+- **`workspace_members` 쓰기 = owner** — editor에게 INSERT를 열면 자신을 `owner` 역할 행으로 추가해 즉시 권한 상승이 됩니다
+- **파생 3종 읽기 전용** — 워커가 만드는 데이터입니다. 특히 `source_chunks` INSERT를 열면 editor가 원문에 없는 청크를 심어 **이중 Citation의 원문 측 인용을 위조**할 수 있습니다. 워커는 `service_role`(BYPASSRLS)이라 무영향
+- **`raw_sources` UPDATE 정책 없음** — "불변 원본 보존" 약속을 DB가 강제. 재처리는 워커 경로
+
+### 별도로 추가한 것
+
+- **`protect_owner_membership` 트리거** — 소유자가 자기 멤버십 행을 지우거나 역할을 낮추거나 `user_id`를 바꾸는 걸 차단합니다. `0001`이 "멤버 0명 워크스페이스"를 자동 등록 트리거로 막았는데, **등록된 뒤 지우면 같은 상태로 되돌아갑니다** (`owner_id`는 그대로인데 정작 그 사람이 관리 불가)
+- **`workspaces` SELECT에 `owner_id = auth.uid()` 조건** — `insert ... returning *`의 RETURNING은 SELECT 정책을 통과해야 하는데, 소유자를 멤버로 넣는 `0001`의 트리거는 **AFTER 트리거라 그 시점엔 멤버십 행이 없습니다.** 멤버십만으로 판정하면 워크스페이스 생성 자체가 실패합니다
+
+### API 계층이 알아야 할 것
+
+**`USING`에 걸리면 에러가 아니라 조용히 0행입니다.** viewer가 `update wiki_pages`를 하면 예외가 아니라 `rows=0`이 돌아옵니다(검증 12·13·23·27·37번). API는 **영향 행 0 = 403**으로 매핑해야 합니다. 반대로 `WITH CHECK` 위반은 `42501` 예외로 옵니다.
+
+---
+
+## 3d. 다음 작업: `P1-SEED-01` 프롬프트 템플릿 시드
+
+`supabase/migrations/0006_seed_prompts.sql`. 전역 기본 템플릿(`workspace_id IS NULL`) 5종 — `target_type='ask'` 4개(Technical Deep-Dive, Executive Summary, Action Items Extractor, FAQ & Guide Generator) + `target_type='compile'` 1개.
+
+`0001`의 partial unique index가 `is_default=true`를 `target_type`당 1개로 이미 강제하므로, 시드가 규칙을 어기면 마이그레이션이 실패합니다. `0004`가 전역 템플릿을 모든 로그인 사용자에게 읽히도록 해 뒀습니다.
+
+그 뒤로는 스키마 작업이 없습니다. `P0-INIT-01`(monorepo) → `P0-INIT-02`(FastAPI 스캐폴딩)부터 코드입니다.
 
 ---
 
@@ -207,7 +237,7 @@ docker exec -it supabase_db_NexusWiki psql -U postgres -d postgres
 
 ## 5. 나중에 반드시 물릴 함정들
 
-**RLS 무한 재귀 (`P1-SEC-01`)**
+**RLS 무한 재귀 (`P1-SEC-01`)** — ✅ `0004`에서 해결했습니다. 아래는 왜 그렇게 했는지의 기록입니다.
 `workspace_members`의 RLS 정책이 "내가 이 워크스페이스 멤버인가"를 확인하려고 `workspace_members`를 다시 조회하면 무한 재귀 에러가 납니다. `SECURITY DEFINER` 함수로 감싸서 끊어야 합니다. `stable`과 `set search_path = public`을 빠뜨리면 각각 성능 문제와 보안 취약점이 됩니다.
 
 ```sql
@@ -224,8 +254,22 @@ as $$ select exists (select 1 from workspace_members
 **질의 측 tsquery 생성 (`P2-BE-02`)** — `0002` 검증 중 실제로 밟은 지뢰입니다.
 bigram 문자열을 `to_tsquery`에 그대로 넣으면 `"한국 국어"`처럼 공백으로 이어져 **syntax error**가 납니다. `phraseto_tsquery('simple', bigram(q))`를 쓰세요. bigram들이 `<->`로 묶여 인접성까지 검사하므로 부분 문자열 매칭 의미가 정확히 보존됩니다. `plainto_tsquery`는 `&`로 묶여 순서가 뒤바뀐 오탐이 섞입니다.
 
-**벡터 검색의 사후 필터링 (`P2-BE-01`)**
-`where workspace_id = $1 order by embedding <=> $2 limit k`는 HNSW가 먼저 k개를 뽑고 그다음 워크스페이스를 거르므로 **결과가 k개보다 적게 나올 수 있습니다.** 검색 쿼리에서 `set local hnsw.iterative_scan = strict_order`를 켜세요 (로컬 pgvector 0.8.0 확인됨).
+**벡터 검색의 사후 필터링 (`P2-BE-01`)** — `0004` 검증에서 플랜으로 확인했습니다.
+`where workspace_id = $1 order by embedding <=> $2 limit k`는 HNSW가 먼저 k개를 뽑고 그다음 워크스페이스를 거르므로 **결과가 k개보다 적게 나올 수 있습니다.**
+
+더 고약한 건 **RLS 정책 자체가 같은 사후 필터로 동작한다**는 점입니다. 앱이 `workspace_id` 조건을 빼먹어도 격리는 되지만, 플랜은 이렇게 됩니다.
+
+```text
+Index Scan using source_chunks_embedding_idx
+  Order By: (embedding <=> ...)
+  Filter: is_workspace_member(workspace_id)
+  Rows Removed by Filter: 5      ← HNSW가 뽑은 후보의 절반이 여기서 증발
+```
+
+검색 쿼리는 **(1)** `where workspace_id = $1`을 명시하고 **(2)** `set local hnsw.iterative_scan = strict_order`를 켜세요 (로컬 pgvector 0.8.0 확인됨).
+
+**정책 위반이 에러가 아닐 때가 있습니다 (`P2-API-01`, `P2-QC-01`)**
+`USING`에 걸린 UPDATE/DELETE는 예외가 아니라 **조용히 0행**을 반환합니다. viewer가 위키를 수정하려 하면 에러 없이 "성공했는데 아무것도 안 바뀜"이 됩니다. API는 **영향 행 0 = 403**으로 매핑해야 합니다. `WITH CHECK` 위반(남의 워크스페이스로 쓰기)만 `42501` 예외로 옵니다.
 
 **잡은 at-least-once입니다 (`P2-JOB-01`, `P2-LLM-01`)**
 `reap_stale_jobs`의 타임아웃(기본 15분)이 정상 잡의 최장 실행 시간보다 짧으면, 살아 있는 워커의 잡을 뺏어 **같은 잡이 두 번 처리됩니다.** LLM 컴파일은 수 분이 걸릴 수 있습니다. 타임아웃을 넉넉히 두되, 그와 별개로 **모든 핸들러는 멱등해야 합니다** — 위키는 `(workspace_id, slug)` upsert, 청크는 `(raw_source_id, chunk_index)` upsert, 임베딩은 `(wiki_id, chunk_index)` upsert. 이 세 유니크 키가 `0002`에 있는 이유입니다.
@@ -259,7 +303,7 @@ cd /Users/zorba/projects/NexusWiki
 git log --oneline | head -3                   # 저장소는 이미 초기화됨
 docker ps --filter name=NexusWiki | head -3   # 스택 살아있나
 supabase start                                 # 없으면 기동
-supabase db reset                              # 0001~0003 재적용 확인
+supabase db reset                              # 0001~0004 재적용 확인
 ```
 
-그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-SEC-01`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
+그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-SEED-01`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.

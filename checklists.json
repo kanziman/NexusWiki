@@ -310,9 +310,44 @@
           ],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
+          "status": "done",
           "verification": "워크스페이스 A 멤버 토큰으로 워크스페이스 B의 wiki_pages/raw_sources/source_chunks를 조회하면 0행 반환(에러 아님). viewer 역할로 INSERT 시 정책 위반 에러",
-          "risk": "decisions.db_access = hybrid이므로 사용자 요청 경로는 RLS가 강제됩니다. 다만 워커와 마이그레이션은 service_role로 RLS를 우회하므로, 워커 코드에는 workspace_id 필터를 반드시 명시해야 합니다. P4-SEC-01에서 양쪽 경로를 모두 검증."
+          "risk": "decisions.db_access = hybrid이므로 사용자 요청 경로는 RLS가 강제됩니다. 다만 워커와 마이그레이션은 service_role로 RLS를 우회하므로, 워커 코드에는 workspace_id 필터를 반드시 명시해야 합니다. P4-SEC-01에서 양쪽 경로를 모두 검증.",
+          "completed_at": "2026-08-01",
+          "deviations_from_plan": [
+            "workspaces UPDATE를 editor가 아니라 owner로 제한. workspaces 행의 UPDATE는 곧 이름 변경과 owner_id 이전(소유권 양도)이라, editor에게 열면 editor가 스스로를 소유자로 만들 수 있습니다.",
+            "workspace_members 쓰기 전부를 owner로 제한. editor에게 INSERT를 열면 자신을 owner 역할 행으로 추가해 즉시 권한 상승이 가능합니다. 멤버 관리는 소유자 행위.",
+            "source_chunks/wiki_embeddings/wiki_links는 사용자 경로에서 읽기 전용(SELECT 정책만). 셋 다 워커가 만드는 파생 데이터이고 계획서에 사용자 쓰기 경로가 없습니다. 특히 source_chunks INSERT를 열면 editor가 원문에 없는 청크를 심어 '이중 Citation의 원문 측' 인용을 위조할 수 있습니다. 워커는 service_role(BYPASSRLS)이라 무영향.",
+            "raw_sources에 UPDATE 정책 없음 — '불변 원본 보존' 약속(decisions.original_file_retention)을 DB가 강제. 파서 개선 시 재처리는 워커 경로라 영향 없음.",
+            "workspaces SELECT 정책에 owner_id = auth.uid() 조건 추가. INSERT ... RETURNING의 RETURNING은 SELECT 정책을 통과해야 하는데, 소유자를 멤버로 넣는 0001의 트리거는 AFTER 트리거라 그 시점에 멤버십 행이 아직 없습니다. 멤버십만으로 판정하면 워크스페이스 생성 자체가 실패합니다.",
+            "protect_owner_membership 트리거 신설 — 소유자가 자기 멤버십 행을 삭제하거나 역할을 낮추거나 user_id를 바꾸는 것을 차단. 0001이 '멤버 0명 워크스페이스'를 자동 등록 트리거로 막았는데, 등록된 뒤 지우면 같은 상태(owner_id는 그대로인데 관리 불가)로 되돌아갑니다.",
+            "prompt_templates SELECT에 workspace_id IS NULL 조건 포함 — 전역 기본 템플릿(P1-SEED-01)이 아무에게도 안 보이면 '질문하기' 화면이 빈 채로 뜹니다. 쓰기는 workspace_id IS NOT NULL로 한정해 전역 템플릿 생성/수정을 차단.",
+            "모든 정책을 to authenticated로 한정. anon에는 정책이 하나도 없으므로 비로그인 요청은 계속 전면 거부입니다.",
+            "정책 내 auth.uid()를 (select auth.uid())로 감쌈 — initplan으로 한 번만 평가되게 하는 Supabase RLS 성능 관용구."
+          ],
+          "verification_result": {
+            "date": "2026-08-01",
+            "method": "워크스페이스 2개(A: owner/editor/viewer, B: owner) + 외부인/비멤버 픽스처로 38개 케이스 매트릭스",
+            "results": [
+              "38/38 PASS",
+              "합격 기준 1 — A 멤버 토큰으로 B의 wiki_pages/raw_sources/source_chunks 조회 시 에러가 아니라 0행 ✅",
+              "합격 기준 2 — viewer의 INSERT는 42501 정책 위반 에러 ✅",
+              "무한 재귀 없음 — viewer가 workspace_members 조회 시 42P17 발생하지 않음 (SECURITY DEFINER로 차단) ✅",
+              "권한 상승 차단 — editor가 자신을 owner로 추가(42501), 자기 역할 상향(0행) 모두 실패 ✅",
+              "소유자 멤버십 보호 — owner의 자기 멤버십 삭제/강등이 트리거로 차단(P0001) ✅",
+              "교차 워크스페이스 쓰기 차단 — B에 INSERT(42501), 페이지를 B로 이동(with check 42501) ✅",
+              "파생 데이터 위조 차단 — editor의 source_chunks/wiki_links INSERT 42501 ✅",
+              "원본 불변 — editor의 raw_sources UPDATE 0행 ✅",
+              "INSERT ... RETURNING으로 워크스페이스 생성 성공 (AFTER 트리거 타이밍 함정 회피 확인) ✅",
+              "전역 프롬프트 템플릿은 비멤버에게도 보이고(1행), 전역 템플릿 생성은 42501 ✅",
+              "jobs는 읽기만 — INSERT 42501, UPDATE 0행, claim_job() 호출 42501 ✅",
+              "anon 전면 거부 0행, service_role BYPASSRLS로 전체 조회 정상 ✅",
+              "9개 테이블 전부 RLS on + 정책 부여 완료 (정책 0개 테이블 없음) ✅",
+              "헬퍼 3종 전부 security definer + stable + search_path=public 확인 ✅",
+              "RLS 적용 상태에서 벡터 검색이 여전히 HNSW 인덱스 사용 (source_chunks_embedding_idx) ✅"
+            ]
+          },
+          "notes": "검증 중 발견: RLS 정책 자체가 HNSW 인덱스 스캔의 사후 필터로 동작합니다(플랜에 'Filter: is_workspace_member(workspace_id), Rows Removed by Filter: 5'). 즉 앱이 where workspace_id를 빠뜨려도 격리는 되지만, HNSW가 뽑은 k개 중 남의 워크스페이스 행이 걸러지면서 결과가 k개보다 적게 나올 수 있습니다. P2-BE-01은 (1) where workspace_id = $1을 명시하고 (2) set local hnsw.iterative_scan = strict_order를 켜야 합니다."
         },
         {
           "id": "P1-STO-01",
