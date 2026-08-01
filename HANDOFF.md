@@ -1,8 +1,8 @@
 # NexusWiki — 세션 핸드오프
 
 **최종 갱신:** 2026-08-01
-**단계:** Phase 1 (데이터 계층) 진행 중 · 32개 태스크 중 2개 완료
-**다음 작업:** `P1-DB-03` jobs 테이블
+**단계:** Phase 1 (데이터 계층) 진행 중 · 32개 태스크 중 3개 완료
+**다음 작업:** `P1-SEC-01` RLS 정책 — Phase 2 전체의 병목
 
 ---
 
@@ -12,7 +12,7 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 
 이전 세션에서 한 일은 두 가지입니다. **(1)** 원래 계획서 기반 체크리스트를 리뷰해 핵심 기능 3개가 데이터 모델에 대응물이 없다는 걸 찾아내고, 인터뷰로 9개 결정을 확정한 뒤 체크리스트를 전면 재작성(19 → 32 태스크). **(2)** 로컬 Supabase 스택을 띄우고 코어 스키마(`0001`)를 적용·검증.
 
-이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`)를 작성·적용·검증했습니다. 5-Way 검색 채널 5개가 전부 물리적으로 존재하게 됐습니다.
+이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`)와 잡 큐(`0003`)를 작성·적용·검증했습니다. 5-Way 검색 채널 5개가 전부 물리적으로 존재하고, 워커가 붙을 큐도 준비됐습니다. **스키마 레이어에서 남은 건 RLS 정책 하나입니다.**
 
 ---
 
@@ -50,13 +50,14 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 ```
 [x] P1-DB-01   코어 스키마          — 적용·검증 완료
 [x] P1-DB-02   검색 스키마          — 적용·검증 완료 (EXPLAIN 5채널 전부 인덱스 사용 확인)
+[x] P1-DB-03   jobs 테이블 + 큐 함수 — 적용·검증 완료 (8워커 400잡 동시성 통과)
 [~] P0-INIT-00 Supabase 셋업        — 로컬만 완료, 클라우드 미생성
 [ ] P0-INIT-01 monorepo 구조        — 건너뜀 (마이그레이션은 이에 의존 안 함)
-[ ] P1-DB-03   jobs 테이블          ← 다음
-[ ] P1-SEC-01  RLS 정책             ← Phase 2 전체의 병목
+[ ] P1-SEC-01  RLS 정책             ← 다음. Phase 2 전체의 병목
+[ ] P1-SEED-01 프롬프트 템플릿 시드   (0006, P1-DB-01에만 의존하므로 언제든 가능)
 ```
 
-RLS까지 남은 추정: **2.5일**
+RLS까지 남은 추정: **1일**
 
 ### 디스크상의 파일
 
@@ -65,6 +66,7 @@ checklists.json                        32개 태스크 + decisions + open_questi
 supabase/config.toml                   포트를 544xx로 수정함 (§4 참조)
 supabase/migrations/0001_core_schema.sql
 supabase/migrations/0002_search_schema.sql
+supabase/migrations/0003_jobs.sql
 HANDOFF.md                             이 문서
 ```
 
@@ -79,7 +81,7 @@ HANDOFF.md                             이 문서
 
 ---
 
-## 3. 방금 끝난 것: `P1-DB-02` 검색 스키마
+## 3. 방금 끝난 것 (1): `P1-DB-02` 검색 스키마
 
 `supabase/migrations/0002_search_schema.sql`. 2000행을 시드해 `EXPLAIN ANALYZE` 13종으로 검증했습니다. 5-Way 채널 5개가 전부 인덱스를 탑니다.
 
@@ -105,11 +107,66 @@ red link 삽입/해소/복귀, 교차 테넌트 차단, 슬라이스 정합성 2
 
 ---
 
-## 3b. 다음 작업: `P1-DB-03` jobs 테이블
+## 3b. 방금 끝난 것 (2): `P1-DB-03` 잡 큐
 
-`supabase/migrations/0003_jobs.sql`. 상세는 `checklists.json`의 `P1-DB-03`. 설계 근거는 `decisions.job_queue` (Postgres 테이블 + `FOR UPDATE SKIP LOCKED` 폴링).
+`supabase/migrations/0003_jobs.sql`. 테이블 + 큐 조작 함수 4종.
 
-워커 폴링 쿼리가 `select ... for update skip locked limit 1`을 부분 인덱스(`where status = 'pending'`)로 타는지 `EXPLAIN`으로 확인하세요. `0002`와 같은 이유로 `workspace_id` 컬럼을 두고, 가능하면 대상 테이블과 복합 FK로 테넌트 경계를 묶으세요.
+### 상태 전이
+
+```text
+  queued ──claim──> running ──complete──> succeeded
+    ^                  │
+    │                  ├──fail (attempts < max)──> failed ──run_after 경과──┐
+    │                  └──fail (attempts >= max)──> dead                    │
+    └────────────────────────── reap (락 타임아웃) ───────────────────────────┘
+```
+
+`failed`는 종착점이 아니라 **"직전 시도 실패, 백오프 후 재시도 예정"** 입니다. 사람이 손대야 하는 종착점은 `dead` 하나뿐. 둘을 나눠 두면 프론트가 "3번 중 2번째 실패, 4분 후 재시도"를 그대로 보여줄 수 있습니다.
+
+### 워커(`P2-JOB-01`)가 쓸 인터페이스
+
+```sql
+claim_job(worker_id, types[])                  -- 점유. SKIP LOCKED. 없으면 0행
+complete_job(job_id)                           -- succeeded
+fail_job(job_id, error, backoff, max_backoff)  -- 재시도 여지 있으면 failed+백오프, 없으면 dead
+reap_stale_jobs(timeout)                       -- 락 타임아웃 잡을 queued로 회수
+```
+
+⚠️ **`jobs`를 직접 UPDATE하지 마세요.** 락 일관성 CHECK와 `attempts` 회계가 함수 안에 있습니다. 네 함수 모두 `service_role` 전용이며 `anon`/`authenticated`의 EXECUTE는 회수해 뒀습니다.
+
+### 검증
+
+5000행 시드 후 폴링 쿼리가 `jobs_poll_idx` 부분 인덱스를 타는 것 확인. 기능 10종(백오프 재예약, `max_attempts` 소진 → dead, 락 회수, 제약 4종, 권한) 통과.
+
+동시성 — 이게 이 태스크의 핵심 합격 기준이었습니다.
+
+- 잡 2개 / 워커 2개 → 서로 다른 잡 점유
+- 잡 1개 / 워커 2개 → 두 번째 워커가 **172ms 만에 빈손 반환** (첫 워커의 5초 락에 블로킹되지 않음)
+- **8워커 × 400잡 → `sum(attempts) = 400`.** 모든 잡이 정확히 1회씩 점유됨. 잔여 락 0행, 중복 처리 0건
+
+### 원안에서 바꾼 것 (근거는 `checklists.json` → `P1-DB-03.deviations_from_plan`)
+
+- **`run_after` 추가** — 백오프 없이 재시도하면 워커가 LLM/임베딩 API를 타이트 루프로 때립니다. 기본값이 `now()`라 신규 잡은 즉시 대상이자 FIFO
+- **`attempts`를 fail이 아니라 claim 시점에 증가** — 워커를 죽이는 독약 잡이 무한 루프를 돌지 않습니다 (죽어도 reap 후 재시도에서 소진)
+- **`jobs_lock_consistency` CHECK** — `running`이면 락 필수, 아니면 NULL 필수. 완료/회수가 락을 안 지우고 빠져나가는 버그를 DB가 막습니다
+- **`type`에 CHECK 열거를 걸지 않음** — `0001`/`0002`의 하우스 스타일과 유일하게 다른 지점입니다. 계획서가 명시하는 잡 종류는 `compile` 하나뿐이고 Phase 2에서 계속 바뀝니다. 대신 워커가 미등록 type을 즉시 `dead` + `last_error`로 보내야 합니다
+- **큐 함수의 `anon`/`authenticated` EXECUTE 회수** — Supabase는 public 스키마 함수에 기본 실행 권한을 줍니다. 놔두면 PostgREST `/rpc/`로 남의 잡을 점유·종료할 수 있습니다
+
+---
+
+## 3c. 다음 작업: `P1-SEC-01` RLS 정책
+
+`supabase/migrations/0004_rls_policies.sql`. **Phase 2 전체의 병목이자 Phase 1의 마지막 스키마 작업입니다.**
+
+지금 `0001`~`0003`의 **9개 테이블 전부가 RLS 켜짐 + 정책 0개 = 전면 거부** 상태입니다. 이 파일이 들어가기 전까지 사용자 JWT로는 아무것도 못 읽습니다.
+
+- `is_workspace_member(ws_id)` / `workspace_role(ws_id)`를 `SECURITY DEFINER` + `STABLE` + `SET search_path = public`으로 정의하고 모든 정책이 이걸 호출 (§5의 무한 재귀 함정 — 스니펫 있음)
+- 멤버면 SELECT, editor 이상 INSERT/UPDATE, owner만 DELETE
+- `jobs`는 SELECT 정책만 (생성/전이는 전부 `service_role` 경로)
+- `prompt_templates`는 `workspace_id IS NULL`(전역 기본)도 읽히게 해야 합니다 — 빠뜨리기 쉬운 지점
+- `source_chunks`/`wiki_embeddings`/`wiki_links`는 `workspace_id`를 직접 들고 있으므로 조인 없이 정책을 쓸 수 있습니다 (`0002`에서 비정규화해 둔 이유 중 하나)
+
+**합격 기준:** 워크스페이스 A 멤버 토큰으로 B의 `wiki_pages`/`raw_sources`/`source_chunks`를 조회하면 **에러가 아니라 0행**. viewer 역할로 INSERT 시 정책 위반 에러.
 
 ---
 
@@ -170,6 +227,9 @@ bigram 문자열을 `to_tsquery`에 그대로 넣으면 `"한국 국어"`처럼 
 **벡터 검색의 사후 필터링 (`P2-BE-01`)**
 `where workspace_id = $1 order by embedding <=> $2 limit k`는 HNSW가 먼저 k개를 뽑고 그다음 워크스페이스를 거르므로 **결과가 k개보다 적게 나올 수 있습니다.** 검색 쿼리에서 `set local hnsw.iterative_scan = strict_order`를 켜세요 (로컬 pgvector 0.8.0 확인됨).
 
+**잡은 at-least-once입니다 (`P2-JOB-01`, `P2-LLM-01`)**
+`reap_stale_jobs`의 타임아웃(기본 15분)이 정상 잡의 최장 실행 시간보다 짧으면, 살아 있는 워커의 잡을 뺏어 **같은 잡이 두 번 처리됩니다.** LLM 컴파일은 수 분이 걸릴 수 있습니다. 타임아웃을 넉넉히 두되, 그와 별개로 **모든 핸들러는 멱등해야 합니다** — 위키는 `(workspace_id, slug)` upsert, 청크는 `(raw_source_id, chunk_index)` upsert, 임베딩은 `(wiki_id, chunk_index)` upsert. 이 세 유니크 키가 `0002`에 있는 이유입니다.
+
 **워커의 `service_role` 우회 (`P1-SEC-01`, `P4-SEC-01`)**
 사용자 요청 경로는 JWT라 RLS가 지켜주지만, **워커는 `service_role`이라 RLS를 우회합니다.** 워커 코드에는 `workspace_id` 필터를 반드시 명시해야 합니다.
 
@@ -199,7 +259,7 @@ cd /Users/zorba/projects/NexusWiki
 git log --oneline | head -3                   # 저장소는 이미 초기화됨
 docker ps --filter name=NexusWiki | head -3   # 스택 살아있나
 supabase start                                 # 없으면 기동
-supabase db reset                              # 0001~0002 재적용 확인
+supabase db reset                              # 0001~0003 재적용 확인
 ```
 
-그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-DB-03`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
+그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-SEC-01`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
