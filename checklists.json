@@ -1,0 +1,588 @@
+{
+  "title": "NexusWiki Task Checklists",
+  "project_name": "NexusWiki (Cairni-style Living Wiki SaaS)",
+  "source_plan": "/Users/zorba/.gemini/antigravity-ide/brain/cd4e9e77-14f6-441b-90b0-c7953aa0abea/implementation_plan.md",
+  "created_at": "2026-07-31T23:27:15+09:00",
+  "updated_at": "2026-08-01T00:00:00+09:00",
+  "revision": 2,
+  "_notes": [
+    "summary 집계 필드는 제거했습니다. status가 바뀌면 즉시 stale해지는 파생값이라, 필요 시 조회 시점에 계산하세요.",
+    "$schema 선언도 제거했습니다. 이 파일은 JSON Schema가 아니라 데이터입니다.",
+    "각 태스크의 verification은 '통과/불통과를 기계적으로 판정할 수 있는 기준'으로 작성했습니다."
+  ],
+
+  "decisions": {
+    "tenancy": {
+      "value": "team-first",
+      "rationale": "팀 워크스페이스가 1차 타깃. workspace_members + 역할 기반 RLS가 필수이며, disputed(지식 충돌 보존) 기능이 의미를 갖습니다."
+    },
+    "graph_db": {
+      "value": "none (Postgres wiki_links + recursive CTE)",
+      "rationale": "Neo4j의 고유 가치는 GDS 그래프 알고리즘인데 Aura 기본 티어엔 포함되지 않음. 이 규모(위키 10^3~10^4)에서 순회 성능 이점 없음. 팀 모드에서는 Neo4j에 RLS가 없어 격리를 앱 코드가 전담해야 하는 보안 부담까지 추가됨. 필요해지면 단방향 ETL로 나중에 추가 가능."
+    },
+    "lexical_search": {
+      "value": "app-layer bigram tokenizer + tsvector('simple')",
+      "rationale": "소스가 한국어 위주. Postgres 기본 FTS는 형태소 분석기가 없어 조사 결합형을 못 잡음. pg_bigm/pgroonga는 Supabase 미제공. bigram은 외부 의존성 0이고 사내 약어·프로젝트명·신조어가 사전 부재로 누락되지 않음. Kiwi 형태소 분석은 추후 업그레이드 경로."
+    },
+    "lens_filter": {
+      "value": "wiki_pages.category 재사용",
+      "rationale": "렌즈 라벨을 [전체]/[개념]/[엔티티]/[가이드]/[맵]으로 정의. 스키마 변경 0. tags 테이블은 MVP 이후 검토."
+    },
+    "original_file_retention": {
+      "value": "Supabase Storage",
+      "rationale": "'불변 원본 보존' 약속을 실제로 지키고, 파서 개선 시 재처리 경로를 확보. Citation에서 원본 다운로드 제공 가능."
+    },
+    "llm": {
+      "value": "OpenRouter 경유, 모델 ID는 환경변수 LLM_MODEL",
+      "default_model": "claude-sonnet-4-6",
+      "openrouter_slug": "TODO: OpenRouter 모델 슬러그 실제 값 확인 필요 (anthropic/claude-sonnet-4.6 형태로 추정)",
+      "structured_output": "프롬프트에 JSON 스키마 명시 + Pydantic 검증 + 실패 시 에러 피드백 재시도(최대 3회)",
+      "rationale": "OpenRouter 경유 시 Anthropic 네이티브 output_config.format과 프롬프트 캐싱을 동일하게 쓸 수 없음. 공급사 중립적인 검증+재시도 방식으로 스키마를 보장."
+    },
+    "job_queue": {
+      "value": "Postgres jobs 테이블 + 워커 폴링 (FOR UPDATE SKIP LOCKED)",
+      "rationale": "새 인프라 0. 잡 상태를 그대로 프론트에 노출 가능. 재시도/데드레터가 투명."
+    },
+    "deployment": {
+      "value": "Railway",
+      "detail": "단일 프로젝트에 api(웹) + worker(상주) 두 서비스. Hobby $5/월은 워크스페이스 단위 구독이며 $5 사용량 크레딧 포함. Usage Limit을 걸어 비용 폭주 방지.",
+      "alternatives_considered": "Fly.io(~$6.5/월, 최저가·Tokyo 리전, Dockerfile 직접 관리) / Render($14/월 고정, Web+Worker 개념 분리)"
+    },
+    "db_access": {
+      "value": "hybrid — 사용자 요청 경로는 요청자 JWT, 워커/마이그레이션만 service_role",
+      "rationale": "service_role 키는 RLS를 완전히 우회합니다. 백엔드가 이 키만 쓰면 워크스페이스 격리가 전적으로 애플리케이션 코드 책임이 되고, 엔드포인트 한 곳에서 workspace_id 필터를 빠뜨리면 그대로 데이터 유출입니다. 사용자 요청 경로에서 요청자 JWT로 쿼리하면 DB가 격리를 강제하므로 코드 실수를 정책이 잡아냅니다.",
+      "implication": "Supabase 클라이언트 팩토리를 두 종류로 분리해야 합니다: user_client(access_token) / service_client(). 워커는 사용자 컨텍스트가 없으므로 service_client + 명시적 workspace_id 필터를 씁니다."
+    },
+    "search_channels_5way": [
+      "1. wiki_embeddings 벡터 유사도 (pgvector HNSW)",
+      "2. source_chunks 벡터 유사도 (pgvector HNSW)",
+      "3. wiki_pages bigram tsvector 어휘 검색",
+      "4. source_chunks bigram tsvector 어휘 검색",
+      "5. wiki_links N-hop 그래프 확장 (recursive CTE)"
+    ]
+  },
+
+  "open_questions": [
+    "OpenRouter의 정확한 모델 슬러그 확인 (P2-LLM-01 착수 전)",
+    "Supabase 프로젝트 리전 (서울 ap-northeast-2 권장) 및 Railway 리전 조합에 따른 왕복 지연 측정",
+    "청킹 파라미터(토큰 수/오버랩) 초기값 — P2-ING-02에서 실측 후 확정",
+    "워크스페이스별 월 LLM 비용 상한값 — P4-OPS-01에서 확정"
+  ],
+
+  "phases": [
+    {
+      "phase_id": "phase_0",
+      "name": "Phase 0: 프로젝트 부트스트랩",
+      "description": "monorepo 구조, 백엔드/프론트엔드 스캐폴딩, 설정 관리, Railway 배포 파이프라인. 기존 계획서에 통째로 누락돼 있던 단계.",
+      "tasks": [
+        {
+          "id": "P0-INIT-00",
+          "category": "Infrastructure",
+          "title": "Supabase 프로젝트 생성 및 로컬 개발 스택 구성",
+          "description": "Supabase 프로젝트 생성(리전 ap-northeast-2 서울 권장), CLI 설치 및 supabase init/link, Docker 기반 로컬 스택 기동. RLS 정책은 클라우드에서 직접 디버깅하기 매우 어려우므로 로컬에서 supabase db reset을 반복하며 다듬은 뒤 push하는 흐름을 확립합니다.",
+          "target_files": ["supabase/config.toml", ".env.local"],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "in_progress",
+          "verification": "supabase start 후 로컬 Studio(localhost:54423) 접속 가능. supabase db reset이 에러 없이 완료. supabase link 상태에서 supabase db push가 클라우드에 반영됨",
+          "notes": "이전 리비전에서 통째로 누락돼 있던 태스크입니다. 모든 DB 작업의 실질적 0번입니다. [진행상황] supabase init + 로컬 스택 기동 완료. 클라우드 프로젝트 생성 및 link는 미완 — 배포(P0-INIT-04) 시점까지 미뤄도 무방.",
+          "local_ports": {
+            "_why": "같은 머신에서 zettlink 프로젝트의 Supabase 스택이 기본 포트(54321-54324, 54327)를 점유 중이라 544xx 대역으로 이동. 두 스택 동시 실행 가능.",
+            "api": 54421,
+            "db": 54422,
+            "shadow_db": 54420,
+            "studio": 54423,
+            "inbucket": 54424,
+            "analytics": 54427,
+            "pooler": 54429
+          }
+        },
+        {
+          "id": "P0-INIT-01",
+          "category": "Repo Setup",
+          "title": "monorepo 구조 및 공통 툴링 구성",
+          "description": "apps/fastapi-backend, apps/dashboard, supabase/ 디렉토리 구조 확정. 루트 README, .gitignore, .editorconfig, pre-commit(ruff+prettier) 구성.",
+          "target_files": ["README.md", ".gitignore", ".pre-commit-config.yaml", "package.json"],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "루트에서 pre-commit run --all-files가 통과하고, apps/ 하위 두 앱이 각자 독립적으로 설치·실행 가능"
+        },
+        {
+          "id": "P0-INIT-02",
+          "category": "Backend Scaffold",
+          "title": "FastAPI 프로젝트 스캐폴딩 및 설정 관리",
+          "description": "pyproject.toml(uv 또는 poetry), pydantic-settings 기반 Settings 클래스, .env.example, 구조화 로깅 설정. Supabase 클라이언트 팩토리는 decisions.db_access=hybrid에 따라 두 종류로 분리: user_client(access_token) — 요청자 JWT로 RLS 적용, service_client() — 워커 전용 RLS 우회. 필수 환경변수: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, OPENROUTER_API_KEY, LLM_MODEL, OPENAI_API_KEY(임베딩).",
+          "target_files": [
+            "apps/fastapi-backend/pyproject.toml",
+            "apps/fastapi-backend/app/config.py",
+            "apps/fastapi-backend/app/db.py",
+            "apps/fastapi-backend/.env.example"
+          ],
+          "depends_on": ["P0-INIT-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "환경변수 하나를 누락시키면 부팅 시 어떤 키가 없는지 명시한 에러로 즉시 실패. .env.example의 모든 키가 config.py에 정의돼 있음"
+        },
+        {
+          "id": "P0-INIT-03",
+          "category": "Frontend Scaffold",
+          "title": "Next.js 15 앱 스캐폴딩 및 테스트 러너 구성",
+          "description": "App Router + Tailwind + TypeScript strict. Supabase 브라우저/서버 클라이언트, API 베이스 URL 환경변수. 테스트 러너는 Vitest + Testing Library로 확정.",
+          "target_files": [
+            "apps/dashboard/package.json",
+            "apps/dashboard/vitest.config.ts",
+            "apps/dashboard/lib/supabase.ts",
+            "apps/dashboard/.env.example"
+          ],
+          "depends_on": ["P0-INIT-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "pnpm dev로 기동, pnpm test가 샘플 테스트 1건 통과, tsc --noEmit 에러 0"
+        },
+        {
+          "id": "P0-INIT-04",
+          "category": "Deployment",
+          "title": "Railway 배포 파이프라인 (api + worker 분리)",
+          "description": "Railway 프로젝트에 api(웹) / worker(상주) 두 서비스 구성. GitHub 연동 자동 배포, 환경변수 주입, Usage Limit 설정. 프론트는 Vercel.",
+          "target_files": ["railway.json", "apps/fastapi-backend/Procfile"],
+          "depends_on": ["P0-INIT-02"],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "main 푸시 시 두 서비스가 각각 자동 배포되고, api의 /health가 공개 URL에서 200을 반환. worker 로그에 폴링 시작 메시지 출력",
+          "risk": "Railway는 사용량 과금이므로 워커 폴링 주기를 너무 짧게 잡으면 비용이 증가. 초기 폴링 간격 5초 + 지수 백오프 권장"
+        }
+      ]
+    },
+
+    {
+      "phase_id": "phase_1",
+      "name": "Phase 1: 데이터 계층 (Supabase Postgres + Storage)",
+      "description": "코어 스키마, 검색 스키마(벡터+bigram), 잡 큐, 멀티테넌트 RLS, 원본 파일 스토리지, 프롬프트 시드.",
+      "tasks": [
+        {
+          "id": "P1-DB-01",
+          "category": "Database Schema",
+          "title": "코어 스키마 마이그레이션 (멀티테넌시 포함)",
+          "description": "workspaces, workspace_members(role: owner|editor|viewer), raw_sources, wiki_pages, prompt_templates DDL 작성. raw_sources/wiki_pages에 created_by uuid REFERENCES auth.users, raw_sources에 content_hash text(멱등성 키), storage_path/mime_type/byte_size 컬럼 포함.",
+          "target_files": ["supabase/migrations/0001_core_schema.sql"],
+          "depends_on": ["P0-INIT-00", "P0-INIT-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "completed",
+          "verification": "마이그레이션 적용 후 5개 테이블 생성. workspace_members(workspace_id, user_id) 복합 PK, role CHECK 위반 INSERT가 거부됨. raw_sources에 (workspace_id, content_hash) UNIQUE 제약 존재",
+          "notes": "마이그레이션 번호를 0003 → 0001로 정정. 신규 프로젝트라 선행 마이그레이션이 없습니다. [완료 2026-08-01] 로컬 스택에서 적용·검증 완료: 테이블 5, RLS 5/5 활성(정책 0=전면거부), 트리거 3, UNIQUE 2. 소유자 자동 멤버 트리거·CHECK 제약·전역 기본 프롬프트 유일성·authenticated 역할 조회 0행 모두 실측 확인. P0-INIT-01(monorepo 구조)보다 먼저 진행했으나 마이그레이션 파일은 repo 구조에 의존하지 않아 문제 없음.",
+          "deviations_from_plan": [
+            "text PK → uuid PK + gen_random_uuid(): auth.users.id가 uuid라 FK 타입 정합성 확보, 앱 측 ID 생성 불필요",
+            "wiki_pages.related_wikis jsonb 제거 → 0002의 wiki_links로 정규화. jsonb 배열은 인덱스/조인이 불가해 5번째 검색 채널(N-hop)에 사용할 수 없음",
+            "workspaces에 owner_id 추가: 원안에 소유자 개념이 없어 RLS 기준점이 부재했음",
+            "소유자 자동 멤버 등록 트리거 추가: 멤버 0명 워크스페이스는 RLS 하에서 영구히 접근 불가가 되므로 앱 코드가 아닌 DB가 보장",
+            "RLS를 0001에서 선행 활성화(정책 없음=전면거부): 0002~0003 사이 테이블이 anon 키에 노출되는 창 제거",
+            "source_type에 'url' 추가, prompt_templates.is_default 유일성을 partial unique index로 강제"
+          ]
+        },
+        {
+          "id": "P1-DB-02",
+          "category": "Search Schema",
+          "title": "검색 스키마: source_chunks / wiki_embeddings / wiki_links + 인덱스",
+          "description": "source_chunks(raw_source_id, workspace_id, chunk_index, content, char_start, char_end, embedding vector(1536), search_tsv tsvector) 신설 — 이중 Citation의 '원문 청크' 측 데이터. wiki_embeddings, wiki_links(workspace_id, from_wiki_id, target_slug, to_wiki_id nullable, resolved bool) 생성. pgvector HNSW(vector_cosine_ops) 인덱스 2개, search_tsv GIN 인덱스 2개, wiki_links 양방향 조회 인덱스.",
+          "target_files": ["supabase/migrations/0002_search_schema.sql"],
+          "depends_on": ["P1-DB-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "EXPLAIN ANALYZE로 벡터 유사도 쿼리가 HNSW 인덱스를 타고, tsvector 쿼리가 GIN 인덱스를 탐. wiki_links에 to_wiki_id IS NULL인 미해결 링크(red link) 행이 삽입 가능",
+          "notes": "search_tsv는 generated column이 아니라 애플리케이션이 bigram 토크나이즈한 문자열을 to_tsvector('simple', ...)로 넣습니다. DB가 자동 생성하면 한국어가 공백 단위로만 쪼개져 무용해집니다."
+        },
+        {
+          "id": "P1-DB-03",
+          "category": "Job Queue",
+          "title": "jobs 테이블 및 큐 조작 함수",
+          "description": "jobs(id, workspace_id, type, status: queued|running|succeeded|failed|dead, payload jsonb, attempts int, max_attempts int, last_error text, locked_at, locked_by, created_at, updated_at). status/created_at 부분 인덱스로 폴링 최적화.",
+          "target_files": ["supabase/migrations/0003_jobs.sql"],
+          "depends_on": ["P1-DB-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "두 세션이 동시에 SELECT ... FOR UPDATE SKIP LOCKED를 실행했을 때 같은 잡을 집어가지 않음을 psql 두 창으로 확인"
+        },
+        {
+          "id": "P1-SEC-01",
+          "category": "Security / RLS",
+          "title": "멀티테넌트 RLS 정책 작성",
+          "description": "0001에서 deny-by-default로 켜둔 RLS에 실제 정책을 부여. is_workspace_member(ws_id) / workspace_role(ws_id)를 SECURITY DEFINER + STABLE + SET search_path 함수로 정의하고 모든 정책이 이를 호출하게 함 — workspace_members 정책이 workspace_members를 다시 조회하면 무한 재귀 에러가 나므로 SECURITY DEFINER로 끊는 것이 필수. 멤버면 SELECT, editor 이상 INSERT/UPDATE, owner만 DELETE.",
+          "target_files": ["supabase/migrations/0004_rls_policies.sql"],
+          "depends_on": ["P1-DB-01", "P1-DB-02", "P1-DB-03"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "워크스페이스 A 멤버 토큰으로 워크스페이스 B의 wiki_pages/raw_sources/source_chunks를 조회하면 0행 반환(에러 아님). viewer 역할로 INSERT 시 정책 위반 에러",
+          "risk": "decisions.db_access = hybrid이므로 사용자 요청 경로는 RLS가 강제됩니다. 다만 워커와 마이그레이션은 service_role로 RLS를 우회하므로, 워커 코드에는 workspace_id 필터를 반드시 명시해야 합니다. P4-SEC-01에서 양쪽 경로를 모두 검증."
+        },
+        {
+          "id": "P1-STO-01",
+          "category": "Storage",
+          "title": "Supabase Storage 버킷 및 접근 정책",
+          "description": "sources 버킷 생성(비공개). 경로 규칙 {workspace_id}/{raw_source_id}/{filename}. 멤버십 기반 Storage RLS 정책. 서명 URL 발급 유효기간 정책 확정.",
+          "target_files": ["supabase/migrations/0005_storage.sql"],
+          "depends_on": ["P1-SEC-01"],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "비멤버 토큰으로 서명 URL 요청 시 거부. 멤버 토큰으로 발급한 URL로 원본 PDF 다운로드 성공, 만료 후 403"
+        },
+        {
+          "id": "P1-SEED-01",
+          "category": "Seed Data",
+          "title": "상황별 프롬프트 템플릿 시드",
+          "description": "Technical Deep-Dive, Executive Summary, Action Items Extractor, FAQ & Guide Generator 4종(target_type='ask') + 위키 컴파일용 시스템 프롬프트 1종(target_type='compile') 시드. workspace_id NULL = 전역 기본 템플릿.",
+          "target_files": ["supabase/migrations/0006_seed_prompts.sql"],
+          "depends_on": ["P1-DB-01"],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "prompt_templates에서 target_type='ask' 4행, 'compile' 1행 조회. is_default=true인 행이 target_type별로 정확히 1개"
+        }
+      ]
+    },
+
+    {
+      "phase_id": "phase_2",
+      "name": "Phase 2: FastAPI 백엔드",
+      "description": "수집 파이프라인, 잡 워커, LLM 컴파일러, 링크 그래프, 임베딩, 5-Way 하이브리드 검색, 읽기 API, 품질 통제.",
+      "tasks": [
+        {
+          "id": "P2-BE-01",
+          "category": "FastAPI Core",
+          "title": "엔트리포인트, 인증 미들웨어, 워크스페이스 컨텍스트",
+          "description": "Uvicorn 기동, CORS, Supabase JWT 검증 의존성, 요청별 workspace_id 해석 및 멤버십 확인, /health, 구조화 예외 핸들러. 라우터는 원칙적으로 user_client(요청자 JWT)를 주입받아 RLS가 적용되게 하고, service_client 사용은 예외로 취급해 코드 리뷰에서 눈에 띄게 합니다.",
+          "target_files": [
+            "apps/fastapi-backend/main.py",
+            "apps/fastapi-backend/app/auth.py",
+            "apps/fastapi-backend/app/deps.py"
+          ],
+          "depends_on": ["P0-INIT-02", "P1-SEC-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "GET /health → 200. 토큰 없이 보호 엔드포인트 호출 → 401. 비멤버 워크스페이스 ID로 호출 → 403. /docs 접근 가능"
+        },
+        {
+          "id": "P2-BE-02",
+          "category": "Search Utility",
+          "title": "한국어 bigram 토크나이저 (색인/질의 공용 모듈)",
+          "description": "한글은 2글자 bigram으로, 라틴/숫자는 단어 단위로 분리하는 토크나이저. 색인 시와 질의 시 반드시 동일 함수를 호출하도록 단일 모듈로 제공. tsquery 안전 이스케이프 포함.",
+          "target_files": [
+            "apps/fastapi-backend/services/tokenizer.py",
+            "apps/fastapi-backend/tests/test_tokenizer.py"
+          ],
+          "depends_on": ["P0-INIT-02"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "'지식관리를' → ['지식','식관','관리','리를'] 형태로 분해. 한영 혼합('KPT-2 회고')에서 'KPT-2'가 통째로 보존됨. 색인 토큰과 질의 토큰이 동일 입력에 대해 일치하는 property test 통과",
+          "risk": "색인과 질의에서 토크나이저 버전이 어긋나면 검색이 조용히 실패합니다. 토크나이저 변경 시 전체 재색인이 필요하므로 버전 상수를 두고 마이그레이션 경로를 명시하세요."
+        },
+        {
+          "id": "P2-ING-01",
+          "category": "Source Ingestion",
+          "title": "소스 수집 API (파일/URL/텍스트) + Storage 업로드 + 잡 생성",
+          "description": "POST /api/sources 로 파일 업로드·URL·원문 텍스트 수집. 원본을 Storage에 저장하고 raw_sources 행 생성 후 compile 잡을 enqueue. content_hash 기반 중복 검사. 파일 크기 상한, URL 수집 시 SSRF 방어(사설 IP 대역 차단, 리다이렉트 제한).",
+          "target_files": [
+            "apps/fastapi-backend/services/ingest.py",
+            "apps/fastapi-backend/routers/sources.py"
+          ],
+          "depends_on": ["P2-BE-01", "P1-STO-01", "P1-DB-03"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "PDF/URL/텍스트 각각 업로드 시 raw_sources 1행 + Storage 객체 1개 + jobs 1행 생성, 202와 job_id 반환. 동일 파일 재업로드 시 새 행 없이 기존 raw_source_id 반환. http://169.254.169.254 등 사설 대역 URL은 400으로 거부"
+        },
+        {
+          "id": "P2-ING-02",
+          "category": "Parsing & Chunking",
+          "title": "문서 파서 및 청킹 파이프라인",
+          "description": "PDF(pypdf), Markdown, TXT, HTML(웹 URL) 텍스트 추출. 청킹 시 원문 문자 오프셋(char_start/char_end)을 보존해 source_chunks에 저장 — Citation이 원문 어느 지점인지 가리키려면 필수. bigram tsvector 동시 생성.",
+          "target_files": [
+            "apps/fastapi-backend/services/parser.py",
+            "apps/fastapi-backend/services/chunker.py",
+            "apps/fastapi-backend/tests/test_chunker.py"
+          ],
+          "depends_on": ["P2-ING-01", "P2-BE-02", "P1-DB-02"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "샘플 PDF 처리 후 source_chunks의 char_start/char_end로 raw_sources.content를 슬라이스하면 chunk.content와 정확히 일치. 청크 경계가 문장 중간을 자르지 않음",
+          "notes": "OCR은 MVP 범위 밖. 텍스트 레이어가 없는 스캔 PDF는 '추출 실패'로 명시적으로 처리하고 사용자에게 알립니다."
+        },
+        {
+          "id": "P2-JOB-01",
+          "category": "Worker",
+          "title": "잡 워커 프로세스 (폴링, 재시도, 데드레터)",
+          "description": "FOR UPDATE SKIP LOCKED 폴링 루프, 지수 백오프 재시도(max_attempts 초과 시 status=dead), 유실된 락 회수(locked_at 타임아웃), graceful shutdown(SIGTERM 시 진행 중 잡 완료 후 종료).",
+          "target_files": [
+            "apps/fastapi-backend/worker.py",
+            "apps/fastapi-backend/services/jobs.py",
+            "apps/fastapi-backend/tests/test_jobs.py"
+          ],
+          "depends_on": ["P1-DB-03", "P0-INIT-02"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "워커 2개 동시 기동 시 같은 잡이 중복 처리되지 않음. 의도적으로 실패하는 잡이 max_attempts 후 status=dead로 전이하고 last_error에 스택트레이스 기록. 워커 강제 종료 후 재기동 시 locked_at 타임아웃 지난 잡이 회수됨"
+        },
+        {
+          "id": "P2-LLM-01",
+          "category": "LLM Compiler",
+          "title": "위키 컴파일러 (OpenRouter + Pydantic 검증 + 재시도)",
+          "description": "raw_source를 입력받아 Concepts/Entities/Guides/Maps 4종 마크다운 위키로 컴파일. 모델은 환경변수 LLM_MODEL. 출력은 프롬프트에 JSON 스키마를 명시하고 Pydantic으로 검증, 검증 실패 시 에러 메시지를 되먹여 최대 3회 재시도. wiki_pages에 (workspace_id, slug) upsert.",
+          "target_files": [
+            "apps/fastapi-backend/services/compiler.py",
+            "apps/fastapi-backend/services/llm_client.py",
+            "apps/fastapi-backend/tests/test_compiler.py"
+          ],
+          "depends_on": ["P2-JOB-01", "P2-ING-02", "P1-SEED-01"],
+          "priority": "P0",
+          "estimate": "2d",
+          "status": "pending",
+          "verification": "고정 샘플 소스 입력 시 wiki_pages에 category가 4종 CHECK를 만족하는 행들이 생성됨. LLM이 스키마 위반 JSON을 반환하는 상황을 mock으로 주입했을 때 재시도 후 성공하거나 3회 실패 시 잡이 failed로 전이. sources 필드에 원본 raw_source_id 기록",
+          "risk": "OpenRouter 경유로 Anthropic 네이티브 구조화 출력/프롬프트 캐싱을 못 씁니다. 소스 볼륨이 늘면 컴파일 프롬프트 반복분의 비용이 그대로 청구되므로 P4-OPS-01에서 실측 후 Anthropic 직결 전환을 재검토하세요."
+        },
+        {
+          "id": "P2-LNK-01",
+          "category": "Link Graph",
+          "title": "[[WikiLink]] 파싱·slug 정규화·wiki_links 동기화",
+          "description": "마크다운에서 [[...]] 추출, slug 정규화 규칙 확정(NFC 정규화 + 소문자 + 공백→하이픈, 한글 보존), 대상 위키가 없으면 to_wiki_id NULL·resolved=false로 저장(red link). 새 위키 생성 시 해당 slug를 가리키던 미해결 링크를 일괄 해소.",
+          "target_files": [
+            "apps/fastapi-backend/services/wikilinks.py",
+            "apps/fastapi-backend/tests/test_wikilinks.py"
+          ],
+          "depends_on": ["P2-LLM-01", "P1-DB-02"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "존재하지 않는 페이지를 가리키는 [[링크]]가 resolved=false로 저장되고, 이후 해당 slug 페이지가 생성되면 같은 행이 resolved=true + to_wiki_id 채워짐. '지식 관리'와 '지식-관리'가 동일 slug로 정규화됨"
+        },
+        {
+          "id": "P2-EMB-01",
+          "category": "Embeddings",
+          "title": "임베딩 파이프라인 (위키 + 원문 청크)",
+          "description": "OpenAI text-embedding-3-small(1536)로 wiki_embeddings와 source_chunks.embedding 생성. 배치 호출, 레이트리밋 백오프, 부분 실패 시 재개 가능한 설계.",
+          "target_files": [
+            "apps/fastapi-backend/services/embeddings.py",
+            "apps/fastapi-backend/tests/test_embeddings.py"
+          ],
+          "depends_on": ["P2-ING-02", "P2-LLM-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "컴파일 완료 후 해당 워크스페이스의 embedding IS NULL인 wiki_embeddings/source_chunks 행이 0개. 임베딩 API 429를 mock 주입 시 백오프 후 성공"
+        },
+        {
+          "id": "P2-RAG-01",
+          "category": "Hybrid RAG Engine",
+          "title": "5-Way 하이브리드 검색 + RRF 융합 + 이중 Citation",
+          "description": "5개 채널(위키 벡터 / 원문청크 벡터 / 위키 bigram / 원문청크 bigram / wiki_links N-hop 확장)을 병렬 실행하고 RRF로 융합. 상위 컨텍스트로 LLM 답변 생성 시 응답에 double_citation: { raw_sources: [{raw_source_id, chunk_id, char_start, char_end, excerpt}], wiki_pages: [{wiki_id, slug, title}] } 포함.",
+          "target_files": [
+            "apps/fastapi-backend/services/hybrid_search.py",
+            "apps/fastapi-backend/routers/ask.py",
+            "apps/fastapi-backend/tests/test_hybrid_search.py"
+          ],
+          "depends_on": ["P2-EMB-01", "P2-LNK-01", "P2-BE-02"],
+          "priority": "P0",
+          "estimate": "2.5d",
+          "status": "pending",
+          "verification": "POST /api/ask 응답 JSON이 double_citation 스키마를 만족하고 raw_sources·wiki_pages 배열이 모두 비어있지 않음. 각 채널을 개별 비활성화했을 때 결과 순위가 변하는 것으로 5개 채널이 실제로 융합에 기여함을 확인. 고유명사 질의('KPT-2')가 어휘 채널에서 상위 진입"
+        },
+        {
+          "id": "P2-API-01",
+          "category": "Read API",
+          "title": "읽기 API (위키/소스/그래프/잡 상태)",
+          "description": "GET /api/wiki/{slug}, GET /api/sources/{id}(+Storage 서명 URL), GET /api/graph?lens={category}(노드+엣지), GET /api/jobs/{id}. 프론트 4개 컴포넌트가 호출할 대상.",
+          "target_files": [
+            "apps/fastapi-backend/routers/wiki.py",
+            "apps/fastapi-backend/routers/graph.py",
+            "apps/fastapi-backend/routers/jobs.py"
+          ],
+          "depends_on": ["P2-LNK-01", "P1-STO-01", "P2-JOB-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "각 엔드포인트가 OpenAPI 스키마에 노출되고 200 응답. /api/graph?lens=concepts 호출 시 category=concepts 노드만 반환. /api/sources/{id}가 만료 있는 서명 URL 포함"
+        },
+        {
+          "id": "P2-QC-01",
+          "category": "Quality Control",
+          "title": "지식 충돌 감지 및 검증 상태 전이 API",
+          "description": "동일 slug/주제에 상충하는 서술이 들어올 때 LLM 판정으로 양쪽에 disputed=true + 모순 콜아웃 보존(삭제 금지). explored/verification_status를 사람이 전이시키는 PATCH /api/wiki/{id}/verify 엔드포인트.",
+          "target_files": [
+            "apps/fastapi-backend/services/conflict.py",
+            "apps/fastapi-backend/routers/verify.py"
+          ],
+          "depends_on": ["P2-LLM-01", "P2-API-01"],
+          "priority": "P1",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "의도적으로 상충하는 소스 2건 투입 시 관련 위키 양쪽에 disputed=true가 세팅되고 기존 서술이 삭제되지 않음. editor 역할이 PATCH로 explored=true 전이 가능, viewer는 403",
+          "notes": "계획서 §2-6이 컬럼만 정의하고 전이 주체를 명시하지 않아 이 태스크로 확정합니다. explored는 사람만, disputed는 시스템이 세팅하고 사람이 해소."
+        }
+      ]
+    },
+
+    {
+      "phase_id": "phase_3",
+      "name": "Phase 3: Next.js 15 프론트엔드",
+      "description": "인증/워크스페이스, 소스 드롭존, Ask UI, 그래프 캔버스, 위키 뷰어.",
+      "tasks": [
+        {
+          "id": "P3-UI-00",
+          "category": "Auth & Workspace",
+          "title": "인증, 워크스페이스 전환, 멤버 초대 UI",
+          "description": "Supabase Auth 로그인/가입, 워크스페이스 목록·전환, 멤버 초대 및 역할 변경 화면. 팀 우선 결정에 따라 필수.",
+          "target_files": [
+            "apps/dashboard/app/(auth)/login/page.tsx",
+            "apps/dashboard/components/WorkspaceSwitcher.tsx",
+            "apps/dashboard/components/MemberManagement.tsx"
+          ],
+          "depends_on": ["P0-INIT-03", "P2-BE-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "로그인 후 소속 워크스페이스만 목록에 표시. 전환 시 이후 모든 API 호출의 workspace_id가 바뀜. viewer 계정에서는 초대 버튼이 비활성"
+        },
+        {
+          "id": "P3-UI-01",
+          "category": "Frontend Dropzone",
+          "title": "소스 드롭존 + 잡 진행 상태 표시",
+          "description": "파일(PDF/MD/TXT) 드래그앤드롭, URL 입력, 원문 텍스트 붙여넣기 통합 UI. 업로드 후 반환된 job_id로 /api/jobs/{id}를 폴링해 대기/처리중/완료/실패 상태를 표시.",
+          "target_files": ["apps/dashboard/components/SourceDropzone.tsx"],
+          "depends_on": ["P3-UI-00", "P2-ING-01", "P2-API-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "업로드 직후 '처리 중' 표시, 컴파일 완료 시 자동으로 '완료'로 전환되고 생성된 위키 링크 노출. 잡 실패 시 에러 메시지와 재시도 버튼 표시"
+        },
+        {
+          "id": "P3-UI-02",
+          "category": "Frontend Ask Engine",
+          "title": "Ask UI + 상황별 프롬프트 칩 + 이중 Citation 카드",
+          "description": "질문 입력, 프롬프트 프리셋 칩(Technical Deep-Dive / Exec Summary / Action Items / FAQ), 답변 렌더링, double_citation을 [원문] / [위키] 두 그룹으로 나눠 표시하고 각각 딥링크.",
+          "target_files": ["apps/dashboard/components/AskCanvas.tsx"],
+          "depends_on": ["P3-UI-00", "P2-RAG-01"],
+          "priority": "P0",
+          "estimate": "2d",
+          "status": "pending",
+          "verification": "칩 전환 시 요청 payload의 prompt_template_id가 바뀌고 답변 톤이 달라짐. 원문 Citation 클릭 시 해당 char_start 위치가 하이라이트된 소스 뷰로, 위키 Citation 클릭 시 해당 위키 페이지로 이동"
+        },
+        {
+          "id": "P3-UI-03",
+          "category": "Frontend Graph",
+          "title": "Cytoscape 지식 캔버스 + 렌즈 필터",
+          "description": "/api/graph 응답으로 노드·엣지 렌더링. 렌즈 필터는 category 기반 [전체]/[개념]/[엔티티]/[가이드]/[맵]. 미해결 링크(resolved=false)는 점선/흐림 처리.",
+          "target_files": ["apps/dashboard/components/GraphCanvas.tsx"],
+          "depends_on": ["P3-UI-00", "P2-API-01"],
+          "priority": "P1",
+          "estimate": "2d",
+          "status": "pending",
+          "verification": "렌즈 [개념] 선택 시 category=concepts 노드만 남고 나머지가 캔버스에서 사라짐. 노드 클릭 시 해당 위키로 라우팅. 노드 200개에서 초기 렌더 3초 이내",
+          "notes": "계획서의 렌즈 라벨([기술결정]/[회의록]/[절차])은 스키마와 축이 달라 category 기반으로 교체했습니다."
+        },
+        {
+          "id": "P3-UI-04",
+          "category": "Frontend Wiki Viewer",
+          "title": "위키 뷰어 + WikiLink 네비게이션 + 상태 콜아웃",
+          "description": "마크다운 렌더링, [[WikiLink]]를 내부 라우팅 링크로 변환(미해결 링크는 생성 유도 UI), verification_status/disputed/explored 콜아웃 바, 출처 목록.",
+          "target_files": ["apps/dashboard/components/WikiViewer.tsx"],
+          "depends_on": ["P3-UI-00", "P2-API-01", "P2-QC-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "[[링크]] 클릭 시 클라이언트 라우팅으로 즉시 이동(전체 리로드 없음). disputed=true 문서에 경고 콜아웃 렌더링. 미해결 링크는 시각적으로 구분되고 클릭 시 '아직 없는 문서' 안내"
+        }
+      ]
+    },
+
+    {
+      "phase_id": "phase_4",
+      "name": "Phase 4: 통합 검증 및 운영 준비",
+      "description": "단위 테스트는 각 태스크의 verification에 포함돼 있습니다. 이 단계는 단일 태스크로 검증할 수 없는 교차 관심사만 다룹니다.",
+      "tasks": [
+        {
+          "id": "P4-E2E-01",
+          "category": "End-to-End",
+          "title": "수집 → 컴파일 → 임베딩 → 검색 E2E 시나리오",
+          "description": "실제 소스 3건(PDF/URL/텍스트)을 넣고 위키가 생성되어 질문에 이중 출처가 달린 답변이 나오기까지의 전 구간을 자동화 테스트로 검증.",
+          "target_files": ["apps/fastapi-backend/tests/test_e2e.py"],
+          "depends_on": ["P2-RAG-01", "P2-API-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "테스트 1회 실행으로 raw_sources 3, source_chunks > 0, wiki_pages > 0, wiki_links > 0이 생성되고 /api/ask 응답의 double_citation 양쪽 배열이 비어있지 않음"
+        },
+        {
+          "id": "P4-QA-01",
+          "category": "Idempotency",
+          "title": "재수집 멱등성 검증",
+          "description": "멱등성 정의: '동일 content_hash 소스 재수집 시 raw_sources 행이 늘지 않고, 컴파일 결과는 (workspace_id, slug) 기준 upsert되어 중복 위키가 생기지 않는다.' LLM 출력 텍스트의 동일성은 요구하지 않음.",
+          "target_files": ["apps/fastapi-backend/tests/test_idempotency.py"],
+          "depends_on": ["P2-LLM-01", "P2-ING-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "같은 파일을 3회 업로드 후 raw_sources 1행, 동일 slug의 wiki_pages 1행. 3회 모두 같은 raw_source_id 반환",
+          "notes": "기존 P4-QA-02는 '멱등하게 생성'만 적혀 있어 판정 불가능했습니다. LLM은 비결정적이므로 텍스트 동일성이 아닌 행 중복 없음으로 정의를 확정합니다."
+        },
+        {
+          "id": "P4-SEC-01",
+          "category": "Multi-tenancy",
+          "title": "워크스페이스 격리 검증",
+          "description": "RLS 정책과 백엔드 코드 레벨 필터를 양쪽에서 검증. 백엔드가 service_role 키를 쓰므로 코드가 workspace_id 필터를 빠뜨리면 RLS가 막아주지 않습니다.",
+          "target_files": ["apps/fastapi-backend/tests/test_tenant_isolation.py"],
+          "depends_on": ["P1-SEC-01", "P2-API-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "워크스페이스 A 사용자 토큰으로 B의 wiki_id/source_id/job_id를 직접 지정해 전 엔드포인트를 호출했을 때 전부 403 또는 404. 검색 결과에 B의 데이터가 단 한 건도 섞이지 않음",
+          "risk": "이 테스트가 이 프로젝트에서 가장 중요한 보안 게이트입니다. 새 엔드포인트를 추가할 때마다 케이스를 늘리세요."
+        },
+        {
+          "id": "P4-PERF-01",
+          "category": "Search Quality",
+          "title": "검색 품질·지연 기준선 수립",
+          "description": "질문 20건 규모의 골든셋(정답 위키/원문 표기)을 만들고 recall@5, MRR, p95 지연을 측정. RRF 가중치 튜닝의 기준점.",
+          "target_files": [
+            "apps/fastapi-backend/tests/fixtures/golden_queries.json",
+            "apps/fastapi-backend/tests/test_search_quality.py"
+          ],
+          "depends_on": ["P4-E2E-01"],
+          "priority": "P1",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "골든셋에서 recall@5 ≥ 0.8, p95 검색 지연 ≤ 1.5초를 초기 목표로 기록. 목표 미달 시 채널별 기여도를 출력해 튜닝 근거 제공",
+          "notes": "임계값은 첫 측정 후 현실적인 값으로 재조정합니다. 중요한 건 회귀를 감지할 기준선이 존재하는 것입니다."
+        },
+        {
+          "id": "P4-OPS-01",
+          "category": "Cost & Observability",
+          "title": "LLM/임베딩 비용 가드레일 및 관측",
+          "description": "워크스페이스별 월 토큰 사용량 집계, 상한 초과 시 컴파일 잡 차단, 잡 처리량·실패율·큐 적체 로깅. Railway Usage Limit 설정.",
+          "target_files": [
+            "apps/fastapi-backend/services/usage.py",
+            "supabase/migrations/0007_usage.sql"
+          ],
+          "depends_on": ["P2-LLM-01", "P2-EMB-01", "P0-INIT-04"],
+          "priority": "P1",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "소스 1건 컴파일 후 usage 테이블에 입력/출력 토큰과 추정 비용이 기록됨. 상한을 인위적으로 낮추면 신규 컴파일 잡이 명확한 사유와 함께 거부됨",
+          "risk": "OpenRouter 경유라 Anthropic 프롬프트 캐싱 이점을 못 받습니다. 여기서 실측한 비용이 예상보다 높으면 Anthropic 직결 전환을 재검토하세요(decisions.llm 참조)."
+        }
+      ]
+    }
+  ]
+}

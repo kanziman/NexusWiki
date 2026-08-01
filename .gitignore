@@ -1,0 +1,32 @@
+# --- Supabase ---
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+
+# --- 환경변수 / 비밀정보 ---
+.env
+.env.*
+!.env.example
+
+# --- Python (apps/fastapi-backend) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Node / Next.js (apps/dashboard) ---
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.turbo/
+
+# --- 에디터 / OS ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
