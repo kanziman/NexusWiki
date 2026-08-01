@@ -176,17 +176,106 @@
 
 ## Traceability
 
-로드맵 생성 시 채워진다.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (pending roadmap) | — | Pending |
+| BOOT-01 | Phase 1 | Pending |
+| BOOT-02 | Phase 1 | Pending |
+| BOOT-03 | Phase 1 | Pending |
+| BOOT-04 | Phase 1 | Pending |
+| BOOT-05 | Phase 1 | Pending |
+| BOOT-06 | Phase 1 | Pending |
+| BOOT-07 | Phase 1 | Pending |
+| BOOT-08 | Phase 1 | Pending |
+| BOOT-09 | Phase 1 | Pending |
+| BOOT-10 | Phase 1 | Pending |
+| SEC-01 | Phase 2 | Pending |
+| SEC-02 | Phase 2 | Pending |
+| SEC-03 | Phase 2 | Pending |
+| SEC-04 | Phase 2 | Pending |
+| SEC-05 | Phase 2 | Pending |
+| SEC-06 | Phase 2 | Pending |
+| DOM-01 | Phase 2 | Pending |
+| DOM-02 | Phase 2 | Pending |
+| DOM-03 | Phase 2 | Pending |
+| DOM-04 | Phase 2 | Pending |
+| DOM-05 | Phase 2 | Pending |
+| DOM-06 | Phase 2 | Pending |
+| DOM-07 | Phase 2 | Pending |
+| DOM-08 | Phase 2 | Pending |
+| DOM-09 | Phase 2 | Pending |
+| ING-01 | Phase 3 | Pending |
+| ING-02 | Phase 3 | Pending |
+| ING-03 | Phase 3 | Pending |
+| ING-04 | Phase 3 | Pending |
+| ING-05 | Phase 3 | Pending |
+| ING-06 | Phase 3 | Pending |
+| ING-07 | Phase 3 | Pending |
+| COMP-01 | Phase 3 | Pending |
+| COMP-02 | Phase 3 | Pending |
+| COMP-03 | Phase 3 | Pending |
+| COMP-04 | Phase 3 | Pending |
+| COMP-05 | Phase 3 | Pending |
+| COMP-06 | Phase 3 | Pending |
+| COMP-07 | Phase 3 | Pending |
+| COMP-08 | Phase 3 | Pending |
+| OPS-01 | Phase 3 | Pending |
+| RTV-01 | Phase 4 | Pending |
+| RTV-02 | Phase 4 | Pending |
+| RTV-03 | Phase 4 | Pending |
+| RTV-04 | Phase 4 | Pending |
+| RTV-05 | Phase 4 | Pending |
+| RTV-06 | Phase 4 | Pending |
+| RTV-07 | Phase 4 | Pending |
+| RTV-08 | Phase 4 | Pending |
+| RTV-09 | Phase 4 | Pending |
+| CITE-01 | Phase 5 | Pending |
+| CITE-02 | Phase 5 | Pending |
+| CITE-03 | Phase 5 | Pending |
+| CITE-04 | Phase 5 | Pending |
+| CITE-05 | Phase 5 | Pending |
+| CITE-06 | Phase 5 | Pending |
+| API-01 | Phase 5 | Pending |
+| API-02 | Phase 5 | Pending |
+| API-03 | Phase 5 | Pending |
+| API-04 | Phase 5 | Pending |
+| QC-01 | Phase 5 | Pending |
+| QC-02 | Phase 5 | Pending |
+| UI-01 | Phase 6 | Pending |
+| UI-02 | Phase 6 | Pending |
+| UI-03 | Phase 6 | Pending |
+| UI-04 | Phase 6 | Pending |
+| UI-05 | Phase 6 | Pending |
+| UI-06 | Phase 6 | Pending |
+| OPS-02 | Phase 7 | Pending |
+| OPS-03 | Phase 7 | Pending |
+| OPS-04 | Phase 7 | Pending |
+| OPS-05 | Phase 7 | Pending |
+| OPS-06 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 73 total (BOOT 10 · SEC 6 · DOM 9 · ING 7 · COMP 8 · RTV 9 · CITE 6 · API 4 · QC 2 · UI 6 · OPS 6)
-- Mapped to phases: 0
-- Unmapped: 73 ⚠️
+- Mapped to phases: 73 ✓
+- Unmapped: 0
+
+**Per-phase counts:**
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| Phase 1 — Bootstrap and Ground Truth | BOOT-01…10 | 10 |
+| Phase 2 — Security Spine and Shared Domain | SEC-01…06, DOM-01…09 | 15 |
+| Phase 3 — Ingest and Compile Pipeline | ING-01…07, COMP-01…08, OPS-01 | 16 |
+| Phase 4 — Hybrid Retrieval and Fusion | RTV-01…09 | 9 |
+| Phase 5 — Citation Integrity and Answer APIs | CITE-01…06, API-01…04, QC-01…02 | 12 |
+| Phase 6 — Dashboard | UI-01…06 | 6 |
+| Phase 7 — Integration and Ops Baseline | OPS-02…06 | 5 |
+
+**배치 근거 (카테고리 경계를 의도적으로 벗어난 3건):**
+- **OPS-01 → Phase 3**: `usage_events` + 인큐 시점 비용 상한은 **첫 LLM 호출과 같은 페이즈**에 있어야 한다. 나머지 비용 관측(OPS-06)이 전부 이 테이블 위에 세워진다
+- **RTV-06 → Phase 4**: 골든 질의 세트는 ops 산출물이 아니라 retrieval의 **전제 조건**이다. 이것 없이는 RTV-02(가중치)·RTV-04(`relaxed_order` 대 `strict_order`)·RTV-07(그래프 채널 가치)이 전부 반증 불가능하다
+- **QC-01 / QC-02 → Phase 5**: 충돌 감지는 "의미적으로 유사하되 상충하는 내용"을 찾는 것이라 검색 위에 얹히고, 검증 상태 전이는 `0007`이 추가하는 `verified_by`/`verified_at`/`expires_at`(Phase 2)에 의존한다. 둘 다 UI-05의 상태 콜아웃이 소비하는 백엔드다
+
+**SEC-06 vs OPS-04 (중복 아님):** SEC-06은 보안 척추가 실제로 동작하는지 확인하는 Phase 2의 단일 격리 테스트이고, OPS-04는 모든 애플리케이션 경로가 존재한 뒤 도는 Phase 7의 전수 스위트다.
 
 ---
 *Requirements defined: 2026-08-02*
-*Last updated: 2026-08-02 after initial definition*
+*Last updated: 2026-08-02 after roadmap creation*

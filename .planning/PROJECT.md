@@ -74,12 +74,15 @@
 - **RLS 위반은 에러가 아닐 수 있음.** `USING`에 막힌 UPDATE/DELETE는 예외 없이 0행을 반환합니다. API는 *affected rows = 0*을 403으로 매핑해야 합니다. `WITH CHECK` 위반만 `42501`을 던집니다.
 - **잡은 at-least-once.** `reap_stale_jobs` 기본 타임아웃 15분. 모든 핸들러는 멱등이어야 하고, 3개 업서트 키가 정확히 이 목적으로 존재합니다.
 - **수익 모델 미정.** SaaS를 지향하지만 가격/과금은 아직 결정된 바 없습니다. 워크스페이스별 월 LLM 비용 상한만 P4에서 확정 예정.
-- **미해결 질문 4건** (`checklists.json > open_questions`): OpenRouter 모델 슬러그, Supabase/Railway 리전 조합 왕복 지연, 청킹 파라미터 초기값, 워크스페이스별 LLM 비용 상한.
+- **미해결 질문 4건** (`checklists.json > open_questions`): OpenRouter 모델 슬러그, Supabase/Railway 리전 조합 왕복 지연(→ 싱가포르 양쪽으로 결정, P0에서 실측), 청킹 파라미터 초기값, 워크스페이스별 LLM 비용 상한.
+- **"Cairni"는 검색되지 않는 제품이다.** 리서치가 확인한 바로는 실존 레퍼런스가 아니며, 실질적 조상은 Karpathy의 LLM Wiki 패턴(ingest / query / **maintain**)이다. 현재 스키마가 거의 1:1로 대응하되 `maintain` 워크플로우와 컴파일 로그가 비어 있다 — 둘 다 v2로 추적 중. 요구사항을 "Cairni 스타일"에 앵커하지 말 것.
 
 ## Constraints
 
 - **Tech stack**: Supabase(Postgres 17 + Auth + Storage) · FastAPI · Next.js 15 App Router · pgvector — 데이터 계층이 이미 이 전제로 구현·검증 완료됨
-- **Tech stack**: LLM은 OpenRouter 경유, 모델은 env `LLM_MODEL`(기본 `claude-sonnet-4-6`) — 모델 교체 자유도 확보. 대신 네이티브 프롬프트 캐싱과 structured output을 포기
+- **Tech stack**: LLM은 OpenRouter 경유, 모델은 env `LLM_MODEL`(기본 `claude-sonnet-4-6`) — 모델 교체 자유도 확보. 대신 Anthropic 네이티브 프롬프트 캐싱과 네이티브 `output_config.format`을 포기. (OpenRouter 자체의 `response_format: {type:"json_schema"}`는 엔드포인트별로 지원되므로 `require_parameters: true`와 능력 탐지를 전제로 선택적 최적화로 쓸 수 있음 — 프롬프트+Pydantic+3회 재시도는 그와 무관하게 필수 백스톱)
+- **Deployment**: Supabase 리전 `ap-southeast-1`(싱가포르) + Railway `asia-southeast1` — Railway에 서울·도쿄 리전이 없어 교차 리전 왕복이 5채널마다 곱해짐. **리전은 프로젝트 생성 후 변경 불가**
+- **Security**: Next.js는 15.2.3 이상 필수 — CVE-2025-29927은 `x-middleware-subrequest` 헤더 위조로 미들웨어를 건너뛰는데, 이 앱의 테넌트 게이트가 미들웨어임
 - **Security**: 사용자 요청 경로는 요청자 JWT(`user_client`), `service_role`은 워커와 마이그레이션 전용 — `service_role`은 BYPASSRLS라 사용자 경로에 쓰는 순간 38개 격리 정책이 전부 장식이 됨
 - **Compatibility**: 마이그레이션 `0005`(Storage)는 클라우드 첫 `db push` **이전에** 반드시 적용 — 이후에 넣으면 로컬/클라우드 순서가 어긋남
 - **Dependencies**: 로컬 포트는 544xx 고정 — 같은 머신의 `zettlink` 스택이 543xx를 점유. 튜토리얼의 `54321`/`54322`를 쓰면 다른 프로젝트 DB에 붙음
@@ -105,6 +108,11 @@
 | DB 레이어는 Validated로 확정, 로드맵에서 제외 | 이미 적용·검증이 끝난 것을 GSD가 다시 계획하려 드는 것을 방지 | — Pending |
 | v1 = checklists.json Phase 0~4 전체 | 기존 계획을 스코프 변경 없이 그대로 GSD로 이관 | — Pending |
 | 실행은 `/gsd-spec-phase` 주도 (SDD) | 페이즈마다 spec을 먼저 확정하고 거기서 plan을 도출 — spec이 단일 진실 소스 | — Pending |
+| 리전은 싱가포르 양쪽 (Supabase `ap-southeast-1` + Railway `asia-southeast1`) | Railway에 서울·도쿄가 없음. 서울 DB + 싱가포르 컴퓨트는 왕복당 60~80ms를 5채널마다 지불. 페널티를 브라우저→API 한 번으로 이동 | — Pending (P0에서 실측) |
+| v1 위키 페이지는 읽기 전용, UI가 명시 | 자유 편집이 `(workspace_id, slug)` 업서트와 정면 충돌 — 재컴파일이 편집을 덮어씀. 멱등성 보장을 깨지 않고 기대치를 정확히 설정 | — Pending |
+| `0007`에 `verified_by`/`verified_at`/`expires_at` + `embedding_version`/`chunker_version` 추가 | 주인·만료 없는 검증 배지는 쓰이지 않고(Guru가 유일하게 살린 이유는 랭킹 강등), 어휘 검색에만 버전이 있던 비대칭은 모델 교체 경로를 막음 | — Pending |
+| Cytoscape 캔버스 v1 유지 (리서치 권고와 반대) | 리서처 3명이 최저 우선순위로 봤으나 데모·설득 가치를 인정해 유지. 단 Phase 6 마지막 표면으로 배치하고 1000행 캡 처리를 요구사항에 명시 | ⚠️ Revisit — 사용 데이터로 재평가 |
+| DB 트랜스포트는 스파이크로 결정 | 리서처 간 유일한 정면 충돌(asyncpg vs `SECURITY INVOKER` RPC). `create function ... SET hnsw.iterative_scan`이 RPC로 먹히는지가 판정 기준 — 문서가 아니라 실측이 결정 | — Pending (Phase 2) |
 
 ## Evolution
 
@@ -124,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-01 after initialization*
+*Last updated: 2026-08-02 after research, requirements, and roadmap creation*
