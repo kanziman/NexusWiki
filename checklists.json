@@ -3,14 +3,13 @@
   "project_name": "NexusWiki (Cairni-style Living Wiki SaaS)",
   "source_plan": "/Users/zorba/.gemini/antigravity-ide/brain/cd4e9e77-14f6-441b-90b0-c7953aa0abea/implementation_plan.md",
   "created_at": "2026-07-31T23:27:15+09:00",
-  "updated_at": "2026-08-01T00:00:00+09:00",
+  "updated_at": "2026-08-01",
   "revision": 2,
   "_notes": [
     "summary 집계 필드는 제거했습니다. status가 바뀌면 즉시 stale해지는 파생값이라, 필요 시 조회 시점에 계산하세요.",
     "$schema 선언도 제거했습니다. 이 파일은 JSON Schema가 아니라 데이터입니다.",
     "각 태스크의 verification은 '통과/불통과를 기계적으로 판정할 수 있는 기준'으로 작성했습니다."
   ],
-
   "decisions": {
     "tenancy": {
       "value": "team-first",
@@ -61,14 +60,12 @@
       "5. wiki_links N-hop 그래프 확장 (recursive CTE)"
     ]
   },
-
   "open_questions": [
     "OpenRouter의 정확한 모델 슬러그 확인 (P2-LLM-01 착수 전)",
     "Supabase 프로젝트 리전 (서울 ap-northeast-2 권장) 및 Railway 리전 조합에 따른 왕복 지연 측정",
     "청킹 파라미터(토큰 수/오버랩) 초기값 — P2-ING-02에서 실측 후 확정",
     "워크스페이스별 월 LLM 비용 상한값 — P4-OPS-01에서 확정"
   ],
-
   "phases": [
     {
       "phase_id": "phase_0",
@@ -80,7 +77,10 @@
           "category": "Infrastructure",
           "title": "Supabase 프로젝트 생성 및 로컬 개발 스택 구성",
           "description": "Supabase 프로젝트 생성(리전 ap-northeast-2 서울 권장), CLI 설치 및 supabase init/link, Docker 기반 로컬 스택 기동. RLS 정책은 클라우드에서 직접 디버깅하기 매우 어려우므로 로컬에서 supabase db reset을 반복하며 다듬은 뒤 push하는 흐름을 확립합니다.",
-          "target_files": ["supabase/config.toml", ".env.local"],
+          "target_files": [
+            "supabase/config.toml",
+            ".env.local"
+          ],
           "depends_on": [],
           "priority": "P0",
           "estimate": "0.5d",
@@ -103,7 +103,12 @@
           "category": "Repo Setup",
           "title": "monorepo 구조 및 공통 툴링 구성",
           "description": "apps/fastapi-backend, apps/dashboard, supabase/ 디렉토리 구조 확정. 루트 README, .gitignore, .editorconfig, pre-commit(ruff+prettier) 구성.",
-          "target_files": ["README.md", ".gitignore", ".pre-commit-config.yaml", "package.json"],
+          "target_files": [
+            "README.md",
+            ".gitignore",
+            ".pre-commit-config.yaml",
+            "package.json"
+          ],
           "depends_on": [],
           "priority": "P0",
           "estimate": "0.5d",
@@ -121,7 +126,9 @@
             "apps/fastapi-backend/app/db.py",
             "apps/fastapi-backend/.env.example"
           ],
-          "depends_on": ["P0-INIT-01"],
+          "depends_on": [
+            "P0-INIT-01"
+          ],
           "priority": "P0",
           "estimate": "0.5d",
           "status": "pending",
@@ -138,7 +145,9 @@
             "apps/dashboard/lib/supabase.ts",
             "apps/dashboard/.env.example"
           ],
-          "depends_on": ["P0-INIT-01"],
+          "depends_on": [
+            "P0-INIT-01"
+          ],
           "priority": "P0",
           "estimate": "0.5d",
           "status": "pending",
@@ -149,8 +158,13 @@
           "category": "Deployment",
           "title": "Railway 배포 파이프라인 (api + worker 분리)",
           "description": "Railway 프로젝트에 api(웹) / worker(상주) 두 서비스 구성. GitHub 연동 자동 배포, 환경변수 주입, Usage Limit 설정. 프론트는 Vercel.",
-          "target_files": ["railway.json", "apps/fastapi-backend/Procfile"],
-          "depends_on": ["P0-INIT-02"],
+          "target_files": [
+            "railway.json",
+            "apps/fastapi-backend/Procfile"
+          ],
+          "depends_on": [
+            "P0-INIT-02"
+          ],
           "priority": "P1",
           "estimate": "0.5d",
           "status": "pending",
@@ -159,7 +173,6 @@
         }
       ]
     },
-
     {
       "phase_id": "phase_1",
       "name": "Phase 1: 데이터 계층 (Supabase Postgres + Storage)",
@@ -170,8 +183,13 @@
           "category": "Database Schema",
           "title": "코어 스키마 마이그레이션 (멀티테넌시 포함)",
           "description": "workspaces, workspace_members(role: owner|editor|viewer), raw_sources, wiki_pages, prompt_templates DDL 작성. raw_sources/wiki_pages에 created_by uuid REFERENCES auth.users, raw_sources에 content_hash text(멱등성 키), storage_path/mime_type/byte_size 컬럼 포함.",
-          "target_files": ["supabase/migrations/0001_core_schema.sql"],
-          "depends_on": ["P0-INIT-00", "P0-INIT-01"],
+          "target_files": [
+            "supabase/migrations/0001_core_schema.sql"
+          ],
+          "depends_on": [
+            "P0-INIT-00",
+            "P0-INIT-01"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "completed",
@@ -191,21 +209,57 @@
           "category": "Search Schema",
           "title": "검색 스키마: source_chunks / wiki_embeddings / wiki_links + 인덱스",
           "description": "source_chunks(raw_source_id, workspace_id, chunk_index, content, char_start, char_end, embedding vector(1536), search_tsv tsvector) 신설 — 이중 Citation의 '원문 청크' 측 데이터. wiki_embeddings, wiki_links(workspace_id, from_wiki_id, target_slug, to_wiki_id nullable, resolved bool) 생성. pgvector HNSW(vector_cosine_ops) 인덱스 2개, search_tsv GIN 인덱스 2개, wiki_links 양방향 조회 인덱스.",
-          "target_files": ["supabase/migrations/0002_search_schema.sql"],
-          "depends_on": ["P1-DB-01"],
+          "target_files": [
+            "supabase/migrations/0002_search_schema.sql"
+          ],
+          "depends_on": [
+            "P1-DB-01"
+          ],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
+          "status": "done",
           "verification": "EXPLAIN ANALYZE로 벡터 유사도 쿼리가 HNSW 인덱스를 타고, tsvector 쿼리가 GIN 인덱스를 탐. wiki_links에 to_wiki_id IS NULL인 미해결 링크(red link) 행이 삽입 가능",
-          "notes": "search_tsv는 generated column이 아니라 애플리케이션이 bigram 토크나이즈한 문자열을 to_tsvector('simple', ...)로 넣습니다. DB가 자동 생성하면 한국어가 공백 단위로만 쪼개져 무용해집니다."
+          "notes": "search_tsv는 generated column이 아니라 애플리케이션이 bigram 토크나이즈한 문자열을 to_tsvector('simple', ...)로 넣습니다. DB가 자동 생성하면 한국어가 공백 단위로만 쪼개져 무용해집니다. [검증 중 발견] 질의 측은 to_tsquery가 아니라 phraseto_tsquery('simple', bigram(q))를 써야 합니다. bigram 문자열을 to_tsquery에 넣으면 '한국 국어'가 syntax error를 냅니다. phraseto_tsquery는 <-> 로 묶어 인접성까지 검사하므로 부분 문자열 의미가 보존됩니다(plainto_tsquery는 &라 순서 뒤바뀐 오탐 발생).",
+          "completed_at": "2026-08-01",
+          "deviations_from_plan": [
+            "search_tsv를 wiki_pages에도 추가 (0001엔 없었음). 5-Way 3번 채널(위키 어휘 검색)의 물리 컬럼이 어디에도 없어 채널이 성립하지 않았습니다. ALTER TABLE로 0002에서 보강.",
+            "raw_sources/wiki_pages에 (id, workspace_id) 복합 UNIQUE 추가. 자식 테이블이 복합 FK를 걸 수 있게 해서 '청크의 workspace_id ≠ 부모의 workspace_id' 조합을 DB가 거부합니다. 워커는 service_role로 RLS를 우회하므로(HANDOFF §5) 테넌트 경계를 지켜줄 다른 장치가 없었습니다.",
+            "wiki_embeddings에 chunk_index 추가 (원안 명세엔 없음). 순번이 없으면 재임베딩 시 멱등 upsert 키가 없어 중복 행이 쌓입니다. unique(wiki_id, chunk_index).",
+            "wiki_links.resolved를 일반 컬럼이 아닌 generated always as (to_wiki_id is not null) stored로. 두 컬럼을 따로 관리하면 어긋날 수 있습니다. (한국어 토크나이징과 무관하므로 generated가 안전한 자리)",
+            "wiki_links.to_wiki_id의 FK를 on delete set null (to_wiki_id) (PG15+ 컬럼 지정)로. 대상 위키 삭제 시 간선이 red link로 되돌아가고, workspace_id는 NOT NULL이라 함께 NULL이 되면 안 되므로 컬럼 지정이 필수입니다.",
+            "source_chunks/wiki_pages에 tsv_tokenizer_version smallint 추가. 토크나이저 교체 시 재색인 대상을 전수 재처리 없이 골라내기 위함 (HANDOFF §5의 '버전 상수' 함정).",
+            "pgvector를 extensions 스키마에 설치하고 마이그레이션 내에서는 extensions.vector / extensions.vector_cosine_ops로 수식. 실행 롤의 search_path에 의존하지 않기 위함.",
+            "self-link 금지 / 빈 target_slug 금지 / char_end > char_start CHECK 추가."
+          ],
+          "verification_result": {
+            "date": "2026-08-01",
+            "method": "2000행 시드 후 EXPLAIN ANALYZE + 제약 스모크 13종",
+            "results": [
+              "source_chunks 벡터 쿼리 → Index Scan using source_chunks_embedding_idx (HNSW) ✅",
+              "wiki_embeddings 벡터 쿼리 → Index Scan using wiki_embeddings_embedding_idx (HNSW) ✅",
+              "source_chunks tsvector 쿼리 → Bitmap Index Scan on source_chunks_search_tsv_idx (GIN) ✅",
+              "wiki_pages tsvector 쿼리 → Bitmap Index Scan on wiki_pages_search_tsv_idx (GIN) ✅",
+              "3-hop recursive CTE → Index Scan using wiki_links_from_idx ✅",
+              "red link(to_wiki_id IS NULL) 삽입 가능, resolved=false ✅",
+              "to_wiki_id 채우면 resolved=true 자동 전환, 대상 삭제 시 red link 복귀(행 유지) ✅",
+              "교차 테넌트 청크 삽입 → foreign_key_violation으로 차단 ✅",
+              "char_start/char_end 슬라이스 = chunk.content 2000/2000 일치 ✅",
+              "제약 6종(범위 역전/중복 순번/self-link/generated 직접대입/차원불일치/빈 slug) 전부 거부 ✅",
+              "신규 3테이블 RLS on + 정책 0개, authenticated 롤 조회 결과 0행 ✅"
+            ]
+          }
         },
         {
           "id": "P1-DB-03",
           "category": "Job Queue",
           "title": "jobs 테이블 및 큐 조작 함수",
           "description": "jobs(id, workspace_id, type, status: queued|running|succeeded|failed|dead, payload jsonb, attempts int, max_attempts int, last_error text, locked_at, locked_by, created_at, updated_at). status/created_at 부분 인덱스로 폴링 최적화.",
-          "target_files": ["supabase/migrations/0003_jobs.sql"],
-          "depends_on": ["P1-DB-01"],
+          "target_files": [
+            "supabase/migrations/0003_jobs.sql"
+          ],
+          "depends_on": [
+            "P1-DB-01"
+          ],
           "priority": "P0",
           "estimate": "0.5d",
           "status": "pending",
@@ -216,8 +270,14 @@
           "category": "Security / RLS",
           "title": "멀티테넌트 RLS 정책 작성",
           "description": "0001에서 deny-by-default로 켜둔 RLS에 실제 정책을 부여. is_workspace_member(ws_id) / workspace_role(ws_id)를 SECURITY DEFINER + STABLE + SET search_path 함수로 정의하고 모든 정책이 이를 호출하게 함 — workspace_members 정책이 workspace_members를 다시 조회하면 무한 재귀 에러가 나므로 SECURITY DEFINER로 끊는 것이 필수. 멤버면 SELECT, editor 이상 INSERT/UPDATE, owner만 DELETE.",
-          "target_files": ["supabase/migrations/0004_rls_policies.sql"],
-          "depends_on": ["P1-DB-01", "P1-DB-02", "P1-DB-03"],
+          "target_files": [
+            "supabase/migrations/0004_rls_policies.sql"
+          ],
+          "depends_on": [
+            "P1-DB-01",
+            "P1-DB-02",
+            "P1-DB-03"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -229,8 +289,12 @@
           "category": "Storage",
           "title": "Supabase Storage 버킷 및 접근 정책",
           "description": "sources 버킷 생성(비공개). 경로 규칙 {workspace_id}/{raw_source_id}/{filename}. 멤버십 기반 Storage RLS 정책. 서명 URL 발급 유효기간 정책 확정.",
-          "target_files": ["supabase/migrations/0005_storage.sql"],
-          "depends_on": ["P1-SEC-01"],
+          "target_files": [
+            "supabase/migrations/0005_storage.sql"
+          ],
+          "depends_on": [
+            "P1-SEC-01"
+          ],
           "priority": "P1",
           "estimate": "0.5d",
           "status": "pending",
@@ -241,8 +305,12 @@
           "category": "Seed Data",
           "title": "상황별 프롬프트 템플릿 시드",
           "description": "Technical Deep-Dive, Executive Summary, Action Items Extractor, FAQ & Guide Generator 4종(target_type='ask') + 위키 컴파일용 시스템 프롬프트 1종(target_type='compile') 시드. workspace_id NULL = 전역 기본 템플릿.",
-          "target_files": ["supabase/migrations/0006_seed_prompts.sql"],
-          "depends_on": ["P1-DB-01"],
+          "target_files": [
+            "supabase/migrations/0006_seed_prompts.sql"
+          ],
+          "depends_on": [
+            "P1-DB-01"
+          ],
           "priority": "P1",
           "estimate": "0.5d",
           "status": "pending",
@@ -250,7 +318,6 @@
         }
       ]
     },
-
     {
       "phase_id": "phase_2",
       "name": "Phase 2: FastAPI 백엔드",
@@ -266,7 +333,10 @@
             "apps/fastapi-backend/app/auth.py",
             "apps/fastapi-backend/app/deps.py"
           ],
-          "depends_on": ["P0-INIT-02", "P1-SEC-01"],
+          "depends_on": [
+            "P0-INIT-02",
+            "P1-SEC-01"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -281,7 +351,9 @@
             "apps/fastapi-backend/services/tokenizer.py",
             "apps/fastapi-backend/tests/test_tokenizer.py"
           ],
-          "depends_on": ["P0-INIT-02"],
+          "depends_on": [
+            "P0-INIT-02"
+          ],
           "priority": "P0",
           "estimate": "0.5d",
           "status": "pending",
@@ -297,7 +369,11 @@
             "apps/fastapi-backend/services/ingest.py",
             "apps/fastapi-backend/routers/sources.py"
           ],
-          "depends_on": ["P2-BE-01", "P1-STO-01", "P1-DB-03"],
+          "depends_on": [
+            "P2-BE-01",
+            "P1-STO-01",
+            "P1-DB-03"
+          ],
           "priority": "P0",
           "estimate": "1.5d",
           "status": "pending",
@@ -313,7 +389,11 @@
             "apps/fastapi-backend/services/chunker.py",
             "apps/fastapi-backend/tests/test_chunker.py"
           ],
-          "depends_on": ["P2-ING-01", "P2-BE-02", "P1-DB-02"],
+          "depends_on": [
+            "P2-ING-01",
+            "P2-BE-02",
+            "P1-DB-02"
+          ],
           "priority": "P0",
           "estimate": "1.5d",
           "status": "pending",
@@ -330,7 +410,10 @@
             "apps/fastapi-backend/services/jobs.py",
             "apps/fastapi-backend/tests/test_jobs.py"
           ],
-          "depends_on": ["P1-DB-03", "P0-INIT-02"],
+          "depends_on": [
+            "P1-DB-03",
+            "P0-INIT-02"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -346,7 +429,11 @@
             "apps/fastapi-backend/services/llm_client.py",
             "apps/fastapi-backend/tests/test_compiler.py"
           ],
-          "depends_on": ["P2-JOB-01", "P2-ING-02", "P1-SEED-01"],
+          "depends_on": [
+            "P2-JOB-01",
+            "P2-ING-02",
+            "P1-SEED-01"
+          ],
           "priority": "P0",
           "estimate": "2d",
           "status": "pending",
@@ -362,7 +449,10 @@
             "apps/fastapi-backend/services/wikilinks.py",
             "apps/fastapi-backend/tests/test_wikilinks.py"
           ],
-          "depends_on": ["P2-LLM-01", "P1-DB-02"],
+          "depends_on": [
+            "P2-LLM-01",
+            "P1-DB-02"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -377,7 +467,10 @@
             "apps/fastapi-backend/services/embeddings.py",
             "apps/fastapi-backend/tests/test_embeddings.py"
           ],
-          "depends_on": ["P2-ING-02", "P2-LLM-01"],
+          "depends_on": [
+            "P2-ING-02",
+            "P2-LLM-01"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -393,7 +486,11 @@
             "apps/fastapi-backend/routers/ask.py",
             "apps/fastapi-backend/tests/test_hybrid_search.py"
           ],
-          "depends_on": ["P2-EMB-01", "P2-LNK-01", "P2-BE-02"],
+          "depends_on": [
+            "P2-EMB-01",
+            "P2-LNK-01",
+            "P2-BE-02"
+          ],
           "priority": "P0",
           "estimate": "2.5d",
           "status": "pending",
@@ -409,7 +506,11 @@
             "apps/fastapi-backend/routers/graph.py",
             "apps/fastapi-backend/routers/jobs.py"
           ],
-          "depends_on": ["P2-LNK-01", "P1-STO-01", "P2-JOB-01"],
+          "depends_on": [
+            "P2-LNK-01",
+            "P1-STO-01",
+            "P2-JOB-01"
+          ],
           "priority": "P0",
           "estimate": "1.5d",
           "status": "pending",
@@ -424,7 +525,10 @@
             "apps/fastapi-backend/services/conflict.py",
             "apps/fastapi-backend/routers/verify.py"
           ],
-          "depends_on": ["P2-LLM-01", "P2-API-01"],
+          "depends_on": [
+            "P2-LLM-01",
+            "P2-API-01"
+          ],
           "priority": "P1",
           "estimate": "1.5d",
           "status": "pending",
@@ -433,7 +537,6 @@
         }
       ]
     },
-
     {
       "phase_id": "phase_3",
       "name": "Phase 3: Next.js 15 프론트엔드",
@@ -449,7 +552,10 @@
             "apps/dashboard/components/WorkspaceSwitcher.tsx",
             "apps/dashboard/components/MemberManagement.tsx"
           ],
-          "depends_on": ["P0-INIT-03", "P2-BE-01"],
+          "depends_on": [
+            "P0-INIT-03",
+            "P2-BE-01"
+          ],
           "priority": "P0",
           "estimate": "1.5d",
           "status": "pending",
@@ -460,8 +566,14 @@
           "category": "Frontend Dropzone",
           "title": "소스 드롭존 + 잡 진행 상태 표시",
           "description": "파일(PDF/MD/TXT) 드래그앤드롭, URL 입력, 원문 텍스트 붙여넣기 통합 UI. 업로드 후 반환된 job_id로 /api/jobs/{id}를 폴링해 대기/처리중/완료/실패 상태를 표시.",
-          "target_files": ["apps/dashboard/components/SourceDropzone.tsx"],
-          "depends_on": ["P3-UI-00", "P2-ING-01", "P2-API-01"],
+          "target_files": [
+            "apps/dashboard/components/SourceDropzone.tsx"
+          ],
+          "depends_on": [
+            "P3-UI-00",
+            "P2-ING-01",
+            "P2-API-01"
+          ],
           "priority": "P0",
           "estimate": "1.5d",
           "status": "pending",
@@ -472,8 +584,13 @@
           "category": "Frontend Ask Engine",
           "title": "Ask UI + 상황별 프롬프트 칩 + 이중 Citation 카드",
           "description": "질문 입력, 프롬프트 프리셋 칩(Technical Deep-Dive / Exec Summary / Action Items / FAQ), 답변 렌더링, double_citation을 [원문] / [위키] 두 그룹으로 나눠 표시하고 각각 딥링크.",
-          "target_files": ["apps/dashboard/components/AskCanvas.tsx"],
-          "depends_on": ["P3-UI-00", "P2-RAG-01"],
+          "target_files": [
+            "apps/dashboard/components/AskCanvas.tsx"
+          ],
+          "depends_on": [
+            "P3-UI-00",
+            "P2-RAG-01"
+          ],
           "priority": "P0",
           "estimate": "2d",
           "status": "pending",
@@ -484,8 +601,13 @@
           "category": "Frontend Graph",
           "title": "Cytoscape 지식 캔버스 + 렌즈 필터",
           "description": "/api/graph 응답으로 노드·엣지 렌더링. 렌즈 필터는 category 기반 [전체]/[개념]/[엔티티]/[가이드]/[맵]. 미해결 링크(resolved=false)는 점선/흐림 처리.",
-          "target_files": ["apps/dashboard/components/GraphCanvas.tsx"],
-          "depends_on": ["P3-UI-00", "P2-API-01"],
+          "target_files": [
+            "apps/dashboard/components/GraphCanvas.tsx"
+          ],
+          "depends_on": [
+            "P3-UI-00",
+            "P2-API-01"
+          ],
           "priority": "P1",
           "estimate": "2d",
           "status": "pending",
@@ -497,8 +619,14 @@
           "category": "Frontend Wiki Viewer",
           "title": "위키 뷰어 + WikiLink 네비게이션 + 상태 콜아웃",
           "description": "마크다운 렌더링, [[WikiLink]]를 내부 라우팅 링크로 변환(미해결 링크는 생성 유도 UI), verification_status/disputed/explored 콜아웃 바, 출처 목록.",
-          "target_files": ["apps/dashboard/components/WikiViewer.tsx"],
-          "depends_on": ["P3-UI-00", "P2-API-01", "P2-QC-01"],
+          "target_files": [
+            "apps/dashboard/components/WikiViewer.tsx"
+          ],
+          "depends_on": [
+            "P3-UI-00",
+            "P2-API-01",
+            "P2-QC-01"
+          ],
           "priority": "P0",
           "estimate": "1.5d",
           "status": "pending",
@@ -506,7 +634,6 @@
         }
       ]
     },
-
     {
       "phase_id": "phase_4",
       "name": "Phase 4: 통합 검증 및 운영 준비",
@@ -517,8 +644,13 @@
           "category": "End-to-End",
           "title": "수집 → 컴파일 → 임베딩 → 검색 E2E 시나리오",
           "description": "실제 소스 3건(PDF/URL/텍스트)을 넣고 위키가 생성되어 질문에 이중 출처가 달린 답변이 나오기까지의 전 구간을 자동화 테스트로 검증.",
-          "target_files": ["apps/fastapi-backend/tests/test_e2e.py"],
-          "depends_on": ["P2-RAG-01", "P2-API-01"],
+          "target_files": [
+            "apps/fastapi-backend/tests/test_e2e.py"
+          ],
+          "depends_on": [
+            "P2-RAG-01",
+            "P2-API-01"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -529,8 +661,13 @@
           "category": "Idempotency",
           "title": "재수집 멱등성 검증",
           "description": "멱등성 정의: '동일 content_hash 소스 재수집 시 raw_sources 행이 늘지 않고, 컴파일 결과는 (workspace_id, slug) 기준 upsert되어 중복 위키가 생기지 않는다.' LLM 출력 텍스트의 동일성은 요구하지 않음.",
-          "target_files": ["apps/fastapi-backend/tests/test_idempotency.py"],
-          "depends_on": ["P2-LLM-01", "P2-ING-01"],
+          "target_files": [
+            "apps/fastapi-backend/tests/test_idempotency.py"
+          ],
+          "depends_on": [
+            "P2-LLM-01",
+            "P2-ING-01"
+          ],
           "priority": "P0",
           "estimate": "0.5d",
           "status": "pending",
@@ -542,8 +679,13 @@
           "category": "Multi-tenancy",
           "title": "워크스페이스 격리 검증",
           "description": "RLS 정책과 백엔드 코드 레벨 필터를 양쪽에서 검증. 백엔드가 service_role 키를 쓰므로 코드가 workspace_id 필터를 빠뜨리면 RLS가 막아주지 않습니다.",
-          "target_files": ["apps/fastapi-backend/tests/test_tenant_isolation.py"],
-          "depends_on": ["P1-SEC-01", "P2-API-01"],
+          "target_files": [
+            "apps/fastapi-backend/tests/test_tenant_isolation.py"
+          ],
+          "depends_on": [
+            "P1-SEC-01",
+            "P2-API-01"
+          ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
@@ -559,7 +701,9 @@
             "apps/fastapi-backend/tests/fixtures/golden_queries.json",
             "apps/fastapi-backend/tests/test_search_quality.py"
           ],
-          "depends_on": ["P4-E2E-01"],
+          "depends_on": [
+            "P4-E2E-01"
+          ],
           "priority": "P1",
           "estimate": "1.5d",
           "status": "pending",
@@ -575,7 +719,11 @@
             "apps/fastapi-backend/services/usage.py",
             "supabase/migrations/0007_usage.sql"
           ],
-          "depends_on": ["P2-LLM-01", "P2-EMB-01", "P0-INIT-04"],
+          "depends_on": [
+            "P2-LLM-01",
+            "P2-EMB-01",
+            "P0-INIT-04"
+          ],
           "priority": "P1",
           "estimate": "1d",
           "status": "pending",

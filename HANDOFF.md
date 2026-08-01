@@ -1,8 +1,8 @@
 # NexusWiki — 세션 핸드오프
 
 **최종 갱신:** 2026-08-01
-**단계:** Phase 1 (데이터 계층) 진행 중 · 32개 태스크 중 1개 완료
-**다음 작업:** `P1-DB-02` 검색 스키마
+**단계:** Phase 1 (데이터 계층) 진행 중 · 32개 태스크 중 2개 완료
+**다음 작업:** `P1-DB-03` jobs 테이블
 
 ---
 
@@ -12,7 +12,7 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 
 이전 세션에서 한 일은 두 가지입니다. **(1)** 원래 계획서 기반 체크리스트를 리뷰해 핵심 기능 3개가 데이터 모델에 대응물이 없다는 걸 찾아내고, 인터뷰로 9개 결정을 확정한 뒤 체크리스트를 전면 재작성(19 → 32 태스크). **(2)** 로컬 Supabase 스택을 띄우고 코어 스키마(`0001`)를 적용·검증.
 
-> ⚠️ **이 프로젝트는 아직 git 저장소가 아닙니다.** 지금까지의 작업물이 전부 버전 관리되지 않고 있습니다. 다음 세션 시작 시 `git init` + 최초 커밋을 먼저 하세요.
+이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`)를 작성·적용·검증했습니다. 5-Way 검색 채널 5개가 전부 물리적으로 존재하게 됐습니다.
 
 ---
 
@@ -49,14 +49,14 @@ Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시
 
 ```
 [x] P1-DB-01   코어 스키마          — 적용·검증 완료
+[x] P1-DB-02   검색 스키마          — 적용·검증 완료 (EXPLAIN 5채널 전부 인덱스 사용 확인)
 [~] P0-INIT-00 Supabase 셋업        — 로컬만 완료, 클라우드 미생성
 [ ] P0-INIT-01 monorepo 구조        — 건너뜀 (마이그레이션은 이에 의존 안 함)
-[ ] P1-DB-02   검색 스키마          ← 다음
-[ ] P1-DB-03   jobs 테이블
+[ ] P1-DB-03   jobs 테이블          ← 다음
 [ ] P1-SEC-01  RLS 정책             ← Phase 2 전체의 병목
 ```
 
-RLS까지 남은 추정: **3.5일**
+RLS까지 남은 추정: **2.5일**
 
 ### 디스크상의 파일
 
@@ -64,6 +64,7 @@ RLS까지 남은 추정: **3.5일**
 checklists.json                        32개 태스크 + decisions + open_questions
 supabase/config.toml                   포트를 544xx로 수정함 (§4 참조)
 supabase/migrations/0001_core_schema.sql
+supabase/migrations/0002_search_schema.sql
 HANDOFF.md                             이 문서
 ```
 
@@ -78,26 +79,37 @@ HANDOFF.md                             이 문서
 
 ---
 
-## 3. 다음 작업: `P1-DB-02` 검색 스키마
+## 3. 방금 끝난 것: `P1-DB-02` 검색 스키마
 
-`supabase/migrations/0002_search_schema.sql` 작성.
+`supabase/migrations/0002_search_schema.sql`. 2000행을 시드해 `EXPLAIN ANALYZE` 13종으로 검증했습니다. 5-Way 채널 5개가 전부 인덱스를 탑니다.
 
-**만들 것**
-- `create extension if not exists vector`
-- `source_chunks(id, raw_source_id, workspace_id, chunk_index, content, char_start, char_end, embedding vector(1536), search_tsv tsvector)` — **이중 Citation의 원문 측 데이터.** 원안에 아예 없어서 핵심 기능이 구현 불가였던 부분
-- `wiki_embeddings(id, wiki_id, workspace_id, chunk_content, embedding vector(1536))`
-- `wiki_links(id, workspace_id, from_wiki_id, target_slug, to_wiki_id nullable, resolved boolean)` — `to_wiki_id IS NULL`이 미해결 링크(red link)
-- HNSW 인덱스 2개 (`vector_cosine_ops`), GIN 인덱스 2개 (`search_tsv`), `wiki_links` 양방향 조회 인덱스
-- 네 테이블 모두 `enable row level security` (정책은 `0004`)
+| 채널 | 확인된 플랜 |
+|---|---|
+| 1 `wiki_embeddings` 벡터 | `Index Scan using wiki_embeddings_embedding_idx` (HNSW) |
+| 2 `source_chunks` 벡터 | `Index Scan using source_chunks_embedding_idx` (HNSW) |
+| 3 `wiki_pages` 어휘 | `Bitmap Index Scan on wiki_pages_search_tsv_idx` (GIN) |
+| 4 `source_chunks` 어휘 | `Bitmap Index Scan on source_chunks_search_tsv_idx` (GIN) |
+| 5 `wiki_links` 3-hop CTE | `Index Scan using wiki_links_from_idx` |
 
-**⚠️ 가장 중요한 함정**
+red link 삽입/해소/복귀, 교차 테넌트 차단, 슬라이스 정합성 2000/2000, 제약 6종 거부, 신규 3테이블 RLS 전면 거부까지 전부 통과.
 
-`search_tsv`를 **generated column으로 만들면 안 됩니다.** DB가 `to_tsvector`를 직접 돌리면 한국어가 공백 단위로만 쪼개져서 검색이 사실상 무용해집니다. 애플리케이션(`P2-BE-02` 토크나이저)이 bigram으로 쪼갠 문자열을 `to_tsvector('simple', ...)`에 넣어 채우는 **일반 컬럼**이어야 합니다.
+### 원안에서 바꾼 것 (근거는 `checklists.json` → `P1-DB-02.deviations_from_plan`)
 
-**검증 기준**
-- `EXPLAIN ANALYZE`로 벡터 쿼리가 HNSW를, tsvector 쿼리가 GIN을 타는지 확인
-- `wiki_links`에 `to_wiki_id IS NULL` 행이 삽입 가능한지
-- `source_chunks.char_start/char_end`로 `raw_sources.content`를 슬라이스하면 `chunk.content`와 정확히 일치 (이건 `P2-ING-02`에서 실제 검증)
+- **`wiki_pages.search_tsv` 추가** — 채널 3의 물리 컬럼이 `0001` 어디에도 없었습니다. 채널이 아예 성립 불가였음
+- **`raw_sources`/`wiki_pages`에 `(id, workspace_id)` 복합 UNIQUE 추가** → 자식 테이블이 복합 FK를 겁니다. 워커는 `service_role`이라 RLS를 우회하므로(§5) 테넌트 경계를 지켜줄 장치가 이것뿐입니다. 잘못된 `workspace_id` 삽입이 FK 위반으로 거부되는 것까지 확인
+- **`wiki_embeddings.chunk_index` 추가** — 순번이 없으면 재임베딩 시 멱등 upsert 키가 없어 중복 행이 쌓입니다
+- **`wiki_links.resolved`를 generated column으로** — `to_wiki_id`와 따로 관리하면 어긋납니다. (한국어 토크나이징과 무관하므로 generated가 안전한 자리)
+- **`to_wiki_id` FK를 `on delete set null (to_wiki_id)`** (PG15+ 컬럼 지정) — 대상 삭제 시 red link로 복귀. 컬럼을 지정하지 않으면 `workspace_id`까지 NULL이 되어 NOT NULL 위반
+- **`tsv_tokenizer_version smallint`** 를 `source_chunks`/`wiki_pages`에 — 토크나이저 교체 시 재색인 대상을 전수 재처리 없이 골라내기 위함 (§5의 함정)
+- **pgvector는 `extensions` 스키마**, 마이그레이션 내에서는 `extensions.vector` / `extensions.vector_cosine_ops`로 수식 — 실행 롤의 `search_path`에 의존하지 않기 위함
+
+---
+
+## 3b. 다음 작업: `P1-DB-03` jobs 테이블
+
+`supabase/migrations/0003_jobs.sql`. 상세는 `checklists.json`의 `P1-DB-03`. 설계 근거는 `decisions.job_queue` (Postgres 테이블 + `FOR UPDATE SKIP LOCKED` 폴링).
+
+워커 폴링 쿼리가 `select ... for update skip locked limit 1`을 부분 인덱스(`where status = 'pending'`)로 타는지 `EXPLAIN`으로 확인하세요. `0002`와 같은 이유로 `workspace_id` 컬럼을 두고, 가능하면 대상 테이블과 복합 FK로 테넌트 경계를 묶으세요.
 
 ---
 
@@ -150,7 +162,13 @@ as $$ select exists (select 1 from workspace_members
 ```
 
 **bigram 토크나이저 버전 불일치 (`P2-BE-02`)**
-색인 시와 질의 시 **반드시 동일한 토크나이저 함수**를 타야 합니다. 어긋나면 검색이 에러 없이 조용히 안 맞습니다 — 디버깅이 가장 고약한 종류입니다. 버전 상수를 두고, 토크나이저를 바꾸면 전체 재색인이 필요하다는 걸 명시하세요.
+색인 시와 질의 시 **반드시 동일한 토크나이저 함수**를 타야 합니다. 어긋나면 검색이 에러 없이 조용히 안 맞습니다 — 디버깅이 가장 고약한 종류입니다. 버전 상수를 두고(`0002`가 `tsv_tokenizer_version` 컬럼을 준비해 뒀습니다), 토크나이저를 바꾸면 재색인이 필요하다는 걸 명시하세요.
+
+**질의 측 tsquery 생성 (`P2-BE-02`)** — `0002` 검증 중 실제로 밟은 지뢰입니다.
+bigram 문자열을 `to_tsquery`에 그대로 넣으면 `"한국 국어"`처럼 공백으로 이어져 **syntax error**가 납니다. `phraseto_tsquery('simple', bigram(q))`를 쓰세요. bigram들이 `<->`로 묶여 인접성까지 검사하므로 부분 문자열 매칭 의미가 정확히 보존됩니다. `plainto_tsquery`는 `&`로 묶여 순서가 뒤바뀐 오탐이 섞입니다.
+
+**벡터 검색의 사후 필터링 (`P2-BE-01`)**
+`where workspace_id = $1 order by embedding <=> $2 limit k`는 HNSW가 먼저 k개를 뽑고 그다음 워크스페이스를 거르므로 **결과가 k개보다 적게 나올 수 있습니다.** 검색 쿼리에서 `set local hnsw.iterative_scan = strict_order`를 켜세요 (로컬 pgvector 0.8.0 확인됨).
 
 **워커의 `service_role` 우회 (`P1-SEC-01`, `P4-SEC-01`)**
 사용자 요청 경로는 JWT라 RLS가 지켜주지만, **워커는 `service_role`이라 RLS를 우회합니다.** 워커 코드에는 `workspace_id` 필터를 반드시 명시해야 합니다.
@@ -178,10 +196,10 @@ Anthropic 프롬프트 캐싱을 못 씁니다. 컴파일러 시스템 프롬프
 
 ```bash
 cd /Users/zorba/projects/NexusWiki
-git init && git add -A && git commit -m "chore: initial checklist and core schema"   # ← 아직 안 됨
+git log --oneline | head -3                   # 저장소는 이미 초기화됨
 docker ps --filter name=NexusWiki | head -3   # 스택 살아있나
 supabase start                                 # 없으면 기동
-supabase db reset                              # 0001 재적용 확인
+supabase db reset                              # 0001~0002 재적용 확인
 ```
 
-그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-DB-02`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
+그다음 `checklists.json`의 `decisions` 블록을 읽고 `P1-DB-03`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
