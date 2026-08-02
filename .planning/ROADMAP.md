@@ -41,7 +41,17 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. 저장소를 새로 클론한 상태에서 `uv sync` 한 번으로 `apps/api`·`apps/worker`·`packages/core`가 빌드되고, 포맷·린트를 어긴 커밋이 pre-commit에서 거부된다
   4. Next.js 15.5.22 이상 앱이 Tailwind 4 · TypeScript strict로 기동하고 Vitest가 통과한다 (CVE-2025-29927 하한 위)
   5. Railway↔Supabase 실측 RTT가 문서에 기록되고(open question #2 해소), 6자 비밀번호나 미확인 이메일로는 가입이 거부된다
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — [tracer] uv 워크스페이스 3멤버 + 공용 structlog 로깅 + api `/health`·`/health/ready` + worker SIGTERM 기동을 로컬에서 end-to-end 증명
+- [ ] 01-02-PLAN.md — Supabase CLI 2.111.0+ 업그레이드와 `0005_storage.sql` 작성, 경로 규약을 `storage.objects` 정책으로 강제
+- [ ] 01-03-PLAN.md — 클라우드 선행 상태 확인 후 `0001`~`0006`을 `ap-southeast-1`에 번호 순서대로 push
+- [ ] 01-04-PLAN.md — Auth 하드닝 (최소 12자 · 이메일 확인 필수)을 로컬·클라우드 양쪽에 적용하고 두 거부를 증명
+- [ ] 01-05-PLAN.md — Next.js 15.5.22 대시보드 스캐폴딩 (Tailwind 4 · TS strict · Vitest 2건)
+- [ ] 01-06-PLAN.md — 단일 Dockerfile 이미지 하나로 Railway `asia-southeast1`에 `api`·`worker` 배포, 동일 빌드 증명
+- [ ] 01-07-PLAN.md — pre-commit(ruff + prettier) · `.editorconfig` · 루트 README와 저장소 문서 경로 표기 정합
+- [ ] 01-08-PLAN.md — 배포 환경 RTT 실측 문서화(p50/p95/콜드/×5)와 `checklists.json` open question #2 해소
 
 ### Phase 2: Security Spine and Shared Domain
 **Goal**: 테넌트 격리가 코드 규약이 아니라 **역량 부재**로 강제되고, 라우터를 쓰기 전에 DB 트랜스포트와 공용 토크나이저가 확정된다
@@ -126,7 +136,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bootstrap and Ground Truth | 0/TBD | Not started | - |
+| 1. Bootstrap and Ground Truth | 0/8 | Planned | - |
 | 2. Security Spine and Shared Domain | 0/TBD | Not started | - |
 | 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
