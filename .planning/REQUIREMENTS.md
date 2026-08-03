@@ -14,9 +14,9 @@
 
 ### Bootstrap (BOOT)
 
-- [ ] **BOOT-01**: `sources` 비공개 버킷과 **실제 `storage.objects` 정책**이 마이그레이션 `0005`로 적용된다 (경로 규약이 주석이 아니라 강제여야 함, 첫 클라우드 push 이전 필수)
+- [x] **BOOT-01**: `sources` 비공개 버킷과 **실제 `storage.objects` 정책**이 마이그레이션 `0005`로 적용된다 (경로 규약이 주석이 아니라 강제여야 함, 첫 클라우드 push 이전 필수)
 - [ ] **BOOT-02**: Supabase Cloud 프로젝트가 **싱가포르 `ap-southeast-1`** 에 생성되고 `sb_publishable_` / `sb_secret_` 키 체계를 사용한다 (2025-11 이후 생성 프로젝트에는 legacy 키가 발급되지 않음)
-- [ ] **BOOT-03**: Supabase CLI를 첫 클라우드 `db push` 이전에 업그레이드한다
+- [x] **BOOT-03**: Supabase CLI를 첫 클라우드 `db push` 이전에 업그레이드한다
 - [x] **BOOT-04**: uv 워크스페이스 monorepo(`apps/api` · `apps/worker` · `packages/core`)가 구성되고, `packages/core`가 두 앱보다 먼저 존재한다
 - [ ] **BOOT-05**: ruff + prettier pre-commit, `.editorconfig`, 루트 README가 동작한다
 - [x] **BOOT-06**: FastAPI 앱이 `lifespan`으로 기동하고 `/health`가 응답하며 structlog 구조화 로깅이 `job_id`/`workspace_id`를 컨텍스트로 바인딩한다
@@ -178,9 +178,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOOT-01 | Phase 1 | Pending |
+| BOOT-01 | Phase 1 | Complete |
 | BOOT-02 | Phase 1 | Pending |
-| BOOT-03 | Phase 1 | Pending |
+| BOOT-03 | Phase 1 | Complete |
 | BOOT-04 | Phase 1 | Complete |
 | BOOT-05 | Phase 1 | Pending |
 | BOOT-06 | Phase 1 | Complete |

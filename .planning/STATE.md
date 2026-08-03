@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: bootstrap-and-ground-truth
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-08-03T09:25:04.232Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-08-03T09:38:55.423Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 8
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 01 (bootstrap-and-ground-truth) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-08-03 — Phase 01 execution started
 
-Progress: [█░░░░░░░░░] 13%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [█░░░░░░░░░] 13%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 15 min | 3 tasks | 20 files |
+| Phase 01 P02 | 30min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Roadmap]: RTV-06 골든 질의 세트를 ops에서 retrieval(Phase 4)로 이동 — 가중치·`k`·청크 크기·그래프 채널 가치를 판정하는 전제 조건
 - [Roadmap]: OPS-01(`usage_events` + 인큐 시점 비용 상한)을 첫 LLM 호출과 같은 페이즈(3)에 배치
 - [Roadmap]: UI-06 Cytoscape 캔버스는 Phase 6의 마지막 표면 (연구 3건이 독립적으로 최저 우선순위 결론)
+- [Phase 01]: Storage 경로 파서는 UUID/UUID/파일명 형식만 허용하고 나머지는 null로 거부한다. — D-05: 잘못된 UUID를 22P02 서버 오류가 아닌 정책 거부로 처리한다.
+- [Phase 01]: sources 객체에는 UPDATE 정책을 만들지 않아 사용자 원본 덮어쓰기를 차단한다. — D-07: content_hash 멱등성과 원본 추적성을 유지한다.
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T09:25:04.222Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-08-03T09:38:45.016Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
