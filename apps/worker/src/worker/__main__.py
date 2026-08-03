@@ -28,7 +28,12 @@ async def main() -> None:
 
     bind_job_context(job_id="bootstrap", workspace_id="bootstrap")
     logger = get_logger(__name__)
-    logger.info("worker.started")
+    logger.info(
+        "worker.started",
+        git_sha=os.environ.get(
+            "RAILWAY_GIT_COMMIT_SHA", os.environ.get("GIT_SHA", "unknown")
+        ),
+    )
     try:
         await stop.wait()
         logger.info("worker.stopped")
