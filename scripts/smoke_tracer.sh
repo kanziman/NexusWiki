@@ -13,8 +13,12 @@ api_pid=""
 worker_pid=""
 
 cleanup() {
-  [[ -z "${api_pid}" ]] || kill "${api_pid}" 2>/dev/null || true
-  [[ -z "${worker_pid}" ]] || kill "${worker_pid}" 2>/dev/null || true
+  if [[ -n "${image}" ]]; then
+    docker stop -t 10 nexuswiki-smoke-api nexuswiki-smoke-worker >/dev/null 2>&1 || true
+  else
+    [[ -z "${api_pid}" ]] || kill "${api_pid}" 2>/dev/null || true
+    [[ -z "${worker_pid}" ]] || kill "${worker_pid}" 2>/dev/null || true
+  fi
   rm -rf "${tmp_dir}"
 }
 trap cleanup EXIT
@@ -52,7 +56,11 @@ if [[ "${api_ready}" != "true" ]]; then
   exit 1
 fi
 
-kill -TERM "${api_pid}"
+if [[ -n "${image}" ]]; then
+  docker stop -t 10 nexuswiki-smoke-api >/dev/null
+else
+  kill -TERM "${api_pid}"
+fi
 if ! wait_for_exit "${api_pid}" 10; then
   cat "${api_log}"
   exit 1
@@ -81,7 +89,11 @@ if [[ "${worker_ready}" != "true" ]]; then
   exit 1
 fi
 
-kill -TERM "${worker_pid}"
+if [[ -n "${image}" ]]; then
+  docker stop -t 10 nexuswiki-smoke-worker >/dev/null
+else
+  kill -TERM "${worker_pid}"
+fi
 if ! wait_for_exit "${worker_pid}" 10; then
   cat "${worker_log}"
   exit 1

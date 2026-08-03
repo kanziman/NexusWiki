@@ -1,0 +1,27 @@
+# --- 버전 관리 / 프로젝트 메타데이터 ---
+.git/
+.planning/
+docs/
+supabase/
+scripts/
+HANDOFF.md
+checklists.json
+
+# --- 프런트엔드 빌드 산출물 ---
+# 프런트엔드 변경이 Python 이미지 빌드 컨텍스트를 무효화하지 않게 한다.
+apps/dashboard/
+node_modules/
+.next/
+
+# --- Python 캐시 / 가상환경 ---
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# --- 환경변수 / 비밀정보 ---
+# 로컬 시크릿이 이미지 레이어에 포함되지 않게 한다.
+.env
+.env.*
