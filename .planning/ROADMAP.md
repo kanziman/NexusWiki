@@ -45,12 +45,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Next.js 15.5.22 이상 앱이 Tailwind 4 · TypeScript strict로 기동하고 Vitest가 통과한다 (CVE-2025-29927 하한 위)
   5. Railway↔Supabase 실측 RTT가 문서에 기록되고(open question #2 해소), 6자 비밀번호나 미확인 이메일로는 가입이 거부된다
 
-**Plans**: 8 plans
+**Plans**: 1/8 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — [tracer] uv 워크스페이스 3멤버 + 공용 structlog 로깅 + api `/health`·`/health/ready` + worker SIGTERM 기동을 로컬에서 end-to-end 증명
+- [x] 01-01-PLAN.md — [tracer] uv 워크스페이스 3멤버 + 공용 structlog 로깅 + api `/health`·`/health/ready` + worker SIGTERM 기동을 로컬에서 end-to-end 증명
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -169,7 +169,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bootstrap and Ground Truth | 0/8 | Planned | - |
+| 1. Bootstrap and Ground Truth | 1/8 | In Progress|  |
 | 2. Security Spine and Shared Domain | 0/TBD | Not started | - |
 | 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
