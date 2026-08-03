@@ -1,0 +1,36 @@
+{
+  "name": "@nexuswiki/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "scripts": {
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "15.5.22",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "15.5.22",
+    "postcss": "^8.0.0",
+    "prettier": "3.9.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "allowBuilds": {
+      "sharp": true,
+      "unrs-resolver": true
+    }
+  }
+}

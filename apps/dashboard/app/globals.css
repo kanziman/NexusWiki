@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+/* 디자인 토큰(`docs/design-systems/design-tokens.css`)의 `@theme` 편입은 Phase 6 UI 작업 범위 */
