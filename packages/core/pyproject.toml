@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nexuswiki-core"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "orjson==3.11.9",
+  "structlog==26.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nexuswiki_core"]
