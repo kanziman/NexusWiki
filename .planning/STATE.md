@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: bootstrap-and-ground-truth
 status: executing
-stopped_at: Completed 01-05-PLAN.md
-last_updated: "2026-08-03T09:48:44.441Z"
+stopped_at: Completed 01-06-PLAN.md
+last_updated: "2026-08-03T15:20:55.909Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 8
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 01 (bootstrap-and-ground-truth) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-08-03 — Phase 01 execution started
 
-Progress: [████░░░░░░] 38%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [████░░░░░░] 38%
 | Phase 01 P01 | 15 min | 3 tasks | 20 files |
 | Phase 01 P02 | 30min | 3 tasks | 3 files |
 | Phase 01 P05 | 14min | 3 tasks | 16 files |
+| Phase 01 P06 | 3h | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Roadmap]: UI-06 Cytoscape 캔버스는 Phase 6의 마지막 표면 (연구 3건이 독립적으로 최저 우선순위 결론)
 - [Phase 01]: Storage 경로 파서는 UUID/UUID/파일명 형식만 허용하고 나머지는 null로 거부한다. — D-05: 잘못된 UUID를 22P02 서버 오류가 아닌 정책 거부로 처리한다.
 - [Phase 01]: sources 객체에는 UPDATE 정책을 만들지 않아 사용자 원본 덮어쓰기를 차단한다. — D-07: content_hash 멱등성과 원본 추적성을 유지한다.
+- [Phase 01]: Railway api/worker는 단일 Dockerfile을 공유하고 worker만 Custom Start Command를 사용한다. — 동일 코드 런타임 경계를 유지한다.
+- [Phase 01]: Railway 개별 빌드 다이제스트가 다르면 커밋 SHA·Dockerfile 경로·런타임 GIT_SHA 3항 일치로 동일 빌드를 판정한다. — SPEC R8 2차 판정.
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T09:48:44.432Z
-Stopped at: Completed 01-05-PLAN.md
+Last session: 2026-08-03T15:20:55.902Z
+Stopped at: Completed 01-06-PLAN.md
 Resume file: None
