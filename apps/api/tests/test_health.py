@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
-
 from api.health_check import ReadinessResult, check_db_roundtrip
 from api.main import app
 

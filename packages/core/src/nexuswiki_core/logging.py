@@ -57,10 +57,13 @@ def redact_sensitive(
 def configure_logging(*, environment: str, log_level: str) -> None:
     """API와 worker가 공유하는 structlog 프로세서 체인을 설정한다."""
     renderer: structlog.types.Processor
+    logger_factory: structlog.typing.WrappedLogger
     if environment == "development":
         renderer = structlog.dev.ConsoleRenderer(colors=True)
+        logger_factory = structlog.PrintLoggerFactory()
     else:
         renderer = structlog.processors.JSONRenderer(serializer=orjson.dumps)
+        logger_factory = structlog.BytesLoggerFactory()
 
     structlog.configure(
         processors=[
@@ -73,6 +76,7 @@ def configure_logging(*, environment: str, log_level: str) -> None:
         wrapper_class=structlog.make_filtering_bound_logger(
             getattr(logging, log_level.upper(), logging.INFO)
         ),
+        logger_factory=logger_factory,
         cache_logger_on_first_use=True,
     )
 
