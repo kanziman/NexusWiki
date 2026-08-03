@@ -33,3 +33,21 @@ Railway 서비스 설정에 둔다. 두 서비스 모두 저장소 루트를 빌
 ## 기계 판독 키
 
 api_public_domain: api-production-44b4.up.railway.app
+
+## 동일 빌드 및 배포 검증
+
+- 판정 차수: 2차. 두 서비스의 비결정적 개별 빌드로 이미지 다이제스트가 달라 런타임 3항 일치를 적용했다.
+- api 이미지 다이제스트: `sha256:09eed3d47daffbe01402b7314cb11a7c3089f3502dcfa979d8fa82699d30ffb6`
+- worker 이미지 다이제스트: `sha256:bddd486be597b43985a3e75fa95162fd7cad2bb06431ea9804be618a5c5b2112`
+- 배포 커밋 SHA: 두 서비스 모두 `5ca73afb4d48f83b202ec80f2bb78f01ae9c73bc`
+- Dockerfile 경로: 두 서비스 모두 `Dockerfile` (`DOCKERFILE` builder)
+- 런타임 `GIT_SHA`: api `/health`와 worker `worker.started` 모두
+  `5ca73afb4d48f83b202ec80f2bb78f01ae9c73bc`
+- api deployment id: `9950852a-4d5d-4e36-aac0-85edc286290f`
+- worker deployment id: `a1164100-ba01-4733-b7ba-06121a898cc8`
+- 배포 상태: 두 deployment 모두 `SUCCESS`, `asia-southeast1`
+- api `/health`: HTTP 200
+- api `/health/ready`: HTTP 503 관측. 클라우드 마이그레이션 push 전 상태이므로 이 계획의 합격 조건에서 제외한다.
+- 권한 경계 재확인: api 변수 이름 목록에 `SUPABASE_SECRET_KEY`가 없고 worker에만 존재한다.
+
+모든 로그와 헬스 응답은 위 deployment id의 배포에서 읽었다. 이전 배포의 관측값은 판정에 사용하지 않았다.
