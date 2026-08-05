@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: bootstrap-and-ground-truth
-status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-08-05T06:46:53.898Z"
+status: verifying
+stopped_at: Completed 01-08-PLAN.md
+last_updated: "2026-08-05T06:53:53.693Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 
 ## Current Position
 
-Phase: 01 (bootstrap-and-ground-truth) — EXECUTING
+Phase: 01 (bootstrap-and-ground-truth) — VERIFYING
 Plan: 8 of 8
-Status: Ready to execute
-Last activity: 2026-08-03 — Phase 01 execution started
+Status: Phase complete — ready for verification
+Last activity: 2026-08-05 — Phase 01 execution completed; verification pending
 
-Progress: [█████████░] 88%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [█████████░] 88%
 | Phase 01 P03 | 1d | 3 tasks | 2 files |
 | Phase 01 P07 | 12 min | 3 tasks | 21 files |
 | Phase 01 P04 | 3h 17m | 3 tasks | 3 files |
+| Phase 01 P08 | 15 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 01]: State A was proven, so push-clean was selected instead of recreating the project. — Both the migration ledger and target public schema were empty immediately before the one-way push.
 - [Phase 01]: Auth 하드닝은 로컬 config.toml과 Supabase Cloud에 각각 적용하고 실제 Cloud HTTP 동작으로 판정한다. — 로컬 설정은 프로덕션 설정을 바꾸지 않으므로 양쪽 적용과 동작 검증이 모두 필요하다.
 - [Phase 01]: Auth 검증 계정은 성공·실패 경로 모두 trap으로 삭제하며 검증 스크립트는 개발자 머신에서만 실행한다. — Admin secret 사용 범위와 잔존 테스트 계정 위험을 동시에 제한한다.
+- [Phase 01]: RTT는 콜드 요청을 분리하고 워밍업 5회 뒤 성공 표본 50회의 최근접 순위 p50/p95를 기록한다. — 콜드 연결 비용이 정상 왕복 백분위를 오염하지 않도록 한다.
+- [Phase 01]: 배포 환경 RTT는 새 라우터 대신 worker 기동 경로에서 측정한다. — SPEC 경계를 지키면서 실제 Railway 네트워크 경로를 관측하는 D-14 결정이다.
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-05T06:46:53.889Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-08-05T06:53:53.684Z
+Stopped at: Completed 01-08-PLAN.md
 Resume file: None
