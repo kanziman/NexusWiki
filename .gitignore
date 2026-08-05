@@ -8,7 +8,7 @@ supabase/.env
 .env.*
 !.env.example
 
-# --- Python (apps/fastapi-backend) ---
+# --- Python (apps/api, apps/worker) ---
 __pycache__/
 *.py[cod]
 .venv/

@@ -34,7 +34,7 @@
 - **TOML** — local stack configuration. `supabase/config.toml`
 - **JSON** — task/decision ledger. `checklists.json`
 - **Markdown** — session handoff. `HANDOFF.md`
-- **Python** (FastAPI API + queue worker) — `apps/fastapi-backend/` (task `P0-INIT-02`)
+- **Python** (FastAPI API + queue worker) — `apps/api/` · `apps/worker/` (task `P0-INIT-02`)
 - **TypeScript** (Next.js 15 dashboard, `strict` mode) — `apps/dashboard/` (task `P0-INIT-03`)
 
 ## Runtime
@@ -42,10 +42,10 @@
 - **PostgreSQL 17** — `major_version = 17` in `supabase/config.toml:32`
 - **Supabase local stack via Docker** — containers named `supabase_*_NexusWiki`
 - **Supabase CLI 2.33.2** (upstream latest 2.111.0; upgrade deliberately deferred until Phase 1 closes — `config.toml` schema may change)
-- Python 3.x runtime for `api` + `worker` services
+- Python 3.12 runtime for `api` + `worker` services
 - Node.js runtime for the Next.js dashboard
-- None present at repo root — no `package.json`, no lockfile, no `pyproject.toml`
-- **[PLANNED]** `uv` or `poetry` for Python (`P0-INIT-02`); `pnpm` for the dashboard (`P0-INIT-03`)
+- 루트 `pyproject.toml`과 `uv.lock`으로 Python 워크스페이스를 관리한다. dashboard는 자체 `pnpm-lock.yaml`을 쓴다.
+- Python 패키지 매니저는 `uv`, dashboard 패키지 매니저는 `pnpm`이다.
 
 ## Frameworks
 
@@ -56,7 +56,7 @@
 - **Next.js 15 (App Router)** + **Tailwind CSS** — dashboard (`P0-INIT-03`)
 - **Cytoscape** — knowledge graph canvas (`P3-UI-03`)
 - **Implemented:** none as automated suites. Migration verification was performed ad hoc via `psql` + `EXPLAIN ANALYZE` inside the DB container; results are recorded in `HANDOFF.md` §3–3d and `checklists.json` task `verification` fields.
-- **[PLANNED]** `pytest` for the Python backend; **Vitest + Testing Library** for the dashboard (`P0-INIT-03`)
+- **pytest** for the Python API/core; **Vitest + Testing Library** for the dashboard (`P0-INIT-03`)
 - **Supabase CLI** — `supabase start`, `supabase db reset`, `supabase stop`
 - **Docker Desktop** — required host dependency for the local stack
 - `pre-commit` running `ruff` (Python) + `prettier` (TS) — `P0-INIT-01`
@@ -88,7 +88,7 @@
 | Shadow DB | `54420` |
 
 - Implemented: `supabase/config.toml` only
-- **[PLANNED]** `apps/fastapi-backend/pyproject.toml`, `apps/dashboard/package.json`, `apps/dashboard/vitest.config.ts`, `railway.json`, `apps/fastapi-backend/Procfile`
+- `pyproject.toml`, `uv.lock`, `apps/api/pyproject.toml`, `apps/worker/pyproject.toml`, `apps/dashboard/package.json`, `apps/dashboard/vitest.config.ts`, `.pre-commit-config.yaml`, `.editorconfig`, `README.md`, `Dockerfile`, `railway.json`
 
 ## Platform Requirements
 
@@ -97,7 +97,7 @@
 - No local `psql` — use `docker exec -it supabase_db_NexusWiki psql -U postgres -d postgres`
 - Disk pressure noted: 94% used, `Docker.raw` at 61GB
 - **Supabase Cloud** — project **not yet created**; recommended region Northeast Asia (Seoul)
-- **[PLANNED] Railway** — one project, two services (`api` web + `worker` resident). Hobby $5/mo is billed per workspace, not per service; CPU-actual billing suits LLM-wait workers.
+- **Railway** — one project, two services (`api` web + `worker` resident). Hobby $5/mo is billed per workspace, not per service; CPU-actual billing suits LLM-wait workers.
 - **[PLANNED] Vercel** — frontend hosting
 - Alternatives evaluated and rejected: Fly.io (~$6.5/mo), Render ($14/mo fixed)
 
@@ -116,8 +116,8 @@
 
 - Migrations: `NNNN_snake_case_topic.sql`, zero-padded 4-digit sequence — `supabase/migrations/0001_core_schema.sql`, `0002_search_schema.sql`, `0003_jobs.sql`, `0004_rls_policies.sql`, `0006_seed_prompts.sql`.
 - **Number order is apply order.** `0005` is deliberately reserved for the Storage bucket migration (`supabase/migrations/0005_storage.sql`, task `P1-STO-01`) and must land *before* a cloud project is created — see `HANDOFF.md` §3e.
-- Python (planned): `snake_case.py` under `apps/fastapi-backend/` — `services/tokenizer.py`, `routers/sources.py`, `app/config.py`.
-- Python tests (planned): `apps/fastapi-backend/tests/test_<module>.py`.
+- Python: `snake_case.py` under `apps/api/src/api/` 또는 `apps/worker/src/worker/`; 공유 코드는 `packages/core/src/nexuswiki_core/`에 둔다.
+- Python tests: `apps/api/tests/test_<module>.py` 또는 각 workspace member의 `tests/`.
 - React components (planned): `PascalCase.tsx` under `apps/dashboard/components/` — `WorkspaceSwitcher.tsx`, `AskCanvas.tsx`, `GraphCanvas.tsx`.
 - Next.js routes (planned): App Router lowercase segments with route groups — `apps/dashboard/app/(auth)/login/page.tsx`.
 - All lowercase `snake_case`; SQL keywords are also lowercase (`create table`, `on delete cascade`). No uppercase keywords anywhere in `supabase/migrations/`.
@@ -135,13 +135,14 @@
 - SQL: 2-space indent, one column per line, aligned inline comments, `-- ---` rule lines separating numbered sections within a file.
 - Python (planned): `ruff` via pre-commit (`P0-INIT-01`, target file `.pre-commit-config.yaml`).
 - TypeScript/TSX (planned): `prettier` via pre-commit; TypeScript `strict` mode with `tsc --noEmit` clean (`P0-INIT-03`).
-- Not yet configured. `.gitignore` already reserves `.ruff_cache/` and `.mypy_cache/`, so ruff (and likely mypy) are the intended Python toolchain.
+- `.pre-commit-config.yaml`이 Python에는 ruff, dashboard에는 prettier를 적용한다.
 - Gate: `pre-commit run --all-files` must pass from the repo root (`P0-INIT-01` verification).
 - All comments, commit messages, and docs are **Korean**. Identifiers, keywords, and file names stay English/ASCII. Match this — a Korean codebase with English identifiers is the house style, not an accident.
 
 ## File Header Convention
 
 - **Cite the task ID** (`P1-DB-03`) and the **decision key** in `checklists.json` (`decisions.job_queue`). Never restate a decision's reasoning inline — point at the ledger.
+- 결정의 수명이 인용 계층을 정한다. 프로젝트 수명 전체의 스택·배포·DB 접근 결정은 `checklists.json > decisions.<key>`를, 한 페이즈 안에서만 유효한 결정은 `.planning/phases/NN-*/NN-CONTEXT.md`의 `NN-CONTEXT.md > D-XX`를 인용한다. 같은 근거를 두 계층에 되풀이하지 않는다.
 - Name downstream consumers by task ID so a reader knows who depends on the object.
 - ASCII state/flow diagrams live in the header when the file encodes a state machine (`supabase/migrations/0003_jobs.sql:9-15`).
 
@@ -164,7 +165,7 @@
 
 ## Logging
 
-- Planned: structured logging configured in `apps/fastapi-backend/app/config.py` (`P0-INIT-02`). No framework chosen in code yet.
+- 구조화 로깅은 `packages/core/src/nexuswiki_core/logging.py`가 소유하며 `apps/api`와 `apps/worker`가 함께 사용한다.
 - SQL-side diagnostics are appended to `jobs.last_error` with a `[reaped]` marker rather than logged out-of-band (`supabase/migrations/0003_jobs.sql:199-201`).
 
 ## Module Design
@@ -215,8 +216,8 @@
 | Storage bucket | Private `sources` bucket, membership-based storage policies | `supabase/migrations/0005_storage.sql` | PLANNED (P1-STO-01) |
 | Prompt seeds | 5 global templates (`workspace_id IS NULL`): 1 compile + 4 ask | `supabase/migrations/0006_seed_prompts.sql` | IMPLEMENTED |
 | Local stack config | Non-default ports 544xx, Postgres major 17, storage/auth toggles | `supabase/config.toml` | IMPLEMENTED |
-| API service | JWT auth, workspace context, read APIs, ask, ingest | `apps/fastapi-backend/` | PLANNED |
-| Worker service | Poll queue, parse/chunk, LLM compile, embed, link sync | `apps/fastapi-backend/worker.py` | PLANNED |
+| API service | JWT auth, workspace context, read APIs, ask, ingest | `apps/api/` | PLANNED |
+| Worker service | Poll queue, parse/chunk, LLM compile, embed, link sync | `apps/worker/` | PLANNED |
 | Dashboard | Auth, dropzone, ask UI, Cytoscape canvas, wiki viewer | `apps/dashboard/` | PLANNED |
 | Task ledger | 32 tasks, 10 locked decisions, 4 open questions | `checklists.json` | IMPLEMENTED |
 | Session handoff | Current state, deviations, traps | `HANDOFF.md` | IMPLEMENTED |
