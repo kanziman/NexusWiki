@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: bootstrap-and-ground-truth
 status: executing
-stopped_at: Completed 01-07-PLAN.md
-last_updated: "2026-08-05T03:27:01.212Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-08-05T06:46:53.898Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 01 (bootstrap-and-ground-truth) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-08-03 — Phase 01 execution started
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [████████░░] 75%
 | Phase 01 P06 | 3h | 3 tasks | 6 files |
 | Phase 01 P03 | 1d | 3 tasks | 2 files |
 | Phase 01 P07 | 12 min | 3 tasks | 21 files |
+| Phase 01 P04 | 3h 17m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Railway api/worker는 단일 Dockerfile을 공유하고 worker만 Custom Start Command를 사용한다. — 동일 코드 런타임 경계를 유지한다.
 - [Phase 01]: Railway 개별 빌드 다이제스트가 다르면 커밋 SHA·Dockerfile 경로·런타임 GIT_SHA 3항 일치로 동일 빌드를 판정한다. — SPEC R8 2차 판정.
 - [Phase 01]: State A was proven, so push-clean was selected instead of recreating the project. — Both the migration ledger and target public schema were empty immediately before the one-way push.
+- [Phase 01]: Auth 하드닝은 로컬 config.toml과 Supabase Cloud에 각각 적용하고 실제 Cloud HTTP 동작으로 판정한다. — 로컬 설정은 프로덕션 설정을 바꾸지 않으므로 양쪽 적용과 동작 검증이 모두 필요하다.
+- [Phase 01]: Auth 검증 계정은 성공·실패 경로 모두 trap으로 삭제하며 검증 스크립트는 개발자 머신에서만 실행한다. — Admin secret 사용 범위와 잔존 테스트 계정 위험을 동시에 제한한다.
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-05T03:27:01.204Z
-Stopped at: Completed 01-07-PLAN.md
+Last session: 2026-08-05T06:46:53.889Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None

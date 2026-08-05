@@ -23,7 +23,7 @@
 - [x] **BOOT-07**: Next.js **15.5.22 이상**(하한 15.2.3 — CVE-2025-29927) 앱이 Tailwind 4 · TypeScript strict · Vitest + Testing Library로 구성된다
 - [x] **BOOT-08**: Railway가 단일 Dockerfile·Root Directory `/`에서 `api`(web)와 `worker`(resident) 두 서비스를 `asia-southeast1`에 배포하고, 두 서비스가 동일 이미지로 동작함이 보장된다
 - [ ] **BOOT-09**: Railway ↔ Supabase 실측 RTT가 기록된다 (`checklists.json` open question #2 해소)
-- [ ] **BOOT-10**: 프로덕션 인증 설정이 하드닝된다 (비밀번호 길이, 이메일 확인 — 팀 제품에 CLI 기본값 사용 금지)
+- [x] **BOOT-10**: 프로덕션 인증 설정이 하드닝된다 (비밀번호 길이, 이메일 확인 — 팀 제품에 CLI 기본값 사용 금지)
 
 ### Tenant Isolation Spine (SEC)
 
@@ -187,7 +187,7 @@
 | BOOT-07 | Phase 1 | Complete |
 | BOOT-08 | Phase 1 | Complete |
 | BOOT-09 | Phase 1 | Pending |
-| BOOT-10 | Phase 1 | Pending |
+| BOOT-10 | Phase 1 | Complete |
 | SEC-01 | Phase 2 | Pending |
 | SEC-02 | Phase 2 | Pending |
 | SEC-03 | Phase 2 | Pending |
