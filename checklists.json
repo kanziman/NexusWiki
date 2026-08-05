@@ -3,8 +3,8 @@
   "project_name": "NexusWiki (Cairni-style Living Wiki SaaS)",
   "source_plan": "/Users/zorba/.gemini/antigravity-ide/brain/cd4e9e77-14f6-441b-90b0-c7953aa0abea/implementation_plan.md",
   "created_at": "2026-07-31T23:27:15+09:00",
-  "updated_at": "2026-08-01",
-  "revision": 2,
+  "updated_at": "2026-08-05",
+  "revision": 3,
   "_notes": [
     "summary 집계 필드는 제거했습니다. status가 바뀌면 즉시 stale해지는 파생값이라, 필요 시 조회 시점에 계산하세요.",
     "$schema 선언도 제거했습니다. 이 파일은 JSON Schema가 아니라 데이터입니다.",
@@ -62,7 +62,7 @@
   },
   "open_questions": [
     "OpenRouter의 정확한 모델 슬러그 확인 (P2-LLM-01 착수 전)",
-    "Supabase 프로젝트 리전 (서울 ap-northeast-2 권장) 및 Railway 리전 조합에 따른 왕복 지연 측정",
+    "[해소 2026-08-05] Supabase ap-southeast-1 + Railway asia-southeast1 조합 확정 및 실측 완료 — docs/ops/rtt-baseline.md",
     "청킹 파라미터(토큰 수/오버랩) 초기값 — P2-ING-02에서 실측 후 확정",
     "워크스페이스별 월 LLM 비용 상한값 — P4-OPS-01에서 확정"
   ],
@@ -84,8 +84,19 @@
           "depends_on": [],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "in_progress",
+          "status": "done",
           "verification": "supabase start 후 로컬 Studio(localhost:54423) 접속 가능. supabase db reset이 에러 없이 완료. supabase link 상태에서 supabase db push가 클라우드에 반영됨",
+          "verification_result": {
+            "date": "2026-08-05",
+            "method": "Supabase CLI 로컬 reset, linked migration 및 Cloud Auth HTTP 검증 — docs/ops/cloud-bootstrap-record.md, docs/ops/auth-hardening-record.md",
+            "results": [
+              "Supabase CLI 2.111.0 이상에서 supabase db reset 종료 코드 0 ✅",
+              "클라우드 리전 ap-southeast-1 및 상태 ACTIVE_HEALTHY 확인 ✅",
+              "클라우드 migration ledger에 0001~0006 순서대로 6행 존재 ✅",
+              "6자 비밀번호 가입이 HTTP 422 weak_password로 거부됨 ✅",
+              "미확인 이메일 로그인이 HTTP 400 email_not_confirmed로 거부됨 ✅"
+            ]
+          },
           "notes": "이전 리비전에서 통째로 누락돼 있던 태스크입니다. 모든 DB 작업의 실질적 0번입니다. [진행상황] supabase init + 로컬 스택 기동 완료. 클라우드 프로젝트 생성 및 link는 미완 — 배포(P0-INIT-04) 시점까지 미뤄도 무방.",
           "local_ports": {
             "_why": "같은 머신에서 zettlink 프로젝트의 Supabase 스택이 기본 포트(54321-54324, 54327)를 점유 중이라 544xx 대역으로 이동. 두 스택 동시 실행 가능.",
@@ -112,8 +123,20 @@
           "depends_on": [],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "루트에서 pre-commit run --all-files가 통과하고, apps/ 하위 두 앱이 각자 독립적으로 설치·실행 가능"
+          "status": "done",
+          "verification": "루트에서 pre-commit run --all-files가 통과하고, apps/ 하위 두 앱이 각자 독립적으로 설치·실행 가능",
+          "verification_result": {
+            "date": "2026-08-05",
+            "method": "클린 clone frozen install, 전체 pre-commit 및 포맷 위반 커밋 프로브",
+            "results": [
+              "별도 clone에서 uv sync --frozen 종료 코드 0 및 uv.lock 추적 확인 ✅",
+              "pre-commit run --all-files 종료 코드 0 및 실행 전후 기존 파일 변경 0건 ✅",
+              "포맷 위반 Python과 TypeScript 프로브 커밋이 각각 거부됨 ✅"
+            ]
+          },
+          "deviations_from_plan": [
+            "Python 런타임을 3.12로 고정 — 01-CONTEXT.md > D-04"
+          ]
         },
         {
           "id": "P0-INIT-02",
@@ -131,8 +154,18 @@
           ],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "환경변수 하나를 누락시키면 부팅 시 어떤 키가 없는지 명시한 에러로 즉시 실패. .env.example의 모든 키가 config.py에 정의돼 있음"
+          "status": "done",
+          "verification": "환경변수 하나를 누락시키면 부팅 시 어떤 키가 없는지 명시한 에러로 즉시 실패. .env.example의 모든 키가 config.py에 정의돼 있음",
+          "verification_result": {
+            "date": "2026-08-03",
+            "method": "API health/readiness smoke, 구조화 로그 및 redaction pytest",
+            "results": [
+              "DB 설정 없이 /health가 HTTP 200 반환 ✅",
+              "DB 도달 불가 시 /health/ready가 3초 이내 HTTP 503 반환 ✅",
+              "job_id와 workspace_id를 동시에 포함하는 JSON 로그 1행 확인 ✅",
+              "민감 필드 마스킹 단위 테스트 통과 ✅"
+            ]
+          }
         },
         {
           "id": "P0-INIT-03",
@@ -150,8 +183,17 @@
           ],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "pnpm dev로 기동, pnpm test가 샘플 테스트 1건 통과, tsc --noEmit 에러 0"
+          "status": "done",
+          "verification": "pnpm dev로 기동, pnpm test가 샘플 테스트 1건 통과, tsc --noEmit 에러 0",
+          "verification_result": {
+            "date": "2026-08-03",
+            "method": "frozen install, TypeScript 검사, Vitest 및 production build",
+            "results": [
+              "Next.js 버전 15.5.22 이상 확인 ✅",
+              "tsc --noEmit 종료 코드 0 ✅",
+              "vitest run에서 클라이언트 컴포넌트와 순수 함수 테스트 2건 통과 ✅"
+            ]
+          }
         },
         {
           "id": "P0-INIT-04",
@@ -167,9 +209,23 @@
           ],
           "priority": "P1",
           "estimate": "0.5d",
-          "status": "pending",
+          "status": "done",
           "verification": "main 푸시 시 두 서비스가 각각 자동 배포되고, api의 /health가 공개 URL에서 200을 반환. worker 로그에 폴링 시작 메시지 출력",
-          "risk": "Railway는 사용량 과금이므로 워커 폴링 주기를 너무 짧게 잡으면 비용이 증가. 초기 폴링 간격 5초 + 지수 백오프 권장"
+          "risk": "Railway는 사용량 과금이므로 워커 폴링 주기를 너무 짧게 잡으면 비용이 증가. 초기 폴링 간격 5초 + 지수 백오프 권장",
+          "verification_result": {
+            "date": "2026-08-05",
+            "method": "Railway deployment metadata, service variable scope, public health 및 RTT 로그 — docs/ops/railway-deploy-record.md, docs/ops/rtt-baseline.md",
+            "results": [
+              "api와 worker 서비스가 asia-southeast1에서 running 상태 ✅",
+              "배포된 api /health가 HTTP 200 반환 ✅",
+              "동일 커밋 SHA·Dockerfile 경로·런타임 GIT_SHA로 동일 빌드 판정 통과 ✅",
+              "api 서비스 변수 목록에 SUPABASE_SECRET_KEY 없음 ✅",
+              "배포 worker가 N=50 RTT 표본의 p50과 p95를 기록함 ✅"
+            ]
+          },
+          "deviations_from_plan": [
+            "RTT를 api 라우터 대신 같은 이미지의 worker 기동 경로에서 측정 — 01-CONTEXT.md > D-14"
+          ]
         }
       ]
     },
@@ -362,8 +418,18 @@
           ],
           "priority": "P1",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "비멤버 토큰으로 서명 URL 요청 시 거부. 멤버 토큰으로 발급한 URL로 원본 PDF 다운로드 성공, 만료 후 403"
+          "status": "done",
+          "verification": "비멤버 토큰으로 서명 URL 요청 시 거부. 멤버 토큰으로 발급한 URL로 원본 PDF 다운로드 성공, 만료 후 403",
+          "verification_result": {
+            "date": "2026-08-05",
+            "method": "로컬 RLS 행위 검증 및 linked Cloud bucket/policy 조회 — docs/ops/cloud-bootstrap-record.md",
+            "results": [
+              "비멤버 workspace 경로 INSERT가 SQLSTATE 42501로 거부됨 ✅",
+              "2세그먼트 및 UUID가 아닌 경로 INSERT가 SQLSTATE 42501로 거부됨 ✅",
+              "정상 UUID 3세그먼트 경로 INSERT 성공 ✅",
+              "클라우드 sources 버킷 1행 및 storage.objects 정책 3행 확인 ✅"
+            ]
+          }
         },
         {
           "id": "P1-SEED-01",
