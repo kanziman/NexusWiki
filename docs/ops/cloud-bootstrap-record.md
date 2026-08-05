@@ -28,3 +28,28 @@
 2. 계획 그래프상 이 계획은 `0005`를 저술하는 계획에 의존하므로 SPEC 문구대로는 실행할 수 없다.
 3. 순서가 어긋나는 위험은 작성 시점이 아니라 push 시점에 발생하므로, push 직전 확인은 그 사이의 창까지 닫아 보증을 약화하지 않고 강화한다.
 4. `0005` 작성 이전 시점의 방증은 `01-CONTEXT.md` §Canonical References의 스카우트 관측(`supabase/.temp/`에 `project-ref` 부재 → CLI link 이력 없음)이며, 위 push 직전 실측과 함께 기록한다.
+
+## 적용 결정
+
+- 선택: `push-clean`
+- 근거: 상태 A가 확인되어 현 프로젝트의 migration ledger와 대상 public 스키마가 모두 비어 있다.
+
+## Push 결과
+
+### 측정 일시
+
+2026-08-05 KST
+
+### 방법
+
+- push 직전 migration 파일이 `0001`부터 `0006`까지 이름순으로 모두 존재하는지 다시 확인했다.
+- `supabase db push --linked` dry-run에서 적용 순서를 확인한 뒤 같은 비대화형 linked workflow로 실제 적용했다.
+- 적용 후 `supabase migration list --linked`와 `supabase db query --linked`를 사용해 ledger, bucket, policy를 직접 조회했다.
+
+### 결과
+
+- 선택된 옵션은 `push-clean`이며 `0001`, `0002`, `0003`, `0004`, `0005`, `0006` 순서로 적용됐다.
+- `supabase_migrations.schema_migrations` 실제 반환값: 행 수 `6`, 순서 `0001,0002,0003,0004,0005,0006`. `0005`가 `0004` 뒤이자 `0006` 앞임을 확인, pass.
+- `storage.buckets`의 `sources` 실제 반환값: 행 수 `1`, `public = false`, `file_size_limit = 52428800`. pass.
+- `storage.objects`의 `sources_objects_%` 정책 실제 반환값: `3`. 정책은 `sources_objects_delete_owner`, `sources_objects_insert_editor`, `sources_objects_select_member`였다. pass.
+- 이후 마이그레이션은 `0007` 이상만 추가한다.
