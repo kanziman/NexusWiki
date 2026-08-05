@@ -38,8 +38,18 @@ def _redact_mapping(value: MutableMapping[str, Any]) -> MutableMapping[str, Any]
     for key, item in value.items():
         if key.casefold() in REDACTED_KEYS:
             value[key] = REDACTION_PLACEHOLDER
-        elif isinstance(item, MutableMapping):
-            value[key] = _redact_mapping(item)
+        else:
+            value[key] = _redact_value(item)
+    return value
+
+
+def _redact_value(value: Any) -> Any:
+    if isinstance(value, MutableMapping):
+        return _redact_mapping(value)
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_value(item) for item in value)
     return value
 
 
