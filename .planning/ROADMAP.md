@@ -22,7 +22,7 @@ E2E·멱등성·격리·품질·비용 기준선을 세운다(7).
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Bootstrap and Ground Truth** - 되돌릴 수 없는 결정을 전부 확정하고 두 서비스를 클라우드에 띄운다
+- [x] **Phase 1: Bootstrap and Ground Truth** - 되돌릴 수 없는 결정을 전부 확정하고 두 서비스를 클라우드에 띄운다 (completed 2026-08-05)
 - [ ] **Phase 2: Security Spine and Shared Domain** - 격리·트랜스포트·토크나이저를 라우터 이전에 구조로 확정한다
 - [ ] **Phase 3: Ingest and Compile Pipeline** - 투입한 소스가 링크·임베딩된 위키 페이지가 되는 쓰기 경로
 - [ ] **Phase 4: Hybrid Retrieval and Fusion** - 5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bootstrap and Ground Truth | 9/9 | In Progress|  |
+| 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
 | 2. Security Spine and Shared Domain | 0/TBD | Not started | - |
 | 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
