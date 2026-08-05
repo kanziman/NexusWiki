@@ -23,16 +23,12 @@
 - ✓ 레드 링크 모델 — `wiki_links.to_wiki_id IS NULL`이 곧 "다음에 쓸 페이지" 백로그 (`0002`)
 - ✓ 상황별 프롬프트 템플릿 — 전역 템플릿 5종(compile 1 + ask 4), `{{variable}}` 치환, `target_type`당 기본값 1개를 부분 유니크 인덱스로 강제 (`0001`, `0006`)
 - ✓ 로컬 Supabase 개발 스택 — Postgres 17, 포트 544xx (zettlink와 충돌 회피) (`supabase/config.toml`)
+- ✓ Phase 1 bootstrap — Storage 정책, uv monorepo, 공용 구조화 로깅/재귀 redaction, Next.js 15 스캐폴드, Railway api/worker 배포, Auth hardening, Singapore RTT baseline 검증 완료
 
 ### Active
 
 <!-- v1 범위. checklists.json Phase 0~4 전체 (32 태스크)에 대응. -->
 
-- [ ] Storage 버킷과 접근 정책 — 원본 파일 보관 (`0005`, 클라우드 push 전에 반드시 선행)
-- [ ] monorepo 구조와 공통 툴링 — ruff + prettier pre-commit, .editorconfig
-- [ ] FastAPI 백엔드 스캐폴딩 — 설정 관리, 구조화 로깅, `user_client`/`service_client` 분리
-- [ ] Next.js 15 앱 스캐폴딩 — App Router, Tailwind, Vitest + Testing Library
-- [ ] Railway 배포 파이프라인 — api(web) + worker(resident) 2서비스 분리, Supabase Cloud 프로젝트 생성
 - [ ] JWT 인증과 워크스페이스 컨텍스트 — 요청자 토큰으로 RLS를 태우는 경로
 - [ ] 한국어 bigram 토크나이저 — 색인/질의 공용 모듈, `tsv_tokenizer_version` 기록
 - [ ] 소스 수집 API — 파일/URL/텍스트 → Storage 업로드 → `raw_sources` → 잡 인큐
