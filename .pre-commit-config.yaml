@@ -16,3 +16,5 @@ repos:
         language: system
         files: ^apps/dashboard/.*\.(ts|tsx|css|json|md)$
         exclude: ^apps/dashboard/(node_modules|\.next)/
+        args: [.]
+        pass_filenames: false
