@@ -20,3 +20,16 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["packages/core/tests", "apps/api/tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps/api/src", "apps/worker/src", "packages/core/src"]
+extend-exclude = ["supabase", "docs", ".planning"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]
+"**/__main__.py" = ["S104"]

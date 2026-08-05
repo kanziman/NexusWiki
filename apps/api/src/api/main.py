@@ -12,9 +12,9 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
-from nexuswiki_core.logging import configure_logging
 
 from api.routers.health import router as health_router
+from nexuswiki_core.logging import configure_logging
 
 
 @asynccontextmanager

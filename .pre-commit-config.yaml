@@ -1,0 +1,18 @@
+# 훅 범위를 비우면 SQL·문서·원장까지 대규모로 재포맷되므로 각 언어 소스로 한정한다.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^(apps|packages)/.*\.py$
+      - id: ruff-format
+        files: ^(apps|packages)/.*\.py$
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: pnpm --dir apps/dashboard exec prettier --write
+        language: system
+        files: ^apps/dashboard/.*\.(ts|tsx|css|json|md)$
+        exclude: ^apps/dashboard/(node_modules|\.next)/

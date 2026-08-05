@@ -19,9 +19,7 @@ router = APIRouter()
 async def health() -> dict[str, str]:
     return {
         "status": "ok",
-        "git_sha": os.environ.get(
-            "RAILWAY_GIT_COMMIT_SHA", os.environ.get("GIT_SHA", "unknown")
-        ),
+        "git_sha": os.environ.get("RAILWAY_GIT_COMMIT_SHA", os.environ.get("GIT_SHA", "unknown")),
     }
 
 

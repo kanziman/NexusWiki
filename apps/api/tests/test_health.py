@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
+
 from api.health_check import ReadinessResult, check_db_roundtrip
 from api.main import app
 
@@ -13,9 +14,7 @@ from api.main import app
 async def app_client():
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
 
 

@@ -81,9 +81,7 @@ def configure_logging(*, environment: str, log_level: str) -> None:
     )
 
 
-def bind_job_context(
-    *, job_id: str | None = None, workspace_id: str | None = None
-) -> None:
+def bind_job_context(*, job_id: str | None = None, workspace_id: str | None = None) -> None:
     """현재 실행 컨텍스트에 선택적으로 작업 식별자를 바인딩한다."""
     values = {
         key: value

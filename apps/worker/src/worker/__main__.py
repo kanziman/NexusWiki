@@ -30,9 +30,7 @@ async def main() -> None:
     logger = get_logger(__name__)
     logger.info(
         "worker.started",
-        git_sha=os.environ.get(
-            "RAILWAY_GIT_COMMIT_SHA", os.environ.get("GIT_SHA", "unknown")
-        ),
+        git_sha=os.environ.get("RAILWAY_GIT_COMMIT_SHA", os.environ.get("GIT_SHA", "unknown")),
     )
     try:
         await stop.wait()
