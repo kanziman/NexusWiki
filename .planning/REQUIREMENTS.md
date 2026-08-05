@@ -18,7 +18,7 @@
 - [x] **BOOT-02**: Supabase Cloud 프로젝트가 **싱가포르 `ap-southeast-1`** 에 생성되고 `sb_publishable_` / `sb_secret_` 키 체계를 사용한다 (2025-11 이후 생성 프로젝트에는 legacy 키가 발급되지 않음)
 - [x] **BOOT-03**: Supabase CLI를 첫 클라우드 `db push` 이전에 업그레이드한다
 - [x] **BOOT-04**: uv 워크스페이스 monorepo(`apps/api` · `apps/worker` · `packages/core`)가 구성되고, `packages/core`가 두 앱보다 먼저 존재한다
-- [ ] **BOOT-05**: ruff + prettier pre-commit, `.editorconfig`, 루트 README가 동작한다
+- [x] **BOOT-05**: ruff + prettier pre-commit, `.editorconfig`, 루트 README가 동작한다
 - [x] **BOOT-06**: FastAPI 앱이 `lifespan`으로 기동하고 `/health`가 응답하며 structlog 구조화 로깅이 `job_id`/`workspace_id`를 컨텍스트로 바인딩한다
 - [x] **BOOT-07**: Next.js **15.5.22 이상**(하한 15.2.3 — CVE-2025-29927) 앱이 Tailwind 4 · TypeScript strict · Vitest + Testing Library로 구성된다
 - [x] **BOOT-08**: Railway가 단일 Dockerfile·Root Directory `/`에서 `api`(web)와 `worker`(resident) 두 서비스를 `asia-southeast1`에 배포하고, 두 서비스가 동일 이미지로 동작함이 보장된다
@@ -182,7 +182,7 @@
 | BOOT-02 | Phase 1 | Complete |
 | BOOT-03 | Phase 1 | Complete |
 | BOOT-04 | Phase 1 | Complete |
-| BOOT-05 | Phase 1 | Pending |
+| BOOT-05 | Phase 1 | Complete |
 | BOOT-06 | Phase 1 | Complete |
 | BOOT-07 | Phase 1 | Complete |
 | BOOT-08 | Phase 1 | Complete |
