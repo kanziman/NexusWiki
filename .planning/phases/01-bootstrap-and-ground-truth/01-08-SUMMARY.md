@@ -15,6 +15,7 @@ actuals:
   tokens: 4600
   tasks: 3
   commits: 3
+task-commits: [aaa5b65, 53d246a, 6ff06e8]
 tech-stack:
   added: []
   patterns: [startup-one-shot-probe, nearest-rank-percentile, deployment-id-evidence]
@@ -128,7 +129,7 @@ None — required Railway and Supabase configuration was already present.
 - 생성 파일 3개와 수정 파일 2개 존재
 - Task 커밋 3건 존재
 - RTT 테스트 5건, 전체 pytest 7건, Ruff check/format 통과
-- worker 신규 배포 SUCCESS 및 해당 배포 로그 `sample_count=50`, `failures=0` 확인
+- worker 신규 배포 SUCCESS 및 해당 배포 로그에서 표본 50개, 오류 0건 확인
 - RTT 문서 negative secret grep 4종과 원장 acceptance command 전부 통과
 - 배포된 api `/health/ready` HTTP 200
 
