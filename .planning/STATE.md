@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: bootstrap-and-ground-truth
 status: executing
-stopped_at: Completed 01-06-PLAN.md
-last_updated: "2026-08-03T15:20:55.909Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-08-05T03:21:27.406Z"
 last_activity: 2026-08-03
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 8
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 01 (bootstrap-and-ground-truth) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-08-03 — Phase 01 execution started
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 63%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01 P02 | 30min | 3 tasks | 3 files |
 | Phase 01 P05 | 14min | 3 tasks | 16 files |
 | Phase 01 P06 | 3h | 3 tasks | 6 files |
+| Phase 01 P03 | 1d | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,7 @@ Recent decisions affecting current work:
 - [Phase 01]: sources 객체에는 UPDATE 정책을 만들지 않아 사용자 원본 덮어쓰기를 차단한다. — D-07: content_hash 멱등성과 원본 추적성을 유지한다.
 - [Phase 01]: Railway api/worker는 단일 Dockerfile을 공유하고 worker만 Custom Start Command를 사용한다. — 동일 코드 런타임 경계를 유지한다.
 - [Phase 01]: Railway 개별 빌드 다이제스트가 다르면 커밋 SHA·Dockerfile 경로·런타임 GIT_SHA 3항 일치로 동일 빌드를 판정한다. — SPEC R8 2차 판정.
+- [Phase 01]: State A was proven, so push-clean was selected instead of recreating the project. — Both the migration ledger and target public schema were empty immediately before the one-way push.
 
 ### Pending Todos
 
@@ -102,6 +104,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-03T15:20:55.902Z
-Stopped at: Completed 01-06-PLAN.md
+Last session: 2026-08-05T03:21:06.284Z
+Stopped at: Completed 01-03-PLAN.md
 Resume file: None
