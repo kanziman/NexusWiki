@@ -50,6 +50,46 @@ def test_redact_sensitive_handles_nested_mappings() -> None:
     assert result["headers"]["authorization"] == REDACTION_PLACEHOLDER
 
 
+def test_redacts_sensitive_values_inside_one_level_sequences() -> None:
+    event = {
+        "items": [{"authorization": "Bearer sequence-secret", "status": "safe-list"}],
+        "contacts": ({"email": "sequence@example.com", "active": True},),
+    }
+
+    result = redact_sensitive(None, "info", event)
+
+    assert isinstance(result["items"], list)
+    assert result["items"][0]["authorization"] == REDACTION_PLACEHOLDER
+    assert result["items"][0]["status"] == "safe-list"
+    assert isinstance(result["contacts"], tuple)
+    assert result["contacts"][0]["email"] == REDACTION_PLACEHOLDER
+    assert result["contacts"][0]["active"] is True
+
+
+def test_redacts_sensitive_values_across_nested_sequences() -> None:
+    event = {
+        "payload": [
+            (
+                {
+                    "metadata": [{"token": "nested-token-sentinel"}],
+                    "content": "nested-content-sentinel",
+                    "kind": "safe-neighbor",
+                },
+            )
+        ]
+    }
+
+    result = redact_sensitive(None, "info", event)
+
+    assert isinstance(result["payload"], list)
+    assert isinstance(result["payload"][0], tuple)
+    nested = result["payload"][0][0]
+    assert isinstance(nested["metadata"], list)
+    assert nested["metadata"][0]["token"] == REDACTION_PLACEHOLDER
+    assert nested["content"] == REDACTION_PLACEHOLDER
+    assert nested["kind"] == "safe-neighbor"
+
+
 def test_bound_job_context_is_rendered_as_json(capsys) -> None:
     configure_logging(environment="production", log_level="INFO")
     bind_job_context(job_id="job-1", workspace_id="workspace-1")
