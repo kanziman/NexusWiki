@@ -161,13 +161,13 @@ async def test_request_without_a_bearer_token_is_unauthorized() -> None:
 
 
 def test_both_methods_are_exposed_on_the_workspace_path() -> None:
+    # ⚠️ FastAPI 0.141의 include_router는 `app.routes`에 개별 APIRoute 대신 불투명한
+    #    _IncludedRouter 하나를 남긴다 — `{r.path for r in app.routes}`로는 라우터 안의
+    #    경로가 보이지 않는다. 실제로 노출된 표면을 묻는 유일하게 안정적인 창구는
+    #    OpenAPI 문서이므로 그쪽을 본다.
     app = create_app(build_settings(), git_sha="test-sha")
 
-    methods = {
-        method
-        for route in app.routes
-        if getattr(route, "path", None) == "/workspaces/{workspace_id}"
-        for method in getattr(route, "methods", set())
-    }
+    paths = app.openapi()["paths"]
 
-    assert {"PATCH", "DELETE"} <= methods
+    assert "/workspaces/{workspace_id}" in paths
+    assert {"patch", "delete"} <= set(paths["/workspaces/{workspace_id}"])

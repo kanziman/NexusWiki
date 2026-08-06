@@ -14,6 +14,7 @@ from fastapi import FastAPI
 
 from api import errors
 from api.routers.health import router as health_router
+from api.routers.workspaces import router as workspaces_router
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import configure_logging
@@ -45,6 +46,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     app.state.git_sha = resolve_git_sha() if git_sha is None else git_sha
     errors.register_error_handlers(app)
     app.include_router(health_router)
+    app.include_router(workspaces_router)
     return app
 
 
