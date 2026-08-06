@@ -30,3 +30,7 @@ class WorkerSettings(BaseAppSettings):
     # Phase 2에는 LLM 호출이 없어 어느 쪽이 맞는지 검증할 수단이 없다. Phase 3에서
     # 실제 OpenRouter 슬러그를 확인하며 정리한다. 근거: 02-CONTEXT.md > D-22.
     LLM_MODEL: str
+
+    # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 — 없다고 worker가 못 뜰
+    # 이유가 없다. 배포 환경에서 RTT 프로브만 끄고 싶을 때 쓴다.
+    RTT_PROBE_ENABLED: bool = True
