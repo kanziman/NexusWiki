@@ -3,8 +3,8 @@
   "project_name": "NexusWiki (Cairni-style Living Wiki SaaS)",
   "source_plan": "/Users/zorba/.gemini/antigravity-ide/brain/cd4e9e77-14f6-441b-90b0-c7953aa0abea/implementation_plan.md",
   "created_at": "2026-07-31T23:27:15+09:00",
-  "updated_at": "2026-08-05",
-  "revision": 3,
+  "updated_at": "2026-08-07",
+  "revision": 4,
   "_notes": [
     "summary 집계 필드는 제거했습니다. status가 바뀌면 즉시 stale해지는 파생값이라, 필요 시 조회 시점에 계산하세요.",
     "$schema 선언도 제거했습니다. 이 파일은 JSON Schema가 아니라 데이터입니다.",
@@ -71,10 +71,10 @@
     "청킹 파라미터(토큰 수/오버랩) 초기값 — P2-ING-02에서 실측 후 확정",
     "워크스페이스별 월 LLM 비용 상한값 — P4-OPS-01에서 확정",
     "[해소 2026-08-06] DB 트랜스포트 — RPC 채택. decisions.db_transport 및 docs/ops/db-transport-spike.md 참조",
-    "⚠️ 권한 공백 (P2-BE-01 스파이크에서 발견, 영구 수정 소유자는 0007 / 02-06-PLAN): anon·authenticated·service_role이 public 스키마 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE)를 하나도 갖고 있지 않습니다. pg_default_acl의 postgres|public|r 항목이 세 롤에 Dxtm만 부여합니다. RLS는 이미 가진 권한을 좁힐 뿐 없는 권한을 만들지 않으므로 0004의 정책 20여 개가 현재 상태에서 무력하며, 요청자 JWT 경로와 service_role 워커 경로 모두 실제 질의에서 42501로 떨어집니다. 이 때문에 0004_rls_policies.sql:12-13의 'anon/authenticated는 이미 전권 GRANT를 가진다'는 머리말 전제는 현재 Supabase CLI 기본값에서 사실이 아닙니다(주석도 함께 정정 대상).",
-    "위 권한 공백의 수정 형태 (사용자 결정): 0007에 최소권한 역할 × 테이블 × 동작 매트릭스로 넣습니다. anon에는 실제로 필요하지 않으면 아무것도 부여하지 않고, authenticated는 Phase 2의 실제 요청자 경로가 쓰는 테이블·동작만, service_role은 Phase 2의 실제 워커 경로가 쓰는 테이블·동작만 받습니다. 포괄적 grant all은 금지입니다. 두 롤 모두 함수 EXECUTE 권한을 명시하되 claim_job/complete_job/fail_job/reap_stale_jobs가 anon·authenticated에서 revoke된 0003의 경계는 깨지 않습니다.",
+    "[해소 2026-08-07] 권한 공백 (P2-BE-01 스파이크에서 발견, 영구 수정 소유자는 0007 / 02-06-PLAN): anon·authenticated·service_role이 public 스키마 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE)를 하나도 갖고 있지 않습니다. pg_default_acl의 postgres|public|r 항목이 세 롤에 Dxtm만 부여합니다. RLS는 이미 가진 권한을 좁힐 뿐 없는 권한을 만들지 않으므로 0004의 정책 20여 개가 현재 상태에서 무력하며, 요청자 JWT 경로와 service_role 워커 경로 모두 실제 질의에서 42501로 떨어집니다. 이 때문에 0004_rls_policies.sql:12-13의 'anon/authenticated는 이미 전권 GRANT를 가진다'는 머리말 전제는 현재 Supabase CLI 기본값에서 사실이 아닙니다(주석도 함께 정정 대상). — 0007 섹션 8이 9개 테이블에서 세 롤의 기존 권한(TRUNCATE 포함)을 전부 회수하고 최소권한 매트릭스를 부여해 해소했습니다. 로컬/원격 양쪽에서 anon 0건, authenticated 23건, service_role 25건을 확인했습니다. docs/ops/migration-0007-record.md 참조.",
+    "[해소 2026-08-07] 위 권한 공백의 수정 형태 (사용자 결정): 0007에 최소권한 역할 × 테이블 × 동작 매트릭스로 넣습니다. anon에는 실제로 필요하지 않으면 아무것도 부여하지 않고, authenticated는 Phase 2의 실제 요청자 경로가 쓰는 테이블·동작만, service_role은 Phase 2의 실제 워커 경로가 쓰는 테이블·동작만 받습니다. 포괄적 grant all은 금지입니다. 두 롤 모두 함수 EXECUTE 권한을 명시하되 claim_job/complete_job/fail_job/reap_stale_jobs가 anon·authenticated에서 revoke된 0003의 경계는 깨지 않습니다. — 0007 섹션 8이 이 형태 그대로 구현되었습니다: anon 무권한, authenticated는 0004가 정책을 건 테이블·동작만, service_role은 워커 경로가 쓰는 테이블·동작만, grant all 없음, 0003의 큐 함수 revoke 경계 유지.",
     "스파이크 코퍼스는 로컬 전용입니다 — supabase/spike/의 50,000행 × 1536차 벡터는 클라우드에 적재하지 않으며 supabase db reset(02-06-PLAN Task 2)이 지웁니다. 0002_search_fn_rpc.sql의 grant select on public.source_chunks to authenticated는 스파이크 진행용 비영구 국소 조치이며 영구 해법으로 오해하면 안 됩니다.",
-    "⚠️ 토크나이저 버전 컬럼 타입 불일치 (02-05-PLAN 실행 중 발견, 해소 소유자는 0007 / 02-06-PLAN): packages/core/src/nexuswiki_core/tokenizer.py의 TSV_TOKENIZER_VERSION은 'bigram-nfkc-cf-v1' 문자열인데 source_chunks.tsv_tokenizer_version(0002_search_schema.sql:94)과 wiki_pages.tsv_tokenizer_version(:220)은 smallint여서 이 값을 그대로 쓸 수 없습니다. 두 컬럼 모두 지금 행이 0개라 alter table … type text가 데이터 마이그레이션 없는 한 줄로 끝나는 창은 지금뿐이며, 미루면 0008 하나와 막힌 P2-ING-02가 비용으로 남습니다 — 0007(02-06-PLAN) 섹션 7에서 확정합니다."
+    "[해소 2026-08-07] 토크나이저 버전 컬럼 타입 불일치 (02-05-PLAN 실행 중 발견, 해소 소유자는 0007 / 02-06-PLAN): packages/core/src/nexuswiki_core/tokenizer.py의 TSV_TOKENIZER_VERSION은 'bigram-nfkc-cf-v1' 문자열인데 source_chunks.tsv_tokenizer_version(0002_search_schema.sql:94)과 wiki_pages.tsv_tokenizer_version(:220)은 smallint여서 이 값을 그대로 쓸 수 없습니다. 두 컬럼 모두 지금 행이 0개라 alter table … type text가 데이터 마이그레이션 없는 한 줄로 끝나는 창은 지금뿐이며, 미루면 0008 하나와 막힌 P2-ING-02가 비용으로 남습니다 — 0007(02-06-PLAN) 섹션 7에서 확정합니다. — 0007 섹션 7이 두 컬럼을 text로 바꿨고 로컬/원격 모두 text 2개·smallint 0개를 확인했습니다."
   ],
   "phases": [
     {
@@ -584,7 +584,14 @@
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
-          "verification": "워커 2개 동시 기동 시 같은 잡이 중복 처리되지 않음. 의도적으로 실패하는 잡이 max_attempts 후 status=dead로 전이하고 last_error에 스택트레이스 기록. 워커 강제 종료 후 재기동 시 locked_at 타임아웃 지난 잡이 회수됨"
+          "verification": "워커 2개 동시 기동 시 같은 잡이 중복 처리되지 않음. 의도적으로 실패하는 잡이 max_attempts 후 status=dead로 전이하고 last_error에 스택트레이스 기록. 워커 강제 종료 후 재기동 시 locked_at 타임아웃 지난 잡이 회수됨",
+          "deviations_from_plan": [
+            "0007이 저장소 최초로 마이그레이션 자신을 begin/commit으로 감쌌습니다. 0001~0006은 어느 것도 그러지 않았습니다. 02-SPEC.md R7이 \"부분 적용 불가\"를 수용기준으로 요구하므로 여덟 섹션이 전부 적용되거나 전부 되돌아가야 하며, 특히 섹션 7(컬럼 타입 변경)만 남고 섹션 8(권한)이 빠지는 조합은 원인을 되짚기 가장 어렵습니다.",
+            "0007이 02-CONTEXT.md > D-21이 열거한 여섯 섹션을 넘어 섹션 7(tsv_tokenizer_version을 smallint에서 text로)을 추가했습니다. 사유는 창의 시점입니다 — 두 컬럼의 행이 0개라 using 절 없는 한 줄로 끝나며, 미루면 0008 하나와 첫 색인 INSERT에서 막히는 P2-ING-02가 비용으로 남습니다. D-21은 02-CONTEXT.md의 ### Claude's Discretion 블록에 있어 뒤집기가 허용되되 이유를 남기라고 요구하며 이 항목이 그 요구를 충족합니다.",
+            "0007 섹션 8이 02-06-PLAN이 문자 그대로 지시한 범위(새 함수의 revoke/grant)를 넘어 9개 테이블 × 3개 롤 최소권한 매트릭스 전체를 포함합니다. 사유: STATE.md 블로커와 02-01-SUMMARY와 이 파일의 open_questions가 모두 권한 공백의 영구 수정 소유자를 0007로 지정했고, 그것 없이는 0004의 정책 20여 개가 무력한 채 남아 요청자 JWT 경로와 service_role 워커 경로 모두 42501로 떨어집니다. 부수적으로 세 롤이 갖고 있던 TRUNCATE(RLS를 우회함)도 함께 회수했습니다. 사용자가 blocking 체크포인트에서 이 확대를 명시적으로 승인했습니다.",
+            "02-06-PLAN Task 3의 수용기준이 서로 모순됩니다 — 한 기준은 open_questions의 tsv_tokenizer_version 항목이 [해소 …] 접두로 닫힐 것을 요구하고, 마지막 기준은 open_questions가 변경되지 않았을 것을 요구합니다. 플랜 <action> 본문이 항목을 닫으라고 명시하므로 <action>을 권위로 삼아 open_questions를 갱신하고 decisions만 불변으로 두었습니다.",
+            "0007 섹션 4의 public.release_job이 (p_job_id, p_worker_id) 2인자라, 02-03이 만든 apps/worker/src/worker/db/service.py의 ServiceDb.release_job(p_job_id 하나만 전송)이 PostgREST에서 함수를 해소하지 못합니다. 02-06-PLAN의 files_modified 밖이지만 이 마이그레이션이 직접 만든 불일치이므로 같은 페이즈에서 고쳤습니다 — worker_id를 keyword-only 필수 인자로 올려 기본값으로 락 소유자 검사를 우회할 길을 남기지 않았습니다."
+          ]
         },
         {
           "id": "P2-LLM-01",

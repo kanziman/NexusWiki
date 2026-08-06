@@ -96,7 +96,7 @@
 - Supabase CLI 2.33.2
 - No local `psql` — use `docker exec -it supabase_db_NexusWiki psql -U postgres -d postgres`
 - Disk pressure noted: 94% used, `Docker.raw` at 61GB
-- **Supabase Cloud** — project **not yet created**; recommended region Northeast Asia (Seoul)
+- **Supabase Cloud** — project **created and ACTIVE_HEALTHY** in region `ap-southeast-1` (Singapore); migrations `0001`~`0007` applied. Region is fixed at creation and cannot be changed. Evidence: `docs/ops/cloud-bootstrap-record.md` (`0001`~`0006`), `docs/ops/migration-0007-record.md` (`0007`)
 - **Railway** — one project, two services (`api` web + `worker` resident). Hobby $5/mo is billed per workspace, not per service; CPU-actual billing suits LLM-wait workers.
 - **[PLANNED] Vercel** — frontend hosting
 - Alternatives evaluated and rejected: Fly.io (~$6.5/mo), Render ($14/mo fixed)
