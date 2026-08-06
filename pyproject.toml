@@ -35,6 +35,15 @@ extend-exclude = ["supabase", "docs", ".planning"]
 # 규칙군을 선택하지 않으면 그 설정 블록이 조용히 무시된다. 근거: 02-CONTEXT.md > D-09.
 select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "TID"]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# ⚠️ 이 규칙은 1차 방어선이 아니라 조기 경보다. api와 worker가 단일 이미지를 공유하므로
+# (01-CONTEXT.md > D-01) 동적 import로는 우회된다. 실제로 막는 것은 ApiSettings에
+# SUPABASE_SECRET_KEY 필드가 없다는 사실과 Railway가 api 서비스 env에 그 값을 주입하지
+# 않는다는 사실이다. 근거: 02-CONTEXT.md > D-06, D-09.
+"worker.db.service".msg = "service key 경로는 worker 전용이다 — apps/api에서는 api.db.user(요청자 JWT)를 쓴다. 근거: checklists.json > decisions.db_access, 02-CONTEXT.md > D-06"
+
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101"]
 "**/__main__.py" = ["S104"]
+# worker 자신은 자기 모듈을 import 해야 한다 — 예외는 이 한 경로뿐이다 (02-CONTEXT.md > D-09).
+"apps/worker/**" = ["TID251"]

@@ -1,0 +1,6 @@
+# ruff banned-api(TID251) 위반 픽스처.
+# 확장자가 .py.txt인 이유: 평소 lint·테스트 수집 대상에서 빠져야 하고, 검증할 때만
+# apps/api/ 아래로 .py로 복사해 `ruff check apps/api`가 non-zero가 되는지 확인한다.
+from worker.db.service import service_client
+
+FORBIDDEN = service_client

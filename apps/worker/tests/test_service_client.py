@@ -80,14 +80,12 @@ def test_service_client_rejects_api_settings_and_names_the_missing_key() -> None
     assert "SUPABASE_SECRET_KEY" in str(excinfo.value)
 
 
-def test_service_client_builds_a_client_carrying_the_secret_key() -> None:
-    client = service.service_client(build_worker_settings())
-    try:
+@pytest.mark.asyncio
+async def test_service_client_builds_a_client_carrying_the_secret_key() -> None:
+    async with service.service_client(build_worker_settings()) as client:
         assert client.headers["apikey"] == COMPLETE_WORKER_ENV["SUPABASE_SECRET_KEY"]
         assert COMPLETE_WORKER_ENV["SUPABASE_SECRET_KEY"] in client.headers["authorization"]
         assert str(client.base_url).startswith(COMPLETE_WORKER_ENV["SUPABASE_URL"])
-    finally:
-        client.close()
 
 
 def test_importing_the_module_reads_no_credentials_and_holds_no_client(
