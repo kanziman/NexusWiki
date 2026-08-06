@@ -28,6 +28,22 @@ def test_redacted_keys_include_required_sensitive_fields() -> None:
     assert required <= REDACTED_KEYS
 
 
+def test_worker_settings_secret_fields_stay_inside_the_denylist() -> None:
+    # ⚠️ `WorkerSettings`가 secret 필드를 추가하거나 이름을 바꾸면서 이 단언을
+    # 갱신하지 않으면, 마스킹이 멈춘 사실이 로그에 값이 찍힌 뒤에야 드러난다.
+    from worker.settings import WorkerSettings
+
+    secret_fields = {
+        "SUPABASE_SECRET_KEY",
+        "DATABASE_URL",
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+    }
+
+    assert secret_fields <= set(WorkerSettings.model_fields)
+    assert {name.casefold() for name in secret_fields} <= REDACTED_KEYS
+
+
 def test_redact_sensitive_preserves_safe_fields() -> None:
     event = {
         "email": "a@b.com",
