@@ -84,7 +84,31 @@ Plans:
   4. NFC·NFD·전각으로 각각 입력한 같은 한국어 문장이 `packages/core`의 **단일** 토크나이저를 거쳐 서로를 검색해내고, `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
   5. 워커가 `noop` 잡을 claim→complete로 통과시키고 SIGTERM에 진행 중인 잡을 잃지 않고 종료하며, 같은 `title`이 항상 같은 슬러그를 내고, `reap_stale_jobs` 타임아웃이 추측이 아니라 실측 p99로 설정된다
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+**Wave 1** *(tracer — 이후 전부가 이 판정 위에 쌓인다)*
+
+- [ ] 02-01-PLAN.md — DB 트랜스포트 스파이크: 요청자 JWT→RPC/asyncpg→RLS→HNSW→EXPLAIN 관통, 50,000행 적대적 코퍼스 3회 반복 판정, `decisions.db_transport` 잠금
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 02-02-PLAN.md — Settings 3계층 분리(`ApiSettings`에 secret 필드 부재) · `create_app(settings)` 주입 · 루트 `pyproject.toml`의 `TID`와 `testpaths` 정합
+- [ ] 02-05-PLAN.md — 공용 한국어 토크나이저(`normalize`/`bigram`/`bigram-nfkc-cf-v1`)와 결정적 슬러그(`slug_v1`, 한글 유지)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 02-03-PLAN.md — `service_client` 인자 필수 팩토리 + ruff banned-api · `UserDb` 쓰기 메서드 2종과 단일 403 예외 핸들러
+- [ ] 02-06-PLAN.md — 마이그레이션 `0007` 6개 섹션(단일 트랜잭션) 작성 · `release_job()` SQL 테스트 · [BLOCKING] 로컬 reset + 클라우드 `db push`
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 02-04-PLAN.md — `PATCH`/`DELETE /workspaces/{id}` 최소 라우터와 교차 테넌트 파라미터화 테스트 + fail-first 증명
+- [ ] 02-07-PLAN.md — 워커 `noop` 핸들러 · claim→complete 루프 · SIGTERM `release_job()` 반납 · 데드레터
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 02-08-PLAN.md — Railway `asia-southeast1` 실측 기반 noop 큐 오버헤드 기준선과 잠정 reap 타임아웃 문서
+- [ ] 02-09-PLAN.md — GitHub Actions PR 게이트 4잡(pre-commit · service 사용 grep · 번들 secret grep · pytest)과 위반 브랜치 2종 red 관측
 
 ### Phase 3: Ingest and Compile Pipeline
 
