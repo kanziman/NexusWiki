@@ -149,13 +149,16 @@ class ServiceDb:
             payload["p_max_backoff"] = max_backoff
         return await self._rpc("fail_job", payload)
 
-    async def release_job(self, job_id: str) -> dict[str, Any] | None:
+    async def release_job(self, job_id: str, *, worker_id: str) -> dict[str, Any] | None:
         """SIGTERM 시 잡을 큐로 반납한다 (attempts를 되돌린다).
 
-        ⚠️ 대상 함수 `public.release_job`은 마이그레이션 `0007`(02-06)이 만든다. 그 전에
-        호출하면 PostgREST가 404를 돌려준다. 근거: 02-CONTEXT.md > D-18.
+        ⚠️ `worker_id`는 선택 인자가 아니다. `public.release_job`은
+        `locked_by = p_worker_id` 술어로 락 소유자를 검사하며, 그 술어가 종료 중인
+        워커가 살아 있는 다른 워커의 잡을 큐로 되돌리는 것을 막는 유일한 장치다.
+        기본값을 주면 그 검사를 우회할 길이 생긴다.
+        근거: 02-CONTEXT.md > D-18, `supabase/migrations/0007_*.sql` 섹션 4.
         """
-        return await self._rpc("release_job", {"p_job_id": job_id})
+        return await self._rpc("release_job", {"p_job_id": job_id, "p_worker_id": worker_id})
 
     # -- 내부 ----------------------------------------------------------------
 

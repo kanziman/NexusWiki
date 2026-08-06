@@ -170,7 +170,7 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
         await db.claim_job(worker_id="worker-1", types=["noop"])
         await db.complete_job(JOB_ID)
         await db.fail_job(JOB_ID, error="boom")
-        await db.release_job(JOB_ID)
+        await db.release_job(JOB_ID, worker_id="worker-1")
 
     called = [request.url.path.rsplit("/", 1)[-1] for request in seen]
     assert called == ["claim_job", "complete_job", "fail_job", "release_job"]
