@@ -131,6 +131,8 @@ None yet.
 - [Phase 2] 새로 만드는 테이블은 pg_default_acl에서 다시 Dxtm(TRUNCATE 포함)을 물려받는다 — 테이블 추가 마이그레이션마다 0007 섹션 8의 revoke/grant 쌍을 반복할 것
 - [Phase 2] 격리 왕복 증명은 workspaces 한 테이블·로컬 스택에 한정 — 나머지 8개 테이블과 Storage, 클라우드 왕복은 미확인. 전수 스위트는 Phase 7 OPS-04 (docs/ops/tenant-isolation-proof.md §한계)
 - [Phase 2] 02-08 Task 2·3이 체크포인트로 중단됨 — Railway 실측을 진행하려면 (a) railway CLI 설치·로그인·프로젝트 링크 (b) worker 서비스 env에 DATABASE_URL·OPENROUTER_API_KEY·OPENAI_API_KEY·LLM_MODEL 추가(없으면 다음 배포가 crash-loop) (c) 클라우드에 처분 가능한 프로브 워크스페이스 생성 후 QUEUE_BASELINE_WORKSPACE_ID 주입 (d) QUEUE_BASELINE_ENABLED를 worker에만 true로 두고 재시작, 측정 후 false 복구. jobs에는 DELETE 권한이 없어 프로브 잡 220여 건은 그 워크스페이스 삭제 cascade로만 정리된다
+- [Phase 2] 02-09 Task 3(게이트)이 체크포인트로 중단됨 — 스크립트 2종과 워크플로우 4잡은 커밋됐고 로컬에서 위반 4종 red·clean tree exit 0까지 실측했으나, 원격 Actions 관측이 남았다. 필요한 것: (a) `ci-violation/service-import` 브랜치 — `apps/api/src/api/` 모듈에 `from worker.db.service import service_client` 한 줄 → PR에서 `service-usage` 잡 red와 위반 파일 경로 확인 (b) `ci-violation/bundle-secret` 브랜치 — dashboard 클라이언트 컴포넌트에 리터럴 한 줄(환경변수 참조는 번들에 안 남음) → PR에서 `bundle-secrets` 잡 red와 **파일 경로는 나오되 값은 안 나오는지** 확인 (c) 두 브랜치 삭제 후 정상 PR에서 4잡 green. 관측을 지어내지 않기 위해 docs/ops/ci-security-gate.md와 02-09-SUMMARY.md는 미작성 상태다
+- [Phase 2] 미등록 job type의 즉시 dead 전이는 현재 SQL 표면으로 불가 — dead는 fail_job/reap_stale_jobs 양쪽에서 attempts >= max_attempts로만 도달하고 그 게이트를 건너뛰려면 jobs 직접 UPDATE가 필요하다(금지 경로). 02-07은 fail_job(backoff='0 seconds')로 대기 없이 수렴시켰다. 0008의 dead_letter_job()이 이 자리를 닫을 것
 
 ## Deferred Items
 
