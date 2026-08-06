@@ -73,7 +73,8 @@
     "[해소 2026-08-06] DB 트랜스포트 — RPC 채택. decisions.db_transport 및 docs/ops/db-transport-spike.md 참조",
     "⚠️ 권한 공백 (P2-BE-01 스파이크에서 발견, 영구 수정 소유자는 0007 / 02-06-PLAN): anon·authenticated·service_role이 public 스키마 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE)를 하나도 갖고 있지 않습니다. pg_default_acl의 postgres|public|r 항목이 세 롤에 Dxtm만 부여합니다. RLS는 이미 가진 권한을 좁힐 뿐 없는 권한을 만들지 않으므로 0004의 정책 20여 개가 현재 상태에서 무력하며, 요청자 JWT 경로와 service_role 워커 경로 모두 실제 질의에서 42501로 떨어집니다. 이 때문에 0004_rls_policies.sql:12-13의 'anon/authenticated는 이미 전권 GRANT를 가진다'는 머리말 전제는 현재 Supabase CLI 기본값에서 사실이 아닙니다(주석도 함께 정정 대상).",
     "위 권한 공백의 수정 형태 (사용자 결정): 0007에 최소권한 역할 × 테이블 × 동작 매트릭스로 넣습니다. anon에는 실제로 필요하지 않으면 아무것도 부여하지 않고, authenticated는 Phase 2의 실제 요청자 경로가 쓰는 테이블·동작만, service_role은 Phase 2의 실제 워커 경로가 쓰는 테이블·동작만 받습니다. 포괄적 grant all은 금지입니다. 두 롤 모두 함수 EXECUTE 권한을 명시하되 claim_job/complete_job/fail_job/reap_stale_jobs가 anon·authenticated에서 revoke된 0003의 경계는 깨지 않습니다.",
-    "스파이크 코퍼스는 로컬 전용입니다 — supabase/spike/의 50,000행 × 1536차 벡터는 클라우드에 적재하지 않으며 supabase db reset(02-06-PLAN Task 2)이 지웁니다. 0002_search_fn_rpc.sql의 grant select on public.source_chunks to authenticated는 스파이크 진행용 비영구 국소 조치이며 영구 해법으로 오해하면 안 됩니다."
+    "스파이크 코퍼스는 로컬 전용입니다 — supabase/spike/의 50,000행 × 1536차 벡터는 클라우드에 적재하지 않으며 supabase db reset(02-06-PLAN Task 2)이 지웁니다. 0002_search_fn_rpc.sql의 grant select on public.source_chunks to authenticated는 스파이크 진행용 비영구 국소 조치이며 영구 해법으로 오해하면 안 됩니다.",
+    "⚠️ 토크나이저 버전 컬럼 타입 불일치 (02-05-PLAN 실행 중 발견, 해소 소유자는 0007 / 02-06-PLAN): packages/core/src/nexuswiki_core/tokenizer.py의 TSV_TOKENIZER_VERSION은 'bigram-nfkc-cf-v1' 문자열인데 source_chunks.tsv_tokenizer_version(0002_search_schema.sql:94)과 wiki_pages.tsv_tokenizer_version(:220)은 smallint여서 이 값을 그대로 쓸 수 없습니다. 두 컬럼 모두 지금 행이 0개라 alter table … type text가 데이터 마이그레이션 없는 한 줄로 끝나는 창은 지금뿐이며, 미루면 0008 하나와 막힌 P2-ING-02가 비용으로 남습니다 — 0007(02-06-PLAN) 섹션 7에서 확정합니다."
   ],
   "phases": [
     {
