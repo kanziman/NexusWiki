@@ -172,10 +172,35 @@ def _destroy_actor(client: httpx.Client, actor: TenantActor) -> None:
     )
 
 
+def _local_stack_is_up() -> bool:
+    """스택이 응답하는지만 확인한다 — 어떤 행도 만들거나 지우지 않는다."""
+    try:
+        response = httpx.get(
+            f"{LOCAL_STACK['url']}/rest/v1/",
+            headers={"apikey": LOCAL_STACK["publishable_key"]},
+            timeout=2.0,
+        )
+    except httpx.HTTPError:
+        return False
+    return response.status_code < 500
+
+
 @pytest.fixture
 def local_stack() -> Iterator[httpx.Client]:
-    """로컬 스택을 직접 때리는 동기 클라이언트 (픽스처 준비·정리 전용)."""
+    """로컬 스택을 직접 때리는 동기 클라이언트 (픽스처 준비·정리 전용).
+
+    ⚠️ 스택이 없으면 setup 에러가 아니라 **skip**이다. 이 픽스처를 쓰는 테스트는 실제
+    사용자와 워크스페이스를 만들어야 해서 스택 없이는 성립하지 않는데, 에러로 두면
+    스택이 없는 환경(= GitHub Actions 러너)에서 pytest 잡 전체가 red가 되어 CI 게이트가
+    켜지자마자 꺼진다. 02-07이 `apps/worker/tests/test_queue.py`의 통합 픽스처에 세운
+    것과 같은 관례다.
+    ⚠️ 그러나 skip은 "검증했다"가 아니다. CI는 `-rs`로 건너뛴 테스트를 사유와 함께
+    출력해 건너뛴 것이 건너뛴 것으로 보이게 하고, 이 테스트들의 실제 검증 장소는 로컬
+    `supabase start` 뒤의 전체 스위트다 (docs/ops/ci-security-gate.md § DB 의존 테스트).
+    """
     _assert_loopback()
+    if not _local_stack_is_up():
+        pytest.skip(f"로컬 Supabase 스택이 응답하지 않는다: {LOCAL_STACK['url']}")
     with httpx.Client(base_url=LOCAL_STACK["url"], timeout=10.0) as client:
         yield client
 
