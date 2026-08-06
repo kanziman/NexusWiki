@@ -170,7 +170,79 @@ grant execute on function public.spike_explain_search_chunks(uuid, extensions.ve
 
 
 -- -----------------------------------------------------------------------------
--- 3. PostgREST 스키마 캐시 갱신
+-- 3. spike_explain_search_chunks_forced — 진단용 (판정 보조)
+--
+-- 왜 필요한가: 50,000행 · 타깃 750행(1.5%)에서 플래너는 HNSW 대신
+-- source_chunks_workspace_idx btree 스캔 + 정렬을 고른다(총비용 233 vs 349,656).
+-- 750행을 훑어 정렬하는 편이 실제로 싸기 때문이며, 이 선택은 **트랜스포트와 무관하게
+-- 양쪽 경로에서 똑같이** 일어난다.
+--
+-- 그 상태의 EXPLAIN만 보면 "HNSW Index Scan 없음"이라는 관측이 두 가지 완전히 다른
+-- 원인 중 어느 쪽인지 구분할 수 없다.
+--   (a) 함수 정의의 set hnsw.* 가 RPC 경로에서 전달되지 않는다  ← 트랜스포트의 실패
+--   (b) 전달은 되지만 플래너가 이 코퍼스 모양에서 HNSW를 고를 이유가 없다  ← 비용 판단
+-- ROADMAP 성공기준 3이 묻는 것은 (a)이므로, 정렬 경로를 막아 HNSW를 강제한 뒤
+-- GUC가 실제 HNSW 스캔까지 도달하는지를 따로 관측한다.
+--
+-- ⚠️ 이 함수는 판정 보조용이며 애플리케이션 경로가 아니다. enable_sort 를 끄는 함수를
+--    0007로 승격하지 말 것.
+-- -----------------------------------------------------------------------------
+create or replace function public.spike_explain_search_chunks_forced(
+  p_workspace_id uuid,
+  p_query        extensions.vector(1536),
+  p_k            int
+)
+returns jsonb
+language plpgsql
+security invoker
+volatile
+set search_path = public
+set hnsw.iterative_scan = 'strict_order'
+set hnsw.ef_search = '200'
+set hnsw.max_scan_tuples = '40000'
+set enable_sort = 'off'
+as $fn$
+declare
+  v_plan jsonb;
+  v_rows int;
+begin
+  execute format(
+    'explain (analyze, buffers, format json)'
+    ' select c.id, c.chunk_index'
+    ' from public.source_chunks c'
+    ' where c.workspace_id = %L'
+    '   and c.embedding is not null'
+    ' order by c.embedding operator(extensions.<=>) %L::extensions.vector(1536)'
+    ' limit %s',
+    p_workspace_id,
+    p_query::text,
+    p_k
+  )
+  into v_plan;
+
+  select count(*) into v_rows
+  from public.spike_search_chunks(p_workspace_id, p_query, p_k);
+
+  return jsonb_build_object(
+    'iterative_scan',  current_setting('hnsw.iterative_scan', true),
+    'ef_search',       current_setting('hnsw.ef_search', true),
+    'max_scan_tuples', current_setting('hnsw.max_scan_tuples', true),
+    'requested_k',     p_k,
+    'returned_rows',   v_rows,
+    'plan',            v_plan
+  );
+end
+$fn$;
+
+comment on function public.spike_explain_search_chunks_forced(uuid, extensions.vector, int) is
+  '정렬 경로를 막아 HNSW를 강제한 뒤 GUC 전달 여부를 관측하는 진단 함수(스파이크 전용, 애플리케이션 경로 아님).';
+
+grant execute on function public.spike_explain_search_chunks_forced(uuid, extensions.vector, int)
+  to authenticated;
+
+
+-- -----------------------------------------------------------------------------
+-- 4. PostgREST 스키마 캐시 갱신
 --
 -- 갱신하지 않으면 러너가 PGRST202(함수를 찾을 수 없음)를 받는다.
 -- -----------------------------------------------------------------------------

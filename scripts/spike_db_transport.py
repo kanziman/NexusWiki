@@ -188,10 +188,14 @@ def run_rpc(
     vector: list[float],
     k: int,
     iteration: int,
+    forced_hnsw: bool = False,
 ) -> SpikeRunResult:
+    function = "spike_explain_search_chunks"
+    if forced_hnsw:
+        function = "spike_explain_search_chunks_forced"
     started = time.perf_counter()
     response = client.post(
-        f"{supabase_url.rstrip('/')}/rest/v1/rpc/spike_explain_search_chunks",
+        f"{supabase_url.rstrip('/')}/rest/v1/rpc/{function}",
         headers={
             "apikey": anon_key,
             "Authorization": f"Bearer {jwt}",
@@ -217,8 +221,16 @@ def run_rpc(
 
 
 # -----------------------------------------------------------------------------
-# 경로 2: asyncpg 세션 직결 — Task 2에서 구현한다
+# 경로 2: asyncpg 세션 직결
+#
+# SPEC R6은 "asyncpg + Supavisor session mode"를 요구하지만 로컬 스택은 pooler가
+# 비활성이다(config.toml 54429). 직접 연결은 세션 단위 연결이므로 set local GUC
+# 의미론에 관한 한 session mode와 동등하다. 이탈 근거는 결과 문서의 방법 절에 남긴다.
 # -----------------------------------------------------------------------------
+def vector_literal(vector: list[float]) -> str:
+    return "[" + ",".join(f"{value:.17g}" for value in vector) + "]"
+
+
 async def run_asyncpg(
     *,
     database_url: str,
@@ -227,10 +239,75 @@ async def run_asyncpg(
     vector: list[float],
     k: int,
     iteration: int,
+    forced_hnsw: bool = False,
 ) -> SpikeRunResult:
-    raise SystemExit(
-        "asyncpg 경로는 아직 구현되지 않았다 (Task 2). "
-        "asyncpg 설치는 공급망 게이트 승인 뒤 고정 버전으로만 수행한다 — T-02-SC."
+    import asyncpg
+
+    literal = vector_literal(vector)
+    # EXPLAIN 은 유틸리티 문이라 바인드 파라미터를 받지 못한다. 스파이크가 스스로 만든
+    # 합성 값만 조립하며 외부 입력은 이 경로에 들어오지 않는다.
+    search_sql = (
+        "select c.id, c.chunk_index"  # noqa: S608
+        " from public.source_chunks c"
+        f" where c.workspace_id = '{workspace_id}'::uuid"
+        "   and c.embedding is not null"
+        f" order by c.embedding operator(extensions.<=>) '{literal}'::extensions.vector(1536)"
+        f" limit {k}"
+    )
+
+    # ⚠️ 작은따옴표가 섞이면 문 자체가 깨진다. GoTrue claims 에는 없지만, 이 경로는
+    #    문자열 조립이 유일한 수단이므로 방어를 생략하지 않는다.
+    claims_json = json.dumps(claims, separators=(",", ":")).replace("'", "''")
+
+    connection = await asyncpg.connect(database_url)
+    try:
+        started = time.perf_counter()
+        transaction = connection.transaction()
+        await transaction.start()
+        try:
+            # hnsw.* GUC는 vector.so 가 이 백엔드에 적재된 뒤에야 정식 등록된다.
+            await connection.fetchval("select '[1,2,3]'::extensions.vector")
+
+            await connection.execute("set local hnsw.iterative_scan = 'strict_order'")
+            await connection.execute("set local hnsw.ef_search = '200'")
+            await connection.execute("set local hnsw.max_scan_tuples = '40000'")
+            if forced_hnsw:
+                # 진단 전용. 정렬 경로를 막아 플래너가 HNSW를 고르게 만든 뒤,
+                # GUC가 실제 HNSW 스캔까지 도달하는지를 따로 관측한다.
+                await connection.execute("set local enable_sort = off")
+
+            # ⚠️ 아래 두 문장 중 하나라도 빠지면 auth.uid() 가 값을 보지 못해 RLS 정책이
+            #    아무도 막지 않는 상태가 된다. 예외는 나지 않고 격리만 조용히 풀린다 —
+            #    실패가 눈에 보이지 않는다는 것이 이 경로의 진짜 비용이다.
+            #    근거: 02-CONTEXT.md > D-04.
+            await connection.execute(f"set local request.jwt.claims = '{claims_json}'")
+            await connection.execute("set local role authenticated")
+
+            observed = await connection.fetchrow(
+                "select current_setting('hnsw.iterative_scan', true)  as iterative_scan,"
+                "       current_setting('hnsw.ef_search', true)       as ef_search,"
+                "       current_setting('hnsw.max_scan_tuples', true) as max_scan_tuples"
+            )
+            plan_json = await connection.fetchval(
+                f"explain (analyze, buffers, format json) {search_sql}"
+            )
+            rows = await connection.fetch(search_sql)
+        finally:
+            # 판정만 하고 아무것도 남기지 않는다.
+            await transaction.rollback()
+        elapsed_ms = (time.perf_counter() - started) * 1000
+    finally:
+        await connection.close()
+
+    return SpikeRunResult(
+        transport="asyncpg",
+        iteration=iteration,
+        iterative_scan=observed["iterative_scan"],
+        ef_search=observed["ef_search"],
+        max_scan_tuples=observed["max_scan_tuples"],
+        has_hnsw_index_scan=has_hnsw_index_scan(json.loads(plan_json)),
+        returned_rows=len(rows),
+        elapsed_ms=elapsed_ms,
     )
 
 
@@ -261,6 +338,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--email", default=SPIKE_USER_EMAIL)
     parser.add_argument("--password", default=None)
     parser.add_argument("--workspace-id", default=SPIKE_TARGET_WORKSPACE_ID)
+    parser.add_argument(
+        "--forced-hnsw",
+        action="store_true",
+        help="정렬 경로를 막아 HNSW를 강제한다(진단 전용, 판정 조건 2의 원인 분리)",
+    )
     return parser.parse_args(argv)
 
 
@@ -303,6 +385,7 @@ def main(argv: list[str] | None = None) -> int:
                     vector=vector,
                     k=args.k,
                     iteration=iteration,
+                    forced_hnsw=args.forced_hnsw,
                 )
             else:
                 database_url = _require(
@@ -317,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
                         vector=vector,
                         k=args.k,
                         iteration=iteration,
+                        forced_hnsw=args.forced_hnsw,
                     )
                 )
             results.append(result)

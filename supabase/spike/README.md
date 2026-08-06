@@ -70,8 +70,17 @@ asyncpg 경로는 공급망 게이트에서 승인된 **정확한 버전**으로
 않으면 매 실행이 다른 것을 설치해 3회 반복의 재현성 전제가 깨진다.
 
 ```bash
-uv run --with httpx --with 'asyncpg==<승인된 버전>' \
+uv run --with httpx --with 'asyncpg==0.31.0' \
   python scripts/spike_db_transport.py --transport asyncpg --k 20 --repeat 3
+```
+
+`--forced-hnsw`는 진단 전용 플래그다. 정렬 경로를 막아 플래너가 HNSW를 고르게 만든 뒤
+GUC가 실제 HNSW 스캔까지 도달하는지를 따로 관측한다. 기본 계획에서 `has_hnsw_index_scan`이
+거짓일 때 그 원인이 "GUC 미전달"인지 "플래너의 비용 판단"인지를 가르는 데 쓴다.
+
+```bash
+uv run --with httpx --with 'asyncpg==0.31.0' \
+  python scripts/spike_db_transport.py --transport rpc --k 20 --repeat 3 --forced-hnsw
 ```
 
 접속 정보(`API_URL` · `PUBLISHABLE_KEY` · `DB_URL`)는 `supabase status -o json`에서 읽는다.
