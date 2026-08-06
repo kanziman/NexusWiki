@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: security-spine-and-shared-domain
 status: executing
-stopped_at: Completed 02-06-PLAN.md
-last_updated: "2026-08-06T15:42:32.481Z"
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-08-06T16:07:25.879Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 18
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 02 (security-spine-and-shared-domain) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 02 execution started
 
-Progress: [████████░░] 78%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Progress: [████████░░] 78%
 | Phase 02 P05 | 25min | 3 tasks | 5 files |
 | Phase 02 P03 | 35min | 3 tasks | 10 files |
 | Phase 02 P06 | 1h | 3 tasks | 7 files |
+| Phase 02 P04 | 55min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02] wiki_pages의 verified CHECK를 걸지 않았다 — verified_by의 on delete set null이 CHECK를 위반해 계정 삭제가 23514로 실패한다. 세 컬럼 동시 기록은 P2-QC-01의 책임 (02-06)
 - [Phase ?]: [Phase 02] 마이그레이션을 단일 트랜잭션으로 감싸는 관례를 0007에서 시작 — 부분 적용이 남기는 '스키마는 바뀌었는데 권한이 없는' 상태를 구조적으로 불가능하게 만든다 (02-06)
 - [Phase ?]: [Phase 02] 검색 함수는 search_chunks 1채널만 0007에 넣었다 — 나머지 4채널은 융합 가중치가 정해지는 Phase 4의 일이며 지금 고정하면 0008·0009로 되돌아온다 (02-06)
+- [Phase ?]: [Phase 02] 교차 테넌트 쓰기를 막는 술어가 workspaces에서 두 겹이다 — SELECT 정책과 UPDATE 정책이 각각 독립으로 막으므로 하나만 푸는 fail-first는 green으로 통과한다 (02-04)
+- [Phase ?]: [Phase 02] 격리 테스트 픽스처는 접속 정보를 env가 아니라 상수+루프백 가드로 묶는다 — .env.local이 클라우드 자격증명을 담고 있어 env를 읽으면 운영 프로젝트에 사용자를 만들고 지운다 (02-04)
+- [Phase ?]: [Phase 02] 미인증 요청의 401은 FastAPI HTTPBearer가 낸다 — 라우터에 상태 코드를 두지 않으면서 미인증과 격리 위반을 다른 응답으로 유지하는 유일한 방법 (02-04)
 
 ### Pending Todos
 
@@ -122,6 +126,7 @@ None yet.
 - [Phase 2] 0007이 원격에 올라가 0007 이하 번호의 마이그레이션은 영구히 추가 불가 — 내용 변경은 0008 보정으로만. 섹션 7의 타입 변경은 다음에 되돌릴 때 실제 데이터가 있으므로 사실상 편도 (docs/ops/migration-0007-record.md §한계와 되돌리기)
 - [Phase 2] 0007 섹션 8의 권한 매트릭스가 실제 경로에 대해 넓지도 좁지도 않은지는 미확인 — 라우터가 서는 02-04와 워커가 도는 Phase 3에서 처음 드러난다. 좁게 틀리면 42501로 소란스럽고 넓게 틀리면 조용하다
 - [Phase 2] 새로 만드는 테이블은 pg_default_acl에서 다시 Dxtm(TRUNCATE 포함)을 물려받는다 — 테이블 추가 마이그레이션마다 0007 섹션 8의 revoke/grant 쌍을 반복할 것
+- [Phase 2] 격리 왕복 증명은 workspaces 한 테이블·로컬 스택에 한정 — 나머지 8개 테이블과 Storage, 클라우드 왕복은 미확인. 전수 스위트는 Phase 7 OPS-04 (docs/ops/tenant-isolation-proof.md §한계)
 
 ## Deferred Items
 
@@ -133,6 +138,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T15:42:32.105Z
-Stopped at: Completed 02-06-PLAN.md
+Last session: 2026-08-06T16:07:25.870Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None
