@@ -10,6 +10,7 @@ dependencies = [
   "fastapi==0.141.1",
   "httpx==0.28.1",
   "nexuswiki-core",
+  "pydantic-settings==2.14.2",
   "uvicorn==0.52.0",
 ]
 
