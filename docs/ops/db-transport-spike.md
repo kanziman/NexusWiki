@@ -85,7 +85,7 @@ public.source_chunks to authenticated` 하나만 국소적으로 넣었고, 영�
 
 이때 선택된 계획은 양쪽 모두 동일하다:
 
-```
+```text
 Limit  (총비용 233.24, 실행 11.776 ms)
   Sort
     Index Scan using source_chunks_workspace_idx  (actual rows = 750)
@@ -106,7 +106,7 @@ Limit  (총비용 233.24, 실행 11.776 ms)
 
 강제 시 계획과 사후 필터링 실측:
 
-```
+```text
 Limit  (총비용 349656.62, 실행 136.938 ms)
   Index Scan using source_chunks_embedding_idx  (actual rows = 20)
     Order By: embedding <=> '<질의 벡터>'
@@ -159,16 +159,60 @@ RPC 채택을 막는 요인이 없음을 보인다.
 지연은 기본 계획에서 rpc 21.964–48.866 ms, asyncpg 32.305–40.499 ms로 두 경로가 같은
 자릿수이며, PostgREST 왕복 오버헤드가 결정을 좌우할 만큼 크지 않다.
 
-### 결론
+### 결론 — **RPC 채택 (확정)**
 
-측정 근거는 **RPC(SECURITY INVOKER 함수 + 요청자 JWT)** 채택을 지지한다. 판정 3조건이
-겨냥한 실패 양상(GUC 미전달 · HNSW 미사용 · `k` 미충족)이 RPC 경로에서 하나도 관측되지
-않았고, 기본 계획에서의 조건 2 거짓은 두 경로에 공통인 플래너 비용 판단이라 트랜스포트
-선택의 근거가 되지 못한다.
+`Gate: DB 트랜스포트 결정 잠금` 체크포인트에서 **`rpc`(SECURITY INVOKER 함수 + 요청자
+JWT)** 가 선택되어 `checklists.json > decisions.db_transport`에 잠겼다. 기계적 판정과
+어긋나는 선택이 아니며(아래 요약 참조), 선택 근거는 측정 그대로다: 판정 3조건이 겨냥한
+실패 양상이 RPC 경로에서 하나도 관측되지 않았고, D-03이 "애매하면 되돌리기 싼 쪽이 아니라
+확실한 쪽으로 기운다"고 정한 방향과 일치한다. asyncpg는 측정된 이득 없이 D-04의 은밀한
+격리 상실 위험을 추가로 떠안는다. Phase 4에서 질의를 고칠 때마다 마이그레이션(`0008`,
+`0009`…)이 필요하다는 반대 논거는 인지한 상태에서 감수하기로 한 대가다.
 
-⚠️ 이 절은 측정에 근거한 **권고**이며 확정이 아니다. 트랜스포트 결정은 one-way이므로
-(`02-CONTEXT.md > D-03`) `Gate: DB 트랜스포트 결정 잠금` 체크포인트에서 사람이 확인한 뒤
-`checklists.json > decisions.db_transport`에 잠근다.
+### 나중 페이즈를 위한 요약 (이 스파이크를 다시 돌리지 않아도 되게)
+
+1. **D-03의 기계적 3조건 규칙은 이 질의 형태에서 변별력이 없다.** 실제 애플리케이션 질의
+   형태에서 두 트랜스포트는 **노드 단위로 동일한 계획**을 냈다. 조건 2가 깨진 원인은
+   트랜스포트가 아니라 플래너의 비용 판단이다 — 타깃 750행에 대해 btree+정렬 `233` 대
+   HNSW `349,657`. 어느 트랜스포트를 골라도 이 선택은 바뀌지 않는다.
+2. **원인 분리는 `enable_sort = off` 진단으로 했다.** "GUC가 전달되지 않았다"와 "플래너가
+   HNSW를 고르지 않았다"는 기본 계획의 EXPLAIN만으로는 구분되지 않는다. 정렬 경로를 막자
+   양쪽 경로 모두 3조건 3/3을 충족했다.
+3. **강제된 RPC 계획이 세 가지를 직접 증명한다.** `Rows Removed by Filter: 1523`은 사후
+   필터링이 실제로 일어났음을, `actual rows = 20`은 `strict_order` 반복 스캔이 그 손실을
+   메워 `k`를 채웠음을, `Filter: … is_workspace_member(workspace_id)`는 RPC 경로에 RLS가
+   실제로 걸렸음을 보인다. 함수 정의의 `set` 절이 실제 HNSW 스캔까지 도달했다는 뜻이다.
+4. **ROADMAP 성공기준 3의 실측 답은 "예"다** — `create function ... SET hnsw.iterative_scan`
+   이 Supabase RPC로 실제 적용된다. 이 블로커는 해소되었다.
+5. **지연은 판정에 기여하지 않았다.** 기본 계획에서 rpc 21.96–48.87 ms, asyncpg
+   32.31–40.50 ms로 같은 자릿수이며, PostgREST 왕복 오버헤드가 결정을 좌우하지 않았다.
+
+## 다운스트림 소비자
+
+이 결정이 착지하는 지점은 세 곳이다.
+
+- **`supabase/migrations/0007_*.sql` 섹션 1 (02-06-PLAN)** — 검색 함수가
+  `supabase/spike/0002_search_fn_rpc.sql`의 `spike_search_chunks` 시그니처를 원형으로 삼는다.
+  `security invoker` · `stable` · `set search_path = public` · GUC 3종을 같은 modifier
+  블록에 두고, pgvector 참조를 전부 schema-qualified(`extensions.vector(1536)`,
+  `operator(extensions.<=>)`)로 쓴다. ⚠️ `hnsw.*` GUC는 `vector.so`가 백엔드에 적재된 뒤에야
+  정식 등록되므로, `create function ... set hnsw.*` 앞에 벡터 표현식 평가가 한 번
+  선행해야 한다 — 없으면 `permission denied to set parameter`로 마이그레이션이 실패한다
+  (Supabase의 `postgres` 롤은 superuser가 아니고 `load 'vector'`도 허용되지 않는다).
+  ⚠️ 같은 마이그레이션이 위 권한 공백도 최소권한 매트릭스로 함께 닫아야 한다. 닫지 않으면
+  이 검색 함수가 `authenticated`에게 `42501`을 던진다.
+- **`apps/api/src/api/db/user.py` (`UserDb`, 02-03-PLAN)** — asyncpg 커넥션 계층을 두지
+  않는다. `UserDb`는 요청자 JWT를 실은 PostgREST RPC 호출 어댑터이며, 트랜잭션 진입점에서
+  GUC를 세우는 D-04의 asyncpg 요건은 이 결정으로 **불필요해졌다**. 쓰기 경로의 0행 → 403
+  매핑(D-11)은 트랜스포트와 무관하게 그대로 유지된다.
+- **`apps/api/src/api/health_check.py` (01-CONTEXT.md > D-11)** — Phase 1이 트랜스포트
+  교체 지점으로 격리해 둔 파일이다. 이미 PostgREST 왕복을 쓰고 있으므로 이 결정으로
+  구조가 바뀌지 않는다.
+
+Phase 4의 EXPLAIN 회귀 테스트(RTV-08)는 `scripts/spike_db_transport.py`의 계획 파싱
+(`walk_plan` / `has_hnsw_index_scan`)을 원형으로 쓴다. ⚠️ 그때 위 5번을 전제할 것 —
+기본 계획의 인덱스 선택은 코퍼스 모양에 따라 달라지므로 "항상 HNSW"를 단언하는 테스트는
+워크스페이스가 작을 때 거짓 실패한다.
 
 ### 이 스파이크가 판정하지 않은 것
 
