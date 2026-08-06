@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: security-spine-and-shared-domain
 status: executing
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-08-06T16:07:25.879Z"
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-08-06T16:27:12.037Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 02 execution started
 progress:
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 02 (security-spine-and-shared-domain) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 02 execution started
 
@@ -72,6 +72,7 @@ Progress: [████████░░] 83%
 | Phase 02 P03 | 35min | 3 tasks | 10 files |
 | Phase 02 P06 | 1h | 3 tasks | 7 files |
 | Phase 02 P04 | 55min | 3 tasks | 8 files |
+| Phase 02 P07 | 12min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02] 교차 테넌트 쓰기를 막는 술어가 workspaces에서 두 겹이다 — SELECT 정책과 UPDATE 정책이 각각 독립으로 막으므로 하나만 푸는 fail-first는 green으로 통과한다 (02-04)
 - [Phase ?]: [Phase 02] 격리 테스트 픽스처는 접속 정보를 env가 아니라 상수+루프백 가드로 묶는다 — .env.local이 클라우드 자격증명을 담고 있어 env를 읽으면 운영 프로젝트에 사용자를 만들고 지운다 (02-04)
 - [Phase ?]: [Phase 02] 미인증 요청의 401은 FastAPI HTTPBearer가 낸다 — 라우터에 상태 코드를 두지 않으면서 미인증과 격리 위반을 다른 응답으로 유지하는 유일한 방법 (02-04)
+- [Phase ?]: 미등록 job type의 즉시 dead는 0003/0007의 SQL 표면으로는 불가능하다 — dead는 attempts >= max_attempts로만 도달한다. fail_job(backoff=0)으로 대기 없이 수렴시키고, 한 번에 보내려면 0008의 dead_letter_job()이 필요하다
+- [Phase ?]: 0행 composite RPC는 PostgREST에서 all-null 레코드로 돌아온다 — ServiceDb._rpc가 이것을 None으로 정규화한다. 정규화가 없으면 at-least-once 재호출 no-op이 성공으로 기록된다
 
 ### Pending Todos
 
@@ -138,6 +141,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T16:07:25.870Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-08-06T16:27:04.666Z
+Stopped at: Completed 02-07-PLAN.md
 Resume file: None

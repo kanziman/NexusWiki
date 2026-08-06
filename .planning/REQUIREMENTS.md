@@ -43,7 +43,7 @@
 - [x] **DOM-05**: `packages/core`의 단일 모듈이 `normalize()`(NFKC + casefold + 공백 정규화)와 `bigram()`을 제공하고, `bigram()`은 정규화된 입력만 받는다; `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
 - [x] **DOM-06**: NFC / NFD / 전각 입력에 대한 토크나이저 왕복 자가검색 테스트가 통과한다
 - [x] **DOM-07**: 슬러그가 `title`의 결정적 순수 함수로 생성되고 버전이 붙는다 — **LLM은 슬러그를 소유하지 않는다**; 페이지 생성 전 기존 슬러그와 `wiki_links.target_slug`에 대해 해소한다
-- [ ] **DOM-08**: 워커 스켈레톤이 SIGTERM graceful shutdown · reaper · `noop` 잡 타입으로 큐 계약을 증명한다 (LLM 비용 발생 이전에)
+- [x] **DOM-08**: 워커 스켈레톤이 SIGTERM graceful shutdown · reaper · `noop` 잡 타입으로 큐 계약을 증명한다 (LLM 비용 발생 이전에)
 - [ ] **DOM-09**: `jobs`에 하트비트 가능 컬럼이 있는지 확인하고, `reap_stale_jobs` 타임아웃을 실측 p99 기준으로 설정한다 (없으면 컴파일을 더 작은 잡으로 분할)
 
 ### Ingestion (ING)
@@ -201,7 +201,7 @@
 | DOM-05 | Phase 2 | Complete |
 | DOM-06 | Phase 2 | Complete |
 | DOM-07 | Phase 2 | Complete |
-| DOM-08 | Phase 2 | Pending |
+| DOM-08 | Phase 2 | Complete |
 | DOM-09 | Phase 2 | Pending |
 | ING-01 | Phase 3 | Pending |
 | ING-02 | Phase 3 | Pending |
