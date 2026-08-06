@@ -32,9 +32,22 @@ if [ ! -d "$BUNDLE_DIR" ]; then
   exit 1
 fi
 
-file_count="$(find "$BUNDLE_DIR" -type f | wc -l | tr -d '[:space:]')"
+# 제외는 하나뿐이고, 그 하나에 이유를 남긴다 — 이유 없는 제외가 늘어나면 이 검사는
+# 조용히 아무것도 보지 않는 상태가 된다.
+#   .next/cache : webpack 빌드 캐시. **배포되지 않는다**(방문자에게 내려가는 것은
+#                 .next/static 과 .next/server 다). 그런데 캐시 팩은 이전 빌드의 문자열을
+#                 그대로 들고 있어서, 유출을 고치고 다시 빌드해도 red가 유지된다 — 실측으로
+#                 재현했다(리터럴 제거 후 재빌드에도 client-production/7.pack 이 1건 매치).
+#                 고쳐도 red인 검사는 곧 신뢰를 잃고 꺼지므로, 배포 표면만 본다.
+#                 러너는 캐시를 복원하지 않으므로 CI에서는 애초에 존재하지도 않는다.
+files=()
+while IFS= read -r file; do
+  files+=("$file")
+done < <(find "$BUNDLE_DIR" -type d -name cache -prune -o -type f -print)
+
+file_count="${#files[@]}"
 if [ "$file_count" -eq 0 ]; then
-  echo "ci_check_bundle_secrets: $BUNDLE_DIR 에 파일이 0개다" >&2
+  echo "ci_check_bundle_secrets: $BUNDLE_DIR 에 검사할 파일이 0개다" >&2
   echo "디렉터리는 있으나 산출물이 비었다. 빈 결과를 통과로 넘기지 않는다." >&2
   exit 1
 fi
@@ -49,7 +62,7 @@ for pattern in "${PATTERNS[@]}"; do
   # grep: 0=발견, 1=미발견, 2 이상=오류. 셋을 뭉개면 grep이 터진 실행이 "깨끗함"으로 읽힌다.
   # -a: 산출물에는 소스맵·webpack 팩처럼 grep이 바이너리로 판정하는 파일이 섞인다. 텍스트로
   #     강제하지 않으면 그 안의 문자열을 통째로 놓치고, 개수 세기도 "Binary file matches" 한 줄이 된다.
-  hits="$(grep -rlaF -- "$pattern" "$BUNDLE_DIR")" || status=$?
+  hits="$(grep -laF -- "$pattern" "${files[@]}")" || status=$?
 
   if [ "$status" -gt 1 ]; then
     echo "ci_check_bundle_secrets: grep이 오류로 종료했다 (exit $status) — 패턴 '$pattern'" >&2
