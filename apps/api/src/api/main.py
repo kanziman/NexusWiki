@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
+from api import errors
 from api.routers.health import router as health_router
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
@@ -35,12 +36,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     """주입된 설정만 보는 앱을 만든다.
 
-    라우터는 환경이 아니라 `app.state`만 읽는다. 02-04가 여기에 라우터와 403 예외
-    핸들러를 이어 등록한다 (02-CONTEXT.md > D-13의 "한 곳" 조건).
+    라우터는 환경이 아니라 `app.state`만 읽는다. 격리 예외의 등록 지점은 아래 한 줄이
+    전부이며 02-04의 라우터는 상태 코드를 직접 다루지 않는다 (02-CONTEXT.md > D-13의
+    "한 곳" 조건).
     """
     app = FastAPI(lifespan=lifespan)
     app.state.settings = settings
     app.state.git_sha = resolve_git_sha() if git_sha is None else git_sha
+    errors.register_error_handlers(app)
     app.include_router(health_router)
     return app
 
