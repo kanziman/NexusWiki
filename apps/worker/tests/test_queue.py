@@ -5,14 +5,28 @@
 attempts를 되돌린다)을 최소한으로 흉내 낸다. 워커 코드가 그 계약을 어떻게 쓰는지가
 이 파일의 관심사이고, 함수 자신의 계약은 supabase/tests/0007_queue_functions.sql이
 SQL 수준에서 이미 고정했다.
+
+파일 후반부(`4. 실제 DB를 상대로 한 통합 검증`)는 대역 없이 로컬 Supabase 스택을
+직접 상대한다. 멱등성과 반납 후 경합은 실제 함수 호출 없이는 증명되지 않기 때문이다
+(02-SPEC.md Edge Coverage R10 두 행).
 """
 
 import asyncio
+import os
+import secrets
+import uuid
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
+import httpx
 import pytest
 
 from worker import handlers, queue
+from worker.db.service import ServiceDb, service_client
+from worker.handlers.noop import handle_noop
+from worker.settings import WorkerSettings
 
 WORKER_ID = "worker-under-test"
 WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
@@ -381,9 +395,250 @@ def test_grace_is_shorter_than_the_platform_grace_period() -> None:
 
 
 def test_worker_id_is_stable_within_a_process_and_names_the_pid() -> None:
-    import os
-
     worker_id = queue.resolve_worker_id()
 
     assert worker_id == queue.resolve_worker_id()
     assert str(os.getpid()) in worker_id
+
+
+# =============================================================================
+# 4. 실제 DB를 상대로 한 통합 검증 — 멱등성과 반납 후 경합
+#
+# 위 단위 테스트는 큐 함수를 `FakeQueue`로 대체한다. 대역은 우리가 이해한 계약을
+# 반영할 뿐이므로, 이해가 틀렸다면 대역도 같이 틀린다. SPEC Edge Coverage가 R10에
+# idempotency와 concurrency 두 엣지를 covered로 표시했고 그 둘은 실제 함수 호출
+# 없이 증명되지 않는다. 아래 셋은 로컬 스택을 직접 상대한다.
+#
+# ⚠️ 이 테스트들은 **로컬 전용**이다. 아래 loopback 가드가 없으면 환경에 남아 있는
+#    클라우드 자격증명으로 프로덕션 큐에 잡을 만들고 지우게 된다. `.env.local`에는
+#    실제 클라우드 키가 들어 있으므로 그 이름들(`SUPABASE_URL` 등)을 쓰지 않고
+#    `NEXUSWIKI_LOCAL_*` 접두 변수만 읽는다.
+# =============================================================================
+
+LOCAL_SUPABASE_URL = os.environ.get("NEXUSWIKI_LOCAL_SUPABASE_URL", "http://127.0.0.1:54421")
+# supabase CLI 로컬 스택의 기본 JWT 시크릿에서 파생되는 고정 service_role 키.
+# 머신이 다르면 NEXUSWIKI_LOCAL_SERVICE_KEY로 덮어쓴다.
+LOCAL_SERVICE_KEY = os.environ.get(
+    "NEXUSWIKI_LOCAL_SERVICE_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0."
+    "EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU",
+)
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
+
+
+@dataclass
+class LocalQueueStack:
+    """로컬 스택 위에 만든 1회용 워크스페이스와 그 위의 `ServiceDb`."""
+
+    db: ServiceDb
+    client: httpx.AsyncClient
+    workspace_id: str
+
+    async def enqueue(
+        self,
+        *,
+        job_type: str = "noop",
+        payload: dict[str, Any] | None = None,
+        max_attempts: int = 3,
+    ) -> dict[str, Any]:
+        body = {
+            "workspace_id": self.workspace_id,
+            "type": job_type,
+            "payload": payload if payload is not None else {"target_id": str(uuid.uuid4())},
+            "max_attempts": max_attempts,
+        }
+        response = await self.client.post(
+            "/jobs", json=body, headers={"Prefer": "return=representation"}
+        )
+        response.raise_for_status()
+        return response.json()[0]
+
+    async def fetch(self, job_id: str) -> dict[str, Any]:
+        row = await self.db.get_job(job_id, workspace_id=self.workspace_id)
+        assert row is not None, f"잡 {job_id} 가 사라졌다"
+        return row
+
+
+async def _local_stack_is_up() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as probe:
+            response = await probe.get(
+                f"{LOCAL_SUPABASE_URL}/rest/v1/",
+                headers={"apikey": LOCAL_SERVICE_KEY},
+            )
+    except httpx.HTTPError:
+        return False
+    return response.status_code < 500
+
+
+@pytest.fixture
+async def local_queue() -> AsyncIterator[LocalQueueStack]:
+    host = urlsplit(LOCAL_SUPABASE_URL).hostname
+    assert host in LOOPBACK_HOSTS, (
+        f"통합 테스트는 로컬 스택 전용이다 — {LOCAL_SUPABASE_URL} 은 loopback이 아니다"
+    )
+    if not await _local_stack_is_up():
+        pytest.skip(f"로컬 Supabase 스택이 응답하지 않는다: {LOCAL_SUPABASE_URL}")
+
+    settings = WorkerSettings(
+        SUPABASE_URL=LOCAL_SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY="local-publishable-unused-on-service-path",
+        SUPABASE_SECRET_KEY=LOCAL_SERVICE_KEY,
+        DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54422/postgres",
+        OPENROUTER_API_KEY="unused-in-phase-2",
+        OPENAI_API_KEY="unused-in-phase-2",
+        LLM_MODEL="unused-in-phase-2",
+    )
+
+    async with service_client(settings) as client:
+        # ⚠️ 워크스페이스는 service key로 만들 수 없다. 0007 섹션 8의 최소권한
+        #    매트릭스가 `service_role`에 workspaces SELECT만 주었고, 생성은
+        #    요청자 JWT의 경로이기 때문이다(0004의 workspaces_insert_self_owned).
+        #    그래서 픽스처는 실제 배치와 같은 순서를 밟는다: 사용자를 만들고,
+        #    그 사용자의 토큰으로 워크스페이스를 만들고, 잡만 service key로 다룬다.
+        email = f"queue-{uuid.uuid4().hex[:12]}@example.invalid"
+        password = secrets.token_urlsafe(24)
+        created = await client.post(
+            f"{LOCAL_SUPABASE_URL}/auth/v1/admin/users",
+            json={"email": email, "password": password, "email_confirm": True},
+        )
+        created.raise_for_status()
+        user_id = created.json()["id"]
+
+        granted = await client.post(
+            f"{LOCAL_SUPABASE_URL}/auth/v1/token?grant_type=password",
+            json={"email": email, "password": password},
+        )
+        granted.raise_for_status()
+        access_token = granted.json()["access_token"]
+
+        # ⚠️ 사용자 삭제는 워크스페이스 생성이 실패해도 반드시 돌아야 한다. 안쪽에만
+        #    두면 생성이 터진 실행마다 auth.users에 고아 계정이 쌓이고, 그 계정들은
+        #    다음 실행에서 아무도 지우지 않는다.
+        try:
+            async with httpx.AsyncClient(
+                base_url=f"{LOCAL_SUPABASE_URL}/rest/v1",
+                headers={
+                    "apikey": LOCAL_SERVICE_KEY,
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+                timeout=httpx.Timeout(10.0),
+            ) as user_client:
+                workspace = await user_client.post(
+                    "/workspaces",
+                    json={"name": f"queue-it-{uuid.uuid4().hex[:8]}", "owner_id": user_id},
+                    headers={"Prefer": "return=representation"},
+                )
+                workspace.raise_for_status()
+                workspace_id = workspace.json()[0]["id"]
+
+                try:
+                    yield LocalQueueStack(
+                        db=ServiceDb(client), client=client, workspace_id=workspace_id
+                    )
+                finally:
+                    # 워크스페이스 삭제가 jobs를 cascade로 지운다(0003:29). `jobs`에는
+                    # 어느 롤도 DELETE 권한이 없으므로 잔여 행을 지우는 유일한
+                    # 경로가 이 cascade다.
+                    await user_client.delete(f"/workspaces?id=eq.{workspace_id}")
+                    leftovers = await client.get(
+                        "/jobs", params={"workspace_id": f"eq.{workspace_id}", "select": "id"}
+                    )
+                    assert leftovers.json() == [], leftovers.text
+        finally:
+            # workspaces.owner_id 는 on delete restrict 이므로 사용자는 언제나 그 다음이다.
+            await client.delete(f"{LOCAL_SUPABASE_URL}/auth/v1/admin/users/{user_id}")
+
+
+@pytest.mark.asyncio
+async def test_reprocessing_a_finished_job_converges_to_succeeded(
+    local_queue: LocalQueueStack,
+) -> None:
+    """at-least-once 재처리 — 같은 잡을 두 번 처리해도 상태가 수렴한다."""
+    job = await local_queue.enqueue()
+    job_id = job["id"]
+
+    assert await queue.process_next_job(local_queue.db, worker_id="idem-A", stop=asyncio.Event())
+    after_first = await local_queue.fetch(job_id)
+    assert after_first["status"] == "succeeded", after_first
+
+    # 두 번째 처리: 핸들러를 다시 돌리고 complete_job을 다시 부른다.
+    await handle_noop(job_id=job_id, workspace_id=local_queue.workspace_id, payload=job["payload"])
+    repeated = await local_queue.db.complete_job(job_id)
+
+    # 이것이 참인 이유는 complete_job의 `where ... and status = 'running'`
+    # 절(0003_jobs.sql:146)이 재호출을 예외가 아니라 0행 no-op으로 만들기
+    # 때문이다. 이 테스트는 그 절에 의존하고 있다 — 절이 사라지면 여기서 깨진다.
+    assert repeated is None
+    after_second = await local_queue.fetch(job_id)
+    assert after_second["status"] == "succeeded", after_second
+    assert after_second["attempts"] == after_first["attempts"]
+
+
+@pytest.mark.asyncio
+async def test_late_completion_after_release_does_not_overwrite_another_worker(
+    local_queue: LocalQueueStack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """워커 A 반납 → 워커 B claim → A의 지연 완료 순서를 실제로 재현한다."""
+    job = await local_queue.enqueue()
+    job_id = job["id"]
+    stop = asyncio.Event()
+    started = asyncio.Event()
+
+    async def never_finishing(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        started.set()
+        await asyncio.Event().wait()
+
+    install_handler(monkeypatch, never_finishing)
+
+    task = asyncio.create_task(
+        queue.process_next_job(local_queue.db, worker_id="A", stop=stop, grace_seconds=0.05)
+    )
+    await started.wait()
+    stop.set()
+    await task
+
+    released = await local_queue.fetch(job_id)
+    assert released["status"] == "queued", released
+    assert released["attempts"] == 0, released
+    assert released["locked_by"] is None, released
+
+    claimed_by_b = await local_queue.db.claim_job(worker_id="B")
+    assert claimed_by_b is not None and claimed_by_b["id"] == job_id
+
+    held_by_b = await local_queue.fetch(job_id)
+    # 워커 A의 루프는 반납 이후 그 잡 참조를 버렸다 — B의 진행이 그대로 살아 있다.
+    assert held_by_b["status"] == "running", held_by_b
+    assert held_by_b["locked_by"] == "B", held_by_b
+    assert held_by_b["attempts"] == 1, held_by_b
+
+    # ⚠️ 이 계약의 주체가 워커 코드라는 사실을 여기서 못 박는다. complete_job은
+    #    locked_by를 보지 않으므로, A가 뒤늦게 부르면 실제로 B의 진행을 덮어쓴다.
+    #    SQL이 막아주지 않는다 — 루프가 부르지 않는 것이 유일한 방어다.
+    overwritten = await local_queue.db.complete_job(job_id)
+    assert overwritten is not None and overwritten["status"] == "succeeded", overwritten
+
+
+@pytest.mark.asyncio
+async def test_real_job_delivers_its_workspace_scope_to_the_handler(
+    local_queue: LocalQueueStack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """service_role은 BYPASSRLS다 — 이 값이 닿지 않으면 Phase 3가 교차 테넌트를 읽는다."""
+    payload = {"target_id": str(uuid.uuid4())}
+    job = await local_queue.enqueue(payload=payload)
+    seen: list[dict[str, Any]] = []
+
+    async def recording(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        seen.append({"job_id": job_id, "workspace_id": workspace_id, "payload": payload})
+
+    install_handler(monkeypatch, recording)
+
+    await queue.process_next_job(local_queue.db, worker_id="scope-A", stop=asyncio.Event())
+
+    assert seen == [
+        {"job_id": job["id"], "workspace_id": local_queue.workspace_id, "payload": payload}
+    ], seen
+    assert (await local_queue.fetch(job["id"]))["status"] == "succeeded"

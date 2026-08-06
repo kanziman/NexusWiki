@@ -179,6 +179,29 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_all_null_record_from_a_zero_row_composite_function_becomes_none() -> None:
+    # ⚠️ `returns public.jobs` 함수가 0행이면 PostgREST는 null이 아니라 모든 필드가
+    #    null인 레코드를 만들어 준다. 그대로 돌려주면 `if row:` 가 no-op을 성공으로
+    #    읽고, at-least-once 큐에서 그것은 "두 번 처리해서 두 번 다 성공"으로 기록된다.
+    empty_record = {"id": None, "workspace_id": None, "status": None, "attempts": None}
+    async with client_returning(empty_record) as client:
+        db = service.ServiceDb(client)
+
+        assert await db.complete_job(JOB_ID) is None
+        assert await db.fail_job(JOB_ID, error="boom") is None
+
+
+@pytest.mark.asyncio
+async def test_a_real_row_survives_the_zero_row_normalisation() -> None:
+    async with client_returning({"id": JOB_ID, "status": "succeeded", "locked_by": None}) as client:
+        db = service.ServiceDb(client)
+
+        row = await db.complete_job(JOB_ID)
+
+    assert row is not None and row["id"] == JOB_ID
+
+
+@pytest.mark.asyncio
 async def test_failed_response_raises_instead_of_returning_an_empty_result() -> None:
     async with client_returning({"message": "nope"}, status=500) as client:
         db = service.ServiceDb(client)

@@ -173,5 +173,16 @@ class ServiceDb:
         response.raise_for_status()
         result = response.json()
         if isinstance(result, list):
-            return result[0] if result else None
-        return result if isinstance(result, dict) else None
+            result = result[0] if result else None
+        if not isinstance(result, dict):
+            return None
+        # ⚠️ `returns public.jobs` 함수(complete_job · fail_job)가 0행을 돌려주면
+        #    PostgREST는 null이 아니라 **모든 필드가 null인 레코드**를 만들어 준다.
+        #    0003의 큐 함수들은 `where ... and status = 'running'` 절 덕분에 재호출이
+        #    정상적으로 0행이고(at-least-once라 재호출이 정상 경로다), 그것을 그대로
+        #    돌려주면 호출부의 `if row:` 가 no-op을 성공으로 읽는다. 그 오독은 오류 없이
+        #    "두 번 처리해서 두 번 다 성공했다"는 기록을 남긴다.
+        #    `setof` 함수(claim_job · release_job)는 빈 배열로 오므로 위에서 이미 걸러진다.
+        if all(value is None for value in result.values()):
+            return None
+        return result
