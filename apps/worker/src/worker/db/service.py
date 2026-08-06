@@ -27,8 +27,8 @@ __all__ = [
 
 SERVICE_REQUEST_TIMEOUT_SECONDS: Final[float] = 10.0
 
-# `ServiceDb`가 직접 테이블을 읽는 헬퍼. 전부 workspace_id를 필수로 요구한다.
-TABLE_HELPERS: Final[frozenset[str]] = frozenset({"get_job", "list_jobs"})
+# `ServiceDb`가 직접 테이블을 읽고 쓰는 헬퍼. 전부 workspace_id를 필수로 요구한다.
+TABLE_HELPERS: Final[frozenset[str]] = frozenset({"enqueue_job", "get_job", "list_jobs"})
 
 # 0003이 정의한 큐 함수(0007의 release_job 포함)만을 호출하는 헬퍼.
 QUEUE_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
@@ -88,6 +88,36 @@ class ServiceDb:
         self._client = client
 
     # -- 테이블 헬퍼 ---------------------------------------------------------
+
+    async def enqueue_job(
+        self,
+        *,
+        workspace_id: str,
+        job_type: str,
+        payload: dict[str, Any],
+        max_attempts: int = 1,
+    ) -> dict[str, Any] | None:
+        """잡 한 건을 인큐한다 (0007 섹션 8이 `service_role`에 준 INSERT 권한).
+
+        ⚠️ 여기서 만든 행은 이 클라이언트가 **지울 수 없다**. `0007` 섹션 8의
+        최소권한 매트릭스는 `jobs`에 어느 롤에도 DELETE를 주지 않으며(잡 이력이
+        곧 감사 기록이다), 유일한 삭제 경로는 워크스페이스 삭제의 cascade다.
+        인큐한 쪽이 정리 책임을 지려면 처분 가능한 워크스페이스를 써야 한다.
+
+        ⚠️ `payload`에 `target_id`가 없으면 `jobs_dedup_idx`가 조용히 아무 일도
+        하지 않는다 — 유니크 인덱스에서 NULL은 서로 다른 값이기 때문이다. 중복
+        인큐는 23505로 돌아오므로 호출부가 "이미 큐에 있음"으로 처리해야 한다.
+        """
+        rows = await self._insert(
+            "jobs",
+            row={
+                "workspace_id": workspace_id,
+                "type": job_type,
+                "payload": payload,
+                "max_attempts": max_attempts,
+            },
+        )
+        return rows[0] if rows else None
 
     async def get_job(self, job_id: str, *, workspace_id: str) -> dict[str, Any] | None:
         rows = await self._select(
@@ -161,6 +191,16 @@ class ServiceDb:
         return await self._rpc("release_job", {"p_job_id": job_id, "p_worker_id": worker_id})
 
     # -- 내부 ----------------------------------------------------------------
+
+    async def _insert(self, table: str, *, row: dict[str, Any]) -> list[dict[str, Any]]:
+        # `Prefer: return=representation`이 없으면 PostgREST가 201 + 빈 본문을 주어
+        # 방금 만든 행의 id를 알 수 없다. 인큐한 잡을 추적하려면 필수다.
+        response = await self._client.post(
+            f"/{table}", json=row, headers={"Prefer": "return=representation"}
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, list) else [payload]
 
     async def _select(self, table: str, *, params: dict[str, str]) -> list[dict[str, Any]]:
         response = await self._client.get(f"/{table}", params=params)

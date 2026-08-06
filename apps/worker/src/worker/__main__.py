@@ -18,8 +18,49 @@ from nexuswiki_core.logging import (
 )
 from worker.db.service import ServiceDb, service_client
 from worker.queue import resolve_worker_id, run_queue_loop
+from worker.queue_baseline import measure_queue_roundtrip
 from worker.rtt import measure_rtt
 from worker.settings import WorkerSettings
+
+
+async def _run_queue_baseline_probe(
+    db: ServiceDb,
+    *,
+    settings: WorkerSettings,
+    worker_id: str,
+    git_sha: str | None,
+) -> None:
+    """큐 기준선 프로브를 기동 시 한 번만 돌린다 (기본은 꺼져 있다).
+
+    ⚠️ 이 프로브는 200회가 넘는 잡을 만들고 그 행을 지우지 못한다. 큐 루프가
+    시작되기 **전에** 돌려야 자기 프로브 잡과 루프가 서로 잡을 뺏지 않는다.
+    근거: 02-CONTEXT.md > D-17.
+    """
+    logger = get_logger(__name__)
+    if not settings.QUEUE_BASELINE_ENABLED:
+        return
+    if not settings.QUEUE_BASELINE_WORKSPACE_ID:
+        logger.warning("worker.queue_baseline_skipped", reason="no_workspace_id", git_sha=git_sha)
+        return
+    try:
+        result = await measure_queue_roundtrip(
+            db,
+            workspace_id=settings.QUEUE_BASELINE_WORKSPACE_ID,
+            worker_id=worker_id,
+        )
+        logger.info(
+            "worker.queue_baseline_measured",
+            cold_first_ms=result.cold_first_ms,
+            p50_ms=result.p50_ms,
+            p95_ms=result.p95_ms,
+            p99_ms=result.p99_ms,
+            sample_count=result.sample_count,
+            warmup_count=result.warmup_count,
+            failures=result.failures,
+            git_sha=git_sha,
+        )
+    except Exception:
+        logger.exception("worker.queue_baseline_failed", git_sha=git_sha)
 
 
 async def main() -> None:
@@ -76,8 +117,12 @@ async def main() -> None:
         # 그 신호를 받으면 새 claim을 멈추고 진행 중인 잡만 마무리한다.
         worker_id = resolve_worker_id()
         async with service_client(settings) as client:
+            db = ServiceDb(client)
+            await _run_queue_baseline_probe(
+                db, settings=settings, worker_id=worker_id, git_sha=git_sha
+            )
             processed = await run_queue_loop(
-                ServiceDb(client),
+                db,
                 worker_id=worker_id,
                 stop=stop,
             )

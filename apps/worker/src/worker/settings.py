@@ -34,3 +34,15 @@ class WorkerSettings(BaseAppSettings):
     # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 — 없다고 worker가 못 뜰
     # 이유가 없다. 배포 환경에서 RTT 프로브만 끄고 싶을 때 쓴다.
     RTT_PROBE_ENABLED: bool = True
+
+    # ⚠️ 기본값이 `False`인 것이 이 토글의 요점이다. 큐 기준선 프로브는 기동 시
+    # 200회가 넘는 claim→complete 왕복을 돌리고 그만큼의 잡 행을 남긴다. 기본이
+    # 참이면 모든 재배포·재시작이 운영 큐에 그 부하와 잔여 행을 더한다.
+    # 배포 후 한 번만 켜고 측정이 끝나면 되돌린다. 근거: 02-CONTEXT.md > D-17.
+    QUEUE_BASELINE_ENABLED: bool = False
+
+    # 프로브가 잡을 만들 워크스페이스. `service_role`은 `workspaces`에 SELECT만
+    # 가지므로(0007 섹션 8) 프로브가 스스로 만들 수 없고, `jobs`에는 DELETE 권한이
+    # 없어 남긴 행을 스스로 지울 수도 없다. 그래서 처분 가능한 워크스페이스 id를
+    # 밖에서 주입받고, 정리는 그 워크스페이스 삭제의 cascade에 맡긴다.
+    QUEUE_BASELINE_WORKSPACE_ID: str | None = None
