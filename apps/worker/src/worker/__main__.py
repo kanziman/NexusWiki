@@ -1,7 +1,7 @@
 """SIGTERM을 직접 처리하는 worker 프로세스 진입점.
 
-관련 태스크: P0-INIT-02, P2-BE-01
-설계 근거: 01-CONTEXT.md > D-03, D-13 · 02-CONTEXT.md > D-07, D-10
+관련 태스크: P0-INIT-02, P2-BE-01, P2-JOB-01
+설계 근거: 01-CONTEXT.md > D-03, D-13 · 02-CONTEXT.md > D-07, D-10, D-18
 """
 
 import asyncio
@@ -16,6 +16,8 @@ from nexuswiki_core.logging import (
     configure_logging,
     get_logger,
 )
+from worker.db.service import ServiceDb, service_client
+from worker.queue import resolve_worker_id, run_queue_loop
 from worker.rtt import measure_rtt
 from worker.settings import WorkerSettings
 
@@ -69,8 +71,20 @@ async def main() -> None:
                 )
             except Exception:
                 logger.exception("worker.rtt_failed", git_sha=git_sha)
-        await stop.wait()
-        logger.info("worker.stopped")
+        # RTT 프로브는 기동 시 한 번만 돌고, 이후 프로세스 수명 전체는 큐 루프가
+        # 차지한다. `stop`은 위에서 등록한 SIGTERM/SIGINT 핸들러가 세우며, 루프는
+        # 그 신호를 받으면 새 claim을 멈추고 진행 중인 잡만 마무리한다.
+        worker_id = resolve_worker_id()
+        async with service_client(settings) as client:
+            processed = await run_queue_loop(
+                ServiceDb(client),
+                worker_id=worker_id,
+                stop=stop,
+            )
+        # 루프가 잡마다 clear_job_context()를 부르므로 위 bootstrap 컨텍스트는
+        # 이미 지워져 있다. 종료 로그가 맨몸이 되지 않도록 다시 세운다.
+        bind_job_context(job_id="shutdown", workspace_id="shutdown")
+        logger.info("worker.stopped", worker_id=worker_id, processed=processed)
     finally:
         clear_job_context()
 
