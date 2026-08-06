@@ -6,14 +6,14 @@ current_phase: 02
 current_phase_name: security-spine-and-shared-domain
 status: executing
 stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-08-06T16:27:12.037Z"
+last_updated: "2026-08-06T16:37:47.419Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -130,6 +130,7 @@ None yet.
 - [Phase 2] 0007 섹션 8의 권한 매트릭스가 실제 경로에 대해 넓지도 좁지도 않은지는 미확인 — 라우터가 서는 02-04와 워커가 도는 Phase 3에서 처음 드러난다. 좁게 틀리면 42501로 소란스럽고 넓게 틀리면 조용하다
 - [Phase 2] 새로 만드는 테이블은 pg_default_acl에서 다시 Dxtm(TRUNCATE 포함)을 물려받는다 — 테이블 추가 마이그레이션마다 0007 섹션 8의 revoke/grant 쌍을 반복할 것
 - [Phase 2] 격리 왕복 증명은 workspaces 한 테이블·로컬 스택에 한정 — 나머지 8개 테이블과 Storage, 클라우드 왕복은 미확인. 전수 스위트는 Phase 7 OPS-04 (docs/ops/tenant-isolation-proof.md §한계)
+- [Phase 2] 02-08 Task 2·3이 체크포인트로 중단됨 — Railway 실측을 진행하려면 (a) railway CLI 설치·로그인·프로젝트 링크 (b) worker 서비스 env에 DATABASE_URL·OPENROUTER_API_KEY·OPENAI_API_KEY·LLM_MODEL 추가(없으면 다음 배포가 crash-loop) (c) 클라우드에 처분 가능한 프로브 워크스페이스 생성 후 QUEUE_BASELINE_WORKSPACE_ID 주입 (d) QUEUE_BASELINE_ENABLED를 worker에만 true로 두고 재시작, 측정 후 false 복구. jobs에는 DELETE 권한이 없어 프로브 잡 220여 건은 그 워크스페이스 삭제 cascade로만 정리된다
 
 ## Deferred Items
 
