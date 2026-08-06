@@ -1,0 +1,171 @@
+# 저장소 최초의 워크플로우. SEC-03과 SEC-05를 PR에서 집행한다.
+#
+# 관련 태스크: P2-BE-01
+# 설계 근거: 02-CONTEXT.md > D-06, D-09 · checklists.json > decisions.db_access
+#
+# ⚠️ 요구는 이 파일의 **존재**가 아니라 **빌드 실패**다. 워크플로우가 있는데 위반 PR이
+#    green이면 아무것도 지키지 않는 것이며, 그 상태는 게이트가 아예 없는 것보다 나쁘다 —
+#    지켜지고 있다는 착각을 주기 때문이다. 그래서 이 파일에는 실패를 삼키는 구문
+#    (잡·스텝 수준 에러 무시 플래그, 항상 참을 내는 파이프 꼬리, 셸의 오류 중단 해제,
+#    빈 결과를 통과로 처리하는 것)이 하나도 들어가지 않으며, 두 검사 스크립트는 각각
+#    산출물 부재와 탐색 대상 0개를 pass가 아니라 fail로 처리한다.
+#    위반 브랜치 2종에서 실제로 red가 된 관측 기록은 docs/ops/ci-security-gate.md에 있다.
+#
+# ⚠️ 이 워크플로우는 어떤 repository secret도 참조하지 않는다. 네 검사 중 어느 것도
+#    Supabase·OpenRouter 자격증명을 필요로 하지 않으며, 필요해 보인다면 그 검사가 잘못
+#    설계된 것이다. 자격증명을 요구하는 순간 fork PR에서 돌지 않게 되고, CI 로그가
+#    secret 유출 경로가 된다.
+#
+# ⚠️ 트리거는 pull_request 뿐이다. main에 직접 push된 커밋은 검사되지 않는다.
+#    이를 막는 것은 브랜치 보호 규칙이며 그것은 코드가 아니라 저장소 설정이라 Phase 2의
+#    범위 밖이다 (T-02-59, accept). 한계로서 docs/ops/ci-security-gate.md에 적혀 있다.
+
+name: ci
+
+on:
+  pull_request:
+
+# 읽기만 필요하다. 기본 토큰 권한을 좁혀 두면 스텝 하나가 침해돼도 쓸 수 있는 것이 없다.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 로컬과 CI가 같은 런타임을 쓰도록 한 곳에서 고정한다. .python-version · package.json의
+  # packageManager 필드와 값이 어긋나면 "로컬은 통과, CI는 실패"가 재현 불가능해진다.
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.18.0"
+  UV_VERSION: "0.11.32"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+# 잡 넷을 서로 의존시키지 않는다 — 하나가 깨져도 나머지가 돌아야 "무엇이 무엇 때문에
+# 깨졌는지"가 한 번의 PR로 전부 보인다. 직렬로 묶으면 앞 잡의 실패가 뒤 잡을 가려버린다.
+jobs:
+  # 1. 저장소 전체에 대해 훅을 재실행한다. 훅을 건너뛴 커밋(--no-verify)이 있어도 여기서 드러난다.
+  pre-commit:
+    name: pre-commit (ruff + prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # ⚠️ Node/pnpm이 없으면 이 잡은 환경 문제로 실패한다. .pre-commit-config.yaml의
+      #    prettier 훅이 language: system 으로 `pnpm --dir apps/dashboard exec prettier`를
+      #    부르기 때문이다 — Python만 세우면 훅 자체를 실행할 수 없다.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: pnpm 활성화
+        run: |
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+          pnpm --version
+
+      - name: uv 설치
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Python dev 그룹 설치
+        run: uv sync --frozen
+
+      # prettier는 apps/dashboard의 devDependency다. 여기서 설치하지 않으면 훅이 실행 파일을 못 찾는다.
+      - name: dashboard 의존성 설치
+        run: pnpm --dir apps/dashboard install --frozen-lockfile
+
+      - name: pre-commit run --all-files
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  # 2. worker 밖의 service key 사용 탐지. SEC-03.
+  service-usage:
+    name: service key 격리 (SEC-03)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: uv 설치
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Python dev 그룹 설치
+        run: uv sync --frozen
+
+      # 같은 경계를 서로 다른 각도에서 본다. grep은 호출·심볼 import까지 포함해 넓게 보고,
+      # ruff TID251은 import 해석을 통해 정확하게 본다. 한쪽만 두면 다른 쪽의 사각이 남는다.
+      - name: grep 기반 탐지
+        run: bash scripts/ci_check_service_usage.sh
+
+      - name: ruff banned-api (TID251)
+        run: uv run ruff check apps packages
+
+  # 3. dashboard 프로덕션 번들에 secret 문자열이 실렸는지 검사. SEC-05.
+  bundle-secrets:
+    name: 번들 secret 유출 (SEC-05)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: pnpm 활성화
+        run: |
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+          pnpm --version
+
+      - name: dashboard 의존성 설치
+        run: pnpm --dir apps/dashboard install --frozen-lockfile
+
+      # 빌드가 실패하면 이 스텝에서 잡이 끝난다. 빌드는 성공했는데 산출물이 없거나 비면
+      # 다음 스텝의 스크립트가 실패시킨다 — 어느 쪽도 "grep이 아무것도 못 찾았으니 통과"가 되지 않는다.
+      - name: dashboard 프로덕션 빌드
+        run: pnpm --dir apps/dashboard build
+
+      - name: 번들 secret grep
+        run: bash scripts/ci_check_bundle_secrets.sh
+
+  # 4. 저장소 루트 전체 스위트.
+  pytest:
+    name: pytest (루트 전체 스위트)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: uv 설치
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Python dev 그룹 설치
+        run: uv sync --frozen
+
+      # DB 의존 테스트의 처리 방식 — 러너에 Supabase 스택을 세우지 **않는다**.
+      #
+      # 근거: 스택을 세우려면 Supabase CLI + Docker로 0001~0007을 적용해야 하고, 그때 이 잡이
+      # 검증하는 대상은 애플리케이션이 아니라 "CLI가 러너에서 뜨는가"가 된다. 격리 왕복 증명은
+      # 이미 로컬 스택에서 수행돼 docs/ops/tenant-isolation-proof.md에 기록돼 있고, 전수 스위트는
+      # Phase 7 OPS-04의 일이다. 이 잡의 목적은 단위 회귀를 PR마다 붙잡는 것이다.
+      #
+      # ⚠️ 그래서 스택이 필요한 테스트는 skip 된다. 조용히 사라지면 안 되므로 `-rs`로 건너뛴
+      #    테스트를 파일·행·사유까지 요약에 인쇄한다 — 건너뛴 것이 건너뛴 것으로 보여야 한다.
+      #    skip은 "검증했다"가 아니며, 그 테스트들의 실제 검증 장소는 로컬 `supabase start`
+      #    뒤의 전체 스위트다 (docs/ops/ci-security-gate.md § DB 의존 테스트).
+      #
+      # testpaths는 packages/core/tests · apps/api/tests · apps/worker/tests 셋이다
+      # (02-02가 worker를 추가했다). 여기서 하위 경로를 지정하지 않는 이유가 그것이다 —
+      # 지정하는 순간 새 워크스페이스 멤버의 테스트가 조용히 빠진다.
+      - name: uv run pytest
+        run: uv run pytest -rs
