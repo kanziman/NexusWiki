@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: security-spine-and-shared-domain
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-08-06T10:09:35.806Z"
+stopped_at: Completed 02-06-PLAN.md
+last_updated: "2026-08-06T15:42:32.481Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 18
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 02 (security-spine-and-shared-domain) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 02 execution started
 
-Progress: [███████░░░] 72%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [███████░░░] 72%
 | Phase 02 P02 | 45min | 4 tasks | 17 files |
 | Phase 02 P05 | 25min | 3 tasks | 5 files |
 | Phase 02 P03 | 35min | 3 tasks | 10 files |
+| Phase 02 P06 | 1h | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,10 @@ Recent decisions affecting current work:
 - [Phase ?]: 큐 RPC 헬퍼에는 workspace_id를 요구하지 않는다 — 쓰이지 않는 인자가 되어 격리를 강제하는 척만 하게 되므로, 허용 목록과 분류 테스트로 대체 (02-03)
 - [Phase ?]: UserDb는 workspace_id를 강제하지 않고 match 조건을 필수로 요구한다 — 이 경로의 격리 수단은 RLS다 (02-03)
 - [Phase ?]: 42501이 아닌 SQLSTATE는 403으로 뭉개지 않는다 — 진짜 장애가 격리 위반으로 위장되는 것을 막는다 (02-03)
+- [Phase ?]: [Phase 02] 0007 섹션 8이 9개 테이블 × 3개 롤 최소권한 매트릭스로 권한 공백을 닫았다 — anon 무권한, grant all 없음, RLS를 우회하는 TRUNCATE도 함께 회수 (02-06)
+- [Phase ?]: [Phase 02] wiki_pages의 verified CHECK를 걸지 않았다 — verified_by의 on delete set null이 CHECK를 위반해 계정 삭제가 23514로 실패한다. 세 컬럼 동시 기록은 P2-QC-01의 책임 (02-06)
+- [Phase ?]: [Phase 02] 마이그레이션을 단일 트랜잭션으로 감싸는 관례를 0007에서 시작 — 부분 적용이 남기는 '스키마는 바뀌었는데 권한이 없는' 상태를 구조적으로 불가능하게 만든다 (02-06)
+- [Phase ?]: [Phase 02] 검색 함수는 search_chunks 1채널만 0007에 넣었다 — 나머지 4채널은 융합 가중치가 정해지는 Phase 4의 일이며 지금 고정하면 0008·0009로 되돌아온다 (02-06)
 
 ### Pending Todos
 
@@ -114,6 +119,9 @@ None yet.
 - [Phase 3] 한국어 청킹 파라미터는 문헌 없음 — 실측 튜닝 대상. PDF 품질 게이트 임계값은 실제 픽스처(스캔본·다단·표 위주) 필요
 - [Phase 2] authenticated·service_role이 public 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE) 권한을 하나도 갖고 있지 않음 — pg_default_acl이 Dxtm만 부여. RLS는 이미 가진 권한을 좁힐 뿐이므로 0004의 정책 20여 개가 현재 무력하고 요청자 JWT 경로·service_role 워커 경로 모두 42501로 떨어진다. 영구 조치를 0007(02-06-PLAN)에 반영할 것
 - [Phase 2] WorkerSettings의 secret 4종 + LLM_MODEL이 필수 필드가 되어, Railway worker 서비스 env에 다섯 키가 모두 없으면 다음 배포에서 crash-loop으로 처음 드러난다 (api 서비스 env에는 secret 4종이 없어야 정상 — SEC-01)
+- [Phase 2] 0007이 원격에 올라가 0007 이하 번호의 마이그레이션은 영구히 추가 불가 — 내용 변경은 0008 보정으로만. 섹션 7의 타입 변경은 다음에 되돌릴 때 실제 데이터가 있으므로 사실상 편도 (docs/ops/migration-0007-record.md §한계와 되돌리기)
+- [Phase 2] 0007 섹션 8의 권한 매트릭스가 실제 경로에 대해 넓지도 좁지도 않은지는 미확인 — 라우터가 서는 02-04와 워커가 도는 Phase 3에서 처음 드러난다. 좁게 틀리면 42501로 소란스럽고 넓게 틀리면 조용하다
+- [Phase 2] 새로 만드는 테이블은 pg_default_acl에서 다시 Dxtm(TRUNCATE 포함)을 물려받는다 — 테이블 추가 마이그레이션마다 0007 섹션 8의 revoke/grant 쌍을 반복할 것
 
 ## Deferred Items
 
@@ -125,6 +133,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T10:09:28.749Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-08-06T15:42:32.105Z
+Stopped at: Completed 02-06-PLAN.md
 Resume file: None

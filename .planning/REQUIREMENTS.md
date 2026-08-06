@@ -37,9 +37,9 @@
 ### Data Access & Shared Domain (DOM)
 
 - [x] **DOM-01**: DB 트랜스포트가 **스파이크로 결정**되고 기록된다 — `create function ... SET hnsw.iterative_scan`이 Supabase RPC를 통해 실제로 적용되는지 검증 (적용되면 `SECURITY INVOKER` RPC, 아니면 asyncpg + Supavisor session mode)
-- [ ] **DOM-02**: 마이그레이션 `0007`이 검색 함수 · `jobs_dedup_idx` · `complete_job_and_chain()`(원자적 complete+enqueue)을 추가한다
-- [ ] **DOM-03**: `0007`이 `verification_status`에 `verified_by` / `verified_at` / `expires_at`을 추가한다 (주인과 날짜 없는 검증 배지는 쓰이지 않음)
-- [ ] **DOM-04**: `0007`이 `embedding_version` / `chunker_version`을 추가한다 (어휘 검색에만 버전이 있던 비대칭 해소)
+- [x] **DOM-02**: 마이그레이션 `0007`이 검색 함수 · `jobs_dedup_idx` · `complete_job_and_chain()`(원자적 complete+enqueue)을 추가한다
+- [x] **DOM-03**: `0007`이 `verification_status`에 `verified_by` / `verified_at` / `expires_at`을 추가한다 (주인과 날짜 없는 검증 배지는 쓰이지 않음)
+- [x] **DOM-04**: `0007`이 `embedding_version` / `chunker_version`을 추가한다 (어휘 검색에만 버전이 있던 비대칭 해소)
 - [x] **DOM-05**: `packages/core`의 단일 모듈이 `normalize()`(NFKC + casefold + 공백 정규화)와 `bigram()`을 제공하고, `bigram()`은 정규화된 입력만 받는다; `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
 - [x] **DOM-06**: NFC / NFD / 전각 입력에 대한 토크나이저 왕복 자가검색 테스트가 통과한다
 - [x] **DOM-07**: 슬러그가 `title`의 결정적 순수 함수로 생성되고 버전이 붙는다 — **LLM은 슬러그를 소유하지 않는다**; 페이지 생성 전 기존 슬러그와 `wiki_links.target_slug`에 대해 해소한다
@@ -195,9 +195,9 @@
 | SEC-05 | Phase 2 | Pending |
 | SEC-06 | Phase 2 | Pending |
 | DOM-01 | Phase 2 | Complete |
-| DOM-02 | Phase 2 | Pending |
-| DOM-03 | Phase 2 | Pending |
-| DOM-04 | Phase 2 | Pending |
+| DOM-02 | Phase 2 | Complete |
+| DOM-03 | Phase 2 | Complete |
+| DOM-04 | Phase 2 | Complete |
 | DOM-05 | Phase 2 | Complete |
 | DOM-06 | Phase 2 | Complete |
 | DOM-07 | Phase 2 | Complete |

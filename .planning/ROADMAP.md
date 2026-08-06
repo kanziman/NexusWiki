@@ -84,7 +84,7 @@ Plans:
   4. NFC·NFD·전각으로 각각 입력한 같은 한국어 문장이 `packages/core`의 **단일** 토크나이저를 거쳐 서로를 검색해내고, `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
   5. 워커가 `noop` 잡을 claim→complete로 통과시키고 SIGTERM에 진행 중인 잡을 잃지 않고 종료하며, 같은 `title`이 항상 같은 슬러그를 내고, `reap_stale_jobs` 타임아웃이 추측이 아니라 실측 p99로 설정된다
 
-**Plans**: 4/9 plans executed
+**Plans**: 5/9 plans executed
 
 **Wave 1** *(tracer — 이후 전부가 이 판정 위에 쌓인다)*
 
@@ -98,7 +98,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2)*
 
 - [x] 02-03-PLAN.md — `service_client` 인자 필수 팩토리 + ruff banned-api · `UserDb` 쓰기 메서드 2종과 단일 403 예외 핸들러
-- [ ] 02-06-PLAN.md — 마이그레이션 `0007` 6개 섹션(단일 트랜잭션) 작성 · `release_job()` SQL 테스트 · [BLOCKING] 로컬 reset + 클라우드 `db push`
+- [x] 02-06-PLAN.md — 마이그레이션 `0007` 6개 섹션(단일 트랜잭션) 작성 · `release_job()` SQL 테스트 · [BLOCKING] 로컬 reset + 클라우드 `db push`
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -197,7 +197,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
-| 2. Security Spine and Shared Domain | 4/9 | In Progress|  |
+| 2. Security Spine and Shared Domain | 5/9 | In Progress|  |
 | 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |
