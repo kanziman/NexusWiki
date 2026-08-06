@@ -22,7 +22,7 @@ asyncio_mode = "auto"
 # 워크스페이스 멤버마다 같은 이름의 테스트 모듈(test_settings.py 등)이 생기므로
 # 기본 prepend 모드의 basename 충돌을 피하려면 importlib 모드가 필요하다.
 addopts = ["--import-mode=importlib"]
-testpaths = ["packages/core/tests", "apps/api/tests"]
+testpaths = ["packages/core/tests", "apps/api/tests", "apps/worker/tests"]
 
 [tool.ruff]
 target-version = "py312"
@@ -31,7 +31,9 @@ src = ["apps/api/src", "apps/worker/src", "packages/core/src"]
 extend-exclude = ["supabase", "docs", ".planning"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
+# TID는 02-03이 붙일 banned-api 규칙(worker.db.service 차단)의 전제다 —
+# 규칙군을 선택하지 않으면 그 설정 블록이 조용히 무시된다. 근거: 02-CONTEXT.md > D-09.
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "TID"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101"]

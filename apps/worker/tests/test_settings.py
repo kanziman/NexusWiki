@@ -1,11 +1,11 @@
 """worker 전용 secret 필드 보유와 로그 마스킹 정합 회귀 테스트."""
 
 import pytest
-from nexuswiki_core.settings import MissingSettingError
 from pydantic_core import PydanticUndefined
-from worker.settings import WorkerSettings
 
 from nexuswiki_core.logging import REDACTED_KEYS
+from nexuswiki_core.settings import MissingSettingError
+from worker.settings import WorkerSettings
 
 # worker만이 이 값들을 담는다. 이름이 곧 마스킹 계약이다.
 SECRET_FIELD_NAMES = frozenset(

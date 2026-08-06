@@ -1,6 +1,7 @@
 """Settings 3계층의 역량 경계와 부팅 시점 실패 회귀 테스트."""
 
 import pytest
+
 from api.settings import ApiSettings
 from nexuswiki_core.settings import BaseAppSettings, MissingSettingError
 
