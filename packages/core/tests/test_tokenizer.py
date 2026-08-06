@@ -3,6 +3,7 @@
 import unicodedata
 
 import pytest
+
 from nexuswiki_core.tokenizer import (
     TSV_TOKENIZER_VERSION,
     bigram,
