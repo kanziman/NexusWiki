@@ -507,7 +507,12 @@
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
-          "verification": "GET /health → 200. 토큰 없이 보호 엔드포인트 호출 → 401. 비멤버 워크스페이스 ID로 호출 → 403. /docs 접근 가능"
+          "verification": "GET /health → 200. 토큰 없이 보호 엔드포인트 호출 → 401. 비멤버 워크스페이스 ID로 호출 → 403. /docs 접근 가능",
+          "deviations_from_plan": [
+            "격리 증명 표면을 위해 PATCH/DELETE /workspaces/{id} 두 경로만 먼저 세웠다 — 이 태스크가 원래 요구하는 인증 미들웨어·워크스페이스 컨텍스트 해석은 아직 없다. 라우터는 요청자 JWT를 HTTPBearer로 받아 UserDb에 넘기기만 한다. 근거: 02-CONTEXT.md > D-13 (상태 코드를 라우터에 두지 않는다).",
+            "교차 테넌트 쓰기를 막는 술어가 workspaces에서 두 겹이라는 사실을 실측했다 — SELECT 정책과 UPDATE 정책이 각각 독립적으로 막는다. update ... where id = $1이 대상 행을 먼저 읽어야 하므로 SELECT 정책이 가린 행은 UPDATE 술어를 풀어도 0행이다. 따라서 격리 회귀를 재현하려면 정책 두 개를 함께 풀어야 하며, 하나만 푸는 fail-first는 green으로 통과해버린다. 실측 표: docs/ops/tenant-isolation-proof.md §결과.",
+            "테스트 픽스처가 워크스페이스를 service_role이 아니라 소유자 JWT로 만든다 — 0007 섹션 8의 최소권한 매트릭스가 service_role에 workspaces SELECT만 주기 때문이다. 워커가 워크스페이스를 만드는 경로는 설계에 없으므로 이 좁음은 결함이 아니라 정상이다. 삭제도 같은 이유로 소유자 경로다."
+          ]
         },
         {
           "id": "P2-BE-02",
