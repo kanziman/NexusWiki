@@ -27,7 +27,7 @@
 
 ### Tenant Isolation Spine (SEC)
 
-- [ ] **SEC-01**: `ApiSettings`에 service key 필드가 **존재하지 않는다**; `WorkerSettings`만 보유하고 Railway에서도 worker 서비스에만 주입된다
+- [x] **SEC-01**: `ApiSettings`에 service key 필드가 **존재하지 않는다**; `WorkerSettings`만 보유하고 Railway에서도 worker 서비스에만 주입된다
 - [ ] **SEC-02**: `db/user.py`와 `db/service.py`가 분리되고 ruff banned-api 규칙이 `worker/**` 외의 `db/service` import를 차단한다
 - [ ] **SEC-03**: CI가 worker 밖의 `service_client` 사용을 탐지하면 빌드를 실패시킨다
 - [ ] **SEC-04**: `UserDb`가 *affected rows = 0*을 403으로 매핑한다 (라우터마다 흩어지지 않고 한 곳에서)
@@ -36,7 +36,7 @@
 
 ### Data Access & Shared Domain (DOM)
 
-- [ ] **DOM-01**: DB 트랜스포트가 **스파이크로 결정**되고 기록된다 — `create function ... SET hnsw.iterative_scan`이 Supabase RPC를 통해 실제로 적용되는지 검증 (적용되면 `SECURITY INVOKER` RPC, 아니면 asyncpg + Supavisor session mode)
+- [x] **DOM-01**: DB 트랜스포트가 **스파이크로 결정**되고 기록된다 — `create function ... SET hnsw.iterative_scan`이 Supabase RPC를 통해 실제로 적용되는지 검증 (적용되면 `SECURITY INVOKER` RPC, 아니면 asyncpg + Supavisor session mode)
 - [ ] **DOM-02**: 마이그레이션 `0007`이 검색 함수 · `jobs_dedup_idx` · `complete_job_and_chain()`(원자적 complete+enqueue)을 추가한다
 - [ ] **DOM-03**: `0007`이 `verification_status`에 `verified_by` / `verified_at` / `expires_at`을 추가한다 (주인과 날짜 없는 검증 배지는 쓰이지 않음)
 - [ ] **DOM-04**: `0007`이 `embedding_version` / `chunker_version`을 추가한다 (어휘 검색에만 버전이 있던 비대칭 해소)
@@ -188,13 +188,13 @@
 | BOOT-08 | Phase 1 | Complete |
 | BOOT-09 | Phase 1 | Complete |
 | BOOT-10 | Phase 1 | Complete |
-| SEC-01 | Phase 2 | Pending |
+| SEC-01 | Phase 2 | Complete |
 | SEC-02 | Phase 2 | Pending |
 | SEC-03 | Phase 2 | Pending |
 | SEC-04 | Phase 2 | Pending |
 | SEC-05 | Phase 2 | Pending |
 | SEC-06 | Phase 2 | Pending |
-| DOM-01 | Phase 2 | Pending |
+| DOM-01 | Phase 2 | Complete |
 | DOM-02 | Phase 2 | Pending |
 | DOM-03 | Phase 2 | Pending |
 | DOM-04 | Phase 2 | Pending |

@@ -84,15 +84,15 @@ Plans:
   4. NFC·NFD·전각으로 각각 입력한 같은 한국어 문장이 `packages/core`의 **단일** 토크나이저를 거쳐 서로를 검색해내고, `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
   5. 워커가 `noop` 잡을 claim→complete로 통과시키고 SIGTERM에 진행 중인 잡을 잃지 않고 종료하며, 같은 `title`이 항상 같은 슬러그를 내고, `reap_stale_jobs` 타임아웃이 추측이 아니라 실측 p99로 설정된다
 
-**Plans**: 9 plans
+**Plans**: 2/9 plans executed
 
 **Wave 1** *(tracer — 이후 전부가 이 판정 위에 쌓인다)*
 
-- [ ] 02-01-PLAN.md — DB 트랜스포트 스파이크: 요청자 JWT→RPC/asyncpg→RLS→HNSW→EXPLAIN 관통, 50,000행 적대적 코퍼스 3회 반복 판정, `decisions.db_transport` 잠금
+- [x] 02-01-PLAN.md — DB 트랜스포트 스파이크: 요청자 JWT→RPC/asyncpg→RLS→HNSW→EXPLAIN 관통, 50,000행 적대적 코퍼스 3회 반복 판정, `decisions.db_transport` 잠금
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 02-02-PLAN.md — Settings 3계층 분리(`ApiSettings`에 secret 필드 부재) · `create_app(settings)` 주입 · 루트 `pyproject.toml`의 `TID`와 `testpaths` 정합
+- [x] 02-02-PLAN.md — Settings 3계층 분리(`ApiSettings`에 secret 필드 부재) · `create_app(settings)` 주입 · 루트 `pyproject.toml`의 `TID`와 `testpaths` 정합
 - [ ] 02-05-PLAN.md — 공용 한국어 토크나이저(`normalize`/`bigram`/`bigram-nfkc-cf-v1`)와 결정적 슬러그(`slug_v1`, 한글 유지)
 
 **Wave 3** *(blocked on Wave 2)*
@@ -197,7 +197,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
-| 2. Security Spine and Shared Domain | 0/TBD | Not started | - |
+| 2. Security Spine and Shared Domain | 2/9 | In Progress|  |
 | 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |

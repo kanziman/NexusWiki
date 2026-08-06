@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Security Spine and Shared Domain
+current_phase: 02
+current_phase_name: security-spine-and-shared-domain
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-08-06T04:00:41.214Z"
-last_activity: 2026-08-05
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-08-06T09:32:37.481Z"
+last_activity: 2026-08-06
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 18
-  completed_plans: 9
+  completed_plans: 11
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-01)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** Phase 01 — bootstrap-and-ground-truth
+**Current focus:** Phase 02 — security-spine-and-shared-domain
 
 ## Current Position
 
-Phase: 2 — Security Spine and Shared Domain
-Plan: Not started
+Phase: 02 (security-spine-and-shared-domain) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-08-05 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-08-06 — Phase 02 execution started
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 61%
 
 ## Performance Metrics
 
@@ -66,6 +66,8 @@ Progress: [██████████] 100%
 | Phase 01 P07 | 12 min | 3 tasks | 21 files |
 | Phase 01 P04 | 3h 17m | 3 tasks | 3 files |
 | Phase 01 P08 | 15 min | 3 tasks | 5 files |
+| Phase 02 P01 | 1h 5m | 3 tasks | 6 files |
+| Phase 02 P02 | 45min | 4 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -88,6 +90,11 @@ Recent decisions affecting current work:
 - [Phase 01]: Auth 검증 계정은 성공·실패 경로 모두 trap으로 삭제하며 검증 스크립트는 개발자 머신에서만 실행한다. — Admin secret 사용 범위와 잔존 테스트 계정 위험을 동시에 제한한다.
 - [Phase 01]: RTT는 콜드 요청을 분리하고 워밍업 5회 뒤 성공 표본 50회의 최근접 순위 p50/p95를 기록한다. — 콜드 연결 비용이 정상 왕복 백분위를 오염하지 않도록 한다.
 - [Phase 01]: 배포 환경 RTT는 새 라우터 대신 worker 기동 경로에서 측정한다. — SPEC 경계를 지키면서 실제 Railway 네트워크 경로를 관측하는 D-14 결정이다.
+- [Phase 02]: DB 트랜스포트는 rpc(SECURITY INVOKER + 요청자 JWT) — 스파이크 실측이 결정. `create function ... SET hnsw.*`가 Supabase RPC로 실제 적용됨을 강제 HNSW 계획에서 확인
+- [Phase 02]: D-03의 기계적 3조건 규칙은 실제 질의 형태에서 변별력이 없다 — 두 트랜스포트가 노드 단위 동일 플랜을 내며 조건 2의 실패 원인은 플래너 비용(btree+sort 233 vs HNSW 349,657)
+- [Phase ?]: [Phase 02] git SHA·PORT는 설정이 아니라 배포 메타데이터로 nexuswiki_core.deployment가 읽는다 — D-10의 기동 실패 규칙이 빌드 메타데이터까지 번지지 않게 한다
+- [Phase ?]: [Phase 02] uvicorn을 factory 모드로 전환하고 모듈 레벨 app 객체를 제거 — api.main import가 프로덕션 환경 전체를 요구하지 않게 한다
+- [Phase ?]: [Phase 02] pytest import-mode를 importlib으로 고정 — 워크스페이스 멤버 간 test 모듈 basename 충돌로 수집이 깨지는 것을 막는다
 
 ### Pending Todos
 
@@ -97,9 +104,11 @@ None yet.
 
 - [Phase 1] `0005`(Storage)는 첫 클라우드 `db push` **이전에** 적용해야 함 — 이미 적용된 `0006`보다 번호가 낮아 이후에 넣으면 로컬/클라우드 순서가 어긋남
 - [Phase 1] 2025-11 이후 생성 프로젝트에는 legacy 키가 발급되지 않음 — `sb_publishable_`/`sb_secret_` 체계로 시작해야 함
-- [Phase 2] DB 트랜스포트 미결 — `create function ... SET hnsw.iterative_scan`이 Supabase RPC로 실제 적용되는지가 판정 기준. 스파이크 전까지 라우터를 쓰지 말 것
+- [해소 2026-08-06] [Phase 2] DB 트랜스포트 — `create function ... SET hnsw.iterative_scan`이 Supabase RPC로 **실제 적용됨**을 실측 확인(강제 HNSW 계획에서 GUC 3종 · HNSW Index Scan · k=20 전부 충족). RPC 채택으로 잠금 — `checklists.json > decisions.db_transport`, `docs/ops/db-transport-spike.md`
 - [Phase 2] `0003`의 `jobs`에 하트비트 가능 컬럼이 있는지 미확인 — 없으면 컴파일을 더 작은 잡으로 분할 (워커 루프 작성 전 확인)
 - [Phase 3] 한국어 청킹 파라미터는 문헌 없음 — 실측 튜닝 대상. PDF 품질 게이트 임계값은 실제 픽스처(스캔본·다단·표 위주) 필요
+- [Phase 2] authenticated·service_role이 public 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE) 권한을 하나도 갖고 있지 않음 — pg_default_acl이 Dxtm만 부여. RLS는 이미 가진 권한을 좁힐 뿐이므로 0004의 정책 20여 개가 현재 무력하고 요청자 JWT 경로·service_role 워커 경로 모두 42501로 떨어진다. 영구 조치를 0007(02-06-PLAN)에 반영할 것
+- [Phase 2] WorkerSettings의 secret 4종 + LLM_MODEL이 필수 필드가 되어, Railway worker 서비스 env에 다섯 키가 모두 없으면 다음 배포에서 crash-loop으로 처음 드러난다 (api 서비스 env에는 secret 4종이 없어야 정상 — SEC-01)
 
 ## Deferred Items
 
@@ -111,6 +120,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-05T14:31:49.664Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-security-spine-and-shared-domain/02-CONTEXT.md
+Last session: 2026-08-06T09:32:27.340Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: None
