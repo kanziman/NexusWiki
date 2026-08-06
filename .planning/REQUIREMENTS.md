@@ -28,9 +28,9 @@
 ### Tenant Isolation Spine (SEC)
 
 - [x] **SEC-01**: `ApiSettings`에 service key 필드가 **존재하지 않는다**; `WorkerSettings`만 보유하고 Railway에서도 worker 서비스에만 주입된다
-- [ ] **SEC-02**: `db/user.py`와 `db/service.py`가 분리되고 ruff banned-api 규칙이 `worker/**` 외의 `db/service` import를 차단한다
+- [x] **SEC-02**: `db/user.py`와 `db/service.py`가 분리되고 ruff banned-api 규칙이 `worker/**` 외의 `db/service` import를 차단한다
 - [ ] **SEC-03**: CI가 worker 밖의 `service_client` 사용을 탐지하면 빌드를 실패시킨다
-- [ ] **SEC-04**: `UserDb`가 *affected rows = 0*을 403으로 매핑한다 (라우터마다 흩어지지 않고 한 곳에서)
+- [x] **SEC-04**: `UserDb`가 *affected rows = 0*을 403으로 매핑한다 (라우터마다 흩어지지 않고 한 곳에서)
 - [ ] **SEC-05**: 클라이언트 번들에 secret 키가 포함되지 않음이 grep으로 검증된다
 - [ ] **SEC-06**: 애플리케이션 경로에서의 교차 테넌트 접근 시도가 테스트로 차단 확인된다
 
@@ -40,9 +40,9 @@
 - [ ] **DOM-02**: 마이그레이션 `0007`이 검색 함수 · `jobs_dedup_idx` · `complete_job_and_chain()`(원자적 complete+enqueue)을 추가한다
 - [ ] **DOM-03**: `0007`이 `verification_status`에 `verified_by` / `verified_at` / `expires_at`을 추가한다 (주인과 날짜 없는 검증 배지는 쓰이지 않음)
 - [ ] **DOM-04**: `0007`이 `embedding_version` / `chunker_version`을 추가한다 (어휘 검색에만 버전이 있던 비대칭 해소)
-- [ ] **DOM-05**: `packages/core`의 단일 모듈이 `normalize()`(NFKC + casefold + 공백 정규화)와 `bigram()`을 제공하고, `bigram()`은 정규화된 입력만 받는다; `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
-- [ ] **DOM-06**: NFC / NFD / 전각 입력에 대한 토크나이저 왕복 자가검색 테스트가 통과한다
-- [ ] **DOM-07**: 슬러그가 `title`의 결정적 순수 함수로 생성되고 버전이 붙는다 — **LLM은 슬러그를 소유하지 않는다**; 페이지 생성 전 기존 슬러그와 `wiki_links.target_slug`에 대해 해소한다
+- [x] **DOM-05**: `packages/core`의 단일 모듈이 `normalize()`(NFKC + casefold + 공백 정규화)와 `bigram()`을 제공하고, `bigram()`은 정규화된 입력만 받는다; `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
+- [x] **DOM-06**: NFC / NFD / 전각 입력에 대한 토크나이저 왕복 자가검색 테스트가 통과한다
+- [x] **DOM-07**: 슬러그가 `title`의 결정적 순수 함수로 생성되고 버전이 붙는다 — **LLM은 슬러그를 소유하지 않는다**; 페이지 생성 전 기존 슬러그와 `wiki_links.target_slug`에 대해 해소한다
 - [ ] **DOM-08**: 워커 스켈레톤이 SIGTERM graceful shutdown · reaper · `noop` 잡 타입으로 큐 계약을 증명한다 (LLM 비용 발생 이전에)
 - [ ] **DOM-09**: `jobs`에 하트비트 가능 컬럼이 있는지 확인하고, `reap_stale_jobs` 타임아웃을 실측 p99 기준으로 설정한다 (없으면 컴파일을 더 작은 잡으로 분할)
 
@@ -189,18 +189,18 @@
 | BOOT-09 | Phase 1 | Complete |
 | BOOT-10 | Phase 1 | Complete |
 | SEC-01 | Phase 2 | Complete |
-| SEC-02 | Phase 2 | Pending |
+| SEC-02 | Phase 2 | Complete |
 | SEC-03 | Phase 2 | Pending |
-| SEC-04 | Phase 2 | Pending |
+| SEC-04 | Phase 2 | Complete |
 | SEC-05 | Phase 2 | Pending |
 | SEC-06 | Phase 2 | Pending |
 | DOM-01 | Phase 2 | Complete |
 | DOM-02 | Phase 2 | Pending |
 | DOM-03 | Phase 2 | Pending |
 | DOM-04 | Phase 2 | Pending |
-| DOM-05 | Phase 2 | Pending |
-| DOM-06 | Phase 2 | Pending |
-| DOM-07 | Phase 2 | Pending |
+| DOM-05 | Phase 2 | Complete |
+| DOM-06 | Phase 2 | Complete |
+| DOM-07 | Phase 2 | Complete |
 | DOM-08 | Phase 2 | Pending |
 | DOM-09 | Phase 2 | Pending |
 | ING-01 | Phase 3 | Pending |

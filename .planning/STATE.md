@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: security-spine-and-shared-domain
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-08-06T09:32:37.481Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-08-06T10:09:35.806Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 18
-  completed_plans: 11
+  completed_plans: 13
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 02 (security-spine-and-shared-domain) — EXECUTING
-Plan: 2 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 02 execution started
 
-Progress: [██████░░░░] 61%
+Progress: [███████░░░] 72%
 
 ## Performance Metrics
 
@@ -68,6 +68,8 @@ Progress: [██████░░░░] 61%
 | Phase 01 P08 | 15 min | 3 tasks | 5 files |
 | Phase 02 P01 | 1h 5m | 3 tasks | 6 files |
 | Phase 02 P02 | 45min | 4 tasks | 17 files |
+| Phase 02 P05 | 25min | 3 tasks | 5 files |
+| Phase 02 P03 | 35min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -95,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02] git SHA·PORT는 설정이 아니라 배포 메타데이터로 nexuswiki_core.deployment가 읽는다 — D-10의 기동 실패 규칙이 빌드 메타데이터까지 번지지 않게 한다
 - [Phase ?]: [Phase 02] uvicorn을 factory 모드로 전환하고 모듈 레벨 app 객체를 제거 — api.main import가 프로덕션 환경 전체를 요구하지 않게 한다
 - [Phase ?]: [Phase 02] pytest import-mode를 importlib으로 고정 — 워크스페이스 멤버 간 test 모듈 basename 충돌로 수집이 깨지는 것을 막는다
+- [Phase ?]: 큐 RPC 헬퍼에는 workspace_id를 요구하지 않는다 — 쓰이지 않는 인자가 되어 격리를 강제하는 척만 하게 되므로, 허용 목록과 분류 테스트로 대체 (02-03)
+- [Phase ?]: UserDb는 workspace_id를 강제하지 않고 match 조건을 필수로 요구한다 — 이 경로의 격리 수단은 RLS다 (02-03)
+- [Phase ?]: 42501이 아닌 SQLSTATE는 403으로 뭉개지 않는다 — 진짜 장애가 격리 위반으로 위장되는 것을 막는다 (02-03)
 
 ### Pending Todos
 
@@ -120,6 +125,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T09:32:27.340Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-08-06T10:09:28.749Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
