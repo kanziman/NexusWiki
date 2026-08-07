@@ -32,6 +32,8 @@ task `P2-CI-01` (`02-09-PLAN.md` Task 3) · 게이트가 지키는 경계는 `ch
 | `pre-commit` | **fail** | pass | pass |
 | `pytest` | pass | pass | pass |
 
+실행 ID: PR #1 `31148248589` · PR #2 `31148250775` · PR #3 `31148389257`(4잡 전부 pass).
+
 각 위반이 자기 게이트만 켠다. PR #1에서 `pre-commit`이 함께 red인 것은 정상이다 — ruff
 `TID251`이 같은 위반을 grep과 **독립적으로** 잡는다. 두 층이 같은 경계를 지킨다.
 
