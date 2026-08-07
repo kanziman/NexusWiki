@@ -108,7 +108,8 @@
 | v1 위키 페이지는 읽기 전용, UI가 명시 | 자유 편집이 `(workspace_id, slug)` 업서트와 정면 충돌 — 재컴파일이 편집을 덮어씀. 멱등성 보장을 깨지 않고 기대치를 정확히 설정 | — Pending |
 | `0007`에 `verified_by`/`verified_at`/`expires_at` + `embedding_version`/`chunker_version` 추가 | 주인·만료 없는 검증 배지는 쓰이지 않고(Guru가 유일하게 살린 이유는 랭킹 강등), 어휘 검색에만 버전이 있던 비대칭은 모델 교체 경로를 막음 | — Pending |
 | Cytoscape 캔버스 v1 유지 (리서치 권고와 반대) | 리서처 3명이 최저 우선순위로 봤으나 데모·설득 가치를 인정해 유지. 단 Phase 6 마지막 표면으로 배치하고 1000행 캡 처리를 요구사항에 명시 | ⚠️ Revisit — 사용 데이터로 재평가 |
-| DB 트랜스포트는 스파이크로 결정 | 리서처 간 유일한 정면 충돌(asyncpg vs `SECURITY INVOKER` RPC). `create function ... SET hnsw.iterative_scan`이 RPC로 먹히는지가 판정 기준 — 문서가 아니라 실측이 결정 | — Pending (Phase 2) |
+| DB 트랜스포트는 스파이크로 결정 | 리서처 간 유일한 정면 충돌(asyncpg vs `SECURITY INVOKER` RPC). `create function ... SET hnsw.iterative_scan`이 RPC로 먹히는지가 판정 기준 — 문서가 아니라 실측이 결정 | ✓ Good — RPC 채택, `0007` 섹션 1에 반영 |
+| 임베딩은 bge-m3(1024차) 호스티드, OpenAI 아님 | 근거는 비용이 아니라 한국어 검색 품질. 한국어 NDCG@10에서 OpenAI 최상위 모델(3-large 0.61670)이 주요 오픈소스 전부에 밀림 — bge-m3 0.68723. 단가는 양쪽 다 반올림 오차. KURE-v1이 0.0075 더 높으나 호스티드 API가 없고 자체 호스팅은 예산 10배 | — Pending (`0008`이 Phase 3 전에 필요) |
 
 ## Evolution
 

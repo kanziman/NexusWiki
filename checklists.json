@@ -63,7 +63,12 @@
       "3. wiki_pages bigram tsvector 어휘 검색",
       "4. source_chunks bigram tsvector 어휘 검색",
       "5. wiki_links N-hop 그래프 확장 (recursive CTE)"
-    ]
+    ],
+    "embedding_model": {
+      "value": "bge-m3 (BAAI, 1024차) 호스티드 API. OpenAI text-embedding-3-small(1536차)은 채택하지 않습니다. 자체 호스팅과 KURE-v1은 예산 밖으로 보류합니다.",
+      "rationale": "근거는 비용이 아니라 한국어 검색 품질입니다. 고려대 NLP&AI Lab 한국어 검색 리더보드 NDCG@10에서 OpenAI의 상위 모델 text-embedding-3-large가 0.61670으로 주요 오픈소스 전부에 밀립니다 — bge-m3 0.68723, KURE-v1 0.69473, multilingual-e5-large 0.66370. 계획했던 3-small은 표에 없으며 3-large보다 낮을 것으로 보이나 측정값이 아닙니다. 단가는 bge-m3가 $0.01/1M로 3-small의 $0.02/1M보다 싸지만 이 규모에서 양쪽 다 반올림 오차이므로 결정에 기여하지 않습니다. KURE-v1이 0.0075 더 높으나 호스티드 API가 없어 자체 호스팅이 유일한 경로이고, bge-m3 3~4GB RAM은 Railway Hobby $5/월의 약 10배(월 $40~50)라 예산과 양립하지 않습니다. 조사 전문은 .planning/research/EMBEDDING.md에 있습니다.",
+      "implication": "0008 보정 마이그레이션이 Phase 3 착수 전에 필요합니다 — 0007이 클라우드에 올라가 0007 이하는 영구 수정 불가입니다. 작업은 (1) source_chunks.embedding·wiki_embeddings.embedding을 extensions.vector(1024)로 (2) HNSW 인덱스 2개 drop→recreate (3) 0007:72의 search_chunks RPC를 drop→recreate — 시그니처에 p_query extensions.vector(1536)이 박혀 있음 (4) embedding_version에 모델 식별자를 쓰는 앱 계약 확정. 임베딩 데이터가 0건이므로 재임베딩은 없으며, 이 창은 Phase 3가 첫 임베딩을 생성하는 순간 닫힙니다. 0002:76의 'text-embedding-3-small(1536차원)' 주석은 0002 수정 불가로 남으므로 0008 헤더에 무효임을 명시해야 합니다. '오픈소스 모델'이 '키 제거'를 뜻하지 않습니다 — 벤더가 OpenAI에서 이동할 뿐 OPENAI_API_KEY 자리를 대체할 키가 여전히 필요합니다."
+    }
   },
   "open_questions": [
     "OpenRouter의 정확한 모델 슬러그 확인 (P2-LLM-01 착수 전)",
@@ -74,7 +79,9 @@
     "[해소 2026-08-07] 권한 공백 (P2-BE-01 스파이크에서 발견, 영구 수정 소유자는 0007 / 02-06-PLAN): anon·authenticated·service_role이 public 스키마 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE)를 하나도 갖고 있지 않습니다. pg_default_acl의 postgres|public|r 항목이 세 롤에 Dxtm만 부여합니다. RLS는 이미 가진 권한을 좁힐 뿐 없는 권한을 만들지 않으므로 0004의 정책 20여 개가 현재 상태에서 무력하며, 요청자 JWT 경로와 service_role 워커 경로 모두 실제 질의에서 42501로 떨어집니다. 이 때문에 0004_rls_policies.sql:12-13의 'anon/authenticated는 이미 전권 GRANT를 가진다'는 머리말 전제는 현재 Supabase CLI 기본값에서 사실이 아닙니다(주석도 함께 정정 대상). — 0007 섹션 8이 9개 테이블에서 세 롤의 기존 권한(TRUNCATE 포함)을 전부 회수하고 최소권한 매트릭스를 부여해 해소했습니다. 로컬/원격 양쪽에서 anon 0건, authenticated 23건, service_role 25건을 확인했습니다. docs/ops/migration-0007-record.md 참조.",
     "[해소 2026-08-07] 위 권한 공백의 수정 형태 (사용자 결정): 0007에 최소권한 역할 × 테이블 × 동작 매트릭스로 넣습니다. anon에는 실제로 필요하지 않으면 아무것도 부여하지 않고, authenticated는 Phase 2의 실제 요청자 경로가 쓰는 테이블·동작만, service_role은 Phase 2의 실제 워커 경로가 쓰는 테이블·동작만 받습니다. 포괄적 grant all은 금지입니다. 두 롤 모두 함수 EXECUTE 권한을 명시하되 claim_job/complete_job/fail_job/reap_stale_jobs가 anon·authenticated에서 revoke된 0003의 경계는 깨지 않습니다. — 0007 섹션 8이 이 형태 그대로 구현되었습니다: anon 무권한, authenticated는 0004가 정책을 건 테이블·동작만, service_role은 워커 경로가 쓰는 테이블·동작만, grant all 없음, 0003의 큐 함수 revoke 경계 유지.",
     "스파이크 코퍼스는 로컬 전용입니다 — supabase/spike/의 50,000행 × 1536차 벡터는 클라우드에 적재하지 않으며 supabase db reset(02-06-PLAN Task 2)이 지웁니다. 0002_search_fn_rpc.sql의 grant select on public.source_chunks to authenticated는 스파이크 진행용 비영구 국소 조치이며 영구 해법으로 오해하면 안 됩니다.",
-    "[해소 2026-08-07] 토크나이저 버전 컬럼 타입 불일치 (02-05-PLAN 실행 중 발견, 해소 소유자는 0007 / 02-06-PLAN): packages/core/src/nexuswiki_core/tokenizer.py의 TSV_TOKENIZER_VERSION은 'bigram-nfkc-cf-v1' 문자열인데 source_chunks.tsv_tokenizer_version(0002_search_schema.sql:94)과 wiki_pages.tsv_tokenizer_version(:220)은 smallint여서 이 값을 그대로 쓸 수 없습니다. 두 컬럼 모두 지금 행이 0개라 alter table … type text가 데이터 마이그레이션 없는 한 줄로 끝나는 창은 지금뿐이며, 미루면 0008 하나와 막힌 P2-ING-02가 비용으로 남습니다 — 0007(02-06-PLAN) 섹션 7에서 확정합니다. — 0007 섹션 7이 두 컬럼을 text로 바꿨고 로컬/원격 모두 text 2개·smallint 0개를 확인했습니다."
+    "[해소 2026-08-07] 토크나이저 버전 컬럼 타입 불일치 (02-05-PLAN 실행 중 발견, 해소 소유자는 0007 / 02-06-PLAN): packages/core/src/nexuswiki_core/tokenizer.py의 TSV_TOKENIZER_VERSION은 'bigram-nfkc-cf-v1' 문자열인데 source_chunks.tsv_tokenizer_version(0002_search_schema.sql:94)과 wiki_pages.tsv_tokenizer_version(:220)은 smallint여서 이 값을 그대로 쓸 수 없습니다. 두 컬럼 모두 지금 행이 0개라 alter table … type text가 데이터 마이그레이션 없는 한 줄로 끝나는 창은 지금뿐이며, 미루면 0008 하나와 막힌 P2-ING-02가 비용으로 남습니다 — 0007(02-06-PLAN) 섹션 7에서 확정합니다. — 0007 섹션 7이 두 컬럼을 text로 바꿨고 로컬/원격 모두 text 2개·smallint 0개를 확인했습니다.",
+    "임베딩 공급자 미정 (DeepInfra vs Together vs OpenRouter) — 0008 착수 전 판정. 셋 다 $0.01/1M 수준이라 가격은 변별력이 없고, 판정 기준은 ap-southeast-1/asia-southeast1 지연과 OpenAI 임베딩 API 호환 여부 — decisions.embedding_model",
+    "bge-m3의 sparse 벡터가 앱 레이어 bigram 어휘 채널을 보강·대체할 수 있는지 — 5채널 구조와 tsv_tokenizer_version을 동시에 건드리므로 Phase 4 RTV-06 골든 질의 세트로 판정 (지금 결정하지 않음)"
   ],
   "phases": [
     {
