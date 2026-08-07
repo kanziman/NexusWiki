@@ -1,15 +1,16 @@
 ---
 phase: 02
 slug: security-spine-and-shared-domain
-status: blocked
+status: secured
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 block_on: high
 register_authored_at_plan_time: true
 threats_total: 62
-threats_closed: 59
+threats_closed: 60
 created: 2026-08-07
+updated: 2026-08-07
 ---
 
 # Phase 02 — Security
@@ -21,9 +22,9 @@ created: 2026-08-07
 
 | 구분 | 수 |
 |---|---|
-| 종결 (mitigate 검증됨) | 54 |
+| 종결 (mitigate 검증됨) | 55 |
 | 종결 (accept, 아래 로그에 기록) | 5 |
-| 미결 — **차단** (severity ≥ high) | **1** |
+| 미결 — **차단** (severity ≥ high) | **0** |
 | 미결 — 비차단 (severity < high) | 2 |
 
 ---
@@ -51,26 +52,43 @@ created: 2026-08-07
 
 ### 미결 — 차단 (severity ≥ `high`)
 
+**없음.** `threats_open: 0`.
+
+### 종결 2026-08-07 — T-02-47
+
 | Threat ID | Category | Component | Severity | Disposition | Status |
 |-----------|----------|-----------|----------|-------------|--------|
-| T-02-47 | DoS | `QUEUE_BASELINE_ENABLED` | high | mitigate | **open** |
+| T-02-47 | DoS | `QUEUE_BASELINE_ENABLED` | high | mitigate | **closed** |
 
-선언된 완화는 3절이다: (a) 기본값 `False`, (b) "측정 후 되돌린다", (c) "수용기준이 원상
-복구를 확인한다". **(a)만 구현돼 있다** (`apps/worker/src/worker/settings.py:42`).
+선언된 완화 3절 중 (a) 기본값 `False`만 코드에 있었고
+(`apps/worker/src/worker/settings.py:42`), (b)"측정 후 되돌린다"와 (c)"수용기준이 원상
+복구를 확인한다"는 **저장소 밖의 사실**이라 관측 없이는 닫을 수 없었다.
 
-⚠️ Railway `worker` 서비스의 env 변수가 `false`로 되돌려졌음을 기록한 산출물이 **어디에도
-없다.** `02-08-SUMMARY.md`는 "복구는 사람이 수행"이라고만 적고 관측을 남기지 않았고,
-`docs/ops/reap-timeout-baseline.md`는 프로브가 **실제 배포된 Railway worker에서 클라우드
-Supabase를 상대로** 돌았음을 확인해 준다. 즉 이 플래그는 운영 환경에서 참으로 설정됐고
-현재 상태를 아무도 모른다.
+2026-08-07 관측으로 (b)·(c) 충족. Railway `worker` 서비스에서 변수 2개를 제거하고
+재시작 후 로그 부재를 확인했다 — 전문은 `docs/ops/reap-timeout-baseline.md` §한계 5.
 
-**왜 잔소리가 아니라 차단인가:** 플래그가 여전히 참이면 worker가 재시작·재배포될 때마다
-226회 `claim→complete` 왕복이 클라우드 `jobs`에 발생하고, **어느 롤도 지울 수 없는**
-행이 매번 ~226건씩 쌓인다 (`0007` §8이 `jobs`에 DELETE를 아무에게도 주지 않는다).
-T-02-48을 무한히 증폭시킨다.
+```bash
+railway variable delete QUEUE_BASELINE_ENABLED   --service worker
+railway variable delete QUEUE_BASELINE_WORKSPACE_ID --service worker
+```
 
-**해소는 관측 한 번이다:** Railway `worker` 변수를 읽고, 있으면 `false`로 설정하고,
-그 사실을 `docs/ops/reap-timeout-baseline.md`에 기록한다.
+| 이벤트 | 기대 | 관측 |
+|---|---|---|
+| `worker.started` | 있음 | ✓ |
+| `worker.rtt_skipped` | 있음 | ✓ |
+| `worker.queue_baseline_*` | **한 줄도 없음** | ✓ |
+
+⚠️ **판정 기준이 "무엇이 안 찍혔나"인 이유:** `__main__.py:40-41`이 플래그가 거짓이면
+**로그를 남기지 않고** `return`한다. 비활성의 증거는 `queue_baseline_skipped`가 아니라 그
+계열 로그의 **부재**이며, `worker.started`가 함께 관측되어야 "로그가 안 나온 것"과
+"워커가 안 뜬 것"을 구분할 수 있다. 재확인 시 이 구분을 잊으면 죽은 워커를 안전한
+워커로 오독한다.
+
+`QUEUE_BASELINE_WORKSPACE_ID`도 함께 제거해 이중으로 막았다 — 플래그만 되돌리면 누군가
+다시 켰을 때 워크스페이스 ID가 남아 있어 곧바로 프로브가 돈다.
+
+**기록 자체가 완화의 일부다.** 되돌렸다는 사실이 저장소 밖에만 있으면 다음 감사는 같은
+차단을 다시 낸다.
 
 ### 미결 — 비차단 (severity < `high`)
 
@@ -141,7 +159,26 @@ Phase 3이 제공자 자격증명을 추가하기 전에 한 줄로 고치는 �
 
 ---
 
-## Security Audit 2026-08-07
+## Security Audit 2026-08-07 (재감사 — T-02-47 종결)
+
+| Metric | Count |
+|--------|-------|
+| Threats found | 62 |
+| Closed | 60 |
+| Open (blocking, ≥ high) | **0** |
+| Open (non-blocking) | 2 |
+
+입력 재확인: 1차 감사(`d2b501d`) 이후 저장소 커밋 0건, 워커 코드 미변경. 유일한 변화는
+Railway `worker` 서비스의 env 변수 제거와 그 관측이며, 이는 `T-02-47`의 완화 (b)·(c)가
+요구한 바로 그 산출물이다. 등록부 62행 중 나머지 61행의 입력이 동일하므로 재스캔하지
+않았다 — 같은 입력에 대한 재감사는 같은 결론을 비용만 들여 반복한다.
+
+**`T-02-48`은 여전히 미결(비차단)이다.** 프로브 워크스페이스가 삭제되지 않아 219여 건의
+잡 행이 클라우드에 남아 있다. `jobs`에 DELETE 권한을 가진 롤이 없으므로 정리 경로는 그
+워크스페이스 삭제 cascade 하나뿐이다. `medium`이라 `block_on: high` 아래이지만, 방치하면
+Phase 3의 첫 실제 잡과 섞여 구분이 어려워진다.
+
+### 1차 감사 2026-08-07 (기록 보존)
 
 | Metric | Count |
 |--------|-------|

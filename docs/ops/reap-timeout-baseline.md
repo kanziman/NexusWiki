@@ -159,7 +159,37 @@ Phase 2의 범위다(02-SPEC.md Out of scope). 이 한계를 숨기고 넘어가
 
 프로브 워크스페이스의 UUID를 전달받지 못했고 삭제 여부도 확인하지 못했다. **프로브 워크스페이스는
 삭제 미확인 — `jobs`에 DELETE 권한이 없어 219여 건의 잡 행이 그 워크스페이스 삭제 cascade로만
-정리된다.** 미결 항목으로 남긴다.
+정리된다.** 미결 항목으로 남긴다 (위협 `T-02-48`, 비차단).
+
+### 5. 프로브 토글 원상 복구 — 2026-08-07 관측 완료
+
+측정이 끝난 뒤 Railway `worker` 서비스에서 두 변수를 제거했다.
+
+```bash
+railway variable delete QUEUE_BASELINE_ENABLED   --service worker
+railway variable delete QUEUE_BASELINE_WORKSPACE_ID --service worker
+```
+
+재시작 후 `railway logs --service worker` 관측:
+
+| 이벤트 | 기대 | 관측 |
+|---|---|---|
+| `worker.started` | 있음 | ✓ |
+| `worker.rtt_skipped` | 있음 | ✓ |
+| `worker.queue_baseline_*` | **한 줄도 없음** | ✓ |
+
+⚠️ 판정 기준이 "무엇이 찍혔나"가 아니라 **"무엇이 안 찍혔나"** 인 이유:
+`apps/worker/src/worker/__main__.py:40-41`이 `QUEUE_BASELINE_ENABLED`가 거짓이면 **로그를 남기지
+않고** `return`한다. 따라서 비활성의 증거는 `worker.queue_baseline_skipped`가 아니라 그 계열 로그의
+**부재**다. `worker.started`와 `worker.rtt_skipped`가 함께 관측되어야 "로그가 안 나온 것"과
+"워커가 안 뜬 것"을 구분할 수 있다.
+
+`QUEUE_BASELINE_WORKSPACE_ID`도 함께 제거해 이중으로 막았다 — 플래그만 되돌리면 누군가 다시 켰을 때
+워크스페이스 ID가 남아 있어 곧바로 프로브가 돈다.
+
+이 관측이 위협 `T-02-47`의 완화 (b)"측정 후 되돌린다"와 (c)"수용기준이 원상 복구를 확인한다"를
+충족한다. 기록 자체가 완화의 일부다 — 되돌렸다는 사실이 저장소 밖에만 있으면 다음 사람은 상태를
+알 수 없다.
 
 ## 다운스트림
 
