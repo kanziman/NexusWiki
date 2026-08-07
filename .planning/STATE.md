@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: security-spine-and-shared-domain
 status: executing
-stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-08-06T16:37:47.419Z"
+stopped_at: Completed 02-08-PLAN.md
+last_updated: "2026-08-07T05:52:41.058Z"
 last_activity: 2026-08-06
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 18
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 02 (security-spine-and-shared-domain) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-08-06 — Phase 02 execution started
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -73,6 +73,7 @@ Progress: [████████░░] 83%
 | Phase 02 P06 | 1h | 3 tasks | 7 files |
 | Phase 02 P04 | 55min | 3 tasks | 8 files |
 | Phase 02 P07 | 12min | 3 tasks | 9 files |
+| Phase 02 P08 | 35min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02] 미인증 요청의 401은 FastAPI HTTPBearer가 낸다 — 라우터에 상태 코드를 두지 않으면서 미인증과 격리 위반을 다른 응답으로 유지하는 유일한 방법 (02-04)
 - [Phase ?]: 미등록 job type의 즉시 dead는 0003/0007의 SQL 표면으로는 불가능하다 — dead는 attempts >= max_attempts로만 도달한다. fail_job(backoff=0)으로 대기 없이 수렴시키고, 한 번에 보내려면 0008의 dead_letter_job()이 필요하다
 - [Phase ?]: 0행 composite RPC는 PostgREST에서 all-null 레코드로 돌아온다 — ServiceDb._rpc가 이것을 None으로 정규화한다. 정규화가 없으면 at-least-once 재호출 no-op이 성공으로 기록된다
+- [Phase ?]: [Phase 02] 큐 기준선의 측정 구간은 claim→complete이며 인큐는 구간 밖이다 — reap_stale_jobs가 보는 나이가 locked_at 기준이고 그것은 claim 시점에 찍히므로 인큐 대기는 타임아웃이 덮을 구간이 아니다 (02-08)
+- [Phase ?]: [Phase 02] 성공 표본 200 미만이면 p99를 계산하지 않고 None으로 둔다 — 최근접 순위 p99가 사실상 최댓값이 되어 이름이 근거 없는 신뢰를 준다. 시도는 220회로 두어 실패 여유를 확보했고 실제로 1회 소진됐다 (02-08)
+- [Phase ?]: [Phase 02] 잠정 reap 타임아웃 2초를 유도했으나 reap_stale_jobs 기본 15분은 바꾸지 않는다 — 2초는 noop 전용 큐의 하한이며 Phase 3 컴파일 잡에 적용하면 전부 이중 처리된다 (02-08)
+- [Phase ?]: [Phase 02] 전송 p99 127ms는 15분의 0.0141%다 — 이 데이터는 15분을 반박도 지지도 하지 못하고 정당화 후보 하나(전송 비용 감안)를 제거할 뿐이다. reap 타임아웃을 정하는 것은 전송이 아니라 핸들러 지속시간이다 (02-08)
 
 ### Pending Todos
 
@@ -144,6 +149,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-06T16:27:04.666Z
-Stopped at: Completed 02-07-PLAN.md
+Last session: 2026-08-07T05:52:41.048Z
+Stopped at: Completed 02-08-PLAN.md
 Resume file: None
