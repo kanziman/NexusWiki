@@ -29,9 +29,9 @@
 
 - [x] **SEC-01**: `ApiSettings`에 service key 필드가 **존재하지 않는다**; `WorkerSettings`만 보유하고 Railway에서도 worker 서비스에만 주입된다
 - [x] **SEC-02**: `db/user.py`와 `db/service.py`가 분리되고 ruff banned-api 규칙이 `worker/**` 외의 `db/service` import를 차단한다
-- [ ] **SEC-03**: CI가 worker 밖의 `service_client` 사용을 탐지하면 빌드를 실패시킨다
+- [x] **SEC-03**: CI가 worker 밖의 `service_client` 사용을 탐지하면 빌드를 실패시킨다
 - [x] **SEC-04**: `UserDb`가 *affected rows = 0*을 403으로 매핑한다 (라우터마다 흩어지지 않고 한 곳에서)
-- [ ] **SEC-05**: 클라이언트 번들에 secret 키가 포함되지 않음이 grep으로 검증된다
+- [x] **SEC-05**: 클라이언트 번들에 secret 키가 포함되지 않음이 grep으로 검증된다
 - [x] **SEC-06**: 애플리케이션 경로에서의 교차 테넌트 접근 시도가 테스트로 차단 확인된다
 
 ### Data Access & Shared Domain (DOM)
@@ -190,9 +190,9 @@
 | BOOT-10 | Phase 1 | Complete |
 | SEC-01 | Phase 2 | Complete |
 | SEC-02 | Phase 2 | Complete |
-| SEC-03 | Phase 2 | Pending |
+| SEC-03 | Phase 2 | Complete |
 | SEC-04 | Phase 2 | Complete |
-| SEC-05 | Phase 2 | Pending |
+| SEC-05 | Phase 2 | Complete |
 | SEC-06 | Phase 2 | Complete |
 | DOM-01 | Phase 2 | Complete |
 | DOM-02 | Phase 2 | Complete |

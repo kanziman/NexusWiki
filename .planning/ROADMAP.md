@@ -82,7 +82,14 @@ Plans:
   2. 다른 워크스페이스의 행을 수정·삭제하려는 애플리케이션 경로 시도가 조용한 0행이 아니라 403으로 돌아오고, 그 매핑이 라우터마다가 아니라 `UserDb` 한 곳에 있다
   3. GUC를 세팅한 실제 5채널 쿼리를 돌린 스파이크로 DB 트랜스포트가 결정·기록되고(`create function ... SET hnsw.iterative_scan`이 RPC로 실제 적용되는지가 판정 기준), 마이그레이션 `0007`이 그 결정에 맞춰 검색 함수·`jobs_dedup_idx`·`complete_job_and_chain()`·`verified_by`/`verified_at`/`expires_at`·`embedding_version`/`chunker_version`을 추가한다
   4. NFC·NFD·전각으로 각각 입력한 같은 한국어 문장이 `packages/core`의 **단일** 토크나이저를 거쳐 서로를 검색해내고, `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
-  5. 워커가 `noop` 잡을 claim→complete로 통과시키고 SIGTERM에 진행 중인 잡을 잃지 않고 종료하며, 같은 `title`이 항상 같은 슬러그를 내고, `reap_stale_jobs` 타임아웃이 추측이 아니라 실측 p99로 설정된다
+  5. 워커가 `noop` 잡을 claim→complete로 통과시키고 SIGTERM에 진행 중인 잡을 잃지 않고 종료하며, 같은 `title`이 항상 같은 슬러그를 내고, **잠정** `reap_stale_jobs` 타임아웃이 추측이 아니라 실측에서 유도되고 그 한계가 함께 문서화된다
+     <!-- 2026-08-07 개정. 원문은 "타임아웃이 실측 p99로 **설정된다**"였다. 02-08 실측(p99
+     127.054ms, N=219)에서 유도한 잠정 2초를 실제로 큐에 적용하면 Phase 3 컴파일 잡이 LLM
+     대기 중에 reap되어 전부 이중 처리된다 — noop 왕복은 큐 오버헤드의 하한이지 건강한 잡의
+     상한이 아니기 때문이다. 전송 p99는 현행 기본값 15분의 0.0141%라 이 데이터는 15분을
+     반박도 지지도 하지 못한다. 값을 정하는 것은 전송이 아니라 핸들러 지속시간이므로 실제
+     설정은 그것을 아는 Phase 3으로 이월한다. 근거: docs/ops/reap-timeout-baseline.md,
+     02-VERIFICATION.md 갭 2. -->
 
 **Plans**: 9/9 plans executed
 
