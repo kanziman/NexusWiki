@@ -1,7 +1,7 @@
 ---
 phase: 02-security-spine-and-shared-domain
 verified: 2026-08-07T06:02:29Z
-status: human_needed
+status: passed
 score: 5/5 roadmap success criteria verified (갭 2건 해소 후; 아래 resolution 참조)
 resolution:
   resolved_at: 2026-08-07
@@ -12,44 +12,58 @@ resolution:
 behavior_unverified: 0
 overrides_applied: 0
 gaps:
+
   - truth: "SEC-03과 SEC-05가 REQUIREMENTS.md에서 여전히 미완료로 표시된다"
     status: failed
     reason: "02-09가 두 요구를 구현했고 검증자가 실제 GitHub Actions 실행으로 동작을 확인했으나(run 31148248589 / 31148250775), REQUIREMENTS.md의 체크박스는 `[ ]`, 추적 표는 `Pending`으로 남아 있다. 15개 ID 중 2개가 원장에서 잘못 계상된 상태다. 구현 결함이 아니라 원장 정합성 결함이다."
     artifacts:
+
       - path: ".planning/REQUIREMENTS.md"
         issue: "32행 SEC-03 · 34행 SEC-05가 `[ ]`이고, 193·195행 추적 표가 `Pending`이다"
     missing:
+
       - "SEC-03 · SEC-05 체크박스를 `[x]`로, 추적 표 상태를 `Complete`로 갱신 (근거: docs/ops/ci-security-gate.md의 위반 브랜치 2종 red 관측)"
   - truth: "reap_stale_jobs 타임아웃이 추측이 아니라 실측 p99로 설정된다 (ROADMAP 성공기준 5의 마지막 절)"
     status: partial
     reason: "측정 자체는 엄격하게 수행됐다 — 표본 N=219(문턱 200 초과), p99 127.054 ms, 콜드/워밍업 분리, 잠정 2초 유도. 그러나 `reap_stale_jobs`의 타임아웃은 **설정되지 않았다**. 0003의 기본값 15분이 그대로이고 코드 어디에도 타임아웃을 넘기는 경로가 없다. 문서는 2초를 '하한이지 최종 타임아웃이 아니다'라고 명시하며 그 이유(noop 핸들러는 아무 일도 하지 않아 핸들러 지속시간 항이 0)를 설명한다. 판단으로서는 타당하나 성공기준의 문언('설정된다')은 문자 그대로 충족되지 않았다."
     artifacts:
+
       - path: "docs/ops/reap-timeout-baseline.md"
         issue: "잠정 2초를 하한으로만 기록하고 실제 적용은 Phase 3로 미룬다 (86행, 102-114행)"
+
       - path: "supabase/migrations/0003_jobs.sql"
         issue: "reap_stale_jobs 기본 타임아웃 15분이 미변경 — 실측에 근거하지 않은 값"
     missing:
+
       - "성공기준 5의 이 절을 Phase 3 LLM 실측까지 이월할 것인지, 아니면 현재 하한으로 잠정 설정할 것인지에 대한 명시적 결정 (아래 human_verification 1번)"
+
 deferred:
+
   - truth: "reap_stale_jobs 최종 타임아웃을 실제 핸들러 지속시간 p99로 확정"
     addressed_in: "Phase 3"
     evidence: "docs/ops/reap-timeout-baseline.md 114행 '그 값은 첫 LLM 잡이 도는 Phase 3에서 재측정해 확정한다' · 02-CONTEXT.md > D-17 · ROADMAP Phase 3 성공기준 5(잡 진행·재시도·last_error)가 큐 운영 표면을 다룬다"
+
   - truth: "0007 섹션 1 search_chunks의 벡터 차원을 임베딩 모델에 맞춘다"
     addressed_in: "Phase 3 (0008 보정 마이그레이션)"
     evidence: "checklists.json > decisions.embedding_model.implication — 'p_query extensions.vector(1536)이 박혀 있음', bge-m3 1024차로 교체 필요. 임베딩 데이터 0건이라 창이 열려 있으며 Phase 3가 첫 임베딩을 만드는 순간 닫힌다"
+
   - truth: "미등록 job type을 한 번의 왕복으로 dead로 보낸다"
     addressed_in: "Phase 3 (0008 dead_letter_job())"
     evidence: "apps/worker/src/worker/queue.py:117-123에 한계가 인라인 기록됨 — 현재는 fail_job(backoff='0 seconds')로 max_attempts 안에 수렴. 02-07-SUMMARY에 0008 dead_letter_job() 제안 기록"
+
   - truth: "전 테이블·클라우드에 대한 격리 왕복 전수 스위트"
     addressed_in: "Phase 7 (OPS-04)"
     evidence: "REQUIREMENTS.md 279행 'SEC-06은 Phase 2의 단일 격리 테스트이고, OPS-04는 모든 애플리케이션 경로가 존재한 뒤 도는 Phase 7의 전수 스위트다'"
 human_verification:
+
   - test: "ROADMAP 성공기준 5의 'reap_stale_jobs 타임아웃이 실측 p99로 설정된다'를 현 상태로 충족으로 볼지 결정한다. docs/ops/reap-timeout-baseline.md 84-114행을 읽고, (a) 15분 기본값 유지 + 하한 문서화로 이 절을 닫을지 (b) Phase 3까지 명시적으로 이월할지 (c) 지금 잠정값을 적용할지 고른다."
     expected: "셋 중 하나가 선택되고 그 근거가 checklists.json 또는 ROADMAP에 기록된다. 문서는 (c)를 반대하는 논거를 이미 갖고 있다 — noop 기준 2초를 큐에 적용하면 Phase 3 컴파일 잡이 LLM 응답을 기다리는 동안 reap된다."
     why_human: "성공기준 문언과 엔지니어링 판단이 충돌한다. 어느 쪽이 계약인지는 코드가 아니라 소유자가 정한다."
+
   - test: "클라우드(ap-southeast-1)에서 교차 테넌트 쓰기가 403으로 막히는지 실제 왕복으로 확인한다. 로컬에서 통과한 apps/api/tests/test_workspaces_isolation.py와 동등한 시나리오를 클라우드 프로젝트에 대해 1회 수행한다."
     expected: "로컬과 동일하게 교차 테넌트 PATCH/DELETE가 403을 받는다."
     why_human: "검증자는 로컬 스택에서만 격리 왕복을 재현했다. 마이그레이션 목록은 로컬/원격이 일치하지만(0001~0007), 정책의 **런타임 거동**은 원격에서 관측되지 않았다. conftest.py는 루프백 가드가 있어 원격을 가리킬 수 없으므로 자동 실행이 불가능하다."
+
   - test: "workspaces 이외 8개 테이블(raw_sources · wiki_pages · source_chunks · wiki_embeddings · wiki_links · workspace_members · prompt_templates · jobs)의 RLS 정책이 교차 테넌트 접근을 실제로 막는지 표본 확인한다."
     expected: "각 테이블에서 타 워크스페이스 행에 대한 읽기/쓰기가 차단된다."
     why_human: "격리 왕복 증명(fail-first 포함)은 `workspaces` 한 테이블만 덮는다. 나머지 8개는 정책 정의와 권한 매트릭스로만 확인됐고 라우터가 없어 애플리케이션 경로 왕복이 존재하지 않는다. Phase 7 OPS-04의 전수 스위트가 본래 담당이나, 그 전까지는 미관측 상태임을 소유자가 알아야 한다."
