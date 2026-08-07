@@ -73,7 +73,7 @@ jobs:
         run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Python dev 그룹 설치
-        run: uv sync --frozen
+        run: uv sync --frozen --all-packages
 
       # prettier는 apps/dashboard의 devDependency다. 여기서 설치하지 않으면 훅이 실행 파일을 못 찾는다.
       - name: dashboard 의존성 설치
@@ -97,7 +97,7 @@ jobs:
         run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Python dev 그룹 설치
-        run: uv sync --frozen
+        run: uv sync --frozen --all-packages
 
       # 같은 경계를 서로 다른 각도에서 본다. grep은 호출·심볼 import까지 포함해 넓게 보고,
       # ruff TID251은 import 해석을 통해 정확하게 본다. 한쪽만 두면 다른 쪽의 사각이 남는다.
@@ -150,7 +150,7 @@ jobs:
         run: python -m pip install "uv==${UV_VERSION}"
 
       - name: Python dev 그룹 설치
-        run: uv sync --frozen
+        run: uv sync --frozen --all-packages
 
       # DB 의존 테스트의 처리 방식 — 러너에 Supabase 스택을 세우지 **않는다**.
       #
