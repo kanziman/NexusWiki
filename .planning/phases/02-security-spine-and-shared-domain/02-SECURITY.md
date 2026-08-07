@@ -8,7 +8,7 @@ asvs_level: 1
 block_on: high
 register_authored_at_plan_time: true
 threats_total: 62
-threats_closed: 60
+threats_closed: 61
 created: 2026-08-07
 updated: 2026-08-07
 ---
@@ -22,10 +22,10 @@ updated: 2026-08-07
 
 | 구분 | 수 |
 |---|---|
-| 종결 (mitigate 검증됨) | 55 |
+| 종결 (mitigate 검증됨) | 56 |
 | 종결 (accept, 아래 로그에 기록) | 5 |
 | 미결 — **차단** (severity ≥ high) | **0** |
-| 미결 — 비차단 (severity < high) | 2 |
+| 미결 — 비차단 (severity < high) | 1 |
 
 ---
 
@@ -95,7 +95,6 @@ railway variable delete QUEUE_BASELINE_WORKSPACE_ID --service worker
 | Threat ID | Category | Component | Severity | Disposition | Status |
 |-----------|----------|-----------|----------|-------------|--------|
 | T-02-43 | DoS | 미등록 job type | medium | mitigate | open — below `high` (비차단) |
-| T-02-48 | Tampering | 클라우드 프로브 잔여 | medium | mitigate | open — below `high` (비차단) |
 
 **T-02-43** — 선언된 완화 "재시도 없이 곧바로 `dead`"의 절반만 구현됐다. `last_error`가
 type 문자열을 싣고 핸들러는 한 번도 돌지 않지만, **무재시도 절은 미구현**이다.
@@ -103,10 +102,28 @@ type 문자열을 싣고 핸들러는 한 번도 돌지 않지만, **무재시�
 표면으로는 `dead`를 한 번에 강제할 원시연산이 없어 `fail_job(backoff=0)`으로
 `max_attempts` 안에 수렴시킨다. `0008`의 `dead_letter_job()`이 Phase 3에서 닫는다.
 
-**T-02-48** — 선언된 완화 "각 왕복이 자기 잡을 만들고 지운다"는 **문면 그대로 성립하지
-않는다.** `0007` §8이 `jobs`에 DELETE를 어느 롤에도 주지 않으므로 프로브가 자기 잡을
-지울 수 없다. 대체 통제(처분 가능한 워크스페이스에 가두기)는 실재하나 정리가 미확인이다 —
-219여 건이 그 워크스페이스 삭제 cascade를 기다리고 있다.
+### 종결 2026-08-07 — T-02-48
+
+| Threat ID | Category | Component | Severity | Disposition | Status |
+|-----------|----------|-----------|----------|-------------|--------|
+| T-02-48 | Tampering | 클라우드 프로브 잔여 | medium | mitigate | **closed** |
+
+선언된 완화 "각 왕복이 자기 잡을 만들고 지운다"는 **문면 그대로 성립하지 않는다.**
+`0007` §8이 `jobs`에 DELETE를 어느 롤에도 주지 않으므로(잡 이력이 곧 감사 기록이다) 프로브가
+자기 잡을 지울 수 없다. 대체 통제는 **처분 가능한 워크스페이스에 가두고 그것을 삭제하는 것**
+이며, 2026-08-07 관측으로 그 통제가 실제로 동작함이 확인됐다.
+
+```sql
+delete from public.workspaces where name = 'queue-baseline-probe' returning id;
+select count(*) from public.jobs;   -- → 0
+```
+
+`public.jobs` 잔여 **0행** 관측. cascade가 프로브 잡 219여 건을 전부 정리했다.
+전문은 `docs/ops/reap-timeout-baseline.md` §한계 4.
+
+⚠️ **정리 경로가 워크스페이스 삭제 하나뿐이라는 사실은 그대로 남는다.** Phase 3에서
+프로브성 잡을 다시 만들 일이 있으면 같은 방식(처분 가능한 워크스페이스에 가두기)을 다시
+써야 한다 — 권한 매트릭스가 바뀌지 않는 한 "자기 잡을 자기가 지운다"는 앞으로도 불가능하다.
 
 ### 종결 (59)
 
@@ -159,14 +176,18 @@ Phase 3이 제공자 자격증명을 추가하기 전에 한 줄로 고치는 �
 
 ---
 
-## Security Audit 2026-08-07 (재감사 — T-02-47 종결)
+## Security Audit 2026-08-07 (재감사 — T-02-47 · T-02-48 종결)
 
 | Metric | Count |
 |--------|-------|
 | Threats found | 62 |
-| Closed | 60 |
+| Closed | 61 |
 | Open (blocking, ≥ high) | **0** |
-| Open (non-blocking) | 2 |
+| Open (non-blocking) | 1 |
+
+미결로 남은 것은 `T-02-43`(미등록 job type의 무재시도 절) 하나이며, `0008`의
+`dead_letter_job()`이 Phase 3에서 닫는다. 현재 SQL 표면으로는 구현 불가능하다는 사실이
+`apps/worker/src/worker/queue.py:117-123`에 인라인으로 기록돼 있다.
 
 입력 재확인: 1차 감사(`d2b501d`) 이후 저장소 커밋 0건, 워커 코드 미변경. 유일한 변화는
 Railway `worker` 서비스의 env 변수 제거와 그 관측이며, 이는 `T-02-47`의 완화 (b)·(c)가
