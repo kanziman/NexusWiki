@@ -84,7 +84,7 @@ Plans:
   4. NFC·NFD·전각으로 각각 입력한 같은 한국어 문장이 `packages/core`의 **단일** 토크나이저를 거쳐 서로를 검색해내고, `tsv_tokenizer_version`이 정규화 형식까지 인코딩한다
   5. 워커가 `noop` 잡을 claim→complete로 통과시키고 SIGTERM에 진행 중인 잡을 잃지 않고 종료하며, 같은 `title`이 항상 같은 슬러그를 내고, `reap_stale_jobs` 타임아웃이 추측이 아니라 실측 p99로 설정된다
 
-**Plans**: 6/9 plans executed
+**Plans**: 8/9 plans executed
 
 **Wave 1** *(tracer — 이후 전부가 이 판정 위에 쌓인다)*
 
@@ -103,12 +103,12 @@ Plans:
 **Wave 4** *(blocked on Wave 3)*
 
 - [x] 02-04-PLAN.md — `PATCH`/`DELETE /workspaces/{id}` 최소 라우터와 교차 테넌트 파라미터화 테스트 + fail-first 증명
-- [ ] 02-07-PLAN.md — 워커 `noop` 핸들러 · claim→complete 루프 · SIGTERM `release_job()` 반납 · 데드레터
+- [x] 02-07-PLAN.md — 워커 `noop` 핸들러 · claim→complete 루프 · SIGTERM `release_job()` 반납 · 데드레터
 
 **Wave 5** *(blocked on Wave 4)*
 
 - [ ] 02-08-PLAN.md — Railway `asia-southeast1` 실측 기반 noop 큐 오버헤드 기준선과 잠정 reap 타임아웃 문서
-- [ ] 02-09-PLAN.md — GitHub Actions PR 게이트 4잡(pre-commit · service 사용 grep · 번들 secret grep · pytest)과 위반 브랜치 2종 red 관측
+- [x] 02-09-PLAN.md — GitHub Actions PR 게이트 4잡(pre-commit · service 사용 grep · 번들 secret grep · pytest)과 위반 브랜치 2종 red 관측
 
 ### Phase 3: Ingest and Compile Pipeline
 
@@ -197,7 +197,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
-| 2. Security Spine and Shared Domain | 6/9 | In Progress|  |
+| 2. Security Spine and Shared Domain | 8/9 | In Progress|  |
 | 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |
