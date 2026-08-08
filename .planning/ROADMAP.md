@@ -130,7 +130,7 @@ Plans:
   4. 월 비용 상한을 넘긴 워크스페이스의 인큐가 **인큐 시점에** 거부되고, 진행 중인 잡을 취소할 수 있으며, `usage_events`에 토큰과 비용이 남는다
   5. 사용자가 소스별 잡 진행을 실제 단계 이름으로 확인하고 `dead` 잡을 재시도할 수 있으며, `jobs.last_error`에 provider 원문 예외가 그대로 노출되지 않는다
 
-**Plans**: 3/9 plans executed
+**Plans**: 4/9 plans executed
 
 Plans:
 
@@ -148,7 +148,7 @@ Plans:
 
 **Wave 4** *(tracer — 이후 확장 슬라이스가 전부 이 경로 위에 쌓인다)*
 
-- [ ] 03-04-PLAN.md — [tracer] 텍스트 한 건이 `POST /sources` → `enqueue_source_job` → `parse` → `compile` 을 지나 실제 `wiki_pages` 행이 되는 경로를 층마다 관통
+- [x] 03-04-PLAN.md — [tracer] 텍스트 한 건이 `POST /sources` → `enqueue_source_job` → `parse` → `compile` 을 지나 실제 `wiki_pages` 행이 되는 경로를 층마다 관통
 
 **Wave 5** *(blocked on Wave 4)*
 
@@ -237,7 +237,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
 | 2. Security Spine and Shared Domain | 9/9 | Complete    | 2026-08-07 |
-| 3. Ingest and Compile Pipeline | 3/9 | In Progress|  |
+| 3. Ingest and Compile Pipeline | 4/9 | In Progress|  |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |
 | 6. Dashboard | 0/TBD | Not started | - |
