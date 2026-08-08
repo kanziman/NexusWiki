@@ -16,7 +16,9 @@ from __future__ import annotations
 
 from typing import Any, Final, Protocol, runtime_checkable
 
+from worker.handlers.compile import COMPILE_JOB_TYPE, handle_compile
 from worker.handlers.noop import NOOP_JOB_TYPE, handle_noop
+from worker.handlers.parse import PARSE_JOB_TYPE, handle_parse
 
 __all__ = [
     "HANDLERS",
@@ -56,9 +58,18 @@ class JobHandler(Protocol):
 
 
 # 새 잡 종류는 이 딕셔너리에 행 하나를 추가하는 것으로 끝나야 한다.
-# Phase 2는 `noop` 하나뿐이다 — 큐 계약을 증명하는 것이 목적이지 일을 하는 것이
-# 목적이 아니기 때문이다 (02-CONTEXT.md > D-17).
-HANDLERS: Final[dict[str, JobHandler]] = {NOOP_JOB_TYPE: handle_noop}
+# Phase 2는 `noop` 하나뿐이었다 — 큐 계약을 증명하는 것이 목적이지 일을 하는 것이
+# 목적이 아니었기 때문이다 (02-CONTEXT.md > D-17). `noop`은 그대로 둔다:
+# `worker.queue_baseline`과 `apps/worker/tests/test_handlers.py`가 의존한다.
+#
+# ⚠️ 03-09가 `link_sync`와 `embed` 두 행을 더한다. 그때 `test_handlers.py`의 키 집합
+#    단언이 **의도적으로 red가 된다** — 핸들러를 등록하고 그 단언을 잊는 경로를 막는 것이
+#    그 단언의 목적이다.
+HANDLERS: Final[dict[str, JobHandler]] = {
+    NOOP_JOB_TYPE: handle_noop,
+    PARSE_JOB_TYPE: handle_parse,
+    COMPILE_JOB_TYPE: handle_compile,
+}
 
 
 def resolve_handler(job_type: str) -> JobHandler:

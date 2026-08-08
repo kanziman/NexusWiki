@@ -28,13 +28,35 @@ __all__ = [
 SERVICE_REQUEST_TIMEOUT_SECONDS: Final[float] = 10.0
 
 # `ServiceDb`가 직접 테이블을 읽고 쓰는 헬퍼. 전부 workspace_id를 필수로 요구한다.
-TABLE_HELPERS: Final[frozenset[str]] = frozenset({"enqueue_job", "get_job", "list_jobs"})
+TABLE_HELPERS: Final[frozenset[str]] = frozenset(
+    {
+        "enqueue_job",
+        "get_job",
+        "list_jobs",
+        # -- Phase 3 도메인 테이블 (03-04) --
+        "get_raw_source",
+        "update_raw_source_content",
+        "upsert_source_chunks",
+        "list_source_chunks",
+        "delete_source_chunks_from",
+        "get_default_prompt_template",
+        "list_wiki_slugs",
+        "get_wiki_page_by_slug",
+        "upsert_wiki_page",
+        "list_wiki_pages_for_source",
+        "insert_usage_event",
+    }
+)
 
-# 0003이 정의한 큐 함수(0007의 release_job 포함)만을 호출하는 헬퍼.
+# 0003이 정의한 큐 함수(0007의 release_job · complete_job_and_chain 포함)만을 호출하는 헬퍼.
 QUEUE_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
-    {"claim_job", "complete_job", "fail_job", "release_job"}
+    {"claim_job", "complete_job", "complete_job_and_chain", "fail_job", "release_job"}
 )
 RPC_HELPERS: Final[frozenset[str]] = QUEUE_RPC_FUNCTIONS
+
+# PostgREST 업서트에 필요한 Prefer 조합. `resolution=merge-duplicates`가 없으면 충돌이
+# 409로 돌아오고, at-least-once 큐에서 재처리는 정상 경로이므로 그 409는 곧 잡 실패다.
+_UPSERT_PREFER: Final[str] = "return=representation,resolution=merge-duplicates"
 
 
 def service_client(
@@ -80,8 +102,9 @@ class ServiceDb:
     공개 헬퍼는 둘 중 하나여야 한다. 테이블 헬퍼(`TABLE_HELPERS`)는 workspace_id를 필수로
     받고, 큐 RPC 헬퍼(`RPC_HELPERS`)는 `QUEUE_RPC_FUNCTIONS`에 있는 함수만 호출한다.
     `apps/worker/tests/test_service_client.py`가 이 분류를 단언하므로, 분류를 빠져나가는
-    헬퍼를 추가하면 red가 된다. Phase 2가 실제로 쓰는 범위는 `jobs` 하나이며 도메인
-    테이블 헬퍼는 Phase 3의 일이다.
+    헬퍼를 추가하면 red가 된다. Phase 2는 `jobs` 하나였고, 03-04가 파이프라인이 실제로
+    읽고 쓰는 도메인 테이블 5종(`raw_sources` · `source_chunks` · `prompt_templates` ·
+    `wiki_pages` · `usage_events`)을 더했다.
     """
 
     def __init__(self, client: httpx.AsyncClient) -> None:
@@ -142,6 +165,195 @@ class ServiceDb:
             params["status"] = f"in.({','.join(statuses)})"
         return await self._select("jobs", params=params)
 
+    # -- Phase 3 도메인 테이블 헬퍼 (03-04) ------------------------------------
+    #
+    # ⚠️ 아래 전부가 쿼리 파라미터에 `workspace_id=eq.<값>`을 **명시적으로** 싣는다.
+    #    복합 FK(`(id, workspace_id)`, `0002_search_schema.sql:45-49`)가 잡아 주는 것은
+    #    삽입이지 조회가 아니다. `service_role`은 BYPASSRLS라 조회에서 workspace_id를
+    #    빠뜨리면 오류 없이 다른 테넌트의 행이 돌아온다.
+
+    async def get_raw_source(
+        self, raw_source_id: str, *, workspace_id: str
+    ) -> dict[str, Any] | None:
+        rows = await self._select(
+            "raw_sources",
+            params={
+                "id": f"eq.{raw_source_id}",
+                "workspace_id": f"eq.{workspace_id}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    async def update_raw_source_content(
+        self,
+        raw_source_id: str,
+        *,
+        workspace_id: str,
+        content: str,
+        mime_type: str | None = None,
+        byte_size: int | None = None,
+    ) -> dict[str, Any] | None:
+        """추출된 평문을 기록한다 (파일·URL 수집 경로 — 03-06이 소비한다).
+
+        ⚠️ `raw_sources`에는 **UPDATE 정책이 없다**(`0004`). 즉 이 경로는 오직
+        `service_role`만 지날 수 있으며, 사용자가 원문을 고칠 수 없다는 ING의 불변성이
+        정책 부재로 강제된다. `0007` 섹션 8이 service_role에만 UPDATE를 준 이유다.
+        """
+        values: dict[str, Any] = {"content": content}
+        if mime_type is not None:
+            values["mime_type"] = mime_type
+        if byte_size is not None:
+            values["byte_size"] = byte_size
+        rows = await self._update(
+            "raw_sources",
+            params={"id": f"eq.{raw_source_id}", "workspace_id": f"eq.{workspace_id}"},
+            values=values,
+        )
+        return rows[0] if rows else None
+
+    async def upsert_source_chunks(
+        self, *, workspace_id: str, raw_source_id: str, rows: Sequence[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """청크를 `(raw_source_id, chunk_index)`로 업서트한다.
+
+        그 유니크 키(`source_chunks_source_index_key`)가 존재하는 이유가 정확히
+        at-least-once다 — 같은 잡이 두 번 돌아도 행 수가 늘지 않는다.
+        """
+        if not rows:
+            return []
+        scope = {"workspace_id": workspace_id, "raw_source_id": raw_source_id}
+        payload = [{**row, **scope} for row in rows]
+        return await self._insert_many(
+            "source_chunks",
+            rows=payload,
+            params={"on_conflict": "raw_source_id,chunk_index"},
+            prefer=_UPSERT_PREFER,
+        )
+
+    async def list_source_chunks(
+        self, *, workspace_id: str, raw_source_id: str, limit: int = 1000
+    ) -> list[dict[str, Any]]:
+        return await self._select(
+            "source_chunks",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "raw_source_id": f"eq.{raw_source_id}",
+                "order": "chunk_index.asc",
+                "limit": str(limit),
+            },
+        )
+
+    async def delete_source_chunks_from(
+        self, *, workspace_id: str, raw_source_id: str, from_index: int
+    ) -> list[dict[str, Any]]:
+        """`chunk_index >= from_index`인 잔여 행을 지운다 (COMP-07 축소 재처리).
+
+        ⚠️ 이것이 없으면 원문이 짧아진 재처리 뒤에 **옛 청크가 그대로 남아** 검색에
+        잡힌다. 업서트는 있는 행을 덮을 뿐 없어진 행을 지우지 않기 때문이며, 그 잔여
+        행은 오류 없이 원문에 없는 내용을 인용 근거로 내놓는다.
+        """
+        return await self._delete(
+            "source_chunks",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "raw_source_id": f"eq.{raw_source_id}",
+                "chunk_index": f"gte.{from_index}",
+            },
+        )
+
+    async def get_default_prompt_template(
+        self, *, workspace_id: str, target_type: str
+    ) -> dict[str, Any] | None:
+        """워크스페이스 기본 템플릿을 먼저 보고 없으면 전역(`workspace_id is null`)으로 내려간다.
+
+        `0001`의 부분 유니크 인덱스가 `target_type`당 기본을 하나로 강제하므로 두 조회
+        모두 최대 1행이다.
+        """
+        rows = await self._select(
+            "prompt_templates",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "target_type": f"eq.{target_type}",
+                "is_default": "is.true",
+                "limit": "1",
+            },
+        )
+        if rows:
+            return rows[0]
+        rows = await self._select(
+            "prompt_templates",
+            params={
+                "workspace_id": "is.null",
+                "target_type": f"eq.{target_type}",
+                "is_default": "is.true",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    async def list_wiki_slugs(self, *, workspace_id: str, limit: int = 1000) -> list[str]:
+        rows = await self._select(
+            "wiki_pages",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "select": "slug",
+                "order": "slug.asc",
+                "limit": str(limit),
+            },
+        )
+        return [str(row["slug"]) for row in rows if row.get("slug")]
+
+    async def get_wiki_page_by_slug(self, *, workspace_id: str, slug: str) -> dict[str, Any] | None:
+        rows = await self._select(
+            "wiki_pages",
+            params={"workspace_id": f"eq.{workspace_id}", "slug": f"eq.{slug}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    async def upsert_wiki_page(
+        self, *, workspace_id: str, row: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """`(workspace_id, slug)`로 페이지를 업서트한다.
+
+        ⚠️ 호출부는 `verification_status` · `explored` · `verified_by`를 **넣지 않는다**
+        (T-03-28). 사람이 세운 검증 배지를 재컴파일이 지우면, 검증이라는 행위가 소스가
+        갱신될 때마다 무효가 되어 제품이 약속한 "검증 가능한 지식 베이스"가 무너진다.
+        """
+        rows = await self._insert_many(
+            "wiki_pages",
+            rows=[{**row, "workspace_id": workspace_id}],
+            params={"on_conflict": "workspace_id,slug"},
+            prefer=_UPSERT_PREFER,
+        )
+        return rows[0] if rows else None
+
+    async def list_wiki_pages_for_source(
+        self, *, workspace_id: str, raw_source_id: str, limit: int = 1000
+    ) -> list[dict[str, Any]]:
+        """이 원문을 역참조로 담고 있는 페이지들 (`sources` jsonb 배열 포함 조회)."""
+        return await self._select(
+            "wiki_pages",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "sources": f'cs.["{raw_source_id}"]',
+                "order": "slug.asc",
+                "limit": str(limit),
+            },
+        )
+
+    async def insert_usage_event(
+        self, *, workspace_id: str, row: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """LLM·임베딩 호출 한 건의 사용량을 남긴다 — 인큐 시점 상한(OPS-01)의 유일한 데이터원.
+
+        ⚠️ `metadata`에 프롬프트나 응답 본문을 싣지 않는다. 이 테이블은 워크스페이스
+        멤버가 SELECT할 수 있어(`usage_events_select_member`) 사용량 화면이 그대로 원문
+        유출 경로가 된다. 근거: `0009_pipeline_ops.sql:137-138`.
+        """
+        rows = await self._insert_many("usage_events", rows=[{**row, "workspace_id": workspace_id}])
+        return rows[0] if rows else None
+
     # -- 큐 RPC 헬퍼 ---------------------------------------------------------
     #
     # 큐 함수는 테이블이 아니라 0003이 정의한 계약을 호출한다. claim은 설계상 전역
@@ -190,13 +402,73 @@ class ServiceDb:
         """
         return await self._rpc("release_job", {"p_job_id": job_id, "p_worker_id": worker_id})
 
+    async def complete_job_and_chain(
+        self,
+        job_id: str,
+        *,
+        next_type: str | None = None,
+        next_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """완료와 다음 잡 인큐를 **한 트랜잭션에** 넣는다 (`0007` 섹션 3).
+
+        ⚠️ `complete_job()` 다음에 따로 인큐하면 그 틈에서 워커가 죽었을 때 앞 단계는
+        succeeded인데 다음 단계가 없는 상태로 파이프라인이 **조용히** 멈춘다. 그 침묵이
+        이 함수가 존재하는 유일한 이유이며, 체인 전이를 애플리케이션에서 두 번 왕복하는
+        형태로 되돌리지 말 것.
+
+        재호출은 `status = 'running'` 술어 덕분에 0행 no-op이고 다음 잡도 생기지 않는다 —
+        at-least-once 큐에서 재호출은 정상 경로다.
+        """
+        params: dict[str, Any] = {"p_job_id": job_id}
+        if next_type is not None:
+            params["p_next_type"] = next_type
+            params["p_next_payload"] = next_payload or {}
+        return await self._rpc("complete_job_and_chain", params)
+
     # -- 내부 ----------------------------------------------------------------
 
     async def _insert(self, table: str, *, row: dict[str, Any]) -> list[dict[str, Any]]:
         # `Prefer: return=representation`이 없으면 PostgREST가 201 + 빈 본문을 주어
         # 방금 만든 행의 id를 알 수 없다. 인큐한 잡을 추적하려면 필수다.
+        return await self._insert_many(table, rows=[row])
+
+    async def _insert_many(
+        self,
+        table: str,
+        *,
+        rows: Sequence[dict[str, Any]],
+        params: dict[str, str] | None = None,
+        prefer: str = "return=representation",
+    ) -> list[dict[str, Any]]:
         response = await self._client.post(
-            f"/{table}", json=row, headers={"Prefer": "return=representation"}
+            f"/{table}",
+            json=list(rows),
+            params=params or {},
+            headers={"Prefer": prefer},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, list) else [payload]
+
+    async def _update(
+        self, table: str, *, params: dict[str, str], values: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        response = await self._client.patch(
+            f"/{table}",
+            json=values,
+            params=params,
+            headers={"Prefer": "return=representation"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, list) else [payload]
+
+    async def _delete(self, table: str, *, params: dict[str, str]) -> list[dict[str, Any]]:
+        response = await self._client.request(
+            "DELETE",
+            f"/{table}",
+            params=params,
+            headers={"Prefer": "return=representation"},
         )
         response.raise_for_status()
         payload = response.json()

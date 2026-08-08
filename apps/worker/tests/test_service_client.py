@@ -171,9 +171,18 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
         await db.complete_job(JOB_ID)
         await db.fail_job(JOB_ID, error="boom")
         await db.release_job(JOB_ID, worker_id="worker-1")
+        await db.complete_job_and_chain(JOB_ID, next_type="compile")
 
     called = [request.url.path.rsplit("/", 1)[-1] for request in seen]
-    assert called == ["claim_job", "complete_job", "fail_job", "release_job"]
+    assert called == [
+        "claim_job",
+        "complete_job",
+        "fail_job",
+        "release_job",
+        "complete_job_and_chain",
+    ]
+    # ⚠️ 이 단언은 큐 RPC 헬퍼를 하나 더할 때마다 **의도적으로 red가 된다.** 허용 목록에만
+    #    이름을 넣고 실제 호출 경로를 확인하지 않으면 그 헬퍼는 검증되지 않은 채 통과한다.
     assert set(called) == service.QUEUE_RPC_FUNCTIONS
     assert all(request.method == "POST" for request in seen)
 

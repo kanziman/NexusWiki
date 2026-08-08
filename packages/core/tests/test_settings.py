@@ -29,8 +29,19 @@ def test_api_settings_has_no_field_that_could_hold_a_secret() -> None:
     assert not overlap, sorted(overlap)
 
 
-def test_api_settings_adds_no_field_beyond_the_shared_ancestor() -> None:
-    assert set(ApiSettings.model_fields) == set(BaseAppSettings.model_fields)
+# ⚠️ 이 목록은 "필드를 더해도 된다"가 아니라 **"더한 필드가 secret이 아님을 사람이
+#    확인했다"**는 기록이다. 새 이름을 여기 넣기 전에 위 SECRET_FIELD_NAMES와 대조할 것.
+#    (03-04: MAX_TEXT_CHARS — 요청 본문 길이 상한, OPS-01)
+NON_SECRET_API_FIELDS = frozenset({"MAX_TEXT_CHARS"})
+
+
+def test_api_settings_adds_only_reviewed_non_secret_fields() -> None:
+    # 불변식은 "필드 개수 0"이 아니라 "secret 필드의 부재"다. 그러나 아무 필드나
+    # 조용히 늘어나는 것도 막아야 하므로 추가분을 허용 목록으로 고정한다.
+    added = set(ApiSettings.model_fields) - set(BaseAppSettings.model_fields)
+
+    assert added == NON_SECRET_API_FIELDS, sorted(added)
+    assert not (added & SECRET_FIELD_NAMES)
 
 
 def test_base_settings_expose_only_the_four_non_secret_keys() -> None:

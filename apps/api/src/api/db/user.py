@@ -77,6 +77,41 @@ class UserDb:
         payload = self._payload(response)
         return payload if isinstance(payload, list) else [payload]
 
+    async def insert_one(self, table: str, *, values: Mapping[str, Any]) -> dict[str, Any]:
+        """정확히 한 행을 만들고 그 행을 돌려준다. 아니면 `WorkspaceForbidden`.
+
+        ⚠️ `_require_filters`를 쓰지 않는다 — INSERT에는 match가 없고, "조건 없는 쓰기"의
+        위험(요청자에게 보이는 모든 행을 건드린다)이 INSERT에는 성립하지 않는다.
+        격리는 RLS의 `with check`가 강제하며 위반은 42501로 돌아온다.
+        """
+        response = await self._client.post(
+            f"{self._base_url}/{table}",
+            json=dict(values),
+            headers={**self._headers, "Prefer": _REPRESENTATION},
+        )
+        return self._exactly_one(response, table=table)
+
+    async def rpc(self, function: str, *, params: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """요청자 JWT로 `security definer` RPC를 부른다.
+
+        ⚠️ 여기서 0행을 `WorkspaceForbidden`으로 바꾸지 **않는다** — 쓰기 메서드와의
+        이 비대칭은 의도다. 0행의 의미가 함수마다 다르기 때문이다: `enqueue_source_job`의
+        0행은 비정상이지만 `retry_dead_job`의 0행은 "이미 dead가 아니다"라는 정상
+        no-op이고(중복 클릭이 안전해야 한다), 여기서 뭉개면 그 구분이 사라진다.
+        판정은 호출부가 한다.
+
+        격리 실패는 함수 본문이 42501로 raise하므로 `_payload`를 거쳐 단일 핸들러가 받는다.
+        """
+        response = await self._client.post(
+            f"{self._base_url}/rpc/{function}",
+            json=dict(params),
+            headers=self._headers,
+        )
+        payload = self._payload(response)
+        if payload is None:
+            return []
+        return payload if isinstance(payload, list) else [payload]
+
     async def update_one(
         self,
         table: str,

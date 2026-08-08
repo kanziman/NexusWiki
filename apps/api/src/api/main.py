@@ -14,6 +14,7 @@ from fastapi import FastAPI
 
 from api import errors
 from api.routers.health import router as health_router
+from api.routers.sources import router as sources_router
 from api.routers.workspaces import router as workspaces_router
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
@@ -47,6 +48,10 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     errors.register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workspaces_router)
+    # ⚠️ `app.state.http_client`의 타임아웃 2.0초는 그대로 둔다. 이 라우터의 왕복은
+    #    전부 PostgREST이며 LLM 호출은 워커의 일이다 — 여기서 타임아웃을 늘려야 한다면
+    #    그것은 블로킹 작업이 라우터로 새어 들어왔다는 신호다 (ING-01).
+    app.include_router(sources_router)
     return app
 
 
