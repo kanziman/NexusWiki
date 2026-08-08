@@ -22,7 +22,12 @@ __all__ = [
     "FORBIDDEN_SQLSTATE",
     "BudgetExceeded",
     "DatabaseError",
+    "InvalidSourceInput",
+    "JobNotRetryable",
+    "PayloadTooLarge",
     "SourceAlreadyIngested",
+    "StorageObjectExists",
+    "StorageUnavailable",
     "TextTooLarge",
     "WorkspaceForbidden",
     "register_error_handlers",
@@ -99,6 +104,63 @@ class TextTooLarge(Exception):
     def __init__(self, *, limit: int) -> None:
         super().__init__(f"본문 길이가 상한 {limit}자를 넘었다")
         self.limit = limit
+
+
+class InvalidSourceInput(Exception):
+    """수집 요청의 입력이 요청 경계에서 거부됐다 (ING-01, T-03-34).
+
+    ⚠️ `reason`은 사람이 읽는 문장이 **아니라** 프론트가 분기할 수 있는 짧은 토큰이다
+    (`unsupported_mime` · `empty_body` · `bad_url_scheme` 처럼). 문장을 실으면 UI 문구가
+    API에 박혀 번역과 문구 변경이 배포를 요구하게 된다.
+
+    ⚠️ `reason`에 요청 본문이나 헤더의 조각을 **절대 담지 않는다.** 담는 순간 이 응답이
+    반사형 노출 경로가 되어, 공격자가 넣은 문자열이 그대로 응답에 실려 나온다.
+    그래서 이 클래스에는 값을 담을 다른 필드를 두지 않는다 — 마스킹보다 앞선 방어선이다.
+    """
+
+    def __init__(self, *, reason: str) -> None:
+        super().__init__(f"수집 입력이 거부됐다: {reason}")
+        self.reason = reason
+
+
+class PayloadTooLarge(Exception):
+    """업로드 바이트가 `ApiSettings.MAX_UPLOAD_BYTES`를 넘었다 (T-03-31).
+
+    `TextTooLarge`와 나누는 이유: 재는 축이 다르다(코드 포인트 vs 바이트). 하나로 합치면
+    응답의 `limit`이 무슨 단위인지 클라이언트가 알 수 없다.
+    """
+
+    def __init__(self, *, limit: int) -> None:
+        super().__init__(f"업로드 크기가 상한 {limit}바이트를 넘었다")
+        self.limit = limit
+
+
+class StorageUnavailable(Exception):
+    """Storage 업로드가 우리 쪽 입력 문제가 아닌 이유로 실패했다.
+
+    ⚠️ 응답 본문을 담을 필드를 두지 않는다. Storage 오류 본문은 버킷 이름과 키 전문을
+    담고 있어(2026-08-08 실측) 그대로 실으면 내부 경로가 그대로 새어 나간다.
+    03-04이 `ProviderError`에 세운 규약과 같다.
+    """
+
+
+class StorageObjectExists(StorageUnavailable):
+    """같은 경로에 객체가 이미 있다 (Storage `KeyAlreadyExists`).
+
+    `StorageUnavailable`의 하위 타입인 것은 의도다. 경로의 둘째 세그먼트는 이 요청이
+    방금 만든 uuid4라서 **정상 경로에서는 도달할 수 없고**, 도달했다면 사용자 입력 문제가
+    아니라 서버 쪽 이상이다. 그래서 렌더링은 같고 타입만 구분한다 — 로그에서 원인을
+    가려내려면 구분이 필요하다.
+    """
+
+
+class JobNotRetryable(Exception):
+    """`dead`가 아닌 잡에 재시도를 걸었다 (ING-07).
+
+    ⚠️ 소비자는 03-07의 잡 라우터다. 여기 정의해 두는 이유는 `api.errors`의 소유자를
+    한 플랜으로 유지하기 위해서다 — 라우터마다 자기 예외와 렌더를 들고 있기 시작하면
+    D-13의 "등록 지점이 하나"가 라우터 수만큼 늘어난다.
+    """
 
 
 # ⚠️ 존재하지 않는 리소스와 격리 위반을 구분하지 않는다 — 둘 다 같은 응답이다.
@@ -179,6 +241,55 @@ async def _render_text_too_large(request: Request, exc: Exception) -> JSONRespon
     )
 
 
+async def _render_invalid_source(request: Request, exc: Exception) -> JSONResponse:
+    """입력 거부 — 422와 기계 판독 가능한 짧은 사유 토큰.
+
+    ⚠️ `reason` 외에 어떤 값도 싣지 않는다. 요청 본문의 조각을 실으면 이 응답이
+    반사형 노출 경로가 된다 (T-03-34).
+    """
+    reason = getattr(exc, "reason", None)
+    _logger.info("sources.invalid_input", path=request.url.path, reason=reason)
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": "invalid_source", "reason": reason},
+    )
+
+
+async def _render_payload_too_large(request: Request, exc: Exception) -> JSONResponse:
+    """업로드 크기 상한 초과 — 413. 상한값은 밝힌다 (비밀이 아니라 계약이다)."""
+    limit = getattr(exc, "limit", None)
+    _logger.info("sources.payload_too_large", path=request.url.path, limit=limit)
+    return JSONResponse(
+        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+        content={"detail": "payload_too_large", "limit": limit},
+    )
+
+
+async def _render_storage_unavailable(request: Request, exc: Exception) -> JSONResponse:
+    """Storage 실패 — 502. 본문에는 고정 문자열만 둔다.
+
+    ⚠️ 4xx가 아니라 5xx인 이유: 여기 도달했다는 것은 크기·MIME·경로 검증을 전부 통과한
+    요청이 저장 단계에서 실패했다는 뜻이므로 사용자가 고칠 수 있는 것이 없다. 4xx로
+    돌려주면 클라이언트가 같은 요청을 고쳐서 재시도하려 든다.
+    """
+    del exc
+    _logger.error("sources.storage_unavailable", path=request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={"detail": "storage_unavailable"},
+    )
+
+
+async def _render_job_not_retryable(request: Request, exc: Exception) -> JSONResponse:
+    """`dead`가 아닌 잡의 재시도 — 409 (소비자는 03-07)."""
+    del exc
+    _logger.info("jobs.not_retryable", path=request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": "not_retryable"},
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """격리 관련 예외를 앱에 붙인다.
 
@@ -193,3 +304,10 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(SourceAlreadyIngested, _render_duplicate_source)  # type: ignore[arg-type]
     app.add_exception_handler(BudgetExceeded, _render_budget_exceeded)  # type: ignore[arg-type]
     app.add_exception_handler(TextTooLarge, _render_text_too_large)  # type: ignore[arg-type]
+    app.add_exception_handler(InvalidSourceInput, _render_invalid_source)  # type: ignore[arg-type]
+    app.add_exception_handler(PayloadTooLarge, _render_payload_too_large)  # type: ignore[arg-type]
+    # ⚠️ `StorageObjectExists`는 `StorageUnavailable`의 하위 타입이라 이 한 줄이 둘을
+    #    함께 받는다. 별도 등록을 더하면 렌더가 둘로 갈라지고, 갈라지는 순간 어느 쪽이
+    #    실제로 쓰였는지가 호출부에서 안 보이게 된다.
+    app.add_exception_handler(StorageUnavailable, _render_storage_unavailable)  # type: ignore[arg-type]
+    app.add_exception_handler(JobNotRetryable, _render_job_not_retryable)  # type: ignore[arg-type]

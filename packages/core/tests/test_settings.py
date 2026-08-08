@@ -32,7 +32,16 @@ def test_api_settings_has_no_field_that_could_hold_a_secret() -> None:
 # ⚠️ 이 목록은 "필드를 더해도 된다"가 아니라 **"더한 필드가 secret이 아님을 사람이
 #    확인했다"**는 기록이다. 새 이름을 여기 넣기 전에 위 SECRET_FIELD_NAMES와 대조할 것.
 #    (03-04: MAX_TEXT_CHARS — 요청 본문 길이 상한, OPS-01)
-NON_SECRET_API_FIELDS = frozenset({"MAX_TEXT_CHARS"})
+#    (03-05: MAX_UPLOAD_BYTES · MAX_URL_LENGTH · ALLOWED_UPLOAD_MIME_TYPES —
+#            업로드 크기·URL 길이 상한과 허용 형식 목록. 전부 운영 토글이다.)
+NON_SECRET_API_FIELDS = frozenset(
+    {
+        "MAX_TEXT_CHARS",
+        "MAX_UPLOAD_BYTES",
+        "MAX_URL_LENGTH",
+        "ALLOWED_UPLOAD_MIME_TYPES",
+    }
+)
 
 
 def test_api_settings_adds_only_reviewed_non_secret_fields() -> None:

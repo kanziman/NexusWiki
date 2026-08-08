@@ -35,3 +35,20 @@ class ApiSettings(BaseAppSettings):
     # ⚠️ 단위는 **유니코드 코드 포인트**이지 바이트가 아니다. 한글은 UTF-8에서 3바이트라
     #    바이트 상한과 값이 세 배 어긋난다.
     MAX_TEXT_CHARS: int = 500_000
+
+    # 파일 업로드 바이트 상한 (OPS-01, T-03-31). 단위는 **바이트**다 — 위 상한과 축이
+    # 다른 이유는 재는 대상이 문자열이 아니라 바이트 스트림이기 때문이다.
+    # ⚠️ 이 값은 `0005_storage.sql:48`의 버킷 상한 52428800(50MiB)보다 **작아야 한다.**
+    #    애플리케이션이 먼저 거절하고 정책이 최종 판정자로 남는 순서를 유지하기 위해서다.
+    #    뒤집으면 사용자는 "크기 초과(413)" 대신 Storage 실패(502)를 받게 되어, 무엇이 왜
+    #    막혔는지가 응답에서 사라진다. 근거: 03-05-PLAN.md > D-P13.
+    MAX_UPLOAD_BYTES: int = 20_971_520  # 20 MiB
+
+    # URL 소스 문자열 길이 상한 (03-05-PLAN.md > D-P13).
+    MAX_URL_LENGTH: int = 2048
+
+    # 허용 업로드 MIME. `0005:44-45`가 MIME 검증을 마이그레이션이 아니라 애플리케이션
+    # 계층에 맡긴 이유가 바로 이것이다 — 새 형식을 받는 데 마이그레이션이 필요 없어야 한다.
+    ALLOWED_UPLOAD_MIME_TYPES: frozenset[str] = frozenset(
+        {"application/pdf", "text/plain", "text/markdown"}
+    )
