@@ -62,4 +62,11 @@
 | 값 | 확인처 | 기록처 |
 |---|---|---|
 | `LLM_MODEL` 슬러그 (`checklists.json > decisions.llm.openrouter_slug`가 `TODO`) | `GET https://openrouter.ai/api/v1/models` | `.env.sample` · `checklists.json` · `docs/ops/openrouter-contract-record.md` |
-| `EMBEDDING_PROVIDER` 호스트 슬러그 (D-05의 `provider.order` 원소) | `https://openrouter.ai/baai/bge-m3` 공급자 목록 | `.env.sample` · `docs/ops/openrouter-contract-record.md` |
+| `EMBEDDING_PROVIDER` 호스트 슬러그 (D-05의 `provider.order` 원소) | `https://openrouter.ai/baai/bge-m3` 공급자 목록 **+ `POST /v1/embeddings` 일회성 프로브가 돌려주는 실제 서빙 호스트** (03-04 Task 2) | `.env.sample` · `docs/ops/openrouter-contract-record.md` (`observed_embedding_provider:` 줄) |
+| bge-m3 응답 벡터 차원 — `0008`이 `extensions.vector(1024)`로 **이미 클라우드에 못 박은** 값 | `POST https://openrouter.ai/api/v1/embeddings` 일회성 프로브의 `len(data[0].embedding)` (03-04 Task 2) | `docs/ops/openrouter-contract-record.md` (`observed_embedding_dimensions:` 줄) |
+| 임베딩 응답의 `usage`/비용 필드 존재 여부 | 같은 프로브 | `docs/ops/openrouter-contract-record.md` (`observed_embedding_usage_fields:` 줄) |
+
+⚠️ 위 세 값은 **wave 4(03-04)에서** 닫는다 — 임베딩 코드를 소유하는 것은 03-09(wave 6)이지만,
+`0008`은 wave 1에서 이미 푸시되었고 wave 2 이후 어느 플랜도 `supabase/migrations/`를 고치지
+않는다. 관측을 03-09까지 미루면 마이그레이션과의 불일치가 되돌릴 수 없는 지점 **뒤에서**
+드러난다. 그래서 03-04 Task 2가 코드 없이 호출 한 번으로 관측만 먼저 가져온다.
