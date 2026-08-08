@@ -222,10 +222,15 @@ def two_workspaces_two_users(local_stack: httpx.Client) -> Iterator[tuple[Tenant
             _destroy_actor(local_stack, actor)
 
 
-def _local_settings() -> ApiSettings:
+def _local_settings(**overrides: Any) -> ApiSettings:
+    # ⚠️ `overrides`로 넘길 수 있는 것은 secret이 아닌 운영 토글뿐이다 — `ApiSettings`에
+    #    secret 필드가 애초에 존재하지 않으므로(02-CONTEXT.md > D-06) 이 seam이 그 경계를
+    #    넓히지 않는다. 상한값 같은 것을 테스트마다 작은 값으로 바꿔 경계를 정확히
+    #    때리기 위해 있다 (500,000자 본문을 실제로 왕복시키지 않는다).
     return ApiSettings(
         SUPABASE_URL=LOCAL_STACK["url"],
         SUPABASE_PUBLISHABLE_KEY=LOCAL_STACK["publishable_key"],
+        **overrides,
     )
 
 
@@ -235,12 +240,15 @@ def authed_client() -> Callable[..., Any]:
 
     한 테스트 안에서 두 테넌트의 클라이언트가 동시에 필요하므로 픽스처 자체가 아니라
     팩토리를 돌려준다. `actor=None`이면 자격증명 없는 요청을 만든다.
+    `settings_overrides`로 비-secret 설정을 바꿔 경계 테스트를 만들 수 있다.
     """
 
     @asynccontextmanager
-    async def _open(actor: TenantActor | None) -> AsyncIterator[httpx.AsyncClient]:
+    async def _open(
+        actor: TenantActor | None, **settings_overrides: Any
+    ) -> AsyncIterator[httpx.AsyncClient]:
         _assert_loopback()
-        app = create_app(_local_settings(), git_sha="test-sha")
+        app = create_app(_local_settings(**settings_overrides), git_sha="test-sha")
         headers = {"Authorization": f"Bearer {actor.access_token}"} if actor else {}
         async with app.router.lifespan_context(app):
             async with httpx.AsyncClient(

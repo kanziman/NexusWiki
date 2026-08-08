@@ -2,6 +2,7 @@
 
 import importlib
 import inspect
+import json
 from typing import Any
 
 import httpx
@@ -18,7 +19,7 @@ COMPLETE_WORKER_ENV = {
     "DATABASE_URL": "postgresql://postgres:pw@127.0.0.1:54422/postgres",
     "OPENROUTER_API_KEY": "sk-or-v1-test",
     "OPENAI_API_KEY": "sk-proj-test",
-    "LLM_MODEL": "anthropic/claude-3.5-sonnet",
+    "LLM_MODEL": "anthropic/claude-sonnet-4.6",
 }
 
 WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
@@ -185,6 +186,114 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
     #    이름을 넣고 실제 호출 경로를 확인하지 않으면 그 헬퍼는 검증되지 않은 채 통과한다.
     assert set(called) == service.QUEUE_RPC_FUNCTIONS
     assert all(request.method == "POST" for request in seen)
+
+
+@pytest.mark.asyncio
+async def test_domain_table_helpers_carry_an_explicit_workspace_filter() -> None:
+    # ⚠️ 복합 FK가 잡아 주는 것은 **삽입**이지 조회가 아니다. service_role은 BYPASSRLS라
+    #    조회 파라미터에서 workspace_id가 빠지면 오류 없이 다른 테넌트의 행이 돌아온다.
+    seen: list[httpx.Request] = []
+    row = {"id": "abc", "workspace_id": WORKSPACE_ID, "slug": "s", "sources": []}
+    async with client_returning([row], seen=seen) as client:
+        db = service.ServiceDb(client)
+
+        await db.get_raw_source("rs", workspace_id=WORKSPACE_ID)
+        await db.list_source_chunks(workspace_id=WORKSPACE_ID, raw_source_id="rs")
+        await db.delete_source_chunks_from(
+            workspace_id=WORKSPACE_ID, raw_source_id="rs", from_index=3
+        )
+        await db.list_wiki_slugs(workspace_id=WORKSPACE_ID)
+        await db.get_wiki_page_by_slug(workspace_id=WORKSPACE_ID, slug="s")
+        await db.list_wiki_pages_for_source(workspace_id=WORKSPACE_ID, raw_source_id="rs")
+
+    assert len(seen) == 6
+    for request in seen:
+        assert request.url.params["workspace_id"] == f"eq.{WORKSPACE_ID}", request.url
+
+
+@pytest.mark.asyncio
+async def test_upserts_declare_their_conflict_target_and_merge_resolution() -> None:
+    # `resolution=merge-duplicates`가 없으면 재처리가 409로 돌아오고, at-least-once
+    # 큐에서 재처리는 정상 경로이므로 그 409는 곧 잡 실패다.
+    seen: list[httpx.Request] = []
+    async with client_returning([{"id": "abc"}], seen=seen) as client:
+        db = service.ServiceDb(client)
+
+        await db.upsert_source_chunks(
+            workspace_id=WORKSPACE_ID,
+            raw_source_id="rs",
+            rows=[{"chunk_index": 0, "content": "본문", "char_start": 0, "char_end": 2}],
+        )
+        await db.upsert_wiki_page(workspace_id=WORKSPACE_ID, row={"slug": "s", "title": "제목"})
+
+    assert seen[0].url.params["on_conflict"] == "raw_source_id,chunk_index"
+    assert seen[1].url.params["on_conflict"] == "workspace_id,slug"
+    for request in seen:
+        assert "merge-duplicates" in request.headers["Prefer"]
+
+
+@pytest.mark.asyncio
+async def test_chunk_rows_always_receive_the_scope_the_caller_declared() -> None:
+    # 호출부가 행마다 workspace_id를 적어 넣는 형태였다면 한 행만 빠뜨려도 조용히
+    # 통과한다. 스코프는 헬퍼가 **전 행에** 덮어쓴다.
+    seen: list[httpx.Request] = []
+    async with client_returning([], seen=seen) as client:
+        db = service.ServiceDb(client)
+
+        await db.upsert_source_chunks(
+            workspace_id=WORKSPACE_ID,
+            raw_source_id="rs",
+            rows=[{"chunk_index": index} for index in range(3)],
+        )
+
+    body = json.loads(seen[0].content)
+    assert len(body) == 3
+    assert all(row["workspace_id"] == WORKSPACE_ID and row["raw_source_id"] == "rs" for row in body)
+
+
+@pytest.mark.asyncio
+async def test_prompt_template_lookup_falls_back_from_workspace_to_global() -> None:
+    seen: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        # 첫 조회(워크스페이스)는 비고, 두 번째(전역)가 응답한다.
+        payload = [] if len(seen) == 1 else [{"id": "tpl", "template": "t"}]
+        return httpx.Response(200, json=payload)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="https://example.invalid/rest/v1"
+    ) as client:
+        db = service.ServiceDb(client)
+
+        template = await db.get_default_prompt_template(
+            workspace_id=WORKSPACE_ID, target_type="compile"
+        )
+
+    assert template is not None and template["id"] == "tpl"
+    assert seen[0].url.params["workspace_id"] == f"eq.{WORKSPACE_ID}"
+    assert seen[1].url.params["workspace_id"] == "is.null"
+
+
+@pytest.mark.asyncio
+async def test_complete_job_and_chain_posts_the_next_step_in_one_call() -> None:
+    # ⚠️ 완료와 다음 잡 인큐가 두 왕복으로 갈라지면 그 틈에서 죽었을 때 파이프라인이
+    #    조용히 멈춘다 (0007 섹션 3).
+    seen: list[httpx.Request] = []
+    async with client_returning([{"id": JOB_ID}], seen=seen) as client:
+        db = service.ServiceDb(client)
+
+        await db.complete_job_and_chain(
+            JOB_ID, next_type="compile", next_payload={"target_id": "rs"}
+        )
+        await db.complete_job_and_chain(JOB_ID)
+
+    assert seen[0].url.path.endswith("/rpc/complete_job_and_chain")
+    chained = json.loads(seen[0].content)
+    assert chained["p_next_type"] == "compile"
+    assert chained["p_next_payload"] == {"target_id": "rs"}
+    # 다음 잡이 없으면 인자를 아예 싣지 않는다 — 기본값 null이 DB 쪽 계약이다.
+    assert "p_next_type" not in json.loads(seen[1].content)
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 
 from worker import handlers
+from worker.handlers import compile as compile_handler
+from worker.handlers import noop, parse
 from worker.handlers.noop import handle_noop
 
 JOB_ID = "22222222-2222-4222-8222-222222222222"
@@ -15,6 +17,28 @@ WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
 # -----------------------------------------------------------------------------
 # 1. 레지스트리 — 0003이 jobs.type에 CHECK를 걸지 않은 자리를 이 딕셔너리가 대신한다
 # -----------------------------------------------------------------------------
+
+
+def test_registry_holds_exactly_the_job_types_this_phase_registered() -> None:
+    # ⚠️ 이 단언은 03-09가 `link_sync`·`embed`를 등록할 때 **의도적으로 red가 된다.**
+    #    그것이 목적이다 — 핸들러를 딕셔너리에 넣고 이 열거를 갱신하지 않으면
+    #    `HANDLERS`가 사실상의 잡 종류 열거라는 계약(0003_jobs.sql:31-36)이 흐려진다.
+    #    깨지면 값을 확인하고 여기 이름을 더할 것. 단언을 지워서 통과시키지 말 것.
+    assert set(handlers.HANDLERS) == {"noop", "parse", "compile"}
+
+
+def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> None:
+    # 등록 키와 모듈 상수가 갈라지면 핸들러는 등록됐는데 인큐 측이 다른 문자열을 쓰는
+    # 상태가 되고, 그 잡은 미등록 type으로 데드레터에 간다.
+    constants = {
+        "noop": noop.NOOP_JOB_TYPE,
+        "parse": parse.PARSE_JOB_TYPE,
+        "compile": compile_handler.COMPILE_JOB_TYPE,
+    }
+
+    assert set(constants) == set(handlers.HANDLERS)
+    for key, constant in constants.items():
+        assert constant == key
 
 
 def test_noop_is_registered_and_satisfies_the_handler_contract() -> None:

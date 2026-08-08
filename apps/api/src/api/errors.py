@@ -174,7 +174,7 @@ async def _render_text_too_large(request: Request, exc: Exception) -> JSONRespon
     limit = getattr(exc, "limit", None)
     _logger.info("sources.text_too_large", path=request.url.path, limit=limit)
     return JSONResponse(
-        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
         content={"detail": "text_too_large", "limit": limit},
     )
 
