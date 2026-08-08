@@ -48,9 +48,13 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     errors.register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workspaces_router)
-    # ⚠️ `app.state.http_client`의 타임아웃 2.0초는 그대로 둔다. 이 라우터의 왕복은
-    #    전부 PostgREST이며 LLM 호출은 워커의 일이다 — 여기서 타임아웃을 늘려야 한다면
-    #    그것은 블로킹 작업이 라우터로 새어 들어왔다는 신호다 (ING-01).
+    # ⚠️ `app.state.http_client`의 타임아웃 2.0초는 그대로 둔다. 이 라우터의 PostgREST
+    #    왕복은 전부 그 안에 들어야 하며 LLM 호출은 워커의 일이다 — 여기서 전역
+    #    타임아웃을 늘려야 한다면 그것은 블로킹 작업이 라우터로 새어 들어왔다는 신호다
+    #    (ING-01).
+    #    유일한 예외는 Storage 업로드이고, 그것은 전역값이 아니라 호출 단위 상한으로
+    #    분리되어 있다(`api.storage.UPLOAD_TIMEOUT_SECONDS`). 예외일 수 있는 이유는 그
+    #    왕복의 최악값이 `MAX_UPLOAD_BYTES`로 미리 유한하게 잘려 있기 때문이다.
     app.include_router(sources_router)
     return app
 

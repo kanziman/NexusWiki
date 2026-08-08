@@ -32,7 +32,13 @@ from api.errors import (
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.tokenizer import normalize
 
-__all__ = ["SOURCES_BUCKET", "UserStorage", "sanitize_filename", "storage_path_for"]
+__all__ = [
+    "SOURCES_BUCKET",
+    "UPLOAD_TIMEOUT_SECONDS",
+    "UserStorage",
+    "sanitize_filename",
+    "storage_path_for",
+]
 
 SOURCES_BUCKET: Final[str] = "sources"
 
@@ -80,6 +86,16 @@ _SUFFIX_MAX_LENGTH: Final[int] = 16
 
 _FALLBACK_PREFIX: Final[str] = "source-"
 _FALLBACK_HASH_LENGTH: Final[int] = 12
+
+# ⚠️ `app.state.http_client`의 앱 전역 타임아웃은 2.0초다(`api.main:31`). 그 값은
+#    "이 라우터의 왕복은 전부 PostgREST"라는 전제 위에 있었는데, 업로드는 그 전제를
+#    깬다 — 20MiB를 싱가포르로 밀어 넣는 데 2초는 부족하고, 그 초과는 사용자에게
+#    "저장소 장애"로 보인다.
+#    그래서 이 호출에만 별도 상한을 준다. 늘려도 되는 이유는 이 왕복이 **계산 가능하게
+#    유한**하기 때문이다 — 최대 바이트가 `MAX_UPLOAD_BYTES`로 미리 잘려 있다. LLM 호출은
+#    그렇지 않으므로 여전히 워커의 일이며, 이 예외를 근거로 라우터에 무한정 긴 왕복을
+#    들이면 ING-01("요청은 즉시 202")이 무너진다.
+UPLOAD_TIMEOUT_SECONDS: Final[float] = 30.0
 
 
 def sanitize_filename(name: str) -> str:
@@ -230,6 +246,7 @@ class UserStorage:
             f"{self._base_url}/object/{SOURCES_BUCKET}/{_encode_path(path)}",
             content=data,
             headers={**self._headers, "Content-Type": content_type},
+            timeout=UPLOAD_TIMEOUT_SECONDS,
         )
         if response.is_success:
             return

@@ -249,8 +249,10 @@ async def _render_invalid_source(request: Request, exc: Exception) -> JSONRespon
     """
     reason = getattr(exc, "reason", None)
     _logger.info("sources.invalid_input", path=request.url.path, reason=reason)
+    # `HTTP_422_UNPROCESSABLE_ENTITY`는 Starlette에서 deprecated다 — 03-04이 413에서
+    # 같은 이유로 `HTTP_413_CONTENT_TOO_LARGE`를 골랐다. 값은 둘 다 422로 같다.
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": "invalid_source", "reason": reason},
     )
 
