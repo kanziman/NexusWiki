@@ -130,7 +130,39 @@ Plans:
   4. 월 비용 상한을 넘긴 워크스페이스의 인큐가 **인큐 시점에** 거부되고, 진행 중인 잡을 취소할 수 있으며, `usage_events`에 토큰과 비용이 남는다
   5. 사용자가 소스별 잡 진행을 실제 단계 이름으로 확인하고 `dead` 잡을 재시도할 수 있으며, `jobs.last_error`에 provider 원문 예외가 그대로 노출되지 않는다
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — 임베딩 차원 1024 보정(`0008`) · HNSW 인덱스 2종 재생성 · `search_chunks` 재생성 후 ACL 복원 + 검색 계약 CI 게이트
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 03-02-PLAN.md — `0009` 파이프라인 운영 함수: 인큐·취소·재시도·데드레터 · `usage_events` · 워크스페이스 월 비용 상한(인큐 시점 판정)
+
+**Wave 3** *(blocked on Wave 2 — `DB_CHECK_ENUMS`가 `0009`의 CHECK 값과 대조된다)*
+
+- [ ] 03-03-PLAN.md — `packages/core` 도메인 enum(`DB_CHECK_ENUMS`)과 토큰 기준 청킹(`content[char_start:char_end]` 왕복 속성)
+
+**Wave 4** *(tracer — 이후 확장 슬라이스가 전부 이 경로 위에 쌓인다)*
+
+- [ ] 03-04-PLAN.md — [tracer] 텍스트 한 건이 `POST /sources` → `enqueue_source_job` → `parse` → `compile` 을 지나 실제 `wiki_pages` 행이 되는 경로를 층마다 관통
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 03-05-PLAN.md — 파일·URL·텍스트 세 인큐 경로 · 스트리밍 크기 상한 · 요청자 JWT Storage 업로드 · 402 비용 거부
+- [ ] 03-06-PLAN.md — PDF·HTML·평문 추출과 품질 게이트(`needs_ocr`) · SSRF 가드가 붙은 URL 페치 · `service_role` Storage 다운로드
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 03-07-PLAN.md — 잡 진행 조회(실제 단계 이름) · 재시도 · 취소 · 예산 조회 라우터
+- [ ] 03-09-PLAN.md — `link_sync`(레드 링크 해소)와 양방향 `embed` 로 체인 완성 · 축소 재처리와 재실행 비용 0을 스모크로 증명
+
+**Wave 7** *(blocked on Wave 6)*
+
+- [ ] 03-08-PLAN.md — provider 마스킹 · 원자적 데드레터 · 기동 시 enum↔DB CHECK 대조 · 축소 재처리 검증 · reap 타임아웃 확정
 
 ### Phase 4: Hybrid Retrieval and Fusion
 
