@@ -169,3 +169,21 @@ jobs:
       # 지정하는 순간 새 워크스페이스 멤버의 테스트가 조용히 빠진다.
       - name: uv run pytest
         run: uv run pytest -rs
+
+  # 5. 재생성된 검색 함수가 계약을 흘리지 않았는지 소스에서 검사한다. COMP-06.
+  #
+  # 이 잡은 DB를 세우지 **않는다**. 위 pytest 잡의 주석이 밝힌 것과 같은 이유이며,
+  # 스택을 세우면 검증 대상이 마이그레이션이 아니라 "CLI가 러너에서 뜨는가"로 바뀐다.
+  # 실제 스키마를 보는 psql 계약 러너는 로컬·수동 게이트로 남는다 —
+  # `bash scripts/verify_search_contract.sh` (supabase/tests/0008_search_contract.sql).
+  # 둘의 역할 분담과 각각의 사각은 scripts/ci_check_search_contract.sh 헤더에 있다.
+  #
+  # 그래서 이 잡에는 Python도 Node도 자격증명도 필요하지 않다.
+  search-contract:
+    name: 검색 함수 계약 (COMP-06)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 검색 함수 계약 토큰 검사
+        run: bash scripts/ci_check_search_contract.sh
