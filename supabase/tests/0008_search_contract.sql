@@ -136,22 +136,51 @@ $t2$;
 
 
 -- -----------------------------------------------------------------------------
--- 계약 5: 시그니처 차원 — 인자에 vector(1024)가 있고 vector(1536)은 없다.
+-- 계약 5: 질의 차원 — 1024차 질의는 통과하고 1536차 질의는 거부된다.
+--
+-- ⚠️ 이 계약을 시그니처로 물을 수는 없다. Postgres는 함수 **인자**의 typmod를
+--    저장하지 않으므로 `0008`이 선언한 extensions.vector(1024)는 카탈로그에
+--    `p_query vector`로만 남는다 (pg_get_function_arguments로 확인 가능).
+--    0007:386이 revoke 대상을 `extensions.vector`로만 수식한 것도 같은 이유이며,
+--    그것이 이 함수의 실제 시그니처다.
+--
+--    차원을 실제로 강제하는 것은 컬럼 타입(계약 8)이고 그 강제는 호출 시점에만
+--    나타난다. 그래서 여기서는 카탈로그가 아니라 **행동**을 단언한다 — 이것이
+--    "질의 벡터가 1024차여야 한다"에 대해 관측 가능한 유일한 형태다.
 -- -----------------------------------------------------------------------------
 do $t3$
 declare
-  v_args text;
+  v_rows     int;
+  v_1024     text;
+  v_1536     text;
+  v_rejected boolean := false;
 begin
-  select pg_get_function_arguments(p.oid) into v_args
-  from pg_proc p
-  join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'public' and p.proname = 'search_chunks';
+  select '[' || string_agg('0.01', ',') || ']' into v_1024 from generate_series(1, 1024);
+  select '[' || string_agg('0.01', ',') || ']' into v_1536 from generate_series(1, 1536);
 
-  if v_args not like '%vector(1024)%' then
-    raise exception 'search_chunks 인자에 vector(1024)가 없습니다: %', v_args;
+  execute format(
+    'select count(*) from public.search_chunks(%L, %L::extensions.vector, 5)',
+    '20000000-0000-0000-0000-000000000021',
+    v_1024
+  ) into v_rows;
+
+  if v_rows <> 5 then
+    raise exception '1024차 질의가 %행을 돌려줬습니다 (기대 5)', v_rows;
   end if;
-  if v_args like '%vector(1536)%' then
-    raise exception 'search_chunks 인자에 vector(1536)가 남아 있습니다: %', v_args;
+
+  begin
+    execute format(
+      'select count(*) from public.search_chunks(%L, %L::extensions.vector, 5)',
+      '20000000-0000-0000-0000-000000000021',
+      v_1536
+    ) into v_rows;
+  exception
+    when others then
+      v_rejected := true;
+  end;
+
+  if not v_rejected then
+    raise exception '1536차 질의가 거부되지 않았습니다 — 컬럼의 차원 강제가 사라졌습니다';
   end if;
 end
 $t3$;
@@ -186,6 +215,15 @@ $t4$;
 -- 않으면 Supabase가 새 함수에 주는 기본 실행 권한만 남아 anon이 PostgREST의
 -- /rpc/search_chunks 를 부를 수 있게 된다. service_role은 BYPASSRLS라 이 함수의
 -- 유일한 격리 수단을 무력화하므로 여기서도 false여야 한다.
+--
+-- ⚠️ 이 단언은 **의도**이고, 지금 클라우드는 그 의도를 만족하지 않는다. 이 러너는
+--    로컬 스택에서만 돌기 때문에 여기서는 green이다. 클라우드의 pg_default_acl에는
+--    postgres 소유 public 함수에 anon·authenticated·service_role EXECUTE를 주는
+--    항목이 있고 로컬에는 없다. 그래서 0008의 `revoke ... from public, anon`이
+--    클라우드에서 service_role의 기본 부여를 걷어내지 못했다 (실측:
+--    docs/ops/migration-0008-record.md § 한계와 되돌리기). 0007이 만든 상태를
+--    0008이 그대로 재현한 것이며, 정정은 0009의 revoke 한 줄이 맡는다.
+--    ⚠️ 그때까지 "로컬에서 green이므로 클라우드도 그렇다"고 읽지 말 것.
 -- -----------------------------------------------------------------------------
 do $t5$
 declare
@@ -242,21 +280,28 @@ $t6$;
 -- -----------------------------------------------------------------------------
 -- 계약 9: HNSW 인덱스 스캔 — 벡터 최근접 질의가 재생성된 인덱스를 탄다.
 --
--- 인덱스가 이름이나 연산자 클래스를 잃으면 질의는 여전히 **성공하고** 순차 스캔으로
--- 떨어진다. 그것은 오류가 아니라 지연으로만 드러나므로 계획을 직접 본다.
--- enable_seqscan을 끄는 것은 인덱스가 존재하고 이 연산자에 쓰일 수 있는지를 묻기
--- 위해서다 — 30행짜리 픽스처에서는 순차 스캔이 언제나 더 싸기 때문이다.
+-- 인덱스가 이름이나 연산자 클래스를 잃으면 질의는 여전히 **성공하고** 순차 스캔이나
+-- 정렬로 떨어진다. 그것은 오류가 아니라 지연으로만 드러나므로 계획을 직접 본다.
+--
+-- ⚠️ enable_seqscan과 enable_sort를 끄는 것은 "이 계획이 운영에서 나온다"를 묻는
+--    것이 아니라 **"인덱스가 이 컬럼·이 연산자에 쓰일 수 있는가"**를 묻기 위해서다.
+--    30행짜리 픽스처에서는 workspace_id btree(0002:108) + Sort가 언제나 더 싸므로,
+--    두 GUC 없이는 인덱스가 멀쩡해도 계획에 나타나지 않는다. 이 단언이 답하는
+--    질문은 재생성된 source_chunks_embedding_idx가 이름과 연산자 클래스를
+--    유지했는가이며, 융합 질의의 실제 계획 판정은 Phase 4(RTV-04)의 일이다.
 -- -----------------------------------------------------------------------------
 do $t7$
 declare
-  v_vec  text;
-  v_plan text;
+  v_vec     text;
+  v_plan    text;
+  v_indexes text;
 begin
   select '[' || string_agg(round((i % 89) / 100.0, 4)::text, ',' order by i) || ']'
     into v_vec
   from generate_series(1, 1024) as g(i);
 
   set local enable_seqscan = off;
+  set local enable_sort = off;
 
   execute format(
     'explain (format json) '
@@ -269,12 +314,22 @@ begin
   ) into v_plan;
 
   if v_plan not like '%Index Scan%' or v_plan not like '%source_chunks_embedding_idx%' then
-    raise exception 'HNSW 인덱스 스캔이 계획에 없습니다: %', v_plan;
+    -- 계획 전문에는 1024차 질의 벡터가 그대로 들어 있어 그대로 인쇄하면 실패
+    -- 메시지를 읽을 수 없다. 판정에 필요한 것은 어떤 인덱스가 쓰였는가뿐이다.
+    select array_to_string(
+      array(select m[1] from regexp_matches(v_plan, '"Index Name": "([^"]+)"', 'g') as m),
+      ', '
+    ) into v_indexes;
+
+    raise exception
+      'HNSW 인덱스 스캔이 계획에 없습니다 (사용된 인덱스: %) — source_chunks_embedding_idx가 이름이나 연산자 클래스를 잃었는지 확인할 것',
+      coalesce(nullif(v_indexes, ''), '없음');
   end if;
 end
 $t7$;
 
 reset enable_seqscan;
+reset enable_sort;
 
 select 'search_contract: ok' as result;
 rollback;
