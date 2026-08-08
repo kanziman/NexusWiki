@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: ingest-and-compile-pipeline
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-08-08T02:07:21.021Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-08-08T07:01:19.885Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 27
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 03 (ingest-and-compile-pipeline) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [███████░░░] 70%
+Progress: [███████░░░] 74%
 
 ## Performance Metrics
 
@@ -76,6 +76,7 @@ Progress: [███████░░░] 70%
 | Phase 02 P07 | 12min | 3 tasks | 9 files |
 | Phase 02 P08 | 35min | 3 tasks | 7 files |
 | Phase 03 P01 | 15m | 3 tasks | 7 files |
+| Phase 03 P02 | 25m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02] 전송 p99 127ms는 15분의 0.0141%다 — 이 데이터는 15분을 반박도 지지도 하지 못하고 정당화 후보 하나(전송 비용 감안)를 제거할 뿐이다. reap 타임아웃을 정하는 것은 전송이 아니라 핸들러 지속시간이다 (02-08)
 - [Phase ?]: 0008: 임베딩 차원 1024 — 함수 인자 typmod는 저장되지 않으므로 차원 계약은 행동으로 단언한다
 - [Phase ?]: D-08 CI 요구를 소스 수준 토큰 게이트로 이행 — 러너에 Supabase 스택을 세우지 않는다
+- [Phase ?]: 0009: 인큐 권한 모델은 security definer RPC — jobs에 INSERT 정책을 주면 그 경로가 비용 상한을 건너뛴다 (D-P1)
+- [Phase ?]: 0009: 비용 단위는 micro-dollar 정수(bigint), 기본 상한 $5.00/월/워크스페이스 — open question 해소 (D-P2)
+- [Phase ?]: 0009: 취소는 jobs.status에 canceled를 더하고 running 잡은 협조적 — CHECK는 파일 번호와 달리 되돌릴 수 있다 (D-P3)
+- [Phase ?]: 0009: 새 함수 revoke에 service_role을 명시하는 것이 관례 — 클라우드 pg_default_acl이 로컬보다 넓다
 
 ### Pending Todos
 
@@ -155,6 +160,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T02:07:21.009Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-08-08T07:01:11.371Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
