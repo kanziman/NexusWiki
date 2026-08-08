@@ -157,6 +157,7 @@ None yet.
 - [Phase 2] 미등록 job type의 즉시 dead 전이는 현재 SQL 표면으로 불가 — dead는 fail_job/reap_stale_jobs 양쪽에서 attempts >= max_attempts로만 도달하고 그 게이트를 건너뛰려면 jobs 직접 UPDATE가 필요하다(금지 경로). 02-07은 fail_job(backoff='0 seconds')로 대기 없이 수렴시켰다. 0008의 dead_letter_job()이 이 자리를 닫을 것
 - 클라우드에서 service_role이 public.search_chunks EXECUTE를 갖는다 (pg_default_acl 로컬/클라우드 차이) — 0009의 revoke 한 줄로 정정 필요
 - [Phase 3] chunk_text의 오버랩이 최소 조각 1개 단위라 청크가 조각 하나뿐일 때는 인접 청크가 겹치지 않고 맞닿는다 (실측 오버랩 min=0) — 인용 단위로서 문제가 되는지는 Phase 4 골든 세트가 판정한다
+- [Phase 3] **[결정 대기] 비용 상한 거부가 클라이언트에 도달하지 못한다** — `0009:297`의 `errcode 53400`이 PostgREST(로컬 14.15)를 지나며 본문·코드 없는 opaque 500이 된다. 클래스 53(insufficient resources)을 "요청자 탓이 아닌 서버 자원 문제"로 분류해 내부 정보를 감추기 때문. API는 `sqlstate=None`만 받아 402와 진짜 DB 장애를 구분할 수 없다. 상한을 넘긴 사용자가 받는 것은 정확히 "사유 없는 실패"이며, 이는 03-05 must_have 1건과 `<prohibitions>`를 동시에 위반한다. 03-04가 402 경로를 만들고도 몰랐던 이유는 스모크·03-04 테스트가 402를 **한 번도 실행하지 않았기** 때문 — 03-05 회귀 스위트가 처음 실행했다. 실측 대안: `NW402`(프로젝트 전용 클래스) → `400 {"code":"NW402"}`로 통과하며 Postgres가 만들 수 없는 코드라 오탐 원리적 불가. 선택지 A(`0010`에서 errcode를 `NW402`로, 상태 코드 판정은 `api.errors`에 유지 — 권장) / B(`raise sqlstate 'PGRST'`로 DB가 402 직접 반환 — 상태 코드 소유권이 DB로 넘어감) / C(3건 `xfail(strict=True)` 고정 후 03-07로 이월). A·B는 `0010` 번호 선점 + 클라우드 push를 수반하며 D-01·D-02가 사용자 결정으로 못 박은 편도 행위라 실행기가 임의 집행하지 않았다
 
 ## Deferred Items
 
@@ -168,6 +169,14 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T07:36:52.460Z
-Stopped at: Completed 03-03-PLAN.md
-Resume file: None
+Last session: 2026-08-08T12:44:00.000Z
+Stopped at: Phase 3 — 03-05 Task 3 체크포인트(decision, blocking-human). 사용자 중단 요청으로 정지
+Resume file: .planning/phases/03-ingest-and-compile-pipeline/03-05-PLAN.md
+
+**재개 시 첫 행동:** 위 Blockers/Concerns의 "[결정 대기] 비용 상한 거부" 항목에서 A·B·C를 고른 뒤
+`/gsd-execute-phase 3`. 완료 4/9 (03-01·02·03·04). 03-05는 Task 1·2 커밋됨(`5075a3e`·`5a20a52`),
+Task 3만 미완.
+
+⚠️ **워킹 트리에 미커밋 작업이 있다** — `apps/api/tests/test_sources_router.py`(597줄, 회귀 30종 중
+3종이 위 결함으로 red)와 `apps/api/tests/conftest.py`(`set_workspace_budget` 픽스처). 이 3건의 red는
+결함의 증거이므로 일부러 커밋하지 않았다. `git checkout`·`git clean`·`git reset --hard`로 날리지 말 것.
