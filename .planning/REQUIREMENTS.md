@@ -52,7 +52,7 @@
 - [ ] **ING-02**: 동일 `content_hash` 재투입이 **눈에 보이게** "이미 수집됨 — 건너뜀"으로 표시된다 (조용한 성공 금지)
 - [ ] **ING-03**: 원본 파일이 `{workspace_id}/{raw_source_id}/{filename}` 경로로 Storage에 보존된다
 - [ ] **ING-04**: 문서 파서가 추출 품질 게이트(페이지당 문자 수 임계값)를 적용하고, 미달 시 `needs_ocr`로 잡을 실패시켜 UI에 사유를 노출한다 (빈 문서를 조용히 수집하지 않음)
-- [ ] **ING-05**: 청킹이 토큰 기준으로 수행되고 `content[char_start:char_end] == chunk.content` 속성 테스트가 통과한다
+- [x] **ING-05**: 청킹이 토큰 기준으로 수행되고 `content[char_start:char_end] == chunk.content` 속성 테스트가 통과한다
 - [ ] **ING-06**: 사용자가 소스별 잡 진행 상태를 **실제 단계 이름**으로 확인한다 (불확정 스피너 금지 — 4분 컴파일이 멈춘 것처럼 보이면 재투입으로 비용이 2배가 됨)
 - [ ] **ING-07**: 사용자가 `dead` 상태 잡을 재시도할 수 있다
 
@@ -207,7 +207,7 @@
 | ING-02 | Phase 3 | Pending |
 | ING-03 | Phase 3 | Pending |
 | ING-04 | Phase 3 | Pending |
-| ING-05 | Phase 3 | Pending |
+| ING-05 | Phase 3 | Complete |
 | ING-06 | Phase 3 | Pending |
 | ING-07 | Phase 3 | Pending |
 | COMP-01 | Phase 3 | Pending |

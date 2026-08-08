@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: ingest-and-compile-pipeline
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-08-08T07:01:19.885Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-08-08T07:37:07.850Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 27
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 03 (ingest-and-compile-pipeline) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [███████░░░] 74%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Progress: [███████░░░] 74%
 | Phase 02 P08 | 35min | 3 tasks | 7 files |
 | Phase 03 P01 | 15m | 3 tasks | 7 files |
 | Phase 03 P02 | 25m | 3 tasks | 6 files |
+| Phase 03 P03 | 20m | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,12 @@ Recent decisions affecting current work:
 - [Phase ?]: 0009: 비용 단위는 micro-dollar 정수(bigint), 기본 상한 $5.00/월/워크스페이스 — open question 해소 (D-P2)
 - [Phase ?]: 0009: 취소는 jobs.status에 canceled를 더하고 running 잡은 협조적 — CHECK는 파일 번호와 달리 되돌릴 수 있다 (D-P3)
 - [Phase ?]: 0009: 새 함수 revoke에 service_role을 명시하는 것이 관례 — 클라우드 pg_default_acl이 로컬보다 넓다
+- [Phase ?]: 03-03: 청크 토큰은 tiktoken cl100k_base로 센다 — bge-m3의 XLM-R SentencePiece를 의도적으로 근사하며 과대평가 방향이라 8192 예산을 넘길 위험이 구조적으로 없다 (D-P4)
+- [Phase ?]: 03-03: 청킹 초기값 목표 512토큰·오버랩 64토큰 — 문헌 근거 없는 경험적 출발점이며 Phase 4 골든 세트(RTV-06)가 반증할 대상. 상수로 노출해 반증 가능하게 둔다 (D-P5)
+- [Phase ?]: 03-03: 오버랩은 예산과 무관하게 마지막 조각 하나를 반드시 겹친다 — 예산으로만 되돌리면 문단 조각이 64토큰보다 커서 산문에서 오버랩이 조용히 0이 된다
+- [Phase ?]: 03-03: 청크 내용은 조각을 이어붙이지 않고 원문에서 다시 잘라 넣는다 — ING-05의 좌표 왕복 속성이 성립하는 유일한 구조적 이유
+- [Phase ?]: 03-03: enum 대조 테스트는 마이그레이션 SQL을 실제로 읽어 CHECK 리터럴을 뽑는다 — 파이썬 리터럴끼리 비교하면 베껴 적기가 검증을 통과한다
+- [Phase ?]: 03-03: 페이지 수준 축소 재처리는 페이지 삭제가 아니라 sources 역참조 제거 — 한 페이지를 여러 raw_source가 만들 수 있고 삭제는 남의 링크를 레드로 되돌린다 (D-P6, 구현은 03-04/03-08)
 
 ### Pending Todos
 
@@ -149,6 +156,7 @@ None yet.
 - [Phase 2] 02-09 Task 3(게이트)이 체크포인트로 중단됨 — 스크립트 2종과 워크플로우 4잡은 커밋됐고 로컬에서 위반 4종 red·clean tree exit 0까지 실측했으나, 원격 Actions 관측이 남았다. 필요한 것: (a) `ci-violation/service-import` 브랜치 — `apps/api/src/api/` 모듈에 `from worker.db.service import service_client` 한 줄 → PR에서 `service-usage` 잡 red와 위반 파일 경로 확인 (b) `ci-violation/bundle-secret` 브랜치 — dashboard 클라이언트 컴포넌트에 리터럴 한 줄(환경변수 참조는 번들에 안 남음) → PR에서 `bundle-secrets` 잡 red와 **파일 경로는 나오되 값은 안 나오는지** 확인 (c) 두 브랜치 삭제 후 정상 PR에서 4잡 green. 관측을 지어내지 않기 위해 docs/ops/ci-security-gate.md와 02-09-SUMMARY.md는 미작성 상태다
 - [Phase 2] 미등록 job type의 즉시 dead 전이는 현재 SQL 표면으로 불가 — dead는 fail_job/reap_stale_jobs 양쪽에서 attempts >= max_attempts로만 도달하고 그 게이트를 건너뛰려면 jobs 직접 UPDATE가 필요하다(금지 경로). 02-07은 fail_job(backoff='0 seconds')로 대기 없이 수렴시켰다. 0008의 dead_letter_job()이 이 자리를 닫을 것
 - 클라우드에서 service_role이 public.search_chunks EXECUTE를 갖는다 (pg_default_acl 로컬/클라우드 차이) — 0009의 revoke 한 줄로 정정 필요
+- [Phase 3] chunk_text의 오버랩이 최소 조각 1개 단위라 청크가 조각 하나뿐일 때는 인접 청크가 겹치지 않고 맞닿는다 (실측 오버랩 min=0) — 인용 단위로서 문제가 되는지는 Phase 4 골든 세트가 판정한다
 
 ## Deferred Items
 
@@ -160,6 +168,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-08T07:01:11.371Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-08-08T07:36:52.460Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
