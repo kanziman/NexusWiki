@@ -63,7 +63,7 @@
 - [ ] **COMP-03**: 재시도 2·3회차가 1회차와 달라진다 — 검증 오류를 프롬프트에 되먹인다
 - [ ] **COMP-04**: 잡이 `parse → compile → link_sync → embed` 체인으로 분리되어 각 단계가 자기 멱등성 키를 갖는다 (모놀리식 잡의 p99가 reap 윈도우를 넘어 정상 잡이 탈취·이중 과금되는 것을 방지)
 - [ ] **COMP-05**: `[[WikiLink]]`가 파싱되어 `wiki_links`에 동기화되고, 미해결 타깃은 레드 링크(`to_wiki_id IS NULL`)로 남는다
-- [ ] **COMP-06**: 위키 청크와 원문 청크 양쪽이 임베딩된다 (`source.embed`는 `wiki.compile`과 병렬)
+- [x] **COMP-06**: 위키 청크와 원문 청크 양쪽이 임베딩된다 (`source.embed`는 `wiki.compile`과 병렬)
 - [ ] **COMP-07**: 재처리 결과가 더 적은 단위로 줄어드는 경우에도 잔여 행이 삭제된다 (`upsert_and_truncate` — `source_chunks` · `wiki_embeddings` · `wiki_links` 공통)
 - [ ] **COMP-08**: 원본 provider 예외가 `jobs.last_error`에 그대로 들어가지 않는다 (`jobs_select_member`가 viewer에게 `select *`를 허용함)
 
@@ -215,7 +215,7 @@
 | COMP-03 | Phase 3 | Pending |
 | COMP-04 | Phase 3 | Pending |
 | COMP-05 | Phase 3 | Pending |
-| COMP-06 | Phase 3 | Pending |
+| COMP-06 | Phase 3 | Complete |
 | COMP-07 | Phase 3 | Pending |
 | COMP-08 | Phase 3 | Pending |
 | OPS-01 | Phase 3 | Pending |

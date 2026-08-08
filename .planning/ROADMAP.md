@@ -130,13 +130,13 @@ Plans:
   4. 월 비용 상한을 넘긴 워크스페이스의 인큐가 **인큐 시점에** 거부되고, 진행 중인 잡을 취소할 수 있으며, `usage_events`에 토큰과 비용이 남는다
   5. 사용자가 소스별 잡 진행을 실제 단계 이름으로 확인하고 `dead` 잡을 재시도할 수 있으며, `jobs.last_error`에 provider 원문 예외가 그대로 노출되지 않는다
 
-**Plans**: 9 plans
+**Plans**: 1/9 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — 임베딩 차원 1024 보정(`0008`) · HNSW 인덱스 2종 재생성 · `search_chunks` 재생성 후 ACL 복원 + 검색 계약 CI 게이트
+- [x] 03-01-PLAN.md — 임베딩 차원 1024 보정(`0008`) · HNSW 인덱스 2종 재생성 · `search_chunks` 재생성 후 ACL 복원 + 검색 계약 CI 게이트
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -237,7 +237,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
 | 2. Security Spine and Shared Domain | 9/9 | Complete    | 2026-08-07 |
-| 3. Ingest and Compile Pipeline | 0/TBD | Not started | - |
+| 3. Ingest and Compile Pipeline | 1/9 | In Progress|  |
 | 4. Hybrid Retrieval and Fusion | 0/TBD | Not started | - |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |
 | 6. Dashboard | 0/TBD | Not started | - |

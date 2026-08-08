@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 3
-current_phase_name: Ingest and Compile Pipeline
+current_phase: 03
+current_phase_name: ingest-and-compile-pipeline
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-08-08T01:30:04.437Z"
-last_activity: 2026-08-07
-last_activity_desc: Phase 02 complete, transitioned to Phase 3
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-08-08T02:07:21.021Z"
+last_activity: 2026-08-08
+last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 27
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-01)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** Phase 02 — security-spine-and-shared-domain
+**Current focus:** Phase 03 — ingest-and-compile-pipeline
 
 ## Current Position
 
-Phase: 3 — Ingest and Compile Pipeline
-Plan: Not started
+Phase: 03 (ingest-and-compile-pipeline) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-08-07 — Phase 02 complete, transitioned to Phase 3
+Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 70%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [██████████] 100%
 | Phase 02 P04 | 55min | 3 tasks | 8 files |
 | Phase 02 P07 | 12min | 3 tasks | 9 files |
 | Phase 02 P08 | 35min | 3 tasks | 7 files |
+| Phase 03 P01 | 15m | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 02] 성공 표본 200 미만이면 p99를 계산하지 않고 None으로 둔다 — 최근접 순위 p99가 사실상 최댓값이 되어 이름이 근거 없는 신뢰를 준다. 시도는 220회로 두어 실패 여유를 확보했고 실제로 1회 소진됐다 (02-08)
 - [Phase ?]: [Phase 02] 잠정 reap 타임아웃 2초를 유도했으나 reap_stale_jobs 기본 15분은 바꾸지 않는다 — 2초는 noop 전용 큐의 하한이며 Phase 3 컴파일 잡에 적용하면 전부 이중 처리된다 (02-08)
 - [Phase ?]: [Phase 02] 전송 p99 127ms는 15분의 0.0141%다 — 이 데이터는 15분을 반박도 지지도 하지 못하고 정당화 후보 하나(전송 비용 감안)를 제거할 뿐이다. reap 타임아웃을 정하는 것은 전송이 아니라 핸들러 지속시간이다 (02-08)
+- [Phase ?]: 0008: 임베딩 차원 1024 — 함수 인자 typmod는 저장되지 않으므로 차원 계약은 행동으로 단언한다
+- [Phase ?]: D-08 CI 요구를 소스 수준 토큰 게이트로 이행 — 러너에 Supabase 스택을 세우지 않는다
 
 ### Pending Todos
 
@@ -140,6 +143,7 @@ None yet.
 - [Phase 3] 프로브성 잡을 다시 만들 일이 있으면 **처분 가능한 워크스페이스에 가두는 방식**을 다시 써야 한다 — `0007` 섹션 8이 `jobs`에 어느 롤에도 DELETE를 주지 않으므로(잡 이력이 곧 감사 기록) "각 왕복이 자기 잡을 지운다"는 권한 매트릭스가 바뀌지 않는 한 앞으로도 불가능하다
 - [Phase 2] 02-09 Task 3(게이트)이 체크포인트로 중단됨 — 스크립트 2종과 워크플로우 4잡은 커밋됐고 로컬에서 위반 4종 red·clean tree exit 0까지 실측했으나, 원격 Actions 관측이 남았다. 필요한 것: (a) `ci-violation/service-import` 브랜치 — `apps/api/src/api/` 모듈에 `from worker.db.service import service_client` 한 줄 → PR에서 `service-usage` 잡 red와 위반 파일 경로 확인 (b) `ci-violation/bundle-secret` 브랜치 — dashboard 클라이언트 컴포넌트에 리터럴 한 줄(환경변수 참조는 번들에 안 남음) → PR에서 `bundle-secrets` 잡 red와 **파일 경로는 나오되 값은 안 나오는지** 확인 (c) 두 브랜치 삭제 후 정상 PR에서 4잡 green. 관측을 지어내지 않기 위해 docs/ops/ci-security-gate.md와 02-09-SUMMARY.md는 미작성 상태다
 - [Phase 2] 미등록 job type의 즉시 dead 전이는 현재 SQL 표면으로 불가 — dead는 fail_job/reap_stale_jobs 양쪽에서 attempts >= max_attempts로만 도달하고 그 게이트를 건너뛰려면 jobs 직접 UPDATE가 필요하다(금지 경로). 02-07은 fail_job(backoff='0 seconds')로 대기 없이 수렴시켰다. 0008의 dead_letter_job()이 이 자리를 닫을 것
+- 클라우드에서 service_role이 public.search_chunks EXECUTE를 갖는다 (pg_default_acl 로컬/클라우드 차이) — 0009의 revoke 한 줄로 정정 필요
 
 ## Deferred Items
 
@@ -151,6 +155,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-07T09:47:56.151Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-ingest-and-compile-pipeline/03-CONTEXT.md
+Last session: 2026-08-08T02:07:21.009Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None
