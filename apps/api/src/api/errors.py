@@ -23,6 +23,7 @@ __all__ = [
     "BudgetExceeded",
     "DatabaseError",
     "InvalidSourceInput",
+    "JobNotCancellable",
     "JobNotRetryable",
     "PayloadTooLarge",
     "SourceAlreadyIngested",
@@ -166,6 +167,14 @@ class JobNotRetryable(Exception):
     """
 
 
+class JobNotCancellable(Exception):
+    """이미 종료된 잡에는 취소 요청을 다시 걸 수 없다 (ING-07).
+
+    재시도 불가와 취소 불가를 하나로 합치지 않는다. 사용자가 취할 다음 행동과 UI에서
+    비활성화할 버튼이 서로 다르기 때문이다.
+    """
+
+
 # ⚠️ 존재하지 않는 리소스와 격리 위반을 구분하지 않는다 — 둘 다 같은 응답이다.
 #    Not Found를 주면 다른 테넌트의 리소스 존재 여부가 상태 코드로 새어나가 열거
 #    공격이 성립한다. UX상 404가 낫다는 이유로 뒤집지 말 것 (02-CONTEXT.md > D-12).
@@ -295,6 +304,16 @@ async def _render_job_not_retryable(request: Request, exc: Exception) -> JSONRes
     )
 
 
+async def _render_job_not_cancellable(request: Request, exc: Exception) -> JSONResponse:
+    """이미 종료된 잡의 취소 요청 — 409."""
+    del exc
+    _logger.info("jobs.not_cancellable", path=request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": "not_cancellable"},
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """격리 관련 예외를 앱에 붙인다.
 
@@ -316,3 +335,4 @@ def register_error_handlers(app: FastAPI) -> None:
     #    실제로 쓰였는지가 호출부에서 안 보이게 된다.
     app.add_exception_handler(StorageUnavailable, _render_storage_unavailable)  # type: ignore[arg-type]
     app.add_exception_handler(JobNotRetryable, _render_job_not_retryable)  # type: ignore[arg-type]
+    app.add_exception_handler(JobNotCancellable, _render_job_not_cancellable)  # type: ignore[arg-type]

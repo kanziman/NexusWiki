@@ -14,6 +14,7 @@ from fastapi import FastAPI
 
 from api import errors
 from api.routers.health import router as health_router
+from api.routers.jobs import router as jobs_router
 from api.routers.sources import router as sources_router
 from api.routers.workspaces import router as workspaces_router
 from api.settings import ApiSettings
@@ -56,6 +57,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     #    분리되어 있다(`api.storage.UPLOAD_TIMEOUT_SECONDS`). 예외일 수 있는 이유는 그
     #    왕복의 최악값이 `MAX_UPLOAD_BYTES`로 미리 유한하게 잘려 있기 때문이다.
     app.include_router(sources_router)
+    app.include_router(jobs_router)
     return app
 
 
