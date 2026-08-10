@@ -5,12 +5,12 @@ milestone_name: milestone
 current_phase: 4
 current_phase_name: Hybrid Retrieval and Fusion
 status: planning
-stopped_at: Completed 03-08-PLAN.md
-last_updated: "2026-08-10T14:14:09.651Z"
+stopped_at: Phase 4 context gathered
+last_updated: "2026-08-10T22:08:45.918Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 03 complete, transitioned to Phase 4
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
   total_plans: 27
   completed_plans: 27
@@ -176,9 +176,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T11:30:00Z
-Stopped at: Completed 03-08-PLAN.md
-Resume file: None
+Last session: 2026-08-10T22:08:45.897Z
+Stopped at: Phase 4 context gathered
+Resume file: .planning/phases/04-hybrid-retrieval-and-fusion/04-CONTEXT.md
 
 **재개 시 첫 행동:** Phase 3 검증·완료 마킹을 실행한다. 실행 플랜 9/9가 끝났고, 03-08은
 provider 마스킹·즉시 dead-letter·기동 enum↔DB CHECK 대조·축소 재처리·reap 근거를 닫았다.
