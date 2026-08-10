@@ -134,6 +134,20 @@ def test_table_helpers_declare_workspace_id_without_a_default() -> None:
         assert parameter.default is inspect.Parameter.empty, name
 
 
+def test_plan_03_09_domain_helpers_remain_explicitly_classified() -> None:
+    """링크·임베딩 경로가 분류 규약을 우회하지 않게 한다 (03-09 Task 3)."""
+    assert {
+        "list_wiki_links",
+        "upsert_wiki_links",
+        "delete_wiki_links_not_in",
+        "resolve_red_links",
+        "list_source_chunks_missing_embedding",
+        "update_source_chunk_embedding",
+        "upsert_wiki_embeddings",
+        "delete_wiki_embeddings_from",
+    } <= service.TABLE_HELPERS
+
+
 @pytest.mark.asyncio
 async def test_scoped_helpers_reject_missing_workspace_id() -> None:
     async with client_returning([]) as client:

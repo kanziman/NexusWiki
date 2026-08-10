@@ -1,6 +1,7 @@
 """핸들러 레지스트리 계약 회귀 테스트 — 미등록 type이 조용히 통과하지 않는다."""
 
 import inspect
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
 
@@ -114,6 +115,46 @@ async def test_handler_exceptions_are_not_swallowed_by_the_registry(
 
     with pytest.raises(RuntimeError, match="handler boom"):
         await handler(job_id=JOB_ID, workspace_id=WORKSPACE_ID, payload={})
+
+
+@pytest.mark.asyncio
+async def test_wiki_embed_skips_pages_already_at_the_current_embedding_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """재처리는 같은 version의 위키 벡터에 OpenRouter 비용을 다시 쓰지 않는다."""
+
+    class Db:
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, str]]:
+            return [{"id": "page-1", "content": "이미 임베딩된 본문"}]
+
+        async def list_wiki_embeddings(self, **_values: Any) -> list[dict[str, int | str]]:
+            return [{"chunk_index": 0, "embedding_version": "model@provider-v1"}]
+
+        async def delete_wiki_embeddings_from(self, **_values: Any) -> None:
+            return None
+
+        async def complete_job_and_chain(self, _job_id: str) -> None:
+            return None
+
+    @asynccontextmanager
+    async def no_op_client(_settings: object):
+        yield object()
+
+    async def unexpected_embedding(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("same embedding_version must not call OpenRouter")
+
+    monkeypatch.setattr(embed, "WorkerSettings", lambda: SimpleNamespace(EMBED_BATCH_SIZE=16))
+    monkeypatch.setattr(embed, "service_client", no_op_client)
+    monkeypatch.setattr(embed, "openrouter_client", no_op_client)
+    monkeypatch.setattr(embed, "ServiceDb", lambda _client: Db())
+    monkeypatch.setattr(embed, "embedding_version", lambda _settings: "model@provider-v1")
+    monkeypatch.setattr(embed, "embed_texts", unexpected_embedding)
+
+    await embed.handle_embed(
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source", "scope": "wiki"},
+    )
 
 
 class _ParseDb:

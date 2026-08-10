@@ -45,8 +45,22 @@ async def handle_embed(*, job_id: str, workspace_id: str, payload: dict[str, Any
                 workspace_id=workspace_id, raw_source_id=source_id
             ):
                 chunks = chunk_text(str(page.get("content") or ""))
+                current_indices = {
+                    int(row["chunk_index"])
+                    for row in await db.list_wiki_embeddings(
+                        workspace_id=workspace_id,
+                        wiki_id=str(page["id"]),
+                        embedding_version=version,
+                    )
+                }
+                missing_chunks = [chunk for chunk in chunks if chunk.index not in current_indices]
+                if not missing_chunks:
+                    await db.delete_wiki_embeddings_from(
+                        workspace_id=workspace_id, wiki_id=str(page["id"]), from_index=len(chunks)
+                    )
+                    continue
                 result = await embed_texts(
-                    or_client, settings=settings, texts=[chunk.content for chunk in chunks]
+                    or_client, settings=settings, texts=[chunk.content for chunk in missing_chunks]
                 )
                 await db.upsert_wiki_embeddings(
                     workspace_id=workspace_id,
@@ -58,7 +72,7 @@ async def handle_embed(*, job_id: str, workspace_id: str, payload: dict[str, Any
                             "embedding": "[" + ",".join(map(str, vector)) + "]",
                             "embedding_version": version,
                         }
-                        for chunk, vector in zip(chunks, result.vectors, strict=True)
+                        for chunk, vector in zip(missing_chunks, result.vectors, strict=True)
                     ],
                 )
                 await db.delete_wiki_embeddings_from(

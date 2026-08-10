@@ -51,6 +51,7 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "resolve_red_links",
         "list_source_chunks_missing_embedding",
         "update_source_chunk_embedding",
+        "list_wiki_embeddings",
         "upsert_wiki_embeddings",
         "delete_wiki_embeddings_from",
     }
@@ -395,6 +396,20 @@ class ServiceDb:
             rows=[{**r, "workspace_id": workspace_id} for r in rows],
             params={"on_conflict": "wiki_id,chunk_index"},
             prefer=_UPSERT_PREFER,
+        )
+
+    async def list_wiki_embeddings(
+        self, *, workspace_id: str, wiki_id: str, embedding_version: str
+    ) -> list[dict[str, Any]]:
+        """현재 버전의 행만 읽어 재처리 OpenRouter 호출을 막는다."""
+        return await self._select(
+            "wiki_embeddings",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "wiki_id": f"eq.{wiki_id}",
+                "embedding_version": f"eq.{embedding_version}",
+                "select": "chunk_index,embedding_version",
+            },
         )
 
     async def delete_wiki_embeddings_from(

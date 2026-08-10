@@ -166,6 +166,26 @@ provider         = {"order": ["deepinfra/fp32"], "allow_fallbacks": false, "data
 $4.95가 wave 5~7(03-05 · 03-06 · 03-07 · 03-08 · 03-09)과 Phase 4~5의 실호출 전부를
 덮어야 한다. 한 소스당 $0.0125라는 실측이 그 계획의 유일한 기준선이다.
 
+## 6. 03-09 파이프라인 임베딩 관측 — 2026-08-10 KST
+
+`EMBEDDING_MODEL=baai/bge-m3`, `EMBEDDING_PROVIDER=deepinfra/fp32`를 **스모크 실행에만**
+주입해 `scripts/smoke_pipeline.sh`를 실행했다. `.env`에는 이 값을 쓰지 않았다.
+
+| 경로 | 응답 `provider` | 응답 `model` | prompt tokens | `cost_micros` |
+| --- | --- | --- | ---: | ---: |
+| source chunks | `DeepInfra` | `BAAI/bge-m3` | 76 | 1 |
+| wiki chunks | `DeepInfra` | `BAAI/bge-m3` | 92 | 1 |
+
+스모크 SQL 관측값은 source·wiki 모두 `vector_dims(embedding)=1024`,
+`count(distinct embedding_version)=1`, source chunk의 null embedding 0행, wiki embedding
+1행이었다. `cost_micros`는 워커가 `ceil(cost_usd * 1_000_000)`로 기록한 정수다.
+
+같은 `raw_source_id`의 parse를 다시 인큐한 뒤에도 source chunks=1, wiki pages=1,
+wiki links=1, wiki embeddings=1 및 `kind='embedding'` usage events=2로 모두 동일했다.
+즉, 같은 `embedding_version`의 위키 행을 다시 OpenRouter에 보내던 결함을 수정한 뒤
+재처리 비용 0과 행 멱등성을 실제 스택에서 확인했다. 워크스페이스 삭제 cascade 뒤 jobs=0도
+관측했다.
+
 ## 한계
 
 이 문서가 **관측하지 않은 것**을 명시한다. 없는 관측을 추론으로 메우지 않는다.
@@ -188,10 +208,11 @@ $4.95가 wave 5~7(03-05 · 03-06 · 03-07 · 03-08 · 03-09)과 Phase 4~5의 실
    뒷부분이 위키에 반영되지 않는 이 경계는 관측된 적이 없다 — 스모크의 본문이 청크 1개다.
    여러 청크에 걸친 긴 소스의 컴파일 품질은 이 플랜이 확인하지 않았다.
 
-4. **임베딩 엔드포인트는 일회성 프로브로 한 번만 불렀다.** 배치 입력(`input`이 배열일 때의
-   순서 보장), 재시도, `embedding_version` 문자열 조립, `source_chunks.embedding` /
-   `wiki_embeddings.embedding` 영속화의 계약은 **하나도 관측하지 않았다.** 03-09가 그것들을
-   관측해 이 문서에 덧붙인다.
+4. **공급자 고정의 장애 경로는 관측하지 않았다.** 03-09는 source·wiki 영속화와 같은
+   `embedding_version` 재처리 비용 0을 실제로 확인했지만, DeepInfra 장애 시 `embed` 잡만
+   실패하고 compile은 계속되는 동작, 다중 입력 배치의 순서 보장, 네트워크 재시도는 아직
+   실호출로 확인하지 않았다. `embedding_version`을 바꾸면 모든 청크를 다시 임베딩해야 하며,
+   비용은 청크 수에 선형으로 늘어난다.
 
 5. **1회차 출력이 스키마를 만족했으므로 되먹임 재시도의 실효는 실호출로 확인되지 않았다.**
    재시도가 같은 본문의 반복이 아니라는 것은 단위 테스트가 고정하고 있고(위 §2), 실제

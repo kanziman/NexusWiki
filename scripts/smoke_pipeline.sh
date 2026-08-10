@@ -20,7 +20,8 @@ set -euo pipefail
 #
 # ⚠️ 로컬 스택 전용이다. `.env`의 SUPABASE_URL은 **클라우드**를 가리키므로 여기서 읽지
 #    않는다 — 읽으면 이 스크립트가 운영 프로젝트에 사용자와 워크스페이스를 만들고 지운다.
-#    `.env`에서 가져오는 것은 OPENROUTER_API_KEY와 LLM_MODEL뿐이다.
+#    `.env`에서 가져오는 것은 OPENROUTER_API_KEY와 LLM_MODEL뿐이다. 임베딩 모델·공급자는
+#    호출자가 명시적으로 환경 변수로 주입해야 한다.
 # =============================================================================
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,6 +57,8 @@ if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
   exit 2
 fi
 : "${LLM_MODEL:?smoke_pipeline: LLM_MODEL이 없다}"
+: "${EMBEDDING_MODEL:?smoke_pipeline: EMBEDDING_MODEL이 없다}"
+: "${EMBEDDING_PROVIDER:?smoke_pipeline: EMBEDDING_PROVIDER가 없다}"
 
 tmp_dir="$(mktemp -d)"
 api_log="${tmp_dir}/api.log"
@@ -77,8 +80,15 @@ cleanup() {
   # ⚠️ 삭제 순서가 중요하다. `workspaces.owner_id`는 `on delete restrict`라 워크스페이스가
   #    남아 있으면 사용자 삭제가 실패한다 (conftest.py:159-172와 같은 순서).
   if [[ -n "${workspace_id}" && -n "${access_token}" ]]; then
-    curl -s -o /dev/null -X DELETE "${LOCAL_URL}/rest/v1/workspaces?id=eq.${workspace_id}" \
-      -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${access_token}" || true
+    curl -sf -o /dev/null -X DELETE "${LOCAL_URL}/rest/v1/workspaces?id=eq.${workspace_id}" \
+      -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${access_token}" || return 1
+    jobs_after_cleanup="$(psql_local "select count(*) from public.jobs where workspace_id = '${workspace_id}';")"
+    (( jobs_after_cleanup == 0 )) || {
+      echo "smoke_pipeline: cascade 정리 뒤 jobs가 남았다 (${jobs_after_cleanup})" >&2
+      return 1
+    }
+    echo "smoke_pipeline: cascade 정리 확인 — jobs=0"
+    workspace_id=""
   fi
   if [[ -n "${user_id}" ]]; then
     curl -s -o /dev/null -X DELETE "${LOCAL_URL}/auth/v1/admin/users/${user_id}" \
@@ -125,7 +135,7 @@ export SUPABASE_URL="${LOCAL_URL}"
 export SUPABASE_PUBLISHABLE_KEY="${ANON_KEY}"
 export SUPABASE_SECRET_KEY="${SERVICE_KEY}"
 export DATABASE_URL="${LOCAL_DB_URL}"
-export OPENROUTER_API_KEY LLM_MODEL
+export OPENROUTER_API_KEY LLM_MODEL EMBEDDING_MODEL EMBEDDING_PROVIDER
 # 03-08이 제거할 때까지 WorkerSettings가 요구한다. 소비자는 없다 (03-CONTEXT.md > D-04).
 export OPENAI_API_KEY="${OPENAI_API_KEY:-unused-openrouter-covers-embeddings}"
 export ENVIRONMENT=development
@@ -200,7 +210,7 @@ while :; do
     psql_local "select type, status, attempts, coalesce(last_error,'') from public.jobs where workspace_id = '${workspace_id}';" >&2
     exit 1
   fi
-  if grep -q 'parse=succeeded' <<<"${states}" && grep -q 'compile=succeeded' <<<"${states}"; then
+  if grep -q 'parse=succeeded' <<<"${states}" && grep -q 'compile=succeeded' <<<"${states}" && grep -q 'link_sync=succeeded' <<<"${states}" && [[ "$(grep -o 'embed=succeeded' <<<"${states}" | wc -l | tr -d ' ')" -ge 2 ]]; then
     echo "smoke_pipeline: 잡 체인 완료 — ${states}"
     break
   fi
@@ -215,13 +225,27 @@ done
 chunk_count="$(psql_local "select count(*) from public.source_chunks where workspace_id = '${workspace_id}';")"
 page_count="$(psql_local "select count(*) from public.wiki_pages where workspace_id = '${workspace_id}';")"
 usage_count="$(psql_local "select count(*) from public.usage_events where workspace_id = '${workspace_id}';")"
+link_count="$(psql_local "select count(*) from public.wiki_links where workspace_id = '${workspace_id}';")"
+red_link_count="$(psql_local "select count(*) from public.wiki_links where workspace_id = '${workspace_id}' and to_wiki_id is null;")"
+source_unembedded="$(psql_local "select count(*) from public.source_chunks where workspace_id = '${workspace_id}' and embedding is null;")"
+wiki_embedding_count="$(psql_local "select count(*) from public.wiki_embeddings where workspace_id = '${workspace_id}';")"
+wiki_embedding_versions="$(psql_local "select count(distinct embedding_version) from public.wiki_embeddings where workspace_id = '${workspace_id}';")"
+source_embedding_dimensions="$(psql_local "select min(vector_dims(embedding)) from public.source_chunks where workspace_id = '${workspace_id}' and embedding is not null having count(distinct vector_dims(embedding)) = 1;")"
+wiki_embedding_dimensions="$(psql_local "select min(vector_dims(embedding)) from public.wiki_embeddings where workspace_id = '${workspace_id}' having count(distinct vector_dims(embedding)) = 1;")"
+embedding_usage_count="$(psql_local "select count(*) from public.usage_events where workspace_id = '${workspace_id}' and kind = 'embedding';")"
 noninteger_cost="$(psql_local "select count(*) from public.usage_events where workspace_id = '${workspace_id}' and cost_micros is null;")"
 
 echo "smoke_pipeline: chunks=${chunk_count} pages=${page_count} usage_events=${usage_count}"
+echo "smoke_pipeline: embedding_dimensions source=${source_embedding_dimensions} wiki=${wiki_embedding_dimensions} versions=${wiki_embedding_versions}"
 # 사용량 실측을 그대로 인쇄한다 — 이 줄이 "LLM 호출이 얼마였나"에 답하는 유일한 관측이다.
 psql_local "select 'usage: ' || provider || ' ' || model || ' prompt=' || prompt_tokens || ' completion=' || completion_tokens || ' cost_micros=' || cost_micros from public.usage_events where workspace_id = '${workspace_id}';"
 (( chunk_count > 0 )) || { echo "smoke_pipeline: source_chunks가 0행이다" >&2; exit 1; }
 (( usage_count > 0 )) || { echo "smoke_pipeline: usage_events가 0행이다 — LLM 호출이 기록되지 않았다" >&2; exit 1; }
+(( link_count > 0 && red_link_count > 0 )) || { echo "smoke_pipeline: red link가 없다" >&2; exit 1; }
+(( source_unembedded == 0 && wiki_embedding_count > 0 )) || { echo "smoke_pipeline: 임베딩이 완성되지 않았다" >&2; exit 1; }
+(( wiki_embedding_versions == 1 )) || { echo "smoke_pipeline: wiki embedding_version이 하나가 아니다 (${wiki_embedding_versions})" >&2; exit 1; }
+[[ "${source_embedding_dimensions}" == "1024" && "${wiki_embedding_dimensions}" == "1024" ]] || {
+  echo "smoke_pipeline: 임베딩 차원이 일관되지 않다 (source=${source_embedding_dimensions}, wiki=${wiki_embedding_dimensions})" >&2; exit 1; }
 (( noninteger_cost == 0 )) || { echo "smoke_pipeline: cost_micros가 null인 행이 있다" >&2; exit 1; }
 
 # 멱등성: 같은 체인을 한 번 더 돌려도 행 수가 늘지 않는다 (at-least-once).
@@ -237,10 +261,23 @@ while :; do
 done
 chunk_count_2="$(psql_local "select count(*) from public.source_chunks where workspace_id = '${workspace_id}';")"
 page_count_2="$(psql_local "select count(*) from public.wiki_pages where workspace_id = '${workspace_id}';")"
+link_count_2="$(psql_local "select count(*) from public.wiki_links where workspace_id = '${workspace_id}';")"
+wiki_embedding_count_2="$(psql_local "select count(*) from public.wiki_embeddings where workspace_id = '${workspace_id}';")"
+embedding_usage_count_2="$(psql_local "select count(*) from public.usage_events where workspace_id = '${workspace_id}' and kind = 'embedding';")"
 (( chunk_count_2 == chunk_count )) || {
   echo "smoke_pipeline: 재처리로 청크가 늘었다 (${chunk_count} → ${chunk_count_2})" >&2; exit 1; }
 (( page_count_2 == page_count )) || {
   echo "smoke_pipeline: 재처리로 페이지가 늘었다 (${page_count} → ${page_count_2})" >&2; exit 1; }
-echo "smoke_pipeline: 멱등 확인 — chunks=${chunk_count_2} pages=${page_count_2}"
+(( link_count_2 == link_count )) || {
+  echo "smoke_pipeline: 재처리로 링크가 늘었다 (${link_count} → ${link_count_2})" >&2; exit 1; }
+(( wiki_embedding_count_2 == wiki_embedding_count )) || {
+  echo "smoke_pipeline: 재처리로 위키 임베딩이 늘었다 (${wiki_embedding_count} → ${wiki_embedding_count_2})" >&2; exit 1; }
+(( embedding_usage_count_2 == embedding_usage_count )) || {
+  echo "smoke_pipeline: 재처리로 임베딩 비용이 늘었다 (${embedding_usage_count} → ${embedding_usage_count_2})" >&2; exit 1; }
+echo "smoke_pipeline: 멱등 확인 — chunks=${chunk_count_2} pages=${page_count_2} links=${link_count_2} wiki_embeddings=${wiki_embedding_count_2} embedding_usage=${embedding_usage_count_2}"
 
+# 성공 경로에서는 trap보다 먼저 cascade 결과까지 검사한다. 실패 경로는 trap이 동일한 정리를
+# 시도하고 로그를 보존한다.
+cleanup
+trap - EXIT
 echo "smoke_pipeline: ok"
