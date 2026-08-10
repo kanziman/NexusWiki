@@ -1,6 +1,7 @@
 """핸들러 레지스트리 계약 회귀 테스트 — 미등록 type이 조용히 통과하지 않는다."""
 
 import inspect
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -111,3 +112,105 @@ async def test_handler_exceptions_are_not_swallowed_by_the_registry(
 
     with pytest.raises(RuntimeError, match="handler boom"):
         await handler(job_id=JOB_ID, workspace_id=WORKSPACE_ID, payload={})
+
+
+class _ParseDb:
+    def __init__(self, source: dict[str, Any]) -> None:
+        self.source = source
+        self.updated: dict[str, Any] | None = None
+        self.chained = False
+
+    async def get_raw_source(self, _raw_source_id: str, *, workspace_id: str) -> dict[str, Any]:
+        assert workspace_id == WORKSPACE_ID
+        return self.source
+
+    async def update_raw_source_content(self, _raw_source_id: str, **values: Any) -> None:
+        self.updated = values
+
+    async def upsert_source_chunks(self, **_values: Any) -> None:
+        return None
+
+    async def delete_source_chunks_from(self, **_values: Any) -> list[object]:
+        return []
+
+    async def complete_job_and_chain(self, _job_id: str, **_values: Any) -> None:
+        self.chained = True
+
+
+@pytest.mark.asyncio
+async def test_parse_file_extracts_then_updates_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = {
+        "source_type": "file",
+        "content": "",
+        "storage_path": f"{WORKSPACE_ID}/raw-source/document.txt",
+        "mime_type": "text/plain",
+    }
+    db = _ParseDb(source)
+
+    async def download(_client: object, *, path: str) -> bytes:
+        assert path == source["storage_path"]
+        return b"x" * 200
+
+    monkeypatch.setattr(parse, "download_source_object", download)
+    await parse.run_parse(
+        db,  # type: ignore[arg-type]
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+        settings=SimpleNamespace(),
+        object_client=object(),  # type: ignore[arg-type]
+    )
+
+    assert db.updated == {"workspace_id": WORKSPACE_ID, "content": "x" * 200}
+    assert db.chained
+
+
+@pytest.mark.asyncio
+async def test_parse_rejects_storage_path_from_another_workspace() -> None:
+    db = _ParseDb(
+        {
+            "source_type": "file",
+            "content": "",
+            "storage_path": "other-workspace/raw-source/document.txt",
+            "mime_type": "text/plain",
+        }
+    )
+    with pytest.raises(parse.StorageObjectMissing):
+        await parse.run_parse(
+            db,  # type: ignore[arg-type]
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+            settings=SimpleNamespace(),
+            object_client=object(),  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.asyncio
+async def test_parse_url_updates_response_metadata_after_extraction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = _ParseDb({"source_type": "url", "content": "", "metadata": {"url": "https://one.invalid"}})
+
+    async def fetch(_client: object, _url: str, *, settings: object) -> Any:
+        del settings
+        return SimpleNamespace(
+            data=b"y" * 200, mime_type="text/plain", final_url="https://two.invalid"
+        )
+
+    monkeypatch.setattr(parse, "fetch_source", fetch)
+    await parse.run_parse(
+        db,  # type: ignore[arg-type]
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+        settings=SimpleNamespace(),
+        fetch_client=object(),  # type: ignore[arg-type]
+    )
+
+    assert db.updated == {
+        "workspace_id": WORKSPACE_ID,
+        "content": "y" * 200,
+        "mime_type": "text/plain",
+        "byte_size": 200,
+    }

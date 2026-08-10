@@ -18,12 +18,20 @@
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 from typing import Any, Final
 
+import httpx
+
 from nexuswiki_core.chunking import CHUNKER_VERSION, chunk_text
+from nexuswiki_core.domain import SourceType
+from nexuswiki_core.extract import ExtractionQualityError, assert_extraction_quality, extract_text
 from nexuswiki_core.logging import get_logger
 from worker.db.service import ServiceDb, service_client
+from worker.errors import StorageObjectMissing
+from worker.fetch import fetch_source
 from worker.settings import WorkerSettings
+from worker.storage import download_source_object, storage_client
 
 __all__ = ["PARSE_JOB_TYPE", "SourceNotExtractedError", "handle_parse", "run_parse"]
 
@@ -49,12 +57,20 @@ async def handle_parse(*, job_id: str, workspace_id: str, payload: dict[str, Any
     주입받으므로 네트워크 없이 테스트할 수 있다.
     """
     settings = WorkerSettings()
-    async with service_client(settings) as client:
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(service_client(settings))
+        fetch_client = await stack.enter_async_context(
+            httpx.AsyncClient(timeout=httpx.Timeout(settings.FETCH_TIMEOUT_SECONDS))
+        )
+        object_client = await stack.enter_async_context(storage_client(settings))
         await run_parse(
             ServiceDb(client),
             job_id=job_id,
             workspace_id=workspace_id,
             payload=payload,
+            settings=settings,
+            fetch_client=fetch_client,
+            object_client=object_client,
         )
 
 
@@ -64,6 +80,9 @@ async def run_parse(
     job_id: str,
     workspace_id: str,
     payload: dict[str, Any],
+    settings: WorkerSettings | None = None,
+    fetch_client: httpx.AsyncClient | None = None,
+    object_client: httpx.AsyncClient | None = None,
 ) -> None:
     raw_source_id = str(payload.get("raw_source_id") or payload.get("target_id") or "")
     if not raw_source_id:
@@ -73,15 +92,60 @@ async def run_parse(
     if source is None:
         raise LookupError(f"raw_source를 찾을 수 없다: {raw_source_id}")
 
+    try:
+        source_type = SourceType(str(source["source_type"]))
+    except (KeyError, ValueError) as error:
+        raise ExtractionQualityError(reason="unsupported_source_type") from error
+
     content = str(source.get("content") or "")
-    if not content.strip():
-        # 파일·URL 소스는 여기 오기 전에 추출이 끝나 있어야 한다.
-        # ⚠️ 이 분기는 03-06(ING-03/ING-04)이 파일 다운로드 + `pypdf` 추출 + URL 본문
-        #    추출로 채운다. `update_raw_source_content` 헬퍼가 그 자리에서 쓰이도록
-        #    이미 준비되어 있고, 채우는 데 이 핸들러의 구조를 바꿀 필요는 없다.
-        raise SourceNotExtractedError(
-            f"raw_source {raw_source_id}의 content가 비어 있다 — 추출 단계가 아직 없다 (03-06)"
+    if source_type is SourceType.TEXT:
+        if not content.strip():
+            raise ExtractionQualityError(reason="empty_extraction")
+    elif source_type is SourceType.FILE:
+        storage_path = source.get("storage_path")
+        if not isinstance(storage_path, str) or not storage_path:
+            raise StorageObjectMissing()
+        # ⚠️ service key는 0005의 Storage 정책을 지나지 않는다. 첫 세그먼트 대조가
+        #    다른 워크스페이스 객체를 읽지 않는 유일한 테넌트 경계다.
+        if storage_path.split("/", 1)[0] != workspace_id:
+            raise StorageObjectMissing()
+        if settings is None or object_client is None:
+            raise RuntimeError("파일 parse에는 worker settings와 Storage client가 필요하다")
+        result = extract_text(
+            data=await download_source_object(object_client, path=storage_path),
+            mime_type=str(source.get("mime_type") or ""),
         )
+        assert_extraction_quality(result)
+        content = result.text
+        await db.update_raw_source_content(
+            raw_source_id, workspace_id=workspace_id, content=content
+        )
+        _log_extraction(raw_source_id, result, mime_type=str(source.get("mime_type") or ""))
+    elif source_type is SourceType.URL:
+        metadata = source.get("metadata") or {}
+        url = metadata.get("url") if isinstance(metadata, dict) else None
+        if not isinstance(url, str) or not url:
+            raise ExtractionQualityError(reason="unsupported_source_type")
+        if settings is None or fetch_client is None:
+            raise RuntimeError("URL parse에는 worker settings와 HTTP client가 필요하다")
+        fetched = await fetch_source(fetch_client, url, settings=settings)
+        result = extract_text(data=fetched.data, mime_type=fetched.mime_type)
+        assert_extraction_quality(result)
+        content = result.text
+        await db.update_raw_source_content(
+            raw_source_id,
+            workspace_id=workspace_id,
+            content=content,
+            mime_type=fetched.mime_type,
+            byte_size=len(fetched.data),
+        )
+        _log_extraction(raw_source_id, result, mime_type=fetched.mime_type)
+        if fetched.final_url != url:
+            _logger.info(
+                "worker.parse_url_redirected", requested_url=url, final_url=fetched.final_url
+            )
+    else:
+        raise ExtractionQualityError(reason="unsupported_source_type")
 
     chunks = chunk_text(content)
     rows = [
@@ -131,4 +195,15 @@ async def run_parse(
         job_id,
         next_type="compile",
         next_payload={"target_id": raw_source_id, "raw_source_id": raw_source_id},
+    )
+
+
+def _log_extraction(raw_source_id: str, result: Any, *, mime_type: str) -> None:
+    _logger.info(
+        "worker.parse_extracted",
+        raw_source_id=raw_source_id,
+        pages=result.page_count,
+        chars=len(result.text),
+        mime_type=mime_type,
+        extractor=result.extractor,
     )
