@@ -8,7 +8,7 @@ import pytest
 
 from worker import handlers
 from worker.handlers import compile as compile_handler
-from worker.handlers import link_sync, noop, parse
+from worker.handlers import embed, link_sync, noop, parse
 from worker.handlers.noop import handle_noop
 
 JOB_ID = "22222222-2222-4222-8222-222222222222"
@@ -25,7 +25,7 @@ def test_registry_holds_exactly_the_job_types_this_phase_registered() -> None:
     #    그것이 목적이다 — 핸들러를 딕셔너리에 넣고 이 열거를 갱신하지 않으면
     #    `HANDLERS`가 사실상의 잡 종류 열거라는 계약(0003_jobs.sql:31-36)이 흐려진다.
     #    깨지면 값을 확인하고 여기 이름을 더할 것. 단언을 지워서 통과시키지 말 것.
-    assert set(handlers.HANDLERS) == {"noop", "parse", "compile", "link_sync"}
+    assert set(handlers.HANDLERS) == {"noop", "parse", "compile", "link_sync", "embed"}
 
 
 def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> None:
@@ -36,6 +36,7 @@ def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> N
         "parse": parse.PARSE_JOB_TYPE,
         "compile": compile_handler.COMPILE_JOB_TYPE,
         "link_sync": link_sync.LINK_SYNC_JOB_TYPE,
+        "embed": embed.EMBED_JOB_TYPE,
     }
 
     assert set(constants) == set(handlers.HANDLERS)
@@ -133,6 +134,9 @@ class _ParseDb:
 
     async def delete_source_chunks_from(self, **_values: Any) -> list[object]:
         return []
+
+    async def enqueue_job(self, **_values: Any) -> None:
+        return None
 
     async def complete_job_and_chain(self, _job_id: str, **_values: Any) -> None:
         self.chained = True

@@ -49,6 +49,10 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "upsert_wiki_links",
         "delete_wiki_links_not_in",
         "resolve_red_links",
+        "list_source_chunks_missing_embedding",
+        "update_source_chunk_embedding",
+        "upsert_wiki_embeddings",
+        "delete_wiki_embeddings_from",
     }
 )
 
@@ -357,6 +361,53 @@ class ServiceDb:
         """
         rows = await self._insert_many("usage_events", rows=[{**row, "workspace_id": workspace_id}])
         return rows[0] if rows else None
+
+    async def list_source_chunks_missing_embedding(
+        self, *, workspace_id: str, raw_source_id: str, embedding_version: str
+    ) -> list[dict[str, Any]]:
+        return await self._select(
+            "source_chunks",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "raw_source_id": f"eq.{raw_source_id}",
+                "or": f"(embedding.is.null,embedding_version.neq.{embedding_version})",
+                "order": "chunk_index.asc",
+            },
+        )
+
+    async def update_source_chunk_embedding(
+        self, chunk_id: str, *, workspace_id: str, embedding: str, embedding_version: str
+    ) -> dict[str, Any] | None:
+        rows = await self._update(
+            "source_chunks",
+            params={"id": f"eq.{chunk_id}", "workspace_id": f"eq.{workspace_id}"},
+            values={"embedding": embedding, "embedding_version": embedding_version},
+        )
+        return rows[0] if rows else None
+
+    async def upsert_wiki_embeddings(
+        self, *, workspace_id: str, rows: Sequence[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        if not rows:
+            return []
+        return await self._insert_many(
+            "wiki_embeddings",
+            rows=[{**r, "workspace_id": workspace_id} for r in rows],
+            params={"on_conflict": "wiki_id,chunk_index"},
+            prefer=_UPSERT_PREFER,
+        )
+
+    async def delete_wiki_embeddings_from(
+        self, *, workspace_id: str, wiki_id: str, from_index: int
+    ) -> list[dict[str, Any]]:
+        return await self._delete(
+            "wiki_embeddings",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "wiki_id": f"eq.{wiki_id}",
+                "chunk_index": f"gte.{from_index}",
+            },
+        )
 
     async def list_wiki_links(
         self, *, workspace_id: str, from_wiki_id: str

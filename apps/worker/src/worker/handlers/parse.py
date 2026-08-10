@@ -181,6 +181,19 @@ async def run_parse(
         chunker_version=CHUNKER_VERSION,
     )
 
+    try:
+        await db.enqueue_job(
+            workspace_id=workspace_id,
+            job_type="embed",
+            payload={
+                "target_id": f"{raw_source_id}:source",
+                "raw_source_id": raw_source_id,
+                "scope": "source",
+            },
+        )
+    except Exception as error:
+        if "23505" not in str(error):
+            raise
     # ⚠️ 원문 임베딩 잡(`embed`, scope=source)의 직접 인큐는 여기서 하지 않는다.
     #    `embed` 핸들러가 아직 없고 03-08이 미등록 잡 type을 즉시 `dead`로 보내기로 했으므로
     #    지금 인큐하면 스모크가 죽은 잡을 만든다. 여기에 03-09(COMP-06)가
