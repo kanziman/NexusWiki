@@ -40,8 +40,11 @@ FORBIDDEN_SQLSTATE: Final[str] = "42501"
 # `(workspace_id, content_hash)` 유니크 위반 — 같은 내용의 재수집 (ING-02).
 DUPLICATE_SQLSTATE: Final[str] = "23505"
 
-# `enqueue_source_job`이 월 비용 상한 초과에 쓰는 코드 (`0009_pipeline_ops.sql:297`).
-BUDGET_SQLSTATE: Final[str] = "53400"
+# `enqueue_source_job`이 월 비용 상한 초과에 쓰는 프로젝트 전용 코드
+# (`0010_budget_error_sqlstate.sql`). `53400` 클래스는 PostgREST가 본문과 SQLSTATE를
+# 숨기는 서버 자원 오류라, API가 402와 실제 DB 장애를 안전하게 구분할 수 없다.
+# `NW402`는 PostgreSQL이 만들 수 없는 프로젝트 코드이므로 이 매핑의 오탐이 구조적으로 없다.
+BUDGET_SQLSTATE: Final[str] = "NW402"
 
 # ⚠️ 본문은 고정 문자열이다. 테이블명·리소스 id·SQLSTATE 중 무엇이라도 실으면 다른
 #    테넌트의 리소스 존재 여부가 응답으로 새어나가 열거 공격이 성립한다.
@@ -91,7 +94,7 @@ class SourceAlreadyIngested(Exception):
 
 
 class BudgetExceeded(Exception):
-    """이번 달 LLM 지출이 워크스페이스 상한에 닿았다 (OPS-01, SQLSTATE 53400)."""
+    """이번 달 LLM 지출이 워크스페이스 상한에 닿았다 (OPS-01, SQLSTATE NW402)."""
 
 
 class TextTooLarge(Exception):

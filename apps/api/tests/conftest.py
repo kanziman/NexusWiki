@@ -222,6 +222,35 @@ def two_workspaces_two_users(local_stack: httpx.Client) -> Iterator[tuple[Tenant
             _destroy_actor(local_stack, actor)
 
 
+@pytest.fixture
+def set_workspace_budget(local_stack: httpx.Client) -> Callable[[TenantActor, int], None]:
+    """워크스페이스 월 비용 상한을 소유자 JWT로 직접 바꾼다 (OPS-01 경계 테스트용).
+
+    ⚠️ 라우터가 아니라 **PostgREST 직접 호출**이다. `WorkspaceUpdateRequest`가 `name`만
+    허용하므로 라우터로는 이 컬럼에 닿을 수 없고, 닿게 만들려고 라우터를 넓히면 상한이
+    사용자 편집 표면이 된다. `workspaces` UPDATE는 owner에게 열려 있으므로(0004:171-174)
+    소유자 JWT로 가능하다.
+
+    ⚠️ `usage_events`에 가짜 지출을 넣는 대신 **상한을 낮춘다.** `authenticated`에는 그
+    테이블 INSERT 권한이 아예 없고(`0009` 섹션 8), admin 키로 우회해 넣으면 테스트가
+    감사 기록을 위조하는 셈이 된다. 상한만 조정하면 검증하려는 비교(`spent >= cap`,
+    경계 포함)를 정확히 겨냥한다.
+    """
+
+    def _set(actor: TenantActor, micros: int) -> None:
+        _expect(
+            local_stack.patch(
+                "/rest/v1/workspaces",
+                params={"id": f"eq.{actor.workspace_id}"},
+                headers=_user_headers(actor.access_token, representation=True),
+                json={"monthly_budget_micros": micros},
+            ),
+            what="워크스페이스 월 상한 조정",
+        )
+
+    return _set
+
+
 def _local_settings(**overrides: Any) -> ApiSettings:
     # ⚠️ `overrides`로 넘길 수 있는 것은 secret이 아닌 운영 토글뿐이다 — `ApiSettings`에
     #    secret 필드가 애초에 존재하지 않으므로(02-CONTEXT.md > D-06) 이 seam이 그 경계를
