@@ -130,7 +130,7 @@ Plans:
   4. 월 비용 상한을 넘긴 워크스페이스의 인큐가 **인큐 시점에** 거부되고, 진행 중인 잡을 취소할 수 있으며, `usage_events`에 토큰과 비용이 남는다
   5. 사용자가 소스별 잡 진행을 실제 단계 이름으로 확인하고 `dead` 잡을 재시도할 수 있으며, `jobs.last_error`에 provider 원문 예외가 그대로 노출되지 않는다
 
-**Plans**: 8/9 plans executed
+**Plans**: 9/9 plans executed
 
 Plans:
 
@@ -162,7 +162,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6)*
 
-- [ ] 03-08-PLAN.md — provider 마스킹 · 원자적 데드레터 · 기동 시 enum↔DB CHECK 대조 · 축소 재처리 검증 · reap 타임아웃 확정
+- [x] 03-08-PLAN.md — provider 마스킹 · 원자적 데드레터 · 기동 시 enum↔DB CHECK 대조 · 축소 재처리 검증 · reap 타임아웃 확정
 
 ### Phase 4: Hybrid Retrieval and Fusion
 

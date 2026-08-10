@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import time
 from typing import Any, Final, Protocol
 
 import httpx
@@ -212,6 +213,10 @@ async def process_next_job(
     workspace_id = str(job["workspace_id"])
     job_type = str(job["type"])
     payload = job.get("payload") or {}
+    # `locked_at` is set by claim_job. Keep the matching local monotonic duration
+    # in logs so operations can correlate a handler's lock lifetime without
+    # relying on wall-clock adjustments.
+    claimed_at = time.monotonic()
 
     bind_job_context(job_id=job_id, workspace_id=workspace_id)
     try:
@@ -224,7 +229,11 @@ async def process_next_job(
         # ⚠️ 취소는 체인 단계 경계에서만 수용한다. 잡 분할이 하트비트 대신 준 경계다.
         if job.get("cancel_requested_at"):
             await db.cancel_job(job_id, worker_id=worker_id)
-            _logger.info("worker.job_canceled", job_type=job_type)
+            _logger.info(
+                "worker.job_canceled",
+                job_type=job_type,
+                duration_ms=round((time.monotonic() - claimed_at) * 1000, 3),
+            )
             return True
         try:
             handler = resolve_handler(job_type)
@@ -243,7 +252,12 @@ async def process_next_job(
             #    소모해 재배포 세 번에 정상 잡이 dead로 떨어진다. release_job이
             #    따로 존재하는 유일한 이유다 (02-CONTEXT.md > D-18).
             await db.release_job(job_id, worker_id=worker_id)
-            _logger.info("worker.job_released", job_type=job_type, grace_seconds=grace_seconds)
+            _logger.info(
+                "worker.job_released",
+                job_type=job_type,
+                grace_seconds=grace_seconds,
+                duration_ms=round((time.monotonic() - claimed_at) * 1000, 3),
+            )
             # 반납한 잡은 여기서 참조를 버린다. complete_job은 locked_by를 보지
             # 않으므로, 뒤늦게 완료 처리하면 이미 그 잡을 집어간 다른 워커의
             # 진행을 덮어쓴다 (T-02-40).
@@ -252,7 +266,11 @@ async def process_next_job(
         try:
             await handler_task
         except Exception as error:  # noqa: BLE001 - error classification is intentional
-            _logger.exception("worker.job_failed", job_type=job_type)
+            _logger.exception(
+                "worker.job_failed",
+                job_type=job_type,
+                duration_ms=round((time.monotonic() - claimed_at) * 1000, 3),
+            )
             reason = sanitize_error(error)
             if isinstance(error, NON_RETRYABLE_ERRORS):
                 await _dead_letter(
@@ -263,7 +281,11 @@ async def process_next_job(
             return True
 
         await db.complete_job(job_id)
-        _logger.info("worker.job_completed", job_type=job_type)
+        _logger.info(
+            "worker.job_completed",
+            job_type=job_type,
+            duration_ms=round((time.monotonic() - claimed_at) * 1000, 3),
+        )
         return True
     finally:
         clear_job_context()

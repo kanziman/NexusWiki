@@ -213,3 +213,44 @@ railway variable delete QUEUE_BASELINE_WORKSPACE_ID --service worker
   하트비트를 넣지 않고도 reap 윈도우 안에 들어가게 하는 장치다 (02-CONTEXT.md > D-16).
 - **`0008` 후보.** Phase 3 실측 후 잡 분할만으로 부족하면 `heartbeat_at` + `heartbeat_job()`이 여기로
   들어온다. 함께 대기 중인 것은 미등록 job type의 즉시 데드레터를 위한 `dead_letter_job()`이다.
+
+## Phase 3: 실제 compile 핸들러 관측과 최종 reap 기본값
+
+2026-08-10 KST에 처분 가능한 로컬 워크스페이스에서
+`EMBEDDING_MODEL=baai/bge-m3 EMBEDDING_PROVIDER=deepinfra/fp32`를 **명령 실행 시에만**
+주입하고 `scripts/verify_shrink_reprocess.sh`를 실행했다. `.env`나 기본값은 바꾸지 않았다.
+스크립트는 긴 원문(5 source chunks)을 처리한 뒤 같은 `raw_sources` 행의 `content`만 짧은
+원문으로 바꾸고 요청자 JWT로 재인큐했다. 두 번째 parse는 1 chunk를 만들고 4개의 잔여
+source chunk를 삭제했다. 모든 source chunk와 각 wiki의 embedding chunk_index가 0부터
+연속인 것도 확인했으며, workspace cascade 뒤 jobs는 0행이었다.
+
+핸들러 지속시간은 종료 RPC가 `locked_at`을 비우므로, `created_at → updated_at`이나 종료 후
+DB 행으로 추정하지 않았다. claim 직후부터 terminal transition 직전까지 `time.monotonic()`으로
+측정해 남긴 `worker.job_completed.duration_ms` 로그를 스크립트가 읽었다. 이번 성공 표본의
+잡 종류별 최댓값은 다음과 같다.
+
+| 잡 종류 | 성공 표본 | 관측 최댓값 |
+| --- | ---: | ---: |
+| parse | 2 | 132.131 ms |
+| compile | 2 | 9,125.154 ms |
+| link_sync | 2 | 47.695 ms |
+| embed | 4 | 893.652 ms |
+
+성공 compile 표본이 200개보다 적으므로 p99라고 부르지 않고 관측 최댓값의 올림인 10초를
+보수적 상계로 쓴다. 유도식은 `max(4 × 10초, 900초) = 900초`다. 따라서 기존 15분 기본값을
+유지했다. 이로써 `02-CONTEXT.md > D-17` 이월을 닫는다.
+
+reap_timeout_derivation: compile_observed_seconds=10 statistic=max sample_count=2 reap_timeout_seconds=900
+
+`run_queue_loop`은 빈 큐 폴링 30회마다 `reap_stale_jobs(timeout="900 seconds")`를 호출한다.
+여러 워커가 동시에 호출해도 함수의 `FOR UPDATE SKIP LOCKED` 때문에 같은 stale job을 함께
+reap하지 않는다. 바쁜 처리 경로가 아니라 idle 폴링에서 실행하므로 실제 잡을 처리하는 워커의
+왕복을 늘리지 않는다.
+
+### 한계 (Phase 3)
+
+이 관측은 축소 재처리 스모크 한 번의 성공 compile 2건뿐이므로 p99가 아니라 최댓값 기반이다.
+compile 지속시간은 소스 길이와 `LLM_MODEL`에 의존하므로 모델 또는 입력 상한을 바꾸면 다시
+측정해야 한다. 타임아웃이 정상 compile의 LLM 대기보다 짧으면 살아 있는 잡이 reap되어 이중
+처리와 이중 과금이 발생한다. 그래서 관측값을 낮춰 맞추지 않고, 4배 여유와 900초 하한 중 큰
+값을 기본값으로 적용한다.
