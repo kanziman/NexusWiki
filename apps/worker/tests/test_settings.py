@@ -13,7 +13,6 @@ SECRET_FIELD_NAMES = frozenset(
         "SUPABASE_SECRET_KEY",
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
-        "OPENAI_API_KEY",
     }
 )
 
@@ -23,7 +22,6 @@ COMPLETE_WORKER_ENV = {
     "SUPABASE_SECRET_KEY": "sb_secret_test",
     "DATABASE_URL": "postgresql://postgres:pw@127.0.0.1:54422/postgres",
     "OPENROUTER_API_KEY": "sk-or-v1-test",
-    "OPENAI_API_KEY": "sk-proj-test",
     "LLM_MODEL": "anthropic/claude-3.5-sonnet",
 }
 
@@ -61,8 +59,12 @@ def test_worker_settings_read_every_key_from_the_environment(
 
     # 리터럴을 직접 비교하면 ruff S105가 하드코딩된 비밀번호로 잡는다.
     # 픽스처 딕셔너리를 단일 출처로 삼아 그 오탐과 값 중복을 함께 없앤다.
-    for key in ("SUPABASE_SECRET_KEY", "OPENAI_API_KEY", "LLM_MODEL"):
+    for key in ("SUPABASE_SECRET_KEY", "LLM_MODEL"):
         assert getattr(settings, key) == COMPLETE_WORKER_ENV[key]
+
+
+def test_worker_settings_no_longer_declares_the_unused_openai_key() -> None:
+    assert "OPENAI_API_KEY" not in WorkerSettings.model_fields
 
 
 @pytest.mark.parametrize("missing_key", sorted(SECRET_FIELD_NAMES))

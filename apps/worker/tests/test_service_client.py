@@ -18,7 +18,6 @@ COMPLETE_WORKER_ENV = {
     "SUPABASE_SECRET_KEY": "sb_secret_test",
     "DATABASE_URL": "postgresql://postgres:pw@127.0.0.1:54422/postgres",
     "OPENROUTER_API_KEY": "sk-or-v1-test",
-    "OPENAI_API_KEY": "sk-proj-test",
     "LLM_MODEL": "anthropic/claude-sonnet-4.6",
 }
 

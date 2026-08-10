@@ -37,11 +37,15 @@ def test_worker_settings_secret_fields_stay_inside_the_denylist() -> None:
         "SUPABASE_SECRET_KEY",
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
-        "OPENAI_API_KEY",
     }
 
     assert secret_fields <= set(WorkerSettings.model_fields)
     assert {name.casefold() for name in secret_fields} <= REDACTED_KEYS
+
+
+def test_openai_key_name_remains_redacted_for_supabase_studio_ai() -> None:
+    # supabase/config.toml has a separate Studio AI consumer.
+    assert "openai_api_key" in REDACTED_KEYS
 
 
 def test_redact_sensitive_preserves_safe_fields() -> None:

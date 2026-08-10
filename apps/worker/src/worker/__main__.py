@@ -20,6 +20,7 @@ from worker.db.service import ServiceDb, service_client
 from worker.queue import resolve_worker_id, run_queue_loop
 from worker.queue_baseline import measure_queue_roundtrip
 from worker.rtt import measure_rtt
+from worker.schema_guard import assert_enums_match_db
 from worker.settings import WorkerSettings
 
 
@@ -118,6 +119,8 @@ async def main() -> None:
         worker_id = resolve_worker_id()
         async with service_client(settings) as client:
             db = ServiceDb(client)
+            # Probes are observations; schema mismatch is a startup contract.
+            await assert_enums_match_db(db)
             await _run_queue_baseline_probe(
                 db, settings=settings, worker_id=worker_id, git_sha=git_sha
             )
@@ -125,6 +128,8 @@ async def main() -> None:
                 db,
                 worker_id=worker_id,
                 stop=stop,
+                reap_enabled=settings.REAP_ENABLED,
+                reap_timeout_seconds=settings.REAP_TIMEOUT_SECONDS,
             )
         # 루프가 잡마다 clear_job_context()를 부르므로 위 bootstrap 컨텍스트는
         # 이미 지워져 있다. 종료 로그가 맨몸이 되지 않도록 다시 세운다.
