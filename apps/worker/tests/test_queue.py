@@ -140,7 +140,7 @@ class FakeQueue:
         return dict(row)
 
     async def reap_stale_jobs(self, *, timeout: str) -> list[dict[str, Any]]:  # noqa: ASYNC109
-        del timeout
+        self.calls.append(("reap_stale_jobs", timeout))
         return []
 
 
@@ -187,6 +187,25 @@ async def test_empty_queue_waits_for_the_poll_interval(monkeypatch: pytest.Monke
     assert waits == [queue.QUEUE_POLL_INTERVAL_SECONDS]
     # 빈 큐에서 바쁜 대기(claim 연타)를 하지 않는다.
     assert len(db.called("claim_job")) == 1
+
+
+@pytest.mark.asyncio
+async def test_idle_queue_periodically_reaps_stale_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = FakeQueue()
+    stop = asyncio.Event()
+    waits = 0
+
+    async def stop_after_interval(event: asyncio.Event, seconds: float) -> bool:
+        del seconds
+        nonlocal waits
+        waits += 1
+        if waits == queue.REAP_INTERVAL_CYCLES:
+            event.set()
+        return True
+
+    monkeypatch.setattr(queue, "_wait_for_stop", stop_after_interval)
+    await queue.run_queue_loop(db, worker_id=WORKER_ID, stop=stop, reap_timeout_seconds=900)
+    assert db.called("reap_stale_jobs") == ["900 seconds"]
 
 
 # -----------------------------------------------------------------------------
