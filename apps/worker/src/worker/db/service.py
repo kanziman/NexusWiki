@@ -45,6 +45,10 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "upsert_wiki_page",
         "list_wiki_pages_for_source",
         "insert_usage_event",
+        "list_wiki_links",
+        "upsert_wiki_links",
+        "delete_wiki_links_not_in",
+        "resolve_red_links",
     }
 )
 
@@ -353,6 +357,47 @@ class ServiceDb:
         """
         rows = await self._insert_many("usage_events", rows=[{**row, "workspace_id": workspace_id}])
         return rows[0] if rows else None
+
+    async def list_wiki_links(
+        self, *, workspace_id: str, from_wiki_id: str
+    ) -> list[dict[str, Any]]:
+        return await self._select(
+            "wiki_links",
+            params={"workspace_id": f"eq.{workspace_id}", "from_wiki_id": f"eq.{from_wiki_id}"},
+        )
+
+    async def upsert_wiki_links(
+        self, *, workspace_id: str, rows: Sequence[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        if not rows:
+            return []
+        return await self._insert_many(
+            "wiki_links",
+            rows=[{**row, "workspace_id": workspace_id} for row in rows],
+            params={"on_conflict": "from_wiki_id,target_slug"},
+            prefer=_UPSERT_PREFER,
+        )
+
+    async def delete_wiki_links_not_in(
+        self, *, workspace_id: str, from_wiki_id: str, target_slugs: Sequence[str]
+    ) -> list[dict[str, Any]]:
+        params = {"workspace_id": f"eq.{workspace_id}", "from_wiki_id": f"eq.{from_wiki_id}"}
+        if target_slugs:
+            params["target_slug"] = f"not.in.({','.join(target_slugs)})"
+        return await self._delete("wiki_links", params=params)
+
+    async def resolve_red_links(
+        self, *, workspace_id: str, target_slug: str, to_wiki_id: str
+    ) -> list[dict[str, Any]]:
+        return await self._update(
+            "wiki_links",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "target_slug": f"eq.{target_slug}",
+                "to_wiki_id": "is.null",
+            },
+            values={"to_wiki_id": to_wiki_id},
+        )
 
     # -- 큐 RPC 헬퍼 ---------------------------------------------------------
     #

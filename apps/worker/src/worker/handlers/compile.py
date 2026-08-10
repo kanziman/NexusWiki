@@ -209,7 +209,11 @@ async def run_compile(
     #      next_payload={"target_id": raw_source_id, "raw_source_id": raw_source_id},
     #    를 더해 체인을 잇는다. 인자 두 개를 더하는 자리이며, `complete_job_and_chain`
     #    이라는 전이 기구 자체는 `parse → compile`이 이미 실제로 증명했다.
-    await db.complete_job_and_chain(job_id)
+    await db.complete_job_and_chain(
+        job_id,
+        next_type="link_sync",
+        next_payload={"target_id": raw_source_id, "raw_source_id": raw_source_id},
+    )
 
 
 # -- 내부 ----------------------------------------------------------------------

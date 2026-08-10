@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any, Final, Protocol, runtime_checkable
 
 from worker.handlers.compile import COMPILE_JOB_TYPE, handle_compile
+from worker.handlers.link_sync import LINK_SYNC_JOB_TYPE, handle_link_sync
 from worker.handlers.noop import NOOP_JOB_TYPE, handle_noop
 from worker.handlers.parse import PARSE_JOB_TYPE, handle_parse
 
@@ -69,6 +70,7 @@ HANDLERS: Final[dict[str, JobHandler]] = {
     NOOP_JOB_TYPE: handle_noop,
     PARSE_JOB_TYPE: handle_parse,
     COMPILE_JOB_TYPE: handle_compile,
+    LINK_SYNC_JOB_TYPE: handle_link_sync,
 }
 
 
