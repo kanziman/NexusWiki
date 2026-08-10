@@ -25,6 +25,7 @@ import pytest
 
 from worker import handlers, queue
 from worker.db.service import ServiceDb, service_client
+from worker.errors import ProviderError, UnsafeFetchTarget
 from worker.handlers.noop import handle_noop
 from worker.settings import WorkerSettings
 
@@ -61,6 +62,7 @@ class FakeQueue:
             "max_attempts": max_attempts,
             "last_error": None,
             "locked_by": None,
+            "cancel_requested_at": None,
         }
         self.rows[job_id] = row
         return row
@@ -119,6 +121,28 @@ class FakeQueue:
         row["attempts"] -= 1
         return dict(row)
 
+    async def dead_letter_job(
+        self, job_id: str, *, worker_id: str, error: str
+    ) -> dict[str, Any] | None:
+        self.calls.append(("dead_letter_job", job_id))
+        row = self.rows[job_id]
+        if row["status"] != "running" or row["locked_by"] != worker_id:
+            return None
+        row.update(status="dead", last_error=error, locked_by=None)
+        return dict(row)
+
+    async def cancel_job(self, job_id: str, *, worker_id: str) -> dict[str, Any] | None:
+        self.calls.append(("cancel_job", job_id))
+        row = self.rows[job_id]
+        if row["status"] != "running" or row["locked_by"] != worker_id:
+            return None
+        row.update(status="canceled", locked_by=None)
+        return dict(row)
+
+    async def reap_stale_jobs(self, *, timeout: str) -> list[dict[str, Any]]:  # noqa: ASYNC109
+        del timeout
+        return []
+
 
 def install_handler(
     monkeypatch: pytest.MonkeyPatch, handler: Any, *, job_type: str = "noop"
@@ -173,8 +197,7 @@ async def test_empty_queue_waits_for_the_poll_interval(monkeypatch: pytest.Monke
 @pytest.mark.asyncio
 async def test_unknown_type_is_dead_lettered_with_the_type_in_last_error() -> None:
     db = FakeQueue()
-    # max_attempts=1 이면 첫 claim에서 attempts=1 이 되어 곧바로 dead가 된다.
-    db.enqueue(job_type="complie", max_attempts=1)
+    db.enqueue(job_type="complie", max_attempts=3)
 
     claimed = await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
 
@@ -183,7 +206,8 @@ async def test_unknown_type_is_dead_lettered_with_the_type_in_last_error() -> No
     assert row["status"] == "dead"
     assert "complie" in row["last_error"]
     # 재시도 대기 없이 즉시 판정한다 — 백오프를 0으로 보낸다.
-    assert db.fail_backoffs == [queue.DEAD_LETTER_BACKOFF]
+    assert db.called("dead_letter_job") == [JOB_ID]
+    assert db.called("fail_job") == []
     assert db.called("complete_job") == []
 
 
@@ -202,6 +226,41 @@ async def test_unknown_type_never_reaches_a_handler(monkeypatch: pytest.MonkeyPa
     await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
 
     assert invoked == []
+
+
+@pytest.mark.asyncio
+async def test_cancelled_claim_skips_handler_and_closes_the_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = FakeQueue()
+    row = db.enqueue()
+    row["cancel_requested_at"] = "2026-08-10T00:00:00Z"
+    invoked: list[str] = []
+
+    async def recording(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del workspace_id, payload
+        invoked.append(job_id)
+
+    install_handler(monkeypatch, recording)
+    assert await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event()) is True
+    assert invoked == []
+    assert db.called("cancel_job") == [JOB_ID]
+    assert db.rows[JOB_ID]["status"] == "canceled"
+
+
+def test_sanitize_error_hides_provider_response_and_credentials() -> None:
+    provider = ProviderError(provider="openrouter", status_code=502, kind="upstream")
+    leaked = "Bearer secret-token sk-or-v1-abcdefghijklmnopqrstuvwxyz"
+    assert "openrouter" in queue.sanitize_error(provider)
+    assert "502" in queue.sanitize_error(provider)
+    result = queue.sanitize_error(RuntimeError(leaked))
+    assert leaked not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_error_keeps_our_reason_token() -> None:
+    result = queue.sanitize_error(UnsafeFetchTarget(reason="private_address"))
+    assert "private_address" in result
 
 
 # -----------------------------------------------------------------------------

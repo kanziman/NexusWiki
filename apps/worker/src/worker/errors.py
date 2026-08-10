@@ -19,6 +19,7 @@ OpenRouter 응답 본문이 예외에 담기면 프롬프트·내부 구조가 �
 
 from __future__ import annotations
 
+import re
 from typing import Final
 
 from nexuswiki_core.extract import ExtractionQualityError
@@ -30,7 +31,24 @@ __all__ = [
     "ProviderError",
     "StorageObjectMissing",
     "UnsafeFetchTarget",
+    "scrub_credentials",
 ]
+
+# ⚠️ 2차 방어선이다. 클라이언트가 자격증명을 예외에 넣지 않는 것이 1차 방어선이다.
+_CREDENTIAL_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r"sk-or-v1-[A-Za-z0-9_-]+"),
+    re.compile(r"sb_secret_[A-Za-z0-9_-]+"),
+    re.compile(r"sb_publishable_[A-Za-z0-9_-]+"),
+    re.compile(r"Bearer\\s+[^\\s]+", re.IGNORECASE),
+    re.compile(r"\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b"),
+)
+
+
+def scrub_credentials(text: str) -> str:
+    """`.env.sample`에 문서화한 자격증명 형태를 last_error에서 제거한다."""
+    for pattern in _CREDENTIAL_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
 
 
 class UnsafeFetchTarget(Exception):

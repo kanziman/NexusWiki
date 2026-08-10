@@ -22,7 +22,17 @@ import os
 import socket
 from typing import Any, Final, Protocol
 
+import httpx
+
+from nexuswiki_core.extract import ExtractionQualityError
 from nexuswiki_core.logging import bind_job_context, clear_job_context, get_logger
+from worker.errors import (
+    NON_RETRYABLE_ERRORS,
+    ProviderError,
+    StorageObjectMissing,
+    UnsafeFetchTarget,
+    scrub_credentials,
+)
 from worker.handlers import UnknownJobTypeError, resolve_handler
 
 __all__ = [
@@ -30,6 +40,7 @@ __all__ = [
     "LAST_ERROR_MAX_CHARS",
     "PLATFORM_GRACE_SECONDS",
     "QUEUE_POLL_INTERVAL_SECONDS",
+    "REAP_INTERVAL_CYCLES",
     "WORKER_GRACE_SECONDS",
     "process_next_job",
     "resolve_worker_id",
@@ -55,6 +66,7 @@ DEAD_LETTER_BACKOFF: Final[str] = "0 seconds"
 
 # `jobs.last_error`는 멤버가 SELECT할 수 있고 프론트가 그대로 보여준다.
 LAST_ERROR_MAX_CHARS: Final[int] = 500
+REAP_INTERVAL_CYCLES: Final[int] = 30
 
 _logger = get_logger(__name__)
 
@@ -79,6 +91,18 @@ class QueueDb(Protocol):
 
     async def release_job(self, job_id: str, *, worker_id: str) -> dict[str, Any] | None: ...
 
+    async def dead_letter_job(
+        self, job_id: str, *, worker_id: str, error: str
+    ) -> dict[str, Any] | None: ...
+
+    async def cancel_job(self, job_id: str, *, worker_id: str) -> dict[str, Any] | None: ...
+
+    async def reap_stale_jobs(
+        self,
+        *,
+        timeout: str,  # noqa: ASYNC109
+    ) -> list[dict[str, Any]]: ...
+
 
 def resolve_worker_id() -> str:
     """`jobs.locked_by`에 실릴 워커 인스턴스 식별자 (0003:56 — 호스트+PID)."""
@@ -88,13 +112,20 @@ def resolve_worker_id() -> str:
 def sanitize_error(error: BaseException) -> str:
     """예외를 `last_error`에 실을 문자열로 정제한다.
 
-    ⚠️ 여기가 provider 원문 예외를 거르는 자리다. `last_error`는 워크스페이스
-    멤버가 SELECT할 수 있고(0004) 프론트가 그대로 보여주므로, OpenRouter/OpenAI
-    응답 본문이 그대로 실리면 내부 구조와 프롬프트가 새어 나간다. Phase 2에는
-    provider 호출이 없어 지금은 타입+메시지 절단만 한다 — Phase 3(OPS)이 이
-    함수 안에서 provider별 마스킹을 채운다.
+    Provider/HTTP 오류의 응답 본문과 자격증명은 숨기고, 우리가 만든 사유 토큰은 남긴다.
     """
-    text = f"{type(error).__name__}: {error}"
+    if isinstance(error, ProviderError):
+        status = "none" if error.status_code is None else str(error.status_code)
+        text = f"provider_error kind={error.kind} provider={error.provider} status={status}"
+    elif isinstance(error, ExtractionQualityError):
+        text = f"{error.reason} chars={error.chars} pages={error.pages} threshold={error.threshold}"
+    elif isinstance(error, (UnsafeFetchTarget, StorageObjectMissing)):
+        text = str(error)
+    elif isinstance(error, httpx.HTTPStatusError):
+        text = f"upstream_error status={error.response.status_code}"
+    else:
+        text = f"{type(error).__name__}: {error}"
+    text = scrub_credentials(text)
     if len(text) <= LAST_ERROR_MAX_CHARS:
         return text
     return text[: LAST_ERROR_MAX_CHARS - 1] + "…"
@@ -110,19 +141,13 @@ async def _wait_for_stop(stop: asyncio.Event, seconds: float) -> bool:
 
 
 async def _dead_letter(
-    db: QueueDb, *, job_id: str, job_type: str, reason: str
+    db: QueueDb, *, job_id: str, worker_id: str, job_type: str, reason: str
 ) -> dict[str, Any] | None:
     """미등록 type을 백오프 없이 데드레터 판정으로 보낸다.
 
-    ⚠️ 0003/0007의 함수 중 특정 잡을 한 번에 `dead`로 만드는 것은 없다. `dead`는
-    `fail_job`/`reap_stale_jobs` 양쪽에서 `attempts >= max_attempts`로만 도달하며,
-    그 게이트를 건너뛰려면 `jobs`를 직접 UPDATE해야 한다 — 그것은 이 프로젝트가
-    금지한 경로다(0003:92-98). 그래서 백오프를 0으로 보내 **대기 없이** 판정을
-    반복하게 만든다: `run_after = now()`이므로 잡은 곧바로 다시 claim 대상이 되고,
-    핸들러는 한 번도 돌지 않은 채 max_attempts 안에 `dead`로 수렴한다.
-    한 번에 보내려면 `0008`에 `dead_letter_job()`이 필요하다.
+    `0009`의 `dead_letter_job()`이 락 소유자를 확인해 한 번에 dead로 보낸다.
     """
-    row = await db.fail_job(job_id, error=reason, backoff=DEAD_LETTER_BACKOFF)
+    row = await db.dead_letter_job(job_id, worker_id=worker_id, error=reason)
     status = (row or {}).get("status")
     if status == "dead":
         _logger.error("worker.job_dead_lettered", job_type=job_type, reason=reason)
@@ -196,10 +221,17 @@ async def process_next_job(
             attempts=job.get("attempts"),
             max_attempts=job.get("max_attempts"),
         )
+        # ⚠️ 취소는 체인 단계 경계에서만 수용한다. 잡 분할이 하트비트 대신 준 경계다.
+        if job.get("cancel_requested_at"):
+            await db.cancel_job(job_id, worker_id=worker_id)
+            _logger.info("worker.job_canceled", job_type=job_type)
+            return True
         try:
             handler = resolve_handler(job_type)
         except UnknownJobTypeError as error:
-            await _dead_letter(db, job_id=job_id, job_type=job_type, reason=str(error))
+            await _dead_letter(
+                db, job_id=job_id, worker_id=worker_id, job_type=job_type, reason=str(error)
+            )
             return True
 
         handler_task = asyncio.create_task(
@@ -219,9 +251,15 @@ async def process_next_job(
 
         try:
             await handler_task
-        except Exception as error:  # noqa: BLE001 - 재시도/데드레터 판정은 fail_job의 몫
+        except Exception as error:  # noqa: BLE001 - error classification is intentional
             _logger.exception("worker.job_failed", job_type=job_type)
-            await db.fail_job(job_id, error=sanitize_error(error))
+            reason = sanitize_error(error)
+            if isinstance(error, NON_RETRYABLE_ERRORS):
+                await _dead_letter(
+                    db, job_id=job_id, worker_id=worker_id, job_type=job_type, reason=reason
+                )
+            else:
+                await db.fail_job(job_id, error=reason)
             return True
 
         await db.complete_job(job_id)
@@ -238,15 +276,24 @@ async def run_queue_loop(
     stop: asyncio.Event,
     poll_interval: float = QUEUE_POLL_INTERVAL_SECONDS,
     grace_seconds: float = WORKER_GRACE_SECONDS,
+    reap_enabled: bool = True,
+    reap_timeout_seconds: int = 900,
 ) -> int:
     """종료 신호가 올 때까지 잡을 집어 처리하고, 처리한 잡 수를 돌려준다."""
     processed = 0
+    idle_cycles = 0
     while not stop.is_set():
         claimed = await process_next_job(
             db, worker_id=worker_id, stop=stop, grace_seconds=grace_seconds
         )
         if claimed:
             processed += 1
+            idle_cycles = 0
             continue
+        idle_cycles += 1
+        if reap_enabled and idle_cycles % REAP_INTERVAL_CYCLES == 0:
+            # `for update skip locked`라 여러 worker의 idle reaper도 안전하다.
+            reaped = await db.reap_stale_jobs(timeout=f"{reap_timeout_seconds} seconds")
+            _logger.info("worker.stale_jobs_reaped", count=len(reaped))
         await _wait_for_stop(stop, poll_interval)
     return processed

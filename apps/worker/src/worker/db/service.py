@@ -18,6 +18,7 @@ from worker.settings import WorkerSettings
 
 __all__ = [
     "QUEUE_RPC_FUNCTIONS",
+    "CATALOG_RPC_FUNCTIONS",
     "RPC_HELPERS",
     "SERVICE_REQUEST_TIMEOUT_SECONDS",
     "TABLE_HELPERS",
@@ -59,9 +60,19 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
 
 # 0003이 정의한 큐 함수(0007의 release_job · complete_job_and_chain 포함)만을 호출하는 헬퍼.
 QUEUE_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
-    {"claim_job", "complete_job", "complete_job_and_chain", "fail_job", "release_job"}
+    {
+        "claim_job",
+        "complete_job",
+        "complete_job_and_chain",
+        "fail_job",
+        "release_job",
+        "dead_letter_job",
+        "cancel_job",
+        "reap_stale_jobs",
+    }
 )
-RPC_HELPERS: Final[frozenset[str]] = QUEUE_RPC_FUNCTIONS
+CATALOG_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"enum_check_values"})
+RPC_HELPERS: Final[frozenset[str]] = QUEUE_RPC_FUNCTIONS | CATALOG_RPC_FUNCTIONS
 
 # PostgREST 업서트에 필요한 Prefer 조합. `resolution=merge-duplicates`가 없으면 충돌이
 # 409로 돌아오고, at-least-once 큐에서 재처리는 정상 경로이므로 그 409는 곧 잡 실패다.
@@ -513,6 +524,29 @@ class ServiceDb:
         """
         return await self._rpc("release_job", {"p_job_id": job_id, "p_worker_id": worker_id})
 
+    async def dead_letter_job(
+        self, job_id: str, *, worker_id: str, error: str
+    ) -> dict[str, Any] | None:
+        """락 소유자만 즉시 dead로 보낸다; worker_id는 우회할 수 없는 계약이다."""
+        return await self._rpc(
+            "dead_letter_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_error": error}
+        )
+
+    async def cancel_job(self, job_id: str, *, worker_id: str) -> dict[str, Any] | None:
+        return await self._rpc("cancel_job", {"p_job_id": job_id, "p_worker_id": worker_id})
+
+    async def reap_stale_jobs(self, *, timeout: str) -> list[dict[str, Any]]:  # noqa: ASYNC109
+        return await self._rpc_rows("reap_stale_jobs", {"p_timeout": timeout})
+
+    async def enum_check_values(self, table: str, column: str) -> list[str]:
+        # text[] is a JSON array, not a jobs record; do not use _rpc normalization.
+        response = await self._client.post(
+            "/rpc/enum_check_values", json={"p_table": table, "p_column": column}
+        )
+        response.raise_for_status()
+        result = response.json()
+        return [str(value) for value in result] if isinstance(result, list) else []
+
     async def complete_job_and_chain(
         self,
         job_id: str,
@@ -609,3 +643,9 @@ class ServiceDb:
         if all(value is None for value in result.values()):
             return None
         return result
+
+    async def _rpc_rows(self, function: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        response = await self._client.post(f"/rpc/{function}", json=payload)
+        response.raise_for_status()
+        result = response.json()
+        return result if isinstance(result, list) else []

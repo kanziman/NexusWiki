@@ -118,9 +118,13 @@ def test_every_public_helper_is_classified_as_table_or_queue_rpc() -> None:
         if not name.startswith("_") and inspect.isfunction(value)
     }
 
-    assert public_helpers == service.TABLE_HELPERS | service.RPC_HELPERS
-    assert service.TABLE_HELPERS & service.RPC_HELPERS == set()
-    assert service.RPC_HELPERS <= service.QUEUE_RPC_FUNCTIONS
+    assert public_helpers == (
+        service.TABLE_HELPERS | service.QUEUE_RPC_FUNCTIONS | service.CATALOG_RPC_FUNCTIONS
+    )
+    assert service.RPC_HELPERS == service.QUEUE_RPC_FUNCTIONS | service.CATALOG_RPC_FUNCTIONS
+    assert not (service.TABLE_HELPERS & service.QUEUE_RPC_FUNCTIONS)
+    assert not (service.TABLE_HELPERS & service.CATALOG_RPC_FUNCTIONS)
+    assert not (service.QUEUE_RPC_FUNCTIONS & service.CATALOG_RPC_FUNCTIONS)
 
 
 def test_table_helpers_declare_workspace_id_without_a_default() -> None:
@@ -187,6 +191,9 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
         await db.fail_job(JOB_ID, error="boom")
         await db.release_job(JOB_ID, worker_id="worker-1")
         await db.complete_job_and_chain(JOB_ID, next_type="compile")
+        await db.dead_letter_job(JOB_ID, worker_id="worker-1", error="dead")
+        await db.cancel_job(JOB_ID, worker_id="worker-1")
+        await db.reap_stale_jobs(timeout="900 seconds")
 
     called = [request.url.path.rsplit("/", 1)[-1] for request in seen]
     assert called == [
@@ -195,6 +202,9 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
         "fail_job",
         "release_job",
         "complete_job_and_chain",
+        "dead_letter_job",
+        "cancel_job",
+        "reap_stale_jobs",
     ]
     # ⚠️ 이 단언은 큐 RPC 헬퍼를 하나 더할 때마다 **의도적으로 red가 된다.** 허용 목록에만
     #    이름을 넣고 실제 호출 경로를 확인하지 않으면 그 헬퍼는 검증되지 않은 채 통과한다.
