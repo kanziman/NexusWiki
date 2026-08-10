@@ -47,6 +47,14 @@ class WorkerSettings(BaseAppSettings):
     # 밖에서 주입받고, 정리는 그 워크스페이스 삭제의 cascade에 맡긴다.
     QUEUE_BASELINE_WORKSPACE_ID: str | None = None
 
+    # -- 원격 원본 페치 (03-06) ---------------------------------------------
+    FETCH_MAX_BYTES: int = 10_485_760
+    FETCH_TIMEOUT_SECONDS: float = 20.0
+    FETCH_MAX_REDIRECTS: int = 3
+    # ⚠️ 참이면 사용자가 지정한 사설망 주소(플랫폼 메타데이터 포함)로 워커가 나갈 수
+    #    있다. 로컬 개발에서만 켜고 배포 환경에서는 절대 켜지 않는다.
+    ALLOW_PRIVATE_FETCH_TARGETS: bool = False
+
     # -- 컴파일 상한 (OPS-01) -------------------------------------------------
     #
     # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 (`RTT_PROBE_ENABLED`와 같은 결).

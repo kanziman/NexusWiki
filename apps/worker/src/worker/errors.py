@@ -19,11 +19,33 @@ OpenRouter 응답 본문이 예외에 담기면 프롬프트·내부 구조가 �
 
 from __future__ import annotations
 
+from typing import Final
+
+from nexuswiki_core.extract import ExtractionQualityError
+
 __all__ = [
     "EmbeddingProviderMismatch",
     "LlmSchemaError",
+    "NON_RETRYABLE_ERRORS",
     "ProviderError",
+    "StorageObjectMissing",
+    "UnsafeFetchTarget",
 ]
+
+
+class UnsafeFetchTarget(Exception):
+    """사용자 지정 URL이 SSRF 또는 페치 한계를 위반했다."""
+
+    def __init__(self, *, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+class StorageObjectMissing(Exception):
+    """원본 보관 경로가 가리키는 Storage 객체가 없다."""
+
+    def __init__(self) -> None:
+        super().__init__("storage_object_missing")
 
 
 class ProviderError(Exception):
@@ -96,3 +118,12 @@ class EmbeddingProviderMismatch(ProviderError):
         return (
             f"{self.provider} 임베딩 공급자 불일치 — 요청 {self.requested!r}, 실제 {self.served!r}"
         )
+
+
+# ⚠️ 이 목록은 재시도해도 결과가 같은 실패만 담는다. ProviderError는 공급자 복구로
+# 성공할 수 있어 넣지 않는다. queue가 이 목록으로 즉시 dead-letter 하는 배선은 03-08 몫이다.
+NON_RETRYABLE_ERRORS: Final[tuple[type[BaseException], ...]] = (
+    ExtractionQualityError,
+    UnsafeFetchTarget,
+    StorageObjectMissing,
+)
