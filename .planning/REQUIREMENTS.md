@@ -48,8 +48,8 @@
 
 ### Ingestion (ING)
 
-- [ ] **ING-01**: 사용자가 파일 · URL · 텍스트를 투입하면 즉시 `202`와 잡 식별자를 받는다 (블로킹 작업이 요청 안에서 실행되지 않음)
-- [ ] **ING-02**: 동일 `content_hash` 재투입이 **눈에 보이게** "이미 수집됨 — 건너뜀"으로 표시된다 (조용한 성공 금지)
+- [x] **ING-01**: 사용자가 파일 · URL · 텍스트를 투입하면 즉시 `202`와 잡 식별자를 받는다 (블로킹 작업이 요청 안에서 실행되지 않음)
+- [x] **ING-02**: 동일 `content_hash` 재투입이 **눈에 보이게** "이미 수집됨 — 건너뜀"으로 표시된다 (조용한 성공 금지)
 - [ ] **ING-03**: 원본 파일이 `{workspace_id}/{raw_source_id}/{filename}` 경로로 Storage에 보존된다
 - [ ] **ING-04**: 문서 파서가 추출 품질 게이트(페이지당 문자 수 임계값)를 적용하고, 미달 시 `needs_ocr`로 잡을 실패시켜 UI에 사유를 노출한다 (빈 문서를 조용히 수집하지 않음)
 - [x] **ING-05**: 청킹이 토큰 기준으로 수행되고 `content[char_start:char_end] == chunk.content` 속성 테스트가 통과한다
@@ -203,8 +203,8 @@
 | DOM-07 | Phase 2 | Complete |
 | DOM-08 | Phase 2 | Complete |
 | DOM-09 | Phase 2 | Complete |
-| ING-01 | Phase 3 | Pending |
-| ING-02 | Phase 3 | Pending |
+| ING-01 | Phase 3 | Complete |
+| ING-02 | Phase 3 | Complete |
 | ING-03 | Phase 3 | Pending |
 | ING-04 | Phase 3 | Pending |
 | ING-05 | Phase 3 | Complete |
