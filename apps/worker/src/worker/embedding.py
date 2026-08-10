@@ -57,7 +57,9 @@ async def embed_texts(
         )
     data = response.json()
     served = str(data.get("provider") or settings.EMBEDDING_PROVIDER)
-    if served != settings.EMBEDDING_PROVIDER:
+    # OpenRouter 요청 slug(`deepinfra/fp32`)와 응답 표시명(`DeepInfra`)은 형식이 다르다.
+    requested_host = str(settings.EMBEDDING_PROVIDER).split("/", 1)[0].casefold()
+    if served.casefold() != requested_host:
         raise EmbeddingProviderMismatch(
             provider="openrouter", requested=str(settings.EMBEDDING_PROVIDER), served=served
         )
