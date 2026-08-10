@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: ingest-and-compile-pipeline
 status: executing
-stopped_at: Completed 03-06-PLAN.md
-last_updated: "2026-08-10T09:54:10.187Z"
+stopped_at: Completed 03-07-PLAN.md
+last_updated: "2026-08-10T10:35:00Z"
 last_activity: 2026-08-08
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 27
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 03 (ingest-and-compile-pipeline) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-08-08 — Phase 03 execution started
 
-Progress: [█████████░] 89%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [█████████░] 89%
 | Phase 03 P03 | 20m | 2 tasks | 7 files |
 | Phase 03 P05 | 1h | 3 tasks | 10 files |
 | Phase 03 P06 | 1h | 3 tasks | 10 files |
+| Phase 03 P07 | 35m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,7 @@ None yet.
 - 클라우드에서 service_role이 public.search_chunks EXECUTE를 갖는다 (pg_default_acl 로컬/클라우드 차이) — 0009의 revoke 한 줄로 정정 필요
 - [Phase 3] chunk_text의 오버랩이 최소 조각 1개 단위라 청크가 조각 하나뿐일 때는 인접 청크가 겹치지 않고 맞닿는다 (실측 오버랩 min=0) — 인용 단위로서 문제가 되는지는 Phase 4 골든 세트가 판정한다
 - [해소 2026-08-10] [Phase 3] 비용 상한 거부는 사용자 승인 A에 따라 `0010`의 프로젝트 전용 `NW402`와 `api.errors` 단일 HTTP 매핑으로 402가 된다. Postgres가 만들 수 없는 코드라 실제 DB 자원 오류를 예산 초과로 오인하지 않는다 (`03-05-SUMMARY.md`).
+- [Phase 3] 03-07 예산 조회는 표시용(`authoritative: false`)이며, UTC 월 경계의 제한된 `usage_events` 합계는 인큐 가능 여부를 판정하지 않는다. 권위 있는 판정은 `enqueue_source_job` SQL 하나에 남는다 (D-P18).
 
 ## Deferred Items
 
@@ -171,12 +173,12 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T09:54:10.173Z
-Stopped at: Completed 03-06-PLAN.md
+Last session: 2026-08-10T10:35:00Z
+Stopped at: Completed 03-07-PLAN.md
 Resume file: None
 
-**재개 시 첫 행동:** `/gsd-execute-phase 3`로 Wave 6의 03-07을 실행한다. 완료 6/9
-(03-01~06); 03-08의 즉시 dead-letter 배선과 03-09의 임베딩 체인이 남아 있다.
+**재개 시 첫 행동:** `/gsd-execute-phase 3`로 Wave 6의 03-09를 실행한다. 완료 7/9
+(03-01~07); 03-08의 즉시 dead-letter 배선과 03-09의 임베딩 체인이 남아 있다.
 
 ⚠️ **보존할 워킹 트리 변경이 있다** — `.planning/config.json`, `checklists.json`, `.agents/`,
 `.pnpm-store/`, `docs/architecture/`, `docs/design-systems/`는 이 플랜과 무관하다. 정리 명령으로

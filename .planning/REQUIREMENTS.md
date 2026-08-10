@@ -53,8 +53,8 @@
 - [x] **ING-03**: 원본 파일이 `{workspace_id}/{raw_source_id}/{filename}` 경로로 Storage에 보존된다
 - [x] **ING-04**: 문서 파서가 추출 품질 게이트(페이지당 문자 수 임계값)를 적용하고, 미달 시 `needs_ocr`로 잡을 실패시켜 UI에 사유를 노출한다 (빈 문서를 조용히 수집하지 않음)
 - [x] **ING-05**: 청킹이 토큰 기준으로 수행되고 `content[char_start:char_end] == chunk.content` 속성 테스트가 통과한다
-- [ ] **ING-06**: 사용자가 소스별 잡 진행 상태를 **실제 단계 이름**으로 확인한다 (불확정 스피너 금지 — 4분 컴파일이 멈춘 것처럼 보이면 재투입으로 비용이 2배가 됨)
-- [ ] **ING-07**: 사용자가 `dead` 상태 잡을 재시도할 수 있다
+- [x] **ING-06**: 사용자가 소스별 잡 진행 상태를 **실제 단계 이름**으로 확인한다 (불확정 스피너 금지 — 4분 컴파일이 멈춘 것처럼 보이면 재투입으로 비용이 2배가 됨)
+- [x] **ING-07**: 사용자가 `dead` 상태 잡을 재시도할 수 있다
 
 ### Compile Pipeline (COMP)
 
@@ -111,7 +111,7 @@
 
 ### Cost, Verification & Ops (OPS)
 
-- [ ] **OPS-01**: `usage_events` 테이블 · 인큐 시점 워크스페이스별 비용 상한 · 입력 크기 상한 · 잡 취소 경로가 동작한다
+- [x] **OPS-01**: `usage_events` 테이블 · 인큐 시점 워크스페이스별 비용 상한 · 입력 크기 상한 · 잡 취소 경로가 동작한다
 - [ ] **OPS-02**: 수집 → 컴파일 → 임베딩 → 검색 E2E 시나리오가 통과한다
 - [ ] **OPS-03**: 재수집 멱등성이 검증된다 — 동일 `content_hash` 무증가 **및 더 적은 단위로 줄어드는 축소 케이스**
 - [ ] **OPS-04**: 워크스페이스 격리가 애플리케이션 경로 전수로 검증된다
@@ -208,8 +208,8 @@
 | ING-03 | Phase 3 | Complete |
 | ING-04 | Phase 3 | Complete |
 | ING-05 | Phase 3 | Complete |
-| ING-06 | Phase 3 | Pending |
-| ING-07 | Phase 3 | Pending |
+| ING-06 | Phase 3 | Complete |
+| ING-07 | Phase 3 | Complete |
 | COMP-01 | Phase 3 | Complete |
 | COMP-02 | Phase 3 | Pending |
 | COMP-03 | Phase 3 | Complete |
@@ -218,7 +218,7 @@
 | COMP-06 | Phase 3 | Complete |
 | COMP-07 | Phase 3 | Pending |
 | COMP-08 | Phase 3 | Pending |
-| OPS-01 | Phase 3 | Pending |
+| OPS-01 | Phase 3 | Complete |
 | RTV-01 | Phase 4 | Pending |
 | RTV-02 | Phase 4 | Pending |
 | RTV-03 | Phase 4 | Pending |
