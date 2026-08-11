@@ -19,9 +19,10 @@ docs/architecture/query-embedding-boundary.md가 문서화한 커밋 `6a14144`�
 from __future__ import annotations
 
 import asyncio
+import json
 import time
-from collections.abc import AsyncIterator, Callable
-from typing import Annotated
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Annotated, Any
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -35,6 +36,8 @@ __all__ = [
 ]
 
 ChatStreamFunction = Callable[["LlmChatRequest"], AsyncIterator[bytes]]
+BudgetCheck = Callable[[str], Awaitable[bool]]
+UsageRecorder = Callable[[str, dict[str, Any]], Awaitable[None]]
 MonotonicClock = Callable[[], float]
 
 
@@ -53,6 +56,8 @@ class LlmStreamService:
         chat_stream: ChatStreamFunction,
         *,
         internal_token: str,
+        check_budget: BudgetCheck,
+        record_usage: UsageRecorder,
         max_concurrency: int = 2,
         rate_capacity: int = 20,
         refill_tokens_per_second: float = 0.2,
@@ -63,6 +68,8 @@ class LlmStreamService:
         if min(max_concurrency, rate_capacity, refill_tokens_per_second) <= 0:
             raise ValueError("llm stream bounds must be positive")
         self._chat_stream = chat_stream
+        self._check_budget = check_budget
+        self._record_usage = record_usage
         self._internal_token = internal_token
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._rate_capacity = rate_capacity
@@ -101,13 +108,25 @@ class LlmStreamService:
         # 인증이 quota/provider 작업보다 먼저다 — query_embedding.py와 같은 계약.
         if authorization != f"Bearer {self._internal_token}":
             raise HTTPException(status_code=401, detail="internal_unauthorized")
+        if not await self._check_budget(request.workspace_id):
+            raise HTTPException(status_code=402, detail="budget_exceeded")
         await self._reserve_token()
         return self._stream_chunks(request)
 
     async def _stream_chunks(self, request: LlmChatRequest) -> AsyncIterator[bytes]:
+        latest_usage: dict[str, Any] = {}
         async with self._semaphore:
             async for chunk in self._chat_stream(request):
+                try:
+                    payload = json.loads(chunk.decode("utf-8").removeprefix("data: ").strip())
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    pass
+                else:
+                    usage = payload.get("usage") if isinstance(payload, dict) else None
+                    if isinstance(usage, dict) and usage:
+                        latest_usage = usage
                 yield chunk
+        await self._record_usage(request.workspace_id, latest_usage)
 
 
 def add_llm_stream_route(app: FastAPI, service: LlmStreamService) -> None:

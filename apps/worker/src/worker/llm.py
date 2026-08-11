@@ -37,6 +37,7 @@ __all__ = [
     "PROVIDER_NAME",
     "STRUCTURED_OUTPUT_MAX_ATTEMPTS",
     "LlmResult",
+    "cost_micros",
     "complete_structured",
     "openrouter_client",
     "render_template",
@@ -230,7 +231,7 @@ async def complete_structured(
                 prompt_tokens=int(usage.get("prompt_tokens") or 0),
                 completion_tokens=int(usage.get("completion_tokens") or 0),
                 total_tokens=int(usage.get("total_tokens") or 0),
-                cost_micros=_cost_micros(usage),
+                cost_micros=cost_micros(usage),
                 provider=provider,
                 model=model,
             )
@@ -374,7 +375,7 @@ def _read_completion(response: httpx.Response) -> tuple[str, dict[str, Any], str
     return content, usage, str(provider), str(model)
 
 
-def _cost_micros(usage: Mapping[str, Any]) -> int:
+def cost_micros(usage: Mapping[str, Any]) -> int:
     """달러 비용을 정수 micro-dollar로 **올림** 변환한다.
 
     올림인 이유: 상한 판정이 지출을 과소평가하는 방향으로 틀리면 상한을 넘긴 뒤에야

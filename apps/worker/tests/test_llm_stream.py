@@ -7,6 +7,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 import pytest
@@ -19,6 +20,14 @@ from worker.llm_stream import (
 )
 
 _INTERNAL_TOKEN = "test-llm-stream-token"  # noqa: S105 - non-secret test fixture
+
+
+async def _allowed(_: str) -> bool:
+    return True
+
+
+async def _ignore_usage(_: str, __: dict[str, Any]) -> None:
+    return None
 
 
 class MonotonicClock:
@@ -47,7 +56,12 @@ async def test_unauthenticated_request_is_rejected_before_any_provider_call() ->
         calls += 1
         yield b"data: should-not-happen\n"
 
-    service = LlmStreamService(chat_stream, internal_token=_INTERNAL_TOKEN)
+    service = LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=_ignore_usage,
+    )
     app = _app(service)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -71,7 +85,12 @@ async def test_authenticated_request_relays_injected_bytes_unchanged() -> None:
         yield b'data: {"choices":[{"delta":{"content":"hello"}}]}\n'
         yield b"data: [DONE]\n"
 
-    service = LlmStreamService(chat_stream, internal_token=_INTERNAL_TOKEN)
+    service = LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=_ignore_usage,
+    )
     app = _app(service)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -102,6 +121,8 @@ async def test_exhausted_token_bucket_returns_429_without_calling_chat_stream() 
     service = LlmStreamService(
         chat_stream,
         internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=_ignore_usage,
         rate_capacity=1,
         refill_tokens_per_second=1,
         monotonic=clock,
@@ -124,3 +145,99 @@ async def test_exhausted_token_bucket_returns_429_without_calling_chat_stream() 
 
     assert second.status_code == 429
     assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_over_budget_request_is_rejected_before_any_provider_call() -> None:
+    calls = 0
+
+    async def chat_stream(request: LlmChatRequest) -> AsyncIterator[bytes]:
+        nonlocal calls
+        calls += 1
+        yield b"data: should-not-happen\n"
+
+    async def over_budget(_: str) -> bool:
+        return False
+
+    service = LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=over_budget,
+        record_usage=_ignore_usage,
+    )
+    app = _app(service)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/internal/llm-chat",
+            json={"workspace_id": "ws-1", "messages": [{"role": "user", "content": "hi"}]},
+            headers={"Authorization": f"Bearer {_INTERNAL_TOKEN}"},
+        )
+
+    assert response.status_code == 402
+    assert response.json()["detail"] == "budget_exceeded"
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_completed_stream_records_latest_provider_usage_once() -> None:
+    recorded: list[tuple[str, dict[str, Any]]] = []
+
+    async def chat_stream(request: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b'data: {"usage":{"cost":0.000001,"prompt_tokens":2}}\n'
+        yield b'data: {"usage":{"cost":0.000003,"completion_tokens":4}}\n'
+        yield b"data: [DONE]\n"
+
+    async def record_usage(workspace_id: str, usage: dict[str, Any]) -> None:
+        recorded.append((workspace_id, usage))
+
+    service = LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=record_usage,
+    )
+    app = _app(service)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/internal/llm-chat",
+            json={"workspace_id": "ws-1", "messages": [{"role": "user", "content": "hi"}]},
+            headers={"Authorization": f"Bearer {_INTERNAL_TOKEN}"},
+        )
+
+    assert response.status_code == 200
+    assert recorded == [("ws-1", {"cost": 0.000003, "completion_tokens": 4})]
+
+
+@pytest.mark.asyncio
+async def test_completed_stream_without_usage_records_an_empty_usage_event() -> None:
+    recorded: list[tuple[str, dict[str, Any]]] = []
+
+    async def chat_stream(request: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b'data: {"choices":[{"delta":{"content":"hello"}}]}\n'
+        yield b"data: [DONE]\n"
+
+    async def record_usage(workspace_id: str, usage: dict[str, Any]) -> None:
+        recorded.append((workspace_id, usage))
+
+    service = LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=record_usage,
+    )
+    app = _app(service)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/internal/llm-chat",
+            json={"workspace_id": "ws-1", "messages": [{"role": "user", "content": "hi"}]},
+            headers={"Authorization": f"Bearer {_INTERNAL_TOKEN}"},
+        )
+
+    assert response.status_code == 200
+    assert recorded == [("ws-1", {})]

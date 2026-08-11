@@ -7,12 +7,15 @@
 import asyncio
 import signal
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 import uvicorn
 from fastapi import FastAPI
 
 from nexuswiki_core.deployment import resolve_git_sha
+from nexuswiki_core.domain import UsageKind
 from nexuswiki_core.logging import (
     bind_job_context,
     clear_job_context,
@@ -21,7 +24,7 @@ from nexuswiki_core.logging import (
 )
 from worker.db.service import ServiceDb, service_client
 from worker.embedding import embed_texts
-from worker.llm import openrouter_client, stream_chat
+from worker.llm import cost_micros, openrouter_client, stream_chat
 from worker.llm_stream import LlmChatRequest, LlmStreamService, add_llm_stream_route
 from worker.query_embedding import QueryEmbeddingService, add_query_embedding_route
 from worker.queue import resolve_worker_id, run_queue_loop
@@ -44,6 +47,41 @@ async def _stream_llm_chat(
     async with openrouter_client(settings) as client:
         async for chunk in stream_chat(client, settings=settings, messages=request.messages):
             yield chunk
+
+
+async def _check_ask_budget(settings: WorkerSettings, workspace_id: str) -> bool:
+    """Use the same inclusive monthly-cap boundary as ``enqueue_source_job``."""
+    async with service_client(settings) as client:
+        db = ServiceDb(client)
+        cap = await db.get_workspace_budget_cap(workspace_id=workspace_id)
+        if cap is None:
+            return True
+        now = datetime.now(UTC)
+        since = datetime(now.year, now.month, 1, tzinfo=UTC).isoformat()
+        spent = await db.sum_usage_events_since(workspace_id=workspace_id, since=since)
+    return spent < cap
+
+
+async def _record_ask_usage(
+    settings: WorkerSettings, workspace_id: str, usage: dict[str, Any]
+) -> None:
+    """Persist one completed Ask call, including a zero-cost incomplete stream."""
+    async with service_client(settings) as client:
+        db = ServiceDb(client)
+        await db.insert_usage_event(
+            workspace_id=workspace_id,
+            row={
+                "job_id": None,
+                "kind": UsageKind.LLM.value,
+                "provider": usage.get("provider") or "openrouter",
+                "model": usage.get("model") or "unknown",
+                "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+                "completion_tokens": int(usage.get("completion_tokens") or 0),
+                "total_tokens": int(usage.get("total_tokens") or 0),
+                "cost_micros": cost_micros(usage),
+                "metadata": {},
+            },
+        )
 
 
 async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Event) -> None:
@@ -77,6 +115,10 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
             LlmStreamService(
                 lambda request: _stream_llm_chat(settings, request),
                 internal_token=settings.LLM_STREAM_INTERNAL_TOKEN,
+                check_budget=lambda workspace_id: _check_ask_budget(settings, workspace_id),
+                record_usage=lambda workspace_id, usage: _record_ask_usage(
+                    settings, workspace_id, usage
+                ),
                 max_concurrency=settings.LLM_STREAM_MAX_CONCURRENCY,
                 rate_capacity=settings.LLM_STREAM_RATE_CAPACITY,
                 refill_tokens_per_second=settings.LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND,
