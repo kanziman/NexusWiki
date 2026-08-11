@@ -23,6 +23,24 @@ class RetrievalRequest(BaseModel):
     requested_k: int = Field(default=8, ge=1, le=8)
 
 
+class RetrievalEvidence(BaseModel):
+    """A retrieval record, deliberately not an answer or citation payload."""
+
+    id: str
+    kind: str
+    document_id: str
+    channels: list[str]
+    contributions: dict[str, float]
+    metadata: dict[str, Any]
+
+
+class RetrievalResponse(BaseModel):
+    """The Phase 4 boundary: evidence plus safe retrieval observability only."""
+
+    evidence: list[RetrievalEvidence]
+    meta: dict[str, Any]
+
+
 def _user_db(request: Request, credentials: HTTPAuthorizationCredentials) -> UserDb:
     settings = request.app.state.settings
     return UserDb(
@@ -39,7 +57,7 @@ async def retrieve(
     body: RetrievalRequest,
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
-) -> dict[str, Any]:
+) -> RetrievalResponse:
     settings = request.app.state.settings
     if len(body.query) > settings.RETRIEVAL_MAX_QUERY_CHARS:
         raise HTTPException(status_code=422, detail="invalid_query")
@@ -59,17 +77,17 @@ async def retrieve(
         )
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_query") from None
-    return {
-        "evidence": [
-            {
-                "id": hit.evidence_id,
-                "kind": hit.kind,
-                "document_id": hit.document_id,
-                "channels": list(hit.channels),
-                "contributions": dict(hit.contributions),
-                "metadata": dict(hit.metadata),
-            }
+    return RetrievalResponse(
+        evidence=[
+            RetrievalEvidence(
+                id=hit.evidence_id,
+                kind=hit.kind,
+                document_id=hit.document_id,
+                channels=list(hit.channels),
+                contributions=dict(hit.contributions),
+                metadata=dict(hit.metadata),
+            )
             for hit in result.evidence
         ],
-        "meta": result.meta,
-    }
+        meta=result.meta,
+    )
