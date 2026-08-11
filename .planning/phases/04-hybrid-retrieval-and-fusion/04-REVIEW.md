@@ -41,11 +41,11 @@ files_reviewed_list:
   - supabase/migrations/0011_retrieval.sql
   - supabase/tests/0011_retrieval_contract.sql
 findings:
-  critical: 1
+  critical: 0
   warning: 0
-  info: 2
+  info: 3
   total: 3
-status: issues_found
+status: clean
 ---
 
 # Phase 04: Code Review Report
@@ -63,13 +63,17 @@ Reviewed the Phase 04 retrieval policy/fusion implementation, authenticated API-
 
 ## Critical Issues
 
-### CR-01: Query embedding capacity is exhausted permanently after 100 requests
+None open. (See CR-01 correction below.)
 
-**File:** `apps/worker/src/worker/query_embedding.py:50-65`
+### CR-01 — CORRECTED 2026-08-11: already fixed, not an open issue
 
-**Issue:** `max_requests` initializes `_remaining_requests` once for the lifetime of the long-lived worker listener, and every authenticated request decrements it before provider work. It is never replenished on a time window or process-independent rate limiter. With the configured default of 100, the 101st request and every later request receives `429 rate_limited` until the worker is restarted. The API treats this as an embedding failure and silently falls back to lexical-only retrieval, so normal production use permanently loses the dense channels without an operator-visible recovery path. This is reproducible with `max_requests=2`: two successful calls are followed by a third `429 rate_limited`.
+**Original claim:** `max_requests` initializes `_remaining_requests` once for the lifetime of the long-lived worker listener and is never replenished, so query embedding capacity is exhausted permanently after 100 requests.
 
-**Fix:** Replace the lifetime counter with a time-based/token-bucket rate limiter (or explicitly use a concurrency-only bound if that is the intended control). Define a refill interval/configuration and add tests that prove capacity is restored after the interval and that failed/timed-out provider calls have the intended quota accounting semantics.
+**Correction:** This finding was stale against current `HEAD` when first written. `apps/worker/src/worker/query_embedding.py` (current, lines ~30-79) uses a lock-protected monotonic token bucket (`_tokens`, `_last_refill`, `_reserve_token()`), not a lifetime counter — fixed in commit `6a14144` ("feat(04-05): add refilling embedding quota"), which predates this review. `docs/architecture/query-embedding-boundary.md` documents the token-bucket design as the approved implementation. Verified independently during Phase 04→05 transition (2026-08-11):
+- `git log -- apps/worker/src/worker/query_embedding.py` shows `6a14144` replacing `_remaining_requests` with `_tokens`/refill logic.
+- `apps/worker/tests/test_query_embedding.py::test_token_bucket_refills_after_exhaustion_without_restart` and `::test_exhausted_bucket_admits_only_one_parallel_contender_after_refill` both exist and pass (9/9 in the file, `pytest -q`).
+
+Frontmatter `critical`/`status` corrected from 1/`issues_found` to 0/`clean` to reflect this.
 
 ---
 
