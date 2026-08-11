@@ -43,8 +43,8 @@ files_reviewed_list:
 findings:
   critical: 1
   warning: 0
-  info: 0
-  total: 1
+  info: 2
+  total: 3
 status: issues_found
 ---
 
@@ -73,6 +73,42 @@ Reviewed the Phase 04 retrieval policy/fusion implementation, authenticated API-
 
 ---
 
+## Plan 04-09 Review (scoped)
+
+**files_reviewed:** 3
+
+- `scripts/benchmark_retrieval.py`
+- `packages/core/tests/test_retrieval_golden.py`
+- `docs/ops/hnsw-order-benchmark.md`
+
+**Diff scope confirmed via** `git diff 048d46ca47a7c87542af208940b10fe1287f6f91^..e0f3837`: `_pins()` gained a `git_sha` key (8→9 pinned fields); `compare_order_records()` gained a `{left.order_mode, right.order_mode} == {strict_order, relaxed_order}` assertion; 3 new pytest regression tests; doc updated to mark v4 strict/relaxed superseded-invalid and record the new v5 pair.
+
+### Findings
+
+**Critical:** none.
+
+**Warning:** none.
+
+**Info:**
+
+1. `scripts/benchmark_retrieval.py:200` (new `order_pair_mode_invalid` line) follows the file's existing dense one-statement-per-line style — pre-existing project convention, not a regression introduced by 04-09.
+2. The order_mode check is short-circuited by the `or` in the preceding `_pins`/policy comparison (`scripts/benchmark_retrieval.py:200`), so it only executes when pins already match — correctly exercised by `test_compare_order_records_rejects_matching_order_mode_pair`, which deliberately uses pin-identical records to isolate the new assertion. No gap found.
+
+### Verification performed
+
+- Recomputed `_pins()` field count (9) matches the doc's claim.
+- Loaded all six referenced JSON fixtures (v4-strict, v4-relaxed, v4-graph-off, v4-graph-on, v5-strict, v5-relaxed) and confirmed `git_sha`/`order_mode` values match what the tests assert and the markdown table claims.
+- Ran `pytest packages/core/tests/test_retrieval_golden.py -v`: 13/13 passed, including all 3 new regression tests.
+- Confirmed `compare_graph_records` (unchanged logic, shares `_pins()`) still accepts the valid v4 graph pair — no regression from the shared helper change.
+
+**Scoped status: clean** (the pre-existing CR-01 finding above, from `apps/worker/src/worker/query_embedding.py`, is out of scope for plan 04-09 and remains open.)
+
+---
+
 _Reviewed: 2026-08-11T00:00:00Z_
 _Reviewer: the agent (gsd-code-reviewer)_
+_Depth: standard_
+
+_Plan 04-09 scoped re-review appended: 2026-08-11_
+_Reviewer: gsd-code-reviewer (scoped)_
 _Depth: standard_
