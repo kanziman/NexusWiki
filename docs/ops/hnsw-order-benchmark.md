@@ -1,6 +1,6 @@
 # HNSW 순서 모드 · 그래프 기본값 결정 기록
 
-> 갱신: 2026-08-11, Phase 04 Plan 08 (RTV-04 · RTV-07). 이 문서는 로컬의
+> 갱신: 2026-08-11, Phase 04 Plan 09 (RTV-04 gap closure). 이 문서는 로컬의
 > 통제된 full-path 측정 기록이다. `relaxed_order`는 caller-session direct-vector
 > query 측정이며, 변경되지 않은 `0011_retrieval.sql` RPC의 배포 측정이나 RPC 변경은 아니다.
 
@@ -41,10 +41,61 @@ SHA도 검증했다.
 | strict, graph off | [v4 graph off](benchmark-records/phase-04-rerun-v4-graph-off.json) | 0.7222222222 / 0.7222222222 | 0 / 36 | 277.833 / 366.5 |
 | strict, graph on | [v4 graph on](benchmark-records/phase-04-rerun-v4-graph-on.json) | 0.75 / 0.75 | 0 / 36 | 327.0025 / 358.931 |
 
-The strict/relaxed comparator returned `{"status":"ok","quality_delta":-0.027777777777777776}`
-(right minus left). Its policy contents and SHA are byte-equivalent; all required
-comparison pins match. This is an observed quality decrease for the controlled
-relaxed arm, not a claim that the deployed strict RPC was altered.
+### v4 strict/relaxed 쌍 — superseded-invalid (RTV-04 gap closure, Plan 09)
+
+`04-VERIFICATION.md`(검증 2026-08-11T12:12:40Z)가 발견한 정확한 결함: 위 v4 strict
+기록(`git_sha 6adb0453d9cce3267a4d180e1dd95af65733442d`)과 v4 relaxed 기록
+(`git_sha 466205625053b00d785312db84ae9f1c228ae1b2`)은 **서로 다른 두 git 리비전**에서
+캡처됐다. `compare_order_records()`의 `_pins()`가 당시 `git_sha`를 포함하지 않아
+이 러너-리비전 불일치를 잡지 못했고, 실제로는 비교 불가능한 두 실행을
+`status: ok`로 통과시켰다. Plan 09가 `_pins()`에 `git_sha`를 아홉 번째 고정 필드로
+추가하고, `compare_order_records()`에 `{left.order_mode, right.order_mode} ==
+{strict_order, relaxed_order}` 단언을 추가한 뒤, 고정된 비교기로 이 v4 쌍을 다시
+비교하면 `order_pair_pin_or_policy_mismatch`로 **거부**된다(종료 코드 2) — 이전에
+`ok`를 반환하던 것과 대조적으로 수정된 비교기가 정확히 이 결함을 잡는다는 증거다.
+
+**위 표의 v4 strict/relaxed 두 행은 이 순간부터 superseded-invalid로 취급한다.**
+JSON 파일은 byte-for-byte 보존하고 삭제·덮어쓰기·재번호 매기지 않는다 — 다만 이
+문서의 현재 order-mode 비교 결론이나 정책 근거로는 더 이상 인용하지 않는다.
+v4 graph off/on 쌍(같은 `git_sha 466205625053b00d785312db84ae9f1c228ae1b2`)은 이
+결함의 영향을 받지 않으며 그대로 유효하다 — 위 문단의 그래프 비교 결과는 변경 없음.
+
+### v5 strict/relaxed 쌍 — 하나의 동일 커밋에서 재생성한 유효 기록
+
+Plan 09 Task 2는 하나의 clean, committed 리비전(`git_sha
+b9cda858979619da23121a341569a58afed61c46`)에서 strict, relaxed 두 arm을 커밋 없이
+연속으로 실행했다. 각 arm은 고정 workspace `ca4d1e07-2a51-5701-94d5-41c9a6081c6b`를
+loader/cleanup 계약으로 새로 적재·정리했고(각 arm 종료 후 해당 workspace 행 수 0을
+`docker exec ... psql`로 직접 확인), 새 파일명(`-v5-`)에만 기록해 어떤 `-v4-` 또는
+이전 파일도 편집·덮어쓰지 않았다.
+
+| arm | immutable v5 기록 | recall / strict pass | query underfill | p50 / p95 ms |
+|---|---|---:|---:|---:|
+| strict, graph off | [v5 strict](benchmark-records/phase-04-rerun-v5-strict-order.json) | 0.7222222222 / 0.7222222222 | 0 / 36 | 296.318 / 336.208 |
+| relaxed, graph off | [v5 relaxed](benchmark-records/phase-04-rerun-v5-relaxed-order.json) | 0 / 0 | 36 / 36 | 190.0925 / 210.191 |
+
+The fixed comparator returned `{"status":"ok","quality_delta":-0.7222222222222222}`
+(right minus left) for this v5 pair — `git_sha` and every other pin match, and both
+records form a valid `{strict_order, relaxed_order}` pair, so the comparability
+guarantee the gap-closure task exists to prove now holds. The relaxed arm again
+shows zero vector-channel hits and full underfill (`wiki_vector`/`source_vector`
+channel_hits both 0 across all 36 queries), consistent in direction with what the
+invalid v4 relaxed record also showed — this is now measured evidence from one
+pinned revision rather than an artifact of a runner mismatch, and it reinforces
+(does not newly justify) keeping `strict_order` as the current default. Root-causing
+why the caller-session relaxed-order direct-vector path returns zero hits on this
+corpus is out of scope for this plan; it is not a `0011_retrieval.sql` RPC behavior
+since `relaxed_order` never invokes that deployed function (see the note at the top
+of this document).
+
+⚠️ **git 작업 트리 참고:** 두 arm을 캡처하는 동안 `scripts/`, `apps/`, `packages/`,
+`supabase/` — 즉 벤치마크 실행 경로에 영향을 주는 모든 디렉터리 — 는
+`git status --porcelain -- scripts/ apps/ packages/ supabase/`로 clean함을 확인했다.
+`.planning/`, `HANDOFF.md`, `checklists.json`, `docs/architecture/` 등 이 플랜과
+무관한 사전 존재 문서·설정 변경사항은 워킹 트리에 남아 있었으나, 벤치마크 코드
+경로와 무관하고 `git rev-parse HEAD`로 캡처하는 `git_sha` 값에도 영향을 주지 않는다
+— 두 arm 사이에 어떤 커밋도 만들지 않았으므로 두 기록의 `git_sha`는 위와 같이
+byte-identical하다.
 
 The graph comparator returned `{"status":"ok","quality_delta":0.02777777777777779,
 "contribution_delta":366,"underfill_delta":0,"latency_ms_delta":49.169500000000085}`
@@ -70,6 +121,14 @@ policy change, establish production latency, or override the deployed SQL strict
 In particular, the positive graph delta is a measurement to review through the existing
 change gate, not approval to turn graph on. Until that gate is completed, strict order
 and graph off remain the safe current defaults.
+
+RTV-04's remaining gap was the comparator, not the code path: `compare_order_records()`
+did not pin runner identity, so it accepted the v4 strict/relaxed pair despite the two
+records being captured from different git revisions. That comparator gap is now closed
+(`_pins()` includes `git_sha`; the comparator also asserts a distinct
+`{strict_order, relaxed_order}` pair), and the v5 pair is the first strict/relaxed
+evidence that is genuinely comparable by that fixed check. It still does not change
+either default — see 배포와 되돌리기 below.
 
 ## 배포와 되돌리기
 
