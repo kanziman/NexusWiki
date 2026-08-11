@@ -178,16 +178,34 @@ Plans:
   5. `EXPLAIN` 회귀 테스트가 HNSW 인덱스 스캔 사용을 단언해, 플래너가 조용히 seq scan으로 이탈하는 것을 잡아낸다
 
 **Plans**: 7/8 plans executed
-
-- [x] 04-05-PLAN.md
-- [x] 04-06-PLAN.md
-- [x] 04-07-PLAN.md
+**Wave 1**
 
 - [x] 04-01-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 04-05-PLAN.md
 - [x] 04-02-PLAN.md
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 04-06-PLAN.md
 - [x] 04-03-PLAN.md
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [x] 04-04-PLAN.md
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 04-07-PLAN.md
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [x] 04-08-PLAN.md
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 04-09-PLAN.md — RTV-04 gap closure: pin runner identity (`git_sha`) into `compare_order_records()`/`compare_graph_records()`, reject the invalid v4 strict/relaxed pair, and regenerate a valid single-commit v5 pair
 
 ### Phase 5: Citation Integrity and Answer APIs
