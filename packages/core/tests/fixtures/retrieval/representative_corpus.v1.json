@@ -1,0 +1,40 @@
+{
+  "version": "representative-corpus-v1",
+  "sha256": "0f9fcc000c878656c9f0ca304afc0934e19c88e2dac983bf4d2117755ac690c4",
+  "provenance": "Repository-owned fictional support and engineering handbook excerpts. Written for retrieval evaluation; no tenant, customer, or production content.",
+  "seed_scope": "local benchmark workspace only; its UUID is generated per run and cleanup removes only rows carrying that run marker.",
+  "source_chunks": [
+    {"id":"src-onboarding","title":"Employee onboarding runbook","text":"New employees request SSO access before their first day.","signals":["onboarding","sso","access"]},
+    {"id":"src-vpn","title":"VPN troubleshooting","text":"Reset the VPN profile when the device certificate expires.","signals":["vpn","certificate","reset"]},
+    {"id":"src-billing","title":"Invoice reconciliation","text":"Finance reconciles monthly invoices against purchase orders.","signals":["invoice","purchase order","finance"]},
+    {"id":"src-incident","title":"Incident response","text":"The incident commander opens a timeline and assigns an owner.","signals":["incident","timeline","commander"]},
+    {"id":"src-retention","title":"Retention schedule","text":"Delete export archives after the approved retention period.","signals":["retention","delete","archive"]},
+    {"id":"src-korean-nfc","title":"Korean normalization guide","text":"검색어는 NFC 정규화 뒤에 한국어 bigram으로 색인한다.","signals":["검색","nfc","bigram"]},
+    {"id":"src-korean-fullwidth","title":"Full-width input guide","text":"전각 ＡＢＣ와 반각 ABC는 같은 검색 의도로 처리한다.","signals":["전각","abc","normalize"]},
+    {"id":"src-hybrid","title":"Hybrid retrieval notes","text":"Dense retrieval handles paraphrase while lexical retrieval protects exact identifiers.","signals":["dense","lexical","identifier"]},
+    {"id":"src-legal-hold","title":"Legal hold procedure","text":"A legal hold pauses deletion until counsel releases the hold.","signals":["legal hold","deletion","counsel"]},
+    {"id":"src-translation","title":"Translation memory","text":"Korean and English product names share a canonical glossary entry.","signals":["korean","english","glossary"]},
+    {"id":"src-release","title":"Release checklist","text":"Verify rollback owner and change window before production release.","signals":["release","rollback","change window"]},
+    {"id":"src-security","title":"Security escalation","text":"Report a suspected token leak to Security immediately.","signals":["token","leak","security"]}
+  ],
+  "wiki_pages": [
+    {"id":"wiki-sso","slug":"sso-access","title":"SSO access","text":"How workspace administrators approve SSO access.","signals":["sso","admin","access"]},
+    {"id":"wiki-vpn","slug":"vpn","title":"VPN","text":"VPN certificate renewal and profile reset instructions.","signals":["vpn","certificate","profile"]},
+    {"id":"wiki-billing","slug":"billing","title":"Billing","text":"Invoice and purchase-order reconciliation guide.","signals":["invoice","purchase order","billing"]},
+    {"id":"wiki-incident","slug":"incident-command","title":"Incident command","text":"Incident command roles, timeline, and communication.","signals":["incident","commander","timeline"]},
+    {"id":"wiki-retention","slug":"retention","title":"Retention","text":"Archive retention and deletion policy.","signals":["retention","archive","delete"]},
+    {"id":"wiki-search","slug":"korean-search","title":"Korean search","text":"NFC normalization and Korean bigram lexical indexing.","signals":["검색","nfc","bigram"]},
+    {"id":"wiki-glossary","slug":"glossary","title":"Glossary","text":"Canonical bilingual names for products and teams.","signals":["korean","english","glossary"]},
+    {"id":"wiki-retrieval","slug":"hybrid-retrieval","title":"Hybrid retrieval","text":"Dense and lexical channels are fused by reciprocal rank.","signals":["dense","lexical","rrf"]},
+    {"id":"wiki-legal","slug":"legal-hold","title":"Legal hold","text":"Legal holds suspend ordinary retention deletion.","signals":["legal hold","retention","deletion"]},
+    {"id":"wiki-release","slug":"release","title":"Release","text":"Production release requires a rollback owner and approved window.","signals":["release","rollback","window"]},
+    {"id":"wiki-security","slug":"security","title":"Security","text":"Token leak response and credential rotation.","signals":["token","leak","security"]},
+    {"id":"wiki-graph","slug":"related-pages","title":"Related pages","text":"Resolved wiki links support bounded related-page expansion.","signals":["graph","related","links"]}
+  ],
+  "wiki_links": [
+    {"from":"wiki-incident","to":"wiki-security"}, {"from":"wiki-security","to":"wiki-incident"},
+    {"from":"wiki-retention","to":"wiki-legal"}, {"from":"wiki-legal","to":"wiki-retention"},
+    {"from":"wiki-search","to":"wiki-glossary"}, {"from":"wiki-glossary","to":"wiki-search"},
+    {"from":"wiki-retrieval","to":"wiki-graph"}, {"from":"wiki-graph","to":"wiki-retrieval"}
+  ]
+}
