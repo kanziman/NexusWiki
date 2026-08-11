@@ -224,11 +224,19 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 05-01-PLAN.md — Tracer: Ask 엔드포인트 종단 간 배선 (서버 발급 앵커 발급/해소, SSE meta→delta→citations→done, CITE-01/02/03/04, API-01/03)
 - [ ] 05-02-PLAN.md — 마이그레이션 0012: ask 템플릿 앵커/언어 문구 수정(D-10), wiki_graph_neighborhood·find_similar_wiki_pages RPC, 검증 스탬프 트리거 + [BLOCKING] db push
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 05-03-PLAN.md — 인용 완성: 수집 시점 위조 앵커 제거(CITE-06), dual_citation_rate 등 4대 지표(CITE-05), 템플릿 선택(API-02)
 - [ ] 05-04-PLAN.md — Ask LLM 호출 비용 상한 게이트(D-09)와 usage_events 기록
 - [ ] 05-05-PLAN.md — 검증 상태 전이 API(QC-02)와 그래프 읽기 API(API-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 05-06-PLAN.md — 지식 충돌 감지 잡 체인(QC-01) — 후보 탐색 + LLM 판정 + disputed 표시
 
 ### Phase 6: Dashboard
