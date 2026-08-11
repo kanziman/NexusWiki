@@ -24,6 +24,7 @@
 - ✓ 상황별 프롬프트 템플릿 — 전역 템플릿 5종(compile 1 + ask 4), `{{variable}}` 치환, `target_type`당 기본값 1개를 부분 유니크 인덱스로 강제 (`0001`, `0006`)
 - ✓ 로컬 Supabase 개발 스택 — Postgres 17, 포트 544xx (zettlink와 충돌 회피) (`supabase/config.toml`)
 - ✓ Phase 1 bootstrap — Storage 정책, uv monorepo, 공용 구조화 로깅/재귀 redaction, Next.js 15 스캐폴드, Railway api/worker 배포, Auth hardening, Singapore RTT baseline 검증 완료
+- ✓ 5채널 하이브리드 검색 + RRF 융합 — 2웨이브 오케스트레이션(채널 1~4 동시 실행 → RRF → 채널 5 그래프 확장 시드 → 재융합), 순위 전용 RRF·가중치/`k`/limit은 Python 정책 계층, `hnsw.iterative_scan`/`ef_search`/`max_scan_tuples` 3-GUC 세트, `channel_hits`·`returned < requested_k` 1급 메트릭, `EXPLAIN` 회귀로 HNSW 인덱스 스캔 단언, 채널 장애 시 부분 실패 허용(`meta` 보고), 30~50문항 한국어/영어/혼합 골든 세트로 `strict_order` 대 `relaxed_order` 벤치마크 근거 기록(RTV-01~09, Phase 4)
 
 ### Active
 
@@ -37,7 +38,7 @@
 - [ ] 위키 컴파일러 — OpenRouter LLM + Pydantic 검증 + 3회 재시도, `(workspace_id, slug)` 업서트
 - [ ] `[[WikiLink]]` 파싱과 링크 동기화 — slug 정규화, `wiki_links` 업서트, 미해결 타깃은 레드 링크로 유지
 - [ ] 임베딩 파이프라인 — 위키 청크 + 원문 청크 양쪽 벡터화
-- [ ] 5-Way 하이브리드 검색 — 5채널 병렬 + RRF 융합 + Citation 앵커(`[[wiki:slug]]`/`[[src:chunk_id]]`) 기반 이중 Citation 응답
+- [ ] Citation 앵커(`[[wiki:slug]]`/`[[src:chunk_id]]`) 기반 이중 Citation 응답 API — 5채널 검색 결과 자체는 Phase 4에서 검증 완료, 응답 조립·API 계층은 Phase 5 범위
 - [ ] 읽기 API — 위키/소스/그래프/잡 상태 조회
 - [ ] 지식 충돌 감지와 검증 상태 전이 API — `disputed`, `verification_status`, `confidence`
 - [ ] 인증·워크스페이스 전환·멤버 초대 UI
@@ -129,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-02 after research, requirements, and roadmap creation*
+*Last updated: 2026-08-11 after Phase 4 (Hybrid Retrieval and Fusion) completion*
