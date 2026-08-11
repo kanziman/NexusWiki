@@ -24,6 +24,7 @@ from typing import Any, Final
 import httpx
 
 from nexuswiki_core.chunking import CHUNKER_VERSION, chunk_text
+from nexuswiki_core.citations import strip_forged_anchors
 from nexuswiki_core.domain import SourceType
 from nexuswiki_core.extract import ExtractionQualityError, assert_extraction_quality, extract_text
 from nexuswiki_core.logging import get_logger
@@ -148,6 +149,8 @@ async def run_parse(
     else:
         raise ExtractionQualityError(reason="unsupported_source_type")
 
+    # 05-CONTEXT.md > D-04/CITE-06: 모든 소스 유형이 합류한 뒤, 청킹 전에 한 번만 제거한다.
+    content = strip_forged_anchors(content)
     chunks = chunk_text(content)
     rows = [
         {

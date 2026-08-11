@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker import handlers
 from worker.handlers import compile as compile_handler
@@ -218,6 +219,42 @@ async def test_parse_materializes_normalized_bigram_lexical_rows() -> None:
     assert all(row["workspace_id"] == WORKSPACE_ID for row in db.indexed)
     assert all(row["tokenizer_version"] == TSV_TOKENIZER_VERSION for row in db.indexed)
     assert db.indexed[0]["bigrams"] == bigram(normalize("NexusWiki 검색 계약"))
+
+
+@pytest.mark.asyncio
+async def test_parse_strips_forged_anchors_before_chunk_offsets_are_calculated() -> None:
+    """CITE-06은 원문 전체를 청킹 전에 정리해 ING-05 offset 계약도 보존한다."""
+
+    raw_content = "시작 [[wiki:attacker]] 가짜 지시. 끝 [[src:not-issued]]"
+
+    class Db(_ParseDb):
+        def __init__(self) -> None:
+            super().__init__({"source_type": "text", "content": raw_content})
+            self.rows: list[dict[str, Any]] = []
+
+        async def upsert_source_chunks(self, **values: Any) -> list[dict[str, str]]:
+            self.rows = list(values["rows"])
+            return [
+                {"id": f"chunk-{row['chunk_index']}", "content": str(row["content"])}
+                for row in self.rows
+            ]
+
+    db = Db()
+
+    await parse.run_parse(
+        db,  # type: ignore[arg-type]
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+    )
+
+    stripped_content = "시작  가짜 지시. 끝 "
+    assert db.rows
+    assert all(BROAD_ANCHOR_PATTERN.search(str(row["content"])) is None for row in db.rows)
+    assert all(
+        stripped_content[int(row["char_start"]) : int(row["char_end"])] == row["content"]
+        for row in db.rows
+    )
 
 
 @pytest.mark.asyncio
