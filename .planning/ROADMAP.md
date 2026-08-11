@@ -221,7 +221,15 @@ Plans:
   4. Ask 엔드포인트가 POST + `ReadableStream`으로 `meta` → `delta*` → `citations` → `done` 순서로 스트리밍하고, 상황별 `ask` 프롬프트 템플릿을 골라 질문할 수 있으며, 답변 언어가 질문 언어를 따른다
   5. 위키·소스·그래프·잡 상태를 읽을 수 있고, 충돌한 지식이 `disputed`로 표시되며, 검증 상태 전이가 **누가·언제·언제까지**를 남긴다
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Tracer: Ask 엔드포인트 종단 간 배선 (서버 발급 앵커 발급/해소, SSE meta→delta→citations→done, CITE-01/02/03/04, API-01/03)
+- [ ] 05-02-PLAN.md — 마이그레이션 0012: ask 템플릿 앵커/언어 문구 수정(D-10), wiki_graph_neighborhood·find_similar_wiki_pages RPC, 검증 스탬프 트리거 + [BLOCKING] db push
+- [ ] 05-03-PLAN.md — 인용 완성: 수집 시점 위조 앵커 제거(CITE-06), dual_citation_rate 등 4대 지표(CITE-05), 템플릿 선택(API-02)
+- [ ] 05-04-PLAN.md — Ask LLM 호출 비용 상한 게이트(D-09)와 usage_events 기록
+- [ ] 05-05-PLAN.md — 검증 상태 전이 API(QC-02)와 그래프 읽기 API(API-04)
+- [ ] 05-06-PLAN.md — 지식 충돌 감지 잡 체인(QC-01) — 후보 탐색 + LLM 판정 + disputed 표시
 
 ### Phase 6: Dashboard
 
