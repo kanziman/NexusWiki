@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-01)
+See: .planning/PROJECT.md (updated 2026-08-11)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** Phase 04 — hybrid-retrieval-and-fusion
+**Current focus:** Phase 5 — Citation Integrity and Answer APIs
 
 ## Current Position
 
@@ -186,13 +186,12 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-11T13:32:54.413Z
-Stopped at: Completed 04-09-PLAN.md
+Last session: 2026-08-11T14:20:00.000Z
+Stopped at: Phase 04 complete (04-09-PLAN.md executed, RTV-04 closed, verified passed), ready to discuss/plan Phase 5
 Resume file: None
 
-**재개 시 첫 행동:** Phase 3 검증·완료 마킹을 실행한다. 실행 플랜 9/9가 끝났고, 03-08은
-provider 마스킹·즉시 dead-letter·기동 enum↔DB CHECK 대조·축소 재처리·reap 근거를 닫았다.
+**재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
 
 ⚠️ **보존할 워킹 트리 변경이 있다** — `.planning/config.json`, `checklists.json`, `.agents/`,
-`.pnpm-store/`, `docs/architecture/`, `docs/design-systems/`는 이 플랜과 무관하다. 정리 명령으로
-삭제하지 않는다.
+`.pnpm-store/`, `docs/architecture/`, `docs/design-systems/`, `docs/ops/benchmark-records/phase-04-rerun-{,v2-,v3-}*.json`는
+이전 세션들이 남긴 것으로 이번 작업과 무관하다. 정리 명령으로 삭제하지 않는다.
