@@ -72,7 +72,12 @@ QUEUE_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
     }
 )
 CATALOG_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"enum_check_values"})
-RPC_HELPERS: Final[frozenset[str]] = QUEUE_RPC_FUNCTIONS | CATALOG_RPC_FUNCTIONS
+LEXICAL_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
+    {"index_source_chunk_lexical", "index_wiki_page_lexical"}
+)
+RPC_HELPERS: Final[frozenset[str]] = (
+    QUEUE_RPC_FUNCTIONS | CATALOG_RPC_FUNCTIONS | LEXICAL_RPC_FUNCTIONS
+)
 
 # PostgREST 업서트에 필요한 Prefer 조합. `resolution=merge-duplicates`가 없으면 충돌이
 # 409로 돌아오고, at-least-once 큐에서 재처리는 정상 경로이므로 그 409는 곧 잡 실패다.
@@ -249,6 +254,44 @@ class ServiceDb:
             rows=payload,
             params={"on_conflict": "raw_source_id,chunk_index"},
             prefer=_UPSERT_PREFER,
+        )
+
+    async def index_source_chunk_lexical(
+        self,
+        *,
+        workspace_id: str,
+        source_chunk_id: str,
+        bigrams: str,
+        tokenizer_version: str,
+    ) -> None:
+        """서비스 역할만 호출 가능한 원문 청크 lexical writer RPC."""
+        await self._rpc(
+            "index_source_chunk_lexical",
+            {
+                "p_workspace_id": workspace_id,
+                "p_source_chunk_id": source_chunk_id,
+                "p_bigrams": bigrams,
+                "p_tokenizer_version": tokenizer_version,
+            },
+        )
+
+    async def index_wiki_page_lexical(
+        self,
+        *,
+        workspace_id: str,
+        wiki_id: str,
+        bigrams: str,
+        tokenizer_version: str,
+    ) -> None:
+        """서비스 역할만 호출 가능한 위키 페이지 lexical writer RPC."""
+        await self._rpc(
+            "index_wiki_page_lexical",
+            {
+                "p_workspace_id": workspace_id,
+                "p_wiki_id": wiki_id,
+                "p_bigrams": bigrams,
+                "p_tokenizer_version": tokenizer_version,
+            },
         )
 
     async def list_source_chunks(

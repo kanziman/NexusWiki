@@ -27,6 +27,7 @@ from nexuswiki_core.chunking import CHUNKER_VERSION, chunk_text
 from nexuswiki_core.domain import SourceType
 from nexuswiki_core.extract import ExtractionQualityError, assert_extraction_quality, extract_text
 from nexuswiki_core.logging import get_logger
+from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker.db.service import ServiceDb, service_client
 from worker.errors import StorageObjectMissing
 from worker.fetch import fetch_source
@@ -167,7 +168,22 @@ async def run_parse(
         for chunk in chunks
     ]
 
-    await db.upsert_source_chunks(workspace_id=workspace_id, raw_source_id=raw_source_id, rows=rows)
+    stored_rows = await db.upsert_source_chunks(
+        workspace_id=workspace_id, raw_source_id=raw_source_id, rows=rows
+    )
+    for row in stored_rows:
+        chunk_id = row.get("id")
+        content = row.get("content")
+        if not isinstance(chunk_id, str) or not isinstance(content, str):
+            raise RuntimeError(
+                "source_chunks 업서트가 lexical 색인에 필요한 id/content를 돌려주지 않았다"
+            )
+        await db.index_source_chunk_lexical(
+            workspace_id=workspace_id,
+            source_chunk_id=chunk_id,
+            bigrams=bigram(normalize(content)),
+            tokenizer_version=TSV_TOKENIZER_VERSION,
+        )
     # 축소 재처리 잔여 삭제 (COMP-07). 업서트는 있는 행을 덮을 뿐 없어진 행을 지우지 않는다.
     removed = await db.delete_source_chunks_from(
         workspace_id=workspace_id, raw_source_id=raw_source_id, from_index=len(rows)

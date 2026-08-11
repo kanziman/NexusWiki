@@ -117,10 +117,10 @@ def test_every_public_helper_is_classified_as_table_or_queue_rpc() -> None:
         if not name.startswith("_") and inspect.isfunction(value)
     }
 
-    assert public_helpers == (
-        service.TABLE_HELPERS | service.QUEUE_RPC_FUNCTIONS | service.CATALOG_RPC_FUNCTIONS
+    assert public_helpers == service.TABLE_HELPERS | service.RPC_HELPERS
+    assert service.RPC_HELPERS == (
+        service.QUEUE_RPC_FUNCTIONS | service.CATALOG_RPC_FUNCTIONS | service.LEXICAL_RPC_FUNCTIONS
     )
-    assert service.RPC_HELPERS == service.QUEUE_RPC_FUNCTIONS | service.CATALOG_RPC_FUNCTIONS
     assert not (service.TABLE_HELPERS & service.QUEUE_RPC_FUNCTIONS)
     assert not (service.TABLE_HELPERS & service.CATALOG_RPC_FUNCTIONS)
     assert not (service.QUEUE_RPC_FUNCTIONS & service.CATALOG_RPC_FUNCTIONS)

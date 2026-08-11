@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker import handlers
 from worker.handlers import compile as compile_handler
 from worker.handlers import embed, link_sync, noop, parse
@@ -170,7 +171,13 @@ class _ParseDb:
     async def update_raw_source_content(self, _raw_source_id: str, **values: Any) -> None:
         self.updated = values
 
-    async def upsert_source_chunks(self, **_values: Any) -> None:
+    async def upsert_source_chunks(self, **values: Any) -> list[dict[str, str]]:
+        return [
+            {"id": f"chunk-{row['chunk_index']}", "content": str(row["content"])}
+            for row in values["rows"]
+        ]
+
+    async def index_source_chunk_lexical(self, **_values: str) -> None:
         return None
 
     async def delete_source_chunks_from(self, **_values: Any) -> list[object]:
@@ -181,6 +188,72 @@ class _ParseDb:
 
     async def complete_job_and_chain(self, _job_id: str, **_values: Any) -> None:
         self.chained = True
+
+
+@pytest.mark.asyncio
+async def test_parse_materializes_normalized_bigram_lexical_rows() -> None:
+    """새 청크와 재처리 청크는 writer RPC로 현재 토크나이저를 남긴다."""
+
+    class Db(_ParseDb):
+        def __init__(self) -> None:
+            super().__init__({"source_type": "text", "content": "NexusWiki 검색 계약"})
+            self.indexed: list[dict[str, str]] = []
+
+        async def upsert_source_chunks(self, **values: Any) -> list[dict[str, str]]:
+            return [{"id": "chunk-1", "content": str(row["content"])} for row in values["rows"]]
+
+        async def index_source_chunk_lexical(self, **values: str) -> None:
+            self.indexed.append(values)
+
+    db = Db()
+
+    await parse.run_parse(
+        db,  # type: ignore[arg-type]
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+    )
+
+    assert db.indexed
+    assert all(row["workspace_id"] == WORKSPACE_ID for row in db.indexed)
+    assert all(row["tokenizer_version"] == TSV_TOKENIZER_VERSION for row in db.indexed)
+    assert db.indexed[0]["bigrams"] == bigram(normalize("NexusWiki 검색 계약"))
+
+
+@pytest.mark.asyncio
+async def test_compile_materializes_normalized_bigram_lexical_page() -> None:
+    """위키 업서트 결과의 id로 lexical writer RPC를 호출한다."""
+
+    class Db:
+        async def get_wiki_page_by_slug(self, **_values: str) -> None:
+            return None
+
+        async def upsert_wiki_page(self, **_values: Any) -> dict[str, str]:
+            return {"id": "wiki-1"}
+
+        async def index_wiki_page_lexical(self, **values: str) -> None:
+            self.indexed = values
+
+    db = Db()
+    page = compile_handler.CompiledPage(
+        title="NexusWiki 검색",
+        category="concepts",
+        confidence="high",
+        content="NexusWiki 검색 계약",
+    )
+
+    await compile_handler._upsert_page(
+        db,  # type: ignore[arg-type]
+        workspace_id=WORKSPACE_ID,
+        raw_source_id="raw-source",
+        slug="nexuswiki-search",
+        page=page,
+    )
+
+    assert db.indexed["workspace_id"] == WORKSPACE_ID
+    assert db.indexed["wiki_id"] == "wiki-1"
+    assert db.indexed["bigrams"] == bigram(normalize(page.content))
+    assert db.indexed["tokenizer_version"] == TSV_TOKENIZER_VERSION
 
 
 @pytest.mark.asyncio

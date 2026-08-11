@@ -25,6 +25,7 @@ from nexuswiki_core.chunking import count_tokens
 from nexuswiki_core.domain import UsageKind, WikiCategory, WikiConfidence
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.slug import slugify
+from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker.db.service import ServiceDb, service_client
 from worker.llm import LlmResult, complete_structured, openrouter_client, render_template
 from worker.settings import WorkerSettings
@@ -271,7 +272,7 @@ async def _upsert_page(
     #    (T-03-28). 사람이 세운 검증 배지를 재컴파일이 지우면 검증이라는 행위가 소스가
     #    갱신될 때마다 무효가 되고, 제품이 약속한 "검증 가능한 지식 베이스"가 무너진다.
     #    새 페이지에는 DB 기본값(`unverified` / `false`)이 붙는다.
-    await db.upsert_wiki_page(
+    stored = await db.upsert_wiki_page(
         workspace_id=workspace_id,
         row={
             "slug": slug,
@@ -282,6 +283,15 @@ async def _upsert_page(
             "confidence": page.confidence.value,
             "sources": sources,
         },
+    )
+    wiki_id = (stored or {}).get("id")
+    if not isinstance(wiki_id, str):
+        raise RuntimeError("wiki_pages 업서트가 lexical 색인에 필요한 id를 돌려주지 않았다")
+    await db.index_wiki_page_lexical(
+        workspace_id=workspace_id,
+        wiki_id=wiki_id,
+        bigrams=bigram(normalize(page.content)),
+        tokenizer_version=TSV_TOKENIZER_VERSION,
     )
 
 
