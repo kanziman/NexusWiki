@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: citation-integrity-and-answer-apis
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-08-11T23:15:01.959Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-08-11T23:24:42.100Z"
 last_activity: 2026-08-12
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 42
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 ## Current Position
 
 Phase: 05 (citation-integrity-and-answer-apis) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-12 — Phase 05 execution started
 
-Progress: [█████████░] 88% (execution; verification pending)
+Progress: [█████████░] 90% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [█████████░] 88% (execution; verification pending)
 | Phase 04 P06 | 14 min | 2 tasks | 3 files |
 | Phase 04 P09 | 5min | 2 tasks | 5 files |
 | Phase 05 P01 | 35min | 2 tasks | 16 files |
+| Phase 05 P02 | 25min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -151,6 +152,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 4] Relaxed-order arm again shows zero vector-channel hits in the v5 record (measured from one pinned revision, not a runner-mismatch artifact) — reinforces keeping strict_order as default; root cause investigation is out of scope for this gap-closure plan.
 - [Phase ?]: [Phase 5] Starlette sends http.response.start before iterating a StreamingResponse body — auth/rate-limit checks needing a clean HTTP status must run in a plain coroutine awaited before StreamingResponse is constructed, never inside the generator that becomes its body_iterator (05-01)
 - [Phase ?]: [Phase 5] AskService.ask() stays one all-in-one async generator (retrieve + evidence-check + LLM streaming) because none of its internal failure paths need a non-200 top-level status — router-level query-length pre-check + Pydantic requested_k bound matching DEFAULT_RETRIEVAL_POLICY mean retrieve() never raises inside the generator (05-01)
+- [Phase ?]: [Phase 5] ask 템플릿 인용 표기는 4종의 서로 다른 문구를 문자열 치환하지 않고 append로 교정한다 — 가장 최근 지시가 우선하는 성질을 이용해 D-02 별칭 스킴을 강제 (05-02)
+- [Phase ?]: [Phase 5] wiki_graph_neighborhood는 expand_wiki_graph를 재사용하지 않고 새로 만든다 — Phase 4 검색-융합 정책과 API-04 그래프 읽기는 서로 다른 소비자이므로 독립 버전으로 분리 (05-02, D-07.1/D-11)
+- [Phase ?]: [Phase 5] hnsw.* GUC을 설정하는 함수가 있는 마이그레이션은 supabase db push 단독 세션에서 실패하지 않도록 파일마다 pgvector 워밍업 쿼리를 필요로 한다 — db reset은 이전 마이그레이션이 이미 세션을 데워서 이 버그를 가린다 (05-02)
 
 ### Pending Todos
 
@@ -189,8 +193,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-11T23:15:01.946Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-08-11T23:24:42.088Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).

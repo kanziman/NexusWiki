@@ -93,12 +93,12 @@
 - [x] **API-01**: Ask 엔드포인트가 SSE로 스트리밍한다 — `meta` → `delta*` → `citations` → `done` 순서, POST + fetch + ReadableStream (`EventSource` 불가 — GET 전용이라 `Authorization` 설정 불가)
 - [ ] **API-02**: 상황별 `ask` 프롬프트 템플릿을 선택해 질문할 수 있다
 - [x] **API-03**: 답변 언어가 질문 언어를 따른다
-- [ ] **API-04**: 위키 · 소스 · 그래프 · 잡 상태 조회 API가 제공된다 (RSC 직접 읽기로 대체 가능한 것은 제외)
+- [x] **API-04**: 위키 · 소스 · 그래프 · 잡 상태 조회 API가 제공된다 (RSC 직접 읽기로 대체 가능한 것은 제외)
 
 ### Knowledge Quality (QC)
 
-- [ ] **QC-01**: 지식 충돌이 감지되어 `disputed`로 표시된다
-- [ ] **QC-02**: 검증 상태 전이 API가 **누가 · 언제 · 언제까지**를 기록한다 (`verified_by` / `verified_at` / `expires_at`)
+- [x] **QC-01**: 지식 충돌이 감지되어 `disputed`로 표시된다
+- [x] **QC-02**: 검증 상태 전이 API가 **누가 · 언제 · 언제까지**를 기록한다 (`verified_by` / `verified_at` / `expires_at`)
 
 ### Frontend (UI)
 
@@ -237,9 +237,9 @@
 | API-01 | Phase 5 | Complete |
 | API-02 | Phase 5 | Pending |
 | API-03 | Phase 5 | Complete |
-| API-04 | Phase 5 | Pending |
-| QC-01 | Phase 5 | Pending |
-| QC-02 | Phase 5 | Pending |
+| API-04 | Phase 5 | Complete |
+| QC-01 | Phase 5 | Complete |
+| QC-02 | Phase 5 | Complete |
 | UI-01 | Phase 6 | Pending |
 | UI-02 | Phase 6 | Pending |
 | UI-03 | Phase 6 | Pending |
