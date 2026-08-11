@@ -14,6 +14,7 @@ from fastapi import FastAPI
 
 from api import errors
 from api.routers.ask import router as ask_router
+from api.routers.graph import router as graph_router
 from api.routers.health import router as health_router
 from api.routers.jobs import router as jobs_router
 from api.routers.retrieval import router as retrieval_router
@@ -63,6 +64,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(retrieval_router)
     app.include_router(ask_router)
+    app.include_router(graph_router)
     app.include_router(wiki_router)
     return app
 

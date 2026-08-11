@@ -284,6 +284,28 @@ def workspace_member_with_role(
 
 
 @pytest.fixture
+def seed_wiki_link(local_stack: httpx.Client) -> Callable[[str, str, str, str], None]:
+    """사용자 경로가 쓰기 금지인 그래프 간선을 로컬 테스트 데이터로만 심는다."""
+
+    def _seed(workspace_id: str, from_wiki_id: str, to_wiki_id: str, target_slug: str) -> None:
+        _expect(
+            local_stack.post(
+                "/rest/v1/wiki_links",
+                headers={**_admin_headers(), "Prefer": "return=representation"},
+                json={
+                    "workspace_id": workspace_id,
+                    "from_wiki_id": from_wiki_id,
+                    "to_wiki_id": to_wiki_id,
+                    "target_slug": target_slug,
+                },
+            ),
+            what="테스트 그래프 간선 생성",
+        )
+
+    return _seed
+
+
+@pytest.fixture
 def set_workspace_budget(local_stack: httpx.Client) -> Callable[[TenantActor, int], None]:
     """워크스페이스 월 비용 상한을 소유자 JWT로 직접 바꾼다 (OPS-01 경계 테스트용).
 
