@@ -14,11 +14,13 @@ from typing import Any, Final
 
 import httpx
 
+from nexuswiki_core.domain import VerificationStatus
 from worker.settings import WorkerSettings
 
 __all__ = [
     "QUEUE_RPC_FUNCTIONS",
     "CATALOG_RPC_FUNCTIONS",
+    "CONFLICT_RPC_FUNCTIONS",
     "RPC_HELPERS",
     "SERVICE_REQUEST_TIMEOUT_SECONDS",
     "TABLE_HELPERS",
@@ -57,6 +59,7 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "list_wiki_embeddings",
         "upsert_wiki_embeddings",
         "delete_wiki_embeddings_from",
+        "set_wiki_page_disputed",
     }
 )
 
@@ -77,8 +80,9 @@ CATALOG_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"enum_check_values"})
 LEXICAL_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
     {"index_source_chunk_lexical", "index_wiki_page_lexical"}
 )
+CONFLICT_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"find_similar_wiki_pages"})
 RPC_HELPERS: Final[frozenset[str]] = (
-    QUEUE_RPC_FUNCTIONS | CATALOG_RPC_FUNCTIONS | LEXICAL_RPC_FUNCTIONS
+    QUEUE_RPC_FUNCTIONS | CATALOG_RPC_FUNCTIONS | LEXICAL_RPC_FUNCTIONS | CONFLICT_RPC_FUNCTIONS
 )
 
 # PostgREST 업서트에 필요한 Prefer 조합. `resolution=merge-duplicates`가 없으면 충돌이
@@ -407,6 +411,25 @@ class ServiceDb:
             },
         )
 
+    async def set_wiki_page_disputed(
+        self, wiki_id: str, *, workspace_id: str
+    ) -> dict[str, Any] | None:
+        """Mark a page disputed after worker-owned contradiction detection.
+
+        This service-role write intentionally does not set ``verified_by`` or
+        ``verified_at``: it records an automated conflict judgement, not a
+        human verification transition handled by QC-02's user endpoint.
+        """
+        rows = await self._update(
+            "wiki_pages",
+            params={"id": f"eq.{wiki_id}", "workspace_id": f"eq.{workspace_id}"},
+            values={
+                "disputed": True,
+                "verification_status": VerificationStatus.DISPUTED.value,
+            },
+        )
+        return rows[0] if rows else None
+
     async def insert_usage_event(
         self, *, workspace_id: str, row: dict[str, Any]
     ) -> dict[str, Any] | None:
@@ -616,6 +639,24 @@ class ServiceDb:
         response.raise_for_status()
         result = response.json()
         return [str(value) for value in result] if isinstance(result, list) else []
+
+    async def find_similar_wiki_pages(
+        self,
+        workspace_id: str,
+        wiki_id: str,
+        *,
+        similarity_threshold: float = 0.88,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        return await self._rpc_rows(
+            "find_similar_wiki_pages",
+            {
+                "p_workspace_id": workspace_id,
+                "p_wiki_id": wiki_id,
+                "p_similarity_threshold": similarity_threshold,
+                "p_limit": limit,
+            },
+        )
 
     async def complete_job_and_chain(
         self,

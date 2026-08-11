@@ -119,11 +119,15 @@ def test_every_public_helper_is_classified_as_table_or_queue_rpc() -> None:
 
     assert public_helpers == service.TABLE_HELPERS | service.RPC_HELPERS
     assert service.RPC_HELPERS == (
-        service.QUEUE_RPC_FUNCTIONS | service.CATALOG_RPC_FUNCTIONS | service.LEXICAL_RPC_FUNCTIONS
+        service.QUEUE_RPC_FUNCTIONS
+        | service.CATALOG_RPC_FUNCTIONS
+        | service.LEXICAL_RPC_FUNCTIONS
+        | service.CONFLICT_RPC_FUNCTIONS
     )
     assert not (service.TABLE_HELPERS & service.QUEUE_RPC_FUNCTIONS)
     assert not (service.TABLE_HELPERS & service.CATALOG_RPC_FUNCTIONS)
     assert not (service.QUEUE_RPC_FUNCTIONS & service.CATALOG_RPC_FUNCTIONS)
+    assert not (service.TABLE_HELPERS & service.CONFLICT_RPC_FUNCTIONS)
 
 
 def test_table_helpers_declare_workspace_id_without_a_default() -> None:
@@ -209,6 +213,47 @@ async def test_queue_rpc_helpers_post_to_their_own_function_path() -> None:
     #    이름을 넣고 실제 호출 경로를 확인하지 않으면 그 헬퍼는 검증되지 않은 채 통과한다.
     assert set(called) == service.QUEUE_RPC_FUNCTIONS
     assert all(request.method == "POST" for request in seen)
+
+
+@pytest.mark.asyncio
+async def test_conflict_candidate_rpc_posts_its_bounded_similarity_arguments() -> None:
+    seen: list[httpx.Request] = []
+    candidates = [{"candidate_wiki_id": "candidate-1", "similarity": 0.93}]
+    async with client_returning(candidates, seen=seen) as client:
+        db = service.ServiceDb(client)
+        rows = await db.find_similar_wiki_pages(
+            workspace_id=WORKSPACE_ID, wiki_id="wiki-1", similarity_threshold=0.91, limit=3
+        )
+
+    assert rows == candidates
+    assert len(seen) == 1
+    request = seen[0]
+    assert request.method == "POST"
+    assert request.url.path.endswith("/rpc/find_similar_wiki_pages")
+    assert json.loads(request.content) == {
+        "p_workspace_id": WORKSPACE_ID,
+        "p_wiki_id": "wiki-1",
+        "p_similarity_threshold": 0.91,
+        "p_limit": 3,
+    }
+
+
+@pytest.mark.asyncio
+async def test_set_wiki_page_disputed_writes_only_dispute_state() -> None:
+    seen: list[httpx.Request] = []
+    row = {"id": "wiki-1", "disputed": True, "verification_status": "disputed"}
+    async with client_returning([row], seen=seen) as client:
+        db = service.ServiceDb(client)
+        result = await db.set_wiki_page_disputed("wiki-1", workspace_id=WORKSPACE_ID)
+
+    assert result == row
+    assert len(seen) == 1
+    request = seen[0]
+    assert request.method == "PATCH"
+    assert request.url.path.endswith("/wiki_pages")
+    assert request.url.params["id"] == "eq.wiki-1"
+    assert request.url.params["workspace_id"] == f"eq.{WORKSPACE_ID}"
+    assert json.loads(request.content) == {"disputed": True, "verification_status": "disputed"}
 
 
 @pytest.mark.asyncio
