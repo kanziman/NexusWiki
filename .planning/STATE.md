@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 current_phase_name: hybrid-retrieval-and-fusion
-status: executing
-stopped_at: Phase 04 Plan 03 completed; ready for Plan 04
-last_updated: "2026-08-11T09:06:14.662Z"
+status: verifying
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-08-11T09:08:06.035Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 04 Plan 03 hybrid retrieval orchestration completed
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 31
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 
 Phase: 04 (hybrid-retrieval-and-fusion) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-11 — Phase 04 Plan 03 hybrid retrieval orchestration completed
 
 Progress: [██████████] 100% (execution; verification pending)
@@ -84,6 +84,7 @@ Progress: [██████████] 100% (execution; verification pending
 | Phase 03 P07 | 35m | 3 tasks | 4 files |
 | Phase 03 P09 | 45m | 3 tasks | 12 files |
 | Phase 03 P08 | 1h | 3 tasks | 14 files |
+| Phase 04 P04 | 12min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -139,6 +140,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-03: 청크 내용은 조각을 이어붙이지 않고 원문에서 다시 잘라 넣는다 — ING-05의 좌표 왕복 속성이 성립하는 유일한 구조적 이유
 - [Phase ?]: 03-03: enum 대조 테스트는 마이그레이션 SQL을 실제로 읽어 CHECK 리터럴을 뽑는다 — 파이썬 리터럴끼리 비교하면 베껴 적기가 검증을 통과한다
 - [Phase ?]: 03-03: 페이지 수준 축소 재처리는 페이지 삭제가 아니라 sources 역참조 제거 — 한 페이지를 여러 raw_source가 만들 수 있고 삭제는 남의 링크를 레드로 되돌린다 (D-P6, 구현은 03-04/03-08)
+- [Phase ?]: [Phase 04]: strict_order와 graph off는 유지하되 측정 근거는 없다 — `.claude/CLAUDE.md:21`·`0011:76,147` 제약과 RTV-07 안전 기본값에 따른 유지이며, 12/12/8행 코퍼스에서는 플래너가 HNSW를 고르지 않아 비교 자체가 T-04-12가 된다 (`docs/ops/hnsw-order-benchmark.md`)
+- [Phase ?]: [Phase 04]: 검색 정책 변경은 POLICY_VERSION 상승 + 동일 corpus/golden/model 해시 위 before/after 레코드 쌍 + 리뷰어 승인을 모두 통과해야 채택된다 (`docs/ops/retrieval-policy-change-log.md`, 04-CONTEXT.md > D-08)
 
 ### Pending Todos
 
@@ -177,9 +180,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T22:08:45.897Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-hybrid-retrieval-and-fusion/04-CONTEXT.md
+Last session: 2026-08-11T09:08:06.024Z
+Stopped at: Completed 04-04-PLAN.md
+Resume file: None
 
 **재개 시 첫 행동:** Phase 3 검증·완료 마킹을 실행한다. 실행 플랜 9/9가 끝났고, 03-08은
 provider 마스킹·즉시 dead-letter·기동 enum↔DB CHECK 대조·축소 재처리·reap 근거를 닫았다.
