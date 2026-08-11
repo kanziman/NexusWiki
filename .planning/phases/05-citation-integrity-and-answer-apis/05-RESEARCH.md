@@ -532,19 +532,22 @@ if not evidence:
 
 **If this table is empty:** N/A — see entries above. All *architectural* claims (D-01 through D-08's implementation mechanics, existing schema, existing code shapes) are `[VERIFIED]` against files read this session; only the *external-library* and *numeric-threshold* recommendations carry residual uncertainty.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should Ask's LLM spend be gated by the monthly budget cap in this phase, or explicitly deferred?**
+   - RESOLVED: see 05-CONTEXT.md > D-09 — in scope, not deferred. `LlmStreamService` gates on the budget cap before opening the OpenRouter stream (05-04-PLAN.md).
    - What we know: no code path currently enforces it (Pitfall 2); the natural fix point (inside `LlmStreamService`) is cheap given the listener already needs a service-role DB client for usage-event writes.
    - What's unclear: whether this is in-scope for Phase 5's 12 requirement IDs (none of CITE/API/QC explicitly mention budget) or should be explicitly deferred to a later OPS phase with an interim soft warning instead of a hard block.
    - Recommendation: raise this explicitly during planning/discuss rather than silently deciding either way — it's a real architectural gap discovered mid-research, not a requirement ambiguity.
 
 2. **Does the seeded `ask` prompt template instruction text get updated in Phase 5, or does context-block anchor-header alone suffice?**
+   - RESOLVED: see 05-CONTEXT.md > D-10 — update unconditionally. `0012_ask_citation_and_graph.sql` (05-02-PLAN.md) rewrites the 4 seeded `target_type='ask'` templates' citation instruction text to match D-02's short-alias scheme.
    - What we know: the literal instruction text says `[[wiki:slug]]`/`[[src:청크id]]` (Pitfall 1); LLMs often follow a shown few-shot pattern (the `[[wiki:w1]]` header actually present in context) over conflicting prose instructions, but this is a "usually" not a "always."
    - What's unclear: whether this needs empirical validation (a smoke test with the current unmodified seed data) before deciding whether the migration is strictly necessary, or whether it should be done unconditionally as the more robust choice.
    - Recommendation: update the seed text unconditionally (cheap, one migration, removes an entire class of ambiguity) rather than relying on the model correctly resolving the conflict.
 
 3. **Exact numeric bounds for the new `wiki_graph_neighborhood` RPC (fanout/total_limit defaults).**
+   - RESOLVED: see 05-CONTEXT.md > D-11 — planner's discretion, anchored to existing bounds; conservative defaults are set directly in `0012_ask_citation_and_graph.sql` (05-02-PLAN.md).
    - What we know: `expand_wiki_graph`'s bounds (fanout ≤5, total_limit ≤50, seeds ≤10) were tuned for the *retrieval* use case (bounded re-fusion cost). A dashboard "browse the graph" feature (this phase's read API, consumed by Phase 6's UI) may reasonably want a larger neighborhood (e.g., fanout ≤20, total_limit ≤200 as sketched above) since it's a single explicit user action, not a per-request retrieval cost multiplier.
    - What's unclear: the actual UX target (how large a graph view Phase 6 wants to render) — not decided anywhere in read materials.
    - Recommendation: planner should pick conservative defaults now (this phase has no UI consumer yet) and note in the migration comment that Phase 6 may request a bump, mirroring how `0007`'s comment on `search_chunks` explicitly deferred the other 4 channels to Phase 4.
