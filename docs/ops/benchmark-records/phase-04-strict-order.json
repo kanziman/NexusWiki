@@ -1,0 +1,499 @@
+{
+  "record_schema": "retrieval-benchmark-v2",
+  "run_kind": "controlled_direct_query_hnsw_measurement",
+  "timestamp": "2026-08-11T10:48:19.873127+00:00",
+  "git_sha": "9f9b87827cff5ee48a54598691ccde94f7c531f7",
+  "policy_version": "hybrid-rrf-v1",
+  "policy_content_sha256": "936bc543e950961902e965492a5668f3b63bf567a3a95e7662626d161b5f1817",
+  "corpus_version": "representative-corpus-v1",
+  "corpus_sha256": "0f9fcc000c878656c9f0ca304afc0934e19c88e2dac983bf4d2117755ac690c4",
+  "golden_version": "golden-queries-v1",
+  "golden_sha256": "82fee1629674b797082d8068a47c25e022b415f491aae7cb6517d453143e2e3b",
+  "benchmark_manifest_version": "benchmark-hnsw-corpus-v1",
+  "benchmark_manifest_sha256": "5f961eeb2ced94bef56134072244b6f5cb8392a4afffe86d5215be3e4005252b",
+  "generator_algorithm": "sha256-counter-stream-l2-v1",
+  "generator_version": "1",
+  "generator_seed": "nexuswiki-phase-04-hnsw-v1",
+  "raw_workspace_uuid": "8cff8c27-82f9-5fdc-b914-f9eb77fcba48",
+  "per_relation": {
+    "target": 25000,
+    "decoy": 25000,
+    "inserted_source": 25000,
+    "inserted_wiki": 25000
+  },
+  "preflight_plan_sha256": [
+    "d09cdf6345794ec8b4d8e6adacd99047f78b1f11f2602610a4f0db467d47a27e",
+    "5f1a4cab7bd4aa32c4132e62b54a5f074abe2e255cefcbc3072a18923d39bb1a"
+  ],
+  "embedding_model_version": "deterministic-sha256-l2",
+  "database_identity": "supabase_db_NexusWiki",
+  "repeat_count": 3,
+  "order_mode": "strict_order",
+  "graph_enabled": false,
+  "metrics": {
+    "recall_at_k": 1.0,
+    "strict_query_pass_rate": 1.0,
+    "mrr": 1.0,
+    "mean_required_rank": 1.0,
+    "channel_hits": {
+      "source_vector": 20,
+      "wiki_vector": 20
+    },
+    "channel_contribution": {
+      "source_vector": 20,
+      "wiki_vector": 20,
+      "graph": 0
+    },
+    "latency_ms": {
+      "p50_total": 2786.2279590335675,
+      "p95_total": 2949.0698329755105
+    },
+    "underfill": {
+      "queries": 0,
+      "rate": 0.0,
+      "by_channel": {
+        "source_vector": 0,
+        "wiki_vector": 0
+      }
+    },
+    "graph_delta": {
+      "status": "measured",
+      "quality": 0.0,
+      "latency_ms": 0.0
+    }
+  },
+  "evaluations": [
+    {
+      "id": "g01",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-onboarding",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g02",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-sso",
+          "rank": 1,
+          "max_rank": 2,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g03",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-vpn",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g04",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-vpn",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g05",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-billing",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g06",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-billing",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g07",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-incident",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g08",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-incident",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g09",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-retention",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g10",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-retention",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g11",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-korean-nfc",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g12",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-search",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g13",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-korean-fullwidth",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g14",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-hybrid",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g15",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-retrieval",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g16",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-legal-hold",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g17",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-legal",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g18",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-translation",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g19",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-glossary",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g20",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-release",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g21",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-release",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g22",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-security",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g23",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-security",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g24",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-security",
+          "rank": 1,
+          "max_rank": 5,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g25",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-incident",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g26",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-legal",
+          "rank": 1,
+          "max_rank": 5,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g27",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-graph",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g28",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-graph",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g29",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-search",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g30",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-retrieval",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g31",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-korean-fullwidth",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g32",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-legal",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g33",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-sso",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g34",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-vpn",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g35",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "source:src-billing",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "g36",
+      "passed": true,
+      "checks": [
+        {
+          "required_id": "wiki:wiki-security",
+          "rank": 1,
+          "max_rank": 3,
+          "passed": true
+        }
+      ]
+    }
+  ]
+}
