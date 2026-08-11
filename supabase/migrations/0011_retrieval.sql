@@ -99,7 +99,7 @@ stable
 set search_path = public
 as $$
   select w.id, w.slug, w.title, w.content,
-         ts_rank_cd(w.search_tsv, phraseto_tsquery('simple', p_bigrams))
+         ts_rank_cd(w.search_tsv, phraseto_tsquery('simple', p_bigrams)) as rank
     from public.wiki_pages w
    where w.workspace_id = p_workspace_id
      and w.tsv_tokenizer_version = p_tokenizer_version
@@ -121,7 +121,7 @@ stable
 set search_path = public
 as $$
   select c.id, c.raw_source_id, c.chunk_index, c.content,
-         ts_rank_cd(c.search_tsv, phraseto_tsquery('simple', p_bigrams))
+         ts_rank_cd(c.search_tsv, phraseto_tsquery('simple', p_bigrams)) as rank
     from public.source_chunks c
    where c.workspace_id = p_workspace_id
      and c.tsv_tokenizer_version = p_tokenizer_version
