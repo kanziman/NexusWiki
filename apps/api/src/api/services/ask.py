@@ -29,6 +29,7 @@ from api.db.user import UserDb
 from api.services.retrieval import RetrievalService
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN, ISSUED_ANCHOR_PATTERN
 from nexuswiki_core.rrf import EvidenceHit
+from nexuswiki_core.sentences import split_sentences
 
 __all__ = [
     "NO_EVIDENCE_MESSAGE",
@@ -138,6 +139,8 @@ class CitationResolution:
     resolved: list[dict[str, str]]
     fabricated_anchor_count: int
     cited_anchor_count: int
+    dual_citation_rate: float
+    unsourced_sentence_ratio: float
     rendered_text: str
 
 
@@ -164,6 +167,17 @@ def resolve_citations(
         return ""  # 조작이거나(파싱은 됐지만 미발급) 애초에 우리가 발급하지 않는 모양이다.
 
     rendered_text = BROAD_ANCHOR_PATTERN.sub(_strip_fabricated, full_text)
+    sentences = split_sentences(full_text)
+    dual_cited_count = sum(
+        1
+        for sentence in sentences
+        if any(token.startswith("wiki:") for token in ISSUED_ANCHOR_PATTERN.findall(sentence))
+        and any(token.startswith("src:") for token in ISSUED_ANCHOR_PATTERN.findall(sentence))
+    )
+    unsourced_count = sum(
+        1 for sentence in sentences if not ISSUED_ANCHOR_PATTERN.findall(sentence)
+    )
+    sentence_count = len(sentences)
 
     return CitationResolution(
         resolved=[
@@ -172,6 +186,8 @@ def resolve_citations(
         ],
         fabricated_anchor_count=len(fabricated_aliases),
         cited_anchor_count=len(resolved_aliases),
+        dual_citation_rate=dual_cited_count / sentence_count if sentence_count else 0.0,
+        unsourced_sentence_ratio=unsourced_count / sentence_count if sentence_count else 0.0,
         rendered_text=rendered_text,
     )
 
@@ -342,6 +358,8 @@ class AskService:
                     "resolved": [],
                     "cited_anchor_count": 0,
                     "fabricated_anchor_count": 0,
+                    "dual_citation_rate": 0.0,
+                    "unsourced_sentence_ratio": 0.0,
                 },
             )
             yield "done", {}
@@ -362,6 +380,8 @@ class AskService:
                     "resolved": [],
                     "cited_anchor_count": 0,
                     "fabricated_anchor_count": 0,
+                    "dual_citation_rate": 0.0,
+                    "unsourced_sentence_ratio": 0.0,
                 },
             )
             yield "done", {}
@@ -400,6 +420,8 @@ class AskService:
                             "resolved": [],
                             "cited_anchor_count": 0,
                             "fabricated_anchor_count": 0,
+                            "dual_citation_rate": 0.0,
+                            "unsourced_sentence_ratio": 0.0,
                         },
                     )
                     yield "done", {}
@@ -426,6 +448,8 @@ class AskService:
                     "resolved": [],
                     "cited_anchor_count": 0,
                     "fabricated_anchor_count": 0,
+                    "dual_citation_rate": 0.0,
+                    "unsourced_sentence_ratio": 0.0,
                 },
             )
             yield "done", {}
@@ -440,6 +464,8 @@ class AskService:
                 "resolved": resolution.resolved,
                 "cited_anchor_count": resolution.cited_anchor_count,
                 "fabricated_anchor_count": resolution.fabricated_anchor_count,
+                "dual_citation_rate": resolution.dual_citation_rate,
+                "unsourced_sentence_ratio": resolution.unsourced_sentence_ratio,
             },
         )
         yield "done", {}
