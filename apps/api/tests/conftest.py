@@ -145,8 +145,10 @@ def _create_actor(client: httpx.Client) -> TenantActor:
     return actor
 
 
-def _register(actor: TenantActor) -> None:
-    fresh = {actor.user_id, actor.email, actor.workspace_id}
+def _register(actor: TenantActor, *, include_workspace: bool = True) -> None:
+    fresh = {actor.user_id, actor.email}
+    if include_workspace:
+        fresh.add(actor.workspace_id)
     collision = fresh & _ISSUED
     if collision:
         raise AssertionError(
@@ -220,6 +222,65 @@ def two_workspaces_two_users(local_stack: httpx.Client) -> Iterator[tuple[Tenant
     finally:
         for actor in actors:
             _destroy_actor(local_stack, actor)
+
+
+@pytest.fixture
+def workspace_member_with_role(
+    local_stack: httpx.Client,
+) -> Iterator[Callable[[TenantActor, str], TenantActor]]:
+    """소유자 워크스페이스에 별도 인증 사용자를 editor/viewer로 초대한다."""
+    members: list[TenantActor] = []
+
+    def _create(owner: TenantActor, role: str) -> TenantActor:
+        tag = uuid4().hex[:12]
+        email = f"test-member-{tag}@example.test"
+        credential = f"pw-{uuid4().hex}"
+        user = _expect(
+            local_stack.post(
+                "/auth/v1/admin/users",
+                headers=_admin_headers(),
+                json={"email": email, "password": credential, "email_confirm": True},
+            ),
+            what="테스트 멤버 사용자 생성",
+        )
+        session = _expect(
+            local_stack.post(
+                "/auth/v1/token",
+                params={"grant_type": "password"},
+                headers={"apikey": LOCAL_STACK["publishable_key"]},
+                json={"email": email, "password": credential},
+            ),
+            what="테스트 멤버 사용자 로그인",
+        )
+        _expect(
+            local_stack.post(
+                "/rest/v1/workspace_members",
+                headers=_user_headers(owner.access_token, representation=True),
+                json={"workspace_id": owner.workspace_id, "user_id": user["id"], "role": role},
+            ),
+            what="테스트 워크스페이스 멤버 추가",
+        )
+        member = TenantActor(
+            user_id=user["id"],
+            email=email,
+            access_token=session["access_token"],
+            workspace_id=owner.workspace_id,
+            workspace_name=owner.workspace_name,
+        )
+        _register(member, include_workspace=False)
+        members.append(member)
+        return member
+
+    try:
+        yield _create
+    finally:
+        for member in members:
+            _expect(
+                local_stack.delete(
+                    f"/auth/v1/admin/users/{member.user_id}", headers=_admin_headers()
+                ),
+                what="테스트 멤버 사용자 삭제",
+            )
 
 
 @pytest.fixture

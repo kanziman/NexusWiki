@@ -252,3 +252,68 @@ async def test_each_test_receives_freshly_created_rows(
     assert alice.email != bob.email
     assert alice.workspace_name.startswith("test-")
     assert bob.workspace_name.startswith("test-")
+
+
+async def test_verify_foreign_wiki_is_forbidden(
+    two_workspaces_two_users: TenantPair,
+    authed_client: Any,
+    user_db: Any,
+) -> None:
+    """두 ID 경로라 공용 표가 표현하지 못하는 위키 전이 격리만 별도로 증명한다."""
+    alice, bob = two_workspaces_two_users
+    async with user_db(bob) as bob_db:
+        page = await bob_db.insert_one(
+            "wiki_pages",
+            values={
+                "workspace_id": bob.workspace_id,
+                "slug": f"foreign-{uuid4().hex}",
+                "title": "Foreign wiki",
+                "category": "concepts",
+                "content": "foreign content",
+            },
+        )
+    async with authed_client(alice) as client:
+        response = await client.patch(
+            f"/workspaces/{bob.workspace_id}/wiki/{page['id']}/verify",
+            json={"verification_status": "verified"},
+        )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json() == FORBIDDEN_BODY
+
+
+async def test_owner_verification_is_trigger_stamped_and_viewer_cannot_change_it(
+    two_workspaces_two_users: TenantPair,
+    authed_client: Any,
+    user_db: Any,
+    workspace_member_with_role: Any,
+) -> None:
+    """검증 감사자는 요청 바디가 아니라 DB 트리거이며 viewer는 RLS에서 멈춘다."""
+    owner, _ = two_workspaces_two_users
+    viewer = workspace_member_with_role(owner, "viewer")
+    async with user_db(owner) as owner_db:
+        page = await owner_db.insert_one(
+            "wiki_pages",
+            values={
+                "workspace_id": owner.workspace_id,
+                "slug": f"verify-{uuid4().hex}",
+                "title": "Verify wiki",
+                "category": "concepts",
+                "content": "verify content",
+            },
+        )
+    path = f"/workspaces/{owner.workspace_id}/wiki/{page['id']}/verify"
+    async with authed_client(owner) as client:
+        verified = await client.patch(path, json={"verification_status": "verified"})
+    assert verified.status_code == status.HTTP_200_OK
+    body = verified.json()
+    assert body["verification_status"] == "verified"
+    assert body["verified_by"] == owner.user_id
+    assert body["verified_at"] is not None
+
+    async with authed_client(viewer) as client:
+        blocked = await client.patch(path, json={"verification_status": "partial"})
+    assert blocked.status_code == status.HTTP_403_FORBIDDEN
+    assert blocked.json() == FORBIDDEN_BODY
+    async with user_db(owner) as owner_db:
+        unchanged = await owner_db.select("wiki_pages", match={"id": page["id"]}, limit=1)
+    assert unchanged[0]["verification_status"] == "verified"
