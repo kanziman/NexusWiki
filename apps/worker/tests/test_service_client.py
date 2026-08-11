@@ -299,6 +299,61 @@ async def test_prompt_template_lookup_falls_back_from_workspace_to_global() -> N
 
 
 @pytest.mark.asyncio
+async def test_workspace_budget_helpers_read_the_cap_and_sum_usage_since() -> None:
+    seen: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("/workspaces"):
+            return httpx.Response(200, json=[{"monthly_budget_micros": 250}])
+        return httpx.Response(200, json=[{"cost_micros": 40}, {"cost_micros": "60"}])
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="https://example.invalid/rest/v1"
+    ) as client:
+        db = service.ServiceDb(client)
+        cap = await db.get_workspace_budget_cap(workspace_id=WORKSPACE_ID)
+        spent = await db.sum_usage_events_since(
+            workspace_id=WORKSPACE_ID, since="2026-08-01T00:00:00+00:00"
+        )
+
+    assert cap == 250
+    assert spent == 100
+    assert dict(seen[0].url.params) == {
+        "id": f"eq.{WORKSPACE_ID}",
+        "select": "monthly_budget_micros",
+        "limit": "1",
+    }
+    assert dict(seen[1].url.params) == {
+        "workspace_id": f"eq.{WORKSPACE_ID}",
+        "occurred_at": "gte.2026-08-01T00:00:00+00:00",
+        "select": "cost_micros",
+        "limit": "1000",
+    }
+
+
+@pytest.mark.asyncio
+async def test_workspace_budget_helpers_distinguish_no_cap_from_zero_spend() -> None:
+    seen: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=[])
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="https://example.invalid/rest/v1"
+    ) as client:
+        db = service.ServiceDb(client)
+        cap = await db.get_workspace_budget_cap(workspace_id=WORKSPACE_ID)
+        spent = await db.sum_usage_events_since(
+            workspace_id=WORKSPACE_ID, since="2026-08-01T00:00:00+00:00"
+        )
+
+    assert cap is None
+    assert spent == 0
+
+
+@pytest.mark.asyncio
 async def test_complete_job_and_chain_posts_the_next_step_in_one_call() -> None:
     # ⚠️ 완료와 다음 잡 인큐가 두 왕복으로 갈라지면 그 틈에서 죽었을 때 파이프라인이
     #    조용히 멈춘다 (0007 섹션 3).

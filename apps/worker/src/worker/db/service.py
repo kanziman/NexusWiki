@@ -46,6 +46,8 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "upsert_wiki_page",
         "list_wiki_pages_for_source",
         "insert_usage_event",
+        "get_workspace_budget_cap",
+        "sum_usage_events_since",
         "list_wiki_links",
         "upsert_wiki_links",
         "delete_wiki_links_not_in",
@@ -416,6 +418,31 @@ class ServiceDb:
         """
         rows = await self._insert_many("usage_events", rows=[{**row, "workspace_id": workspace_id}])
         return rows[0] if rows else None
+
+    async def get_workspace_budget_cap(self, *, workspace_id: str) -> int | None:
+        """Return the workspace's monthly cap, or ``None`` when it has no row."""
+        rows = await self._select(
+            "workspaces",
+            params={
+                "id": f"eq.{workspace_id}",
+                "select": "monthly_budget_micros",
+                "limit": "1",
+            },
+        )
+        return int(rows[0]["monthly_budget_micros"]) if rows else None
+
+    async def sum_usage_events_since(self, *, workspace_id: str, since: str) -> int:
+        """Sum usage in a caller-defined UTC window, preserving SQL's ``coalesce(..., 0)``."""
+        rows = await self._select(
+            "usage_events",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "occurred_at": f"gte.{since}",
+                "select": "cost_micros",
+                "limit": "1000",
+            },
+        )
+        return sum(int(row["cost_micros"]) for row in rows)
 
     async def list_source_chunks_missing_embedding(
         self, *, workspace_id: str, raw_source_id: str, embedding_version: str
