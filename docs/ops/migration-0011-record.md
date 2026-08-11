@@ -46,12 +46,52 @@ A read-only remote `pg_proc` check recorded:
 No credentials, tokens, connection strings, or query contents are recorded in
 this document.
 
+## Local HNSW JSON-plan regression proof
+
+The Plan 06 contract uses a rollback-only fixture with 25,000 authenticated
+workspace rows and 25,000 foreign-workspace decoy rows in **each** vector
+relation (50,000 `source_chunks` and 50,000 `wiki_embeddings`). Its vectors are
+deterministic, valid 1024-dimensional pgvector values; both relations are
+analysed before observation. This cardinality makes the local planner choose the
+named HNSW indexes without `enable_seqscan = off` or any other forced planner
+method.
+
+Run after a reset local stack:
+
+```text
+supabase db reset
+scripts/verify_retrieval_contract.sh
+bash scripts/ci_check_retrieval_contract.sh
+```
+
+The contract must print `retrieval_contract: ok` only after recursively finding
+`source_chunks_embedding_idx` and `wiki_embeddings_embedding_idx` in separate
+`EXPLAIN (FORMAT JSON)` plans. The observation is a direct query under
+`authenticated` plus the fixture JWT claims, the same workspace/non-null
+predicate, `extensions.<=>` order, clamped 1..100 limit, and transaction-local
+`strict_order` / `ef_search=200` / `max_scan_tuples=40000` settings as the RPCs.
+It intentionally does not claim an outer RPC Function Scan proves its internal
+plan. A separate catalog/body assertion proves the deployed RPCs retain that
+same ACL, volatility, GUC, predicate, ordering, and limit contract.
+
+`pg_temp.retrieval_contract_preflight(workspace_id, manifest_identity,
+expected_source_rows, expected_wiki_rows)` is available after sourcing the SQL
+with `-v retrieval_contract_preflight_only=1` in an already-authenticated
+benchmark session. That mode creates no fixtures and does not roll back caller
+data: it fails closed on manifest/count mismatch or either missing named HNSW
+scan. Plan 07 must invoke it after every exact corpus load.
+
+The local environment version is reported by the reset/psql runtime; record its
+PostgreSQL and pgvector values alongside any operational benchmark, rather than
+copying them from this migration ledger.
+
 ## HNSW caveat and rollback
 
 The vector RPC contract pins `strict_order`, `ef_search=200`, and
 `max_scan_tuples=40000`. Local contract tests prove those settings are present;
 they do not establish that HNSW is the chosen plan at production corpus size.
-That benchmark decision remains Phase 4 Plan 04 work.
+This local planner contract is a regression guard, not a production performance
+claim. Operational order-mode and hardware conclusions remain benchmark work.
 
 This is an immutable remote migration. Do not edit or remove `0011` after
 application. To reverse its behavior, add a later migration that revokes or

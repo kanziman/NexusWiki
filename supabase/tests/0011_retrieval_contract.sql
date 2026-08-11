@@ -51,6 +51,8 @@ declare
   v_source_plan jsonb;
   v_wiki_plan jsonb;
   v_query text;
+  v_expected_source_index text := 'source_chunks_embedding_idx';
+  v_expected_wiki_index text := 'wiki_embeddings_embedding_idx';
 begin
   select count(*) into v_source_rows from public.source_chunks where workspace_id = p_workspace_id;
   select count(*) into v_wiki_rows from public.wiki_embeddings where workspace_id = p_workspace_id;
@@ -74,8 +76,8 @@ begin
     p_workspace_id, '[' || repeat('0.001,', 1023) || '0.001]', 20
   );
   execute v_query into v_source_plan;
-  if not pg_temp.walk_plan_has_index(v_source_plan, 'source_chunks_embedding_idx') then
-    raise exception 'missing HNSW index source_chunks_embedding_idx; observed source plan: %', v_source_plan;
+  if not pg_temp.walk_plan_has_index(v_source_plan, v_expected_source_index) then
+    raise exception 'missing HNSW index %; observed source plan: %', v_expected_source_index, v_source_plan;
   end if;
 
   v_query := format(
@@ -83,8 +85,8 @@ begin
     p_workspace_id, '[' || repeat('0.001,', 1023) || '0.001]', 20
   );
   execute v_query into v_wiki_plan;
-  if not pg_temp.walk_plan_has_index(v_wiki_plan, 'wiki_embeddings_embedding_idx') then
-    raise exception 'missing HNSW index wiki_embeddings_embedding_idx; observed wiki plan: %', v_wiki_plan;
+  if not pg_temp.walk_plan_has_index(v_wiki_plan, v_expected_wiki_index) then
+    raise exception 'missing HNSW index %; observed wiki plan: %', v_expected_wiki_index, v_wiki_plan;
   end if;
 end
 $preflight$;
