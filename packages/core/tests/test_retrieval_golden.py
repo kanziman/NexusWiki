@@ -16,6 +16,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "retrieval"
 CORPUS = FIXTURES / "representative_corpus.v1.json"
 GOLDEN = FIXTURES / "golden_queries.v1.json"
 MANIFEST = FIXTURES / "benchmark_hnsw_corpus.v1.json"
+BENCHMARK_RECORDS = Path("docs/ops/benchmark-records")
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -268,3 +269,45 @@ def test_operational_validator_accepts_observed_empty_retrieval_result_only() ->
     del record["query_results"][0]["retrieval_observation"]
     with pytest.raises(module.VerificationError, match="fabricated_or_label_only_evaluation"):
         module._validate_record(record)
+
+
+def test_compare_order_records_rejects_historical_invalid_v4_pair_with_mismatched_git_sha() -> None:
+    """The exact defect 04-VERIFICATION.md found: _pins() must include git_sha.
+
+    ``phase-04-rerun-v4-strict-order.json`` (git_sha 6adb0453d9cce3267a4d180e1dd95af65733442d)
+    and ``phase-04-rerun-v4-relaxed-order.json`` (git_sha 466205625053b00d785312db84ae9f1c228ae1b2)
+    were captured from two different runner revisions. Before the fix, the comparator
+    accepted this pair as ``status: ok``; the fix must reject it.
+    """
+    module = _benchmark_module()
+    left = _load(BENCHMARK_RECORDS / "phase-04-rerun-v4-strict-order.json")
+    right = _load(BENCHMARK_RECORDS / "phase-04-rerun-v4-relaxed-order.json")
+    assert left["git_sha"] == "6adb0453d9cce3267a4d180e1dd95af65733442d"
+    assert right["git_sha"] == "466205625053b00d785312db84ae9f1c228ae1b2"
+    with pytest.raises(module.VerificationError, match="order_pair_pin_or_policy_mismatch"):
+        module.compare_order_records(left, right)
+
+
+def test_compare_order_records_rejects_matching_order_mode_pair() -> None:
+    """A pair sharing one order_mode must be rejected, independent of pin equality.
+
+    This proves the new order-mode-pair assertion is not redundant with the pin
+    check: both records here are byte-identical copies (all pins, including
+    git_sha, agree) yet still share one order_mode.
+    """
+    module = _benchmark_module()
+    left = _load(BENCHMARK_RECORDS / "phase-04-rerun-v4-graph-off.json")
+    right = json.loads(json.dumps(left))
+    assert left.get("order_mode") == right.get("order_mode") == "strict_order"
+    with pytest.raises(module.VerificationError, match="order_pair_mode_invalid"):
+        module.compare_order_records(left, right)
+
+
+def test_compare_graph_records_still_accepts_historical_valid_v4_graph_pair() -> None:
+    """The shared _pins() change must not regress the graph comparator."""
+    module = _benchmark_module()
+    off = _load(BENCHMARK_RECORDS / "phase-04-rerun-v4-graph-off.json")
+    on = _load(BENCHMARK_RECORDS / "phase-04-rerun-v4-graph-on.json")
+    assert off["git_sha"] == on["git_sha"] == "466205625053b00d785312db84ae9f1c228ae1b2"
+    result = module.compare_graph_records(off, on)
+    assert result["status"] == "ok"
