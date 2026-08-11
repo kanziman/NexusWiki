@@ -82,3 +82,4 @@
 | 날짜 | POLICY_VERSION (before → after) | 변경 항목 | before 레코드 | after 레코드 | corpus / golden sha256 | 리뷰어 | 결정 |
 |---|---|---|---|---|---|---|---|
 | 2026-08-11 | — → `hybrid-rrf-v1` | 초기 기준선 (변경 없음) | 없음 | `scripts/benchmark_retrieval.py --verify` 픽스처 계약 실행 | `0f9fcc00…c690c4` / `82fee162…3e2e3b` | — | **변경 채택 없음.** 순서 모드는 `strict_order`, 그래프는 off로 유지 — 측정이 아니라 제약·안전 기본값에 따른 유지다. 근거와 그 한계는 `docs/ops/hnsw-order-benchmark.md` |
+| 2026-08-11 | `hybrid-rrf-v1` → `hybrid-rrf-v1` | 변경 없음: strict/relaxed 및 graph off/on evidence review | `benchmark-records/phase-04-strict-order.json`, `benchmark-records/phase-04-graph-off.json` | `benchmark-records/phase-04-relaxed-order.json`, `benchmark-records/phase-04-graph-on.json` | `0f9fcc00…c690c4` / `82fee162…e2e3b` | 승인됨 — `strict_keep_graph_off` | **strict 유지, graph off 유지.** 품질·underfill 동률, strict p50 우위. graph contribution/quality delta 0; 0011 및 policy content는 변경하지 않음. |
