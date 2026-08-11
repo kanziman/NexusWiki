@@ -52,3 +52,9 @@ class ApiSettings(BaseAppSettings):
     ALLOWED_UPLOAD_MIME_TYPES: frozenset[str] = frozenset(
         {"application/pdf", "text/plain", "text/markdown"}
     )
+
+    # Private worker-bound embedding capability, intentionally not a provider key.
+    QUERY_EMBEDDING_INTERNAL_URL: str | None = None
+    QUERY_EMBEDDING_INTERNAL_TOKEN: str | None = None
+    QUERY_EMBEDDING_TIMEOUT_SECONDS: float = 5.0
+    RETRIEVAL_MAX_QUERY_CHARS: int = 10_000

@@ -31,6 +31,14 @@ class WorkerSettings(BaseAppSettings):
     # 실제 OpenRouter 슬러그를 확인하며 정리한다. 근거: 02-CONTEXT.md > D-22.
     LLM_MODEL: str
 
+    # Dedicated caller credential for the private API-to-worker query-embedding
+    # boundary. It is never a provider credential and never belongs in ApiSettings.
+    QUERY_EMBEDDING_INTERNAL_TOKEN: str | None = None
+    QUERY_EMBEDDING_MAX_TEXT_CHARS: int = 10_000
+    QUERY_EMBEDDING_TIMEOUT_SECONDS: float = 5.0
+    QUERY_EMBEDDING_MAX_CONCURRENCY: int = 4
+    QUERY_EMBEDDING_MAX_REQUESTS: int = 100
+
     # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 — 없다고 worker가 못 뜰
     # 이유가 없다. 배포 환경에서 RTT 프로브만 끄고 싶을 때 쓴다.
     RTT_PROBE_ENABLED: bool = True

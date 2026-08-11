@@ -4,5 +4,8 @@
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile"
   },
-  "deploy": {}
+  "deploy": {
+    "publicNetworking": false,
+    "privateNetworking": true
+  }
 }

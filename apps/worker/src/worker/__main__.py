@@ -8,6 +8,7 @@ import asyncio
 import signal
 
 import httpx
+import uvicorn
 
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import (
@@ -17,11 +18,44 @@ from nexuswiki_core.logging import (
     get_logger,
 )
 from worker.db.service import ServiceDb, service_client
+from worker.embedding import embed_texts
+from worker.llm import openrouter_client
+from worker.query_embedding import QueryEmbeddingService, create_query_embedding_app
 from worker.queue import resolve_worker_id, run_queue_loop
 from worker.queue_baseline import measure_queue_roundtrip
 from worker.rtt import measure_rtt
 from worker.schema_guard import assert_enums_match_db
 from worker.settings import WorkerSettings
+
+
+async def _embed_query(settings: WorkerSettings, text: str) -> list[float]:
+    async with openrouter_client(settings) as client:
+        result = await embed_texts(client, settings=settings, texts=[text])
+    return result.vectors[0]
+
+
+async def _serve_query_embeddings(settings: WorkerSettings, stop: asyncio.Event) -> None:
+    """Run the private listener until the queue process receives its stop signal."""
+    if not settings.QUERY_EMBEDDING_INTERNAL_TOKEN:
+        # No listener is safer than an unauthenticated listener during local setup.
+        return
+    service = QueryEmbeddingService(
+        lambda text: _embed_query(settings, text),
+        internal_token=settings.QUERY_EMBEDDING_INTERNAL_TOKEN,
+        max_text_chars=settings.QUERY_EMBEDDING_MAX_TEXT_CHARS,
+        timeout_seconds=settings.QUERY_EMBEDDING_TIMEOUT_SECONDS,
+        max_concurrency=settings.QUERY_EMBEDDING_MAX_CONCURRENCY,
+        max_requests=settings.QUERY_EMBEDDING_MAX_REQUESTS,
+    )
+    server = uvicorn.Server(
+        uvicorn.Config(
+            create_query_embedding_app(service), host="0.0.0.0", port=8081, log_level="warning"
+        )
+    )
+    server_task = asyncio.create_task(server.serve())
+    await stop.wait()
+    server.should_exit = True
+    await server_task
 
 
 async def _run_queue_baseline_probe(
@@ -124,13 +158,18 @@ async def main() -> None:
             await _run_queue_baseline_probe(
                 db, settings=settings, worker_id=worker_id, git_sha=git_sha
             )
-            processed = await run_queue_loop(
-                db,
-                worker_id=worker_id,
-                stop=stop,
-                reap_enabled=settings.REAP_ENABLED,
-                reap_timeout_seconds=settings.REAP_TIMEOUT_SECONDS,
-            )
+            async with asyncio.TaskGroup() as group:
+                queue_task = group.create_task(
+                    run_queue_loop(
+                        db,
+                        worker_id=worker_id,
+                        stop=stop,
+                        reap_enabled=settings.REAP_ENABLED,
+                        reap_timeout_seconds=settings.REAP_TIMEOUT_SECONDS,
+                    )
+                )
+                group.create_task(_serve_query_embeddings(settings, stop))
+            processed = queue_task.result()
         # 루프가 잡마다 clear_job_context()를 부르므로 위 bootstrap 컨텍스트는
         # 이미 지워져 있다. 종료 로그가 맨몸이 되지 않도록 다시 세운다.
         bind_job_context(job_id="shutdown", workspace_id="shutdown")
