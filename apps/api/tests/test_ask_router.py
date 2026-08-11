@@ -74,11 +74,13 @@ class _FakeLlmStream:
     def __init__(self, upstream: _UpstreamResponse) -> None:
         self._upstream = upstream
         self.calls = 0
+        self.messages: list[dict[str, str]] = []
 
     def stream(self, *, workspace_id: str, messages: list[dict[str, str]]) -> _FakeLlmStream:
         self.calls += 1
         assert workspace_id
         assert messages
+        self.messages = messages
         return self
 
     async def __aenter__(self) -> _UpstreamResponse:
@@ -205,3 +207,74 @@ async def test_grounded_answer_streams_meta_delta_citations_done_with_fabricatio
     assert "[[wiki:w99]]" not in citations_payload["text"]
     assert "[[wiki:w1]]" in citations_payload["text"]
     assert fake_llm.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_visible_requested_template_is_used_for_ask() -> None:
+    selected_template_id = str(uuid4())
+    app = create_app(_settings(), git_sha="test-sha")
+    fake_llm = _FakeLlmStream(_UpstreamResponse(["data: [DONE]"]))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/v1/wiki_pages":
+            return httpx.Response(200, json=[{"id": _WIKI_ID, "content": "위키 본문"}])
+        if request.url.path == "/rest/v1/source_chunks":
+            return httpx.Response(200, json=[{"id": _SOURCE_CHUNK_ID, "content": "원문 본문"}])
+        if request.url.path == "/rest/v1/prompt_templates":
+            assert request.url.params["id"] == f"eq.{selected_template_id}"
+            assert request.url.params["target_type"] == "eq.ask"
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": selected_template_id,
+                        "name": "경영진 요약",
+                        "workspace_id": None,
+                        "system_prompt": "선택된 시스템 프롬프트",
+                        "template": "{{question}} {{wiki_context}} {{source_context}}",
+                    }
+                ],
+            )
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        app.state.ask_service = AskService(_NonEmptyRetrievalService(), fake_llm)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json={"query": "질문", "template_id": selected_template_id},
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+
+    assert response.status_code == 200
+    assert dict(_parse_sse(response.text))["meta"]["template_id"] == selected_template_id
+    assert fake_llm.messages[0]["content"] == "선택된 시스템 프롬프트"
+
+
+@pytest.mark.asyncio
+async def test_invisible_requested_template_falls_back_to_default() -> None:
+    selected_template_id = str(uuid4())
+    app = create_app(_settings(), git_sha="test-sha")
+    fake_llm = _FakeLlmStream(_UpstreamResponse(["data: [DONE]"]))
+
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(
+            transport=_mock_prompt_and_content_transport(), timeout=httpx.Timeout(2.0)
+        )
+        app.state.ask_service = AskService(_NonEmptyRetrievalService(), fake_llm)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json={"query": "질문", "template_id": selected_template_id},
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+
+    assert response.status_code == 200
+    assert dict(_parse_sse(response.text))["meta"]["template_id"] == _TEMPLATE_ID

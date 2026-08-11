@@ -37,6 +37,7 @@ class AskRequest(BaseModel):
     # DEFAULT_RETRIEVAL_POLICY.requested_k(=8)와 정확히 일치해야 하위 retrieve() 호출이
     # ValueError를 던지지 않는다.
     requested_k: int = Field(default=8, ge=1, le=8)
+    template_id: str | None = Field(default=None)
 
 
 def _user_db(request: Request, credentials: HTTPAuthorizationCredentials) -> UserDb:
@@ -92,7 +93,7 @@ async def ask(
         workspace_id=workspace_id,
         query=body.query,
         requested_k=body.requested_k,
-        template_id=None,
+        template_id=body.template_id,
         user_db=_user_db(request, credentials),
     )
     return StreamingResponse(_format_sse(events), media_type="text/event-stream")

@@ -289,6 +289,25 @@ async def _select_default_ask_template(
     return None
 
 
+async def _select_ask_template(
+    user_db: UserDb, *, workspace_id: UUID, template_id: str | None
+) -> dict[str, Any] | None:
+    """API-02: 보이는 요청 템플릿만 쓰고, 아니면 기존 기본값 체인으로 내려간다.
+
+    RLS가 가시성 밖 행을 빈 목록으로 돌리므로 id가 없거나 다른 워크스페이스에 속한
+    경우를 구별하지 않는다. 둘 다 기본 템플릿으로 조용히 폴백해 id 열거를 막는다.
+    """
+    if template_id is not None:
+        rows = await user_db.select(
+            "prompt_templates",
+            match={"id": template_id, "target_type": _PROMPT_TARGET_TYPE},
+            limit=1,
+        )
+        if len(rows) == 1:
+            return rows[0]
+    return await _select_default_ask_template(user_db, workspace_id=workspace_id)
+
+
 def _context_blocks(
     evidence: list[EvidenceHit],
     issuance: Mapping[str, tuple[str, str]],
@@ -344,9 +363,6 @@ class AskService:
         template_id: str | None,
         user_db: UserDb,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        # template_id 오버라이드(API-02)는 이 태스크 범위 밖이다(05-03-PLAN.md) — 지금은
-        # 항상 워크스페이스 기본 템플릿을 쓴다.
-        del template_id
         result = await self._retrieval_service.retrieve(workspace_id, query, requested_k, user_db)
         if not result.evidence:
             # CITE-04 — 근거가 하나도 없으면 provider 호출을 아예 하지 않는다.
@@ -369,7 +385,9 @@ class AskService:
         content_by_id = await _fetch_evidence_content(
             user_db, workspace_id=workspace_id, evidence=result.evidence
         )
-        template = await _select_default_ask_template(user_db, workspace_id=workspace_id)
+        template = await _select_ask_template(
+            user_db, workspace_id=workspace_id, template_id=template_id
+        )
         if template is None:
             # 0006 시드가 적용되지 않았다는 뜻 — 진행할 프롬프트 자체가 없다.
             yield "meta", {"template_id": None}
