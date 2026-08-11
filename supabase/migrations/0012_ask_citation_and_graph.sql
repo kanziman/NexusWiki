@@ -75,14 +75,16 @@ begin
 
   return query
   with recursive walk as (
-    select p_seed_wiki_id as from_wiki_id, l.to_wiki_id, 1 as depth,
-           array[p_seed_wiki_id, l.to_wiki_id]::uuid[] as path
-      from public.wiki_links l
-     where l.workspace_id = p_workspace_id
-       and l.from_wiki_id = p_seed_wiki_id
-       and l.resolved
-     order by l.to_wiki_id
-     limit p_fanout
+    select p_seed_wiki_id as from_wiki_id, first_hop.to_wiki_id, 1 as depth,
+           array[p_seed_wiki_id, first_hop.to_wiki_id]::uuid[] as path
+      from (
+        select l.to_wiki_id from public.wiki_links l
+         where l.workspace_id = p_workspace_id
+           and l.from_wiki_id = p_seed_wiki_id
+           and l.resolved
+         order by l.to_wiki_id
+         limit p_fanout
+      ) first_hop
     union all
     select walk.to_wiki_id, edge.to_wiki_id, walk.depth + 1, walk.path || edge.to_wiki_id
       from walk
@@ -95,7 +97,7 @@ begin
       ) edge
      where walk.depth < 2 and not edge.to_wiki_id = any(walk.path)
   )
-  select from_wiki_id, to_wiki_id, depth from walk limit p_total_limit;
+  select walk.from_wiki_id, walk.to_wiki_id, walk.depth from walk limit p_total_limit;
 end;
 $$;
 
