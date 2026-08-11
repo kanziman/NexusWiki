@@ -177,10 +177,10 @@ Plans:
   4. 응답마다 채널별 기여도(`channel_hits`)와 `returned < requested_k`가 1급 메트릭으로 기록되어, 벡터 채널이 `ef_search`·`max_scan_tuples` 한계로 조용히 부족하게 돌아오는 것이 관측된다
   5. `EXPLAIN` 회귀 테스트가 HNSW 인덱스 스캔 사용을 단언해, 플래너가 조용히 seq scan으로 이탈하는 것을 잡아낸다
 
-**Plans**: 1/4 plans executed
+**Plans**: 2/4 plans executed
 
 - [x] 04-01-PLAN.md
-- [ ] 04-02-PLAN.md
+- [x] 04-02-PLAN.md
 - [ ] 04-03-PLAN.md
 - [ ] 04-04-PLAN.md
 
