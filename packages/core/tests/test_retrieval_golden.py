@@ -187,6 +187,23 @@ def test_benchmark_loader_isolates_decoy_parents_per_operational_workspace() -> 
     assert "benchmark filler" in first and first != second
 
 
+def test_benchmark_cleanup_removes_only_the_fixed_workspace_rows() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "benchmark_generator", Path("scripts/generate_retrieval_benchmark_corpus.py")
+    )
+    assert spec and spec.loader
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    workspace = uuid4()
+    cleanup = generator.loader_sql(_load(MANIFEST), workspace, cleanup=True)
+
+    assert "delete from public.source_chunks" in cleanup
+    assert "delete from public.wiki_embeddings" in cleanup
+    assert "delete from public.workspaces" in cleanup
+    assert str(workspace) in cleanup
+    assert "delete from public.source_chunks;" not in cleanup
+
+
 def test_policy_content_hash_detects_policy_change_without_version_change() -> None:
     module = _benchmark_module()
     from nexuswiki_core.retrieval_policy import RetrievalPolicy

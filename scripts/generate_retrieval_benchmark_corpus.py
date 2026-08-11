@@ -103,7 +103,23 @@ def loader_sql(manifest: dict, workspace: UUID, cleanup: bool = False) -> str:
     """Return transaction-safe SQL; cleanup is restricted to the fixed workspace."""
     corpus = load_corpus(); mapping = logical_id_map(manifest, corpus)
     if cleanup:
-        return f"delete from public.workspaces where id = {_quote(str(workspace))}::uuid;"
+        workspace_sql = f"{_quote(str(workspace))}::uuid"
+        # Do not rely on every local schema FK having the same cascade behavior:
+        # an interrupted load must leave no decoy parent/chunk namespace behind.
+        # Every predicate is the deterministic workspace of this one benchmark arm.
+        return "\n".join(
+            [
+                "begin;",
+                f"delete from public.wiki_links where workspace_id = {workspace_sql};",
+                f"delete from public.wiki_embeddings where workspace_id = {workspace_sql};",
+                f"delete from public.source_chunks where workspace_id = {workspace_sql};",
+                f"delete from public.wiki_pages where workspace_id = {workspace_sql};",
+                f"delete from public.raw_sources where workspace_id = {workspace_sql};",
+                f"delete from public.workspaces where id = {workspace_sql};",
+                f"delete from auth.users where id = {workspace_sql};",
+                "commit;",
+            ]
+        )
     marker = manifest["sha256"]
     statements = [
         "begin;",
