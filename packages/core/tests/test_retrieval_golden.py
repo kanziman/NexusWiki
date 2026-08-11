@@ -8,6 +8,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -164,6 +165,26 @@ def test_benchmark_manifest_and_counter_stream_are_pinned_and_deterministic() ->
     vector = generator.vector(manifest, "source", 99)
     assert len(vector) == 1024
     assert abs(sum(value * value for value in vector) - 1.0) < 1e-9
+
+
+def test_benchmark_loader_isolates_decoy_parents_per_operational_workspace() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "benchmark_generator", Path("scripts/generate_retrieval_benchmark_corpus.py")
+    )
+    assert spec and spec.loader
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    manifest = _load(MANIFEST)
+
+    first, second = generator.loader_sql(manifest, uuid4()), generator.loader_sql(manifest, uuid4())
+
+    # The labelled evidence mapping is pinned across arms, but decoy parents
+    # must not share the (parent, chunk_index) unique namespace.
+    assert generator.logical_id_map(manifest) == generator.logical_id_map(manifest)
+    assert generator.decoy_parent_id(manifest, uuid4(), "source") != generator.decoy_parent_id(
+        manifest, uuid4(), "source"
+    )
+    assert "benchmark filler" in first and first != second
 
 
 def test_policy_content_hash_detects_policy_change_without_version_change() -> None:

@@ -62,6 +62,15 @@ def logical_id_map(manifest: dict, corpus: dict | None = None) -> dict[str, str]
     return {logical: str(logical_uuid(manifest, logical)) for logical in rows}
 
 
+def decoy_parent_id(manifest: dict, workspace: UUID, relation: str) -> UUID:
+    """Keep large generated parents unique per benchmark arm.
+
+    Logical fixture evidence is deliberately stable between arms, whereas each
+    generated parent's chunk-index namespace belongs to one local workspace.
+    """
+    return uuid5(NAMESPACE, f"decoy-parent:{manifest['sha256']}:{workspace}:{relation}")
+
+
 def vector(manifest: dict, relation: str, ordinal: int) -> list[float]:
     raw = b""; counter = 0
     while len(raw) < 4096:
@@ -122,11 +131,11 @@ def loader_sql(manifest: dict, workspace: UUID, cleanup: bool = False) -> str:
     unit = _vector_literal([1.0] + [0.000001] * 1023)
     for table, parent, content in (("source_chunks", "raw_sources", "benchmark-nonmatching-decoy"), ("wiki_embeddings", "wiki_pages", "benchmark-nonmatching-decoy")):
         if table == "source_chunks":
-            source, foreign = identity(manifest, "source", 0), identity(manifest, "decoysource", 0)
+            source = decoy_parent_id(manifest, workspace, "source")
             statements += [f"insert into public.raw_sources(id,workspace_id,created_by,title,source_type,content,content_hash) values ({_quote(str(source))}::uuid,{_quote(str(workspace))}::uuid,{_quote(str(workspace))}::uuid,'benchmark filler','text','benchmark filler',{_quote(marker+':fill')}) on conflict do nothing;",
                 f"insert into public.source_chunks(raw_source_id,workspace_id,chunk_index,content,char_start,char_end,embedding) select {_quote(str(source))}::uuid,{_quote(str(workspace))}::uuid,g,{_quote(content)},0,{len(content)},{unit} from generate_series(1,24988) g;"]
         else:
-            page = identity(manifest, "wiki", 0)
+            page = decoy_parent_id(manifest, workspace, "wiki")
             statements += [f"insert into public.wiki_pages(id,workspace_id,created_by,slug,title,category,content) values ({_quote(str(page))}::uuid,{_quote(str(workspace))}::uuid,{_quote(str(workspace))}::uuid,'benchmark-filler','benchmark filler','concepts','benchmark filler') on conflict do nothing;",
                 f"insert into public.wiki_embeddings(wiki_id,workspace_id,chunk_index,chunk_content,embedding) select {_quote(str(page))}::uuid,{_quote(str(workspace))}::uuid,g,{_quote(content)},{unit} from generate_series(1,24988) g;"]
     statements += ["analyze public.source_chunks;", "analyze public.wiki_embeddings;", "commit;"]
