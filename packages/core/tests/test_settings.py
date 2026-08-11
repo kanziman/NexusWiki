@@ -44,6 +44,12 @@ NON_SECRET_API_FIELDS = frozenset(
         "QUERY_EMBEDDING_INTERNAL_TOKEN",
         "QUERY_EMBEDDING_TIMEOUT_SECONDS",
         "RETRIEVAL_MAX_QUERY_CHARS",
+        # (2026-08-12, 05-01: LLM_STREAM_INTERNAL_URL/_TOKEN/_TIMEOUT_SECONDS — worker의
+        #  /internal/llm-chat 호출 캐퍼빌리티. 토큰 값은 provider credential이 아니라
+        #  QUERY_EMBEDDING_INTERNAL_TOKEN과 같은 내부 호출자 자격이다.)
+        "LLM_STREAM_INTERNAL_URL",
+        "LLM_STREAM_INTERNAL_TOKEN",
+        "LLM_STREAM_TIMEOUT_SECONDS",
     }
 )
 

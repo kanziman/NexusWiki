@@ -58,3 +58,11 @@ class ApiSettings(BaseAppSettings):
     QUERY_EMBEDDING_INTERNAL_TOKEN: str | None = None
     QUERY_EMBEDDING_TIMEOUT_SECONDS: float = 5.0
     RETRIEVAL_MAX_QUERY_CHARS: int = 10_000
+
+    # Private worker-bound LLM-chat-streaming capability (05-CONTEXT.md > D-01).
+    # Distinct token from QUERY_EMBEDDING_INTERNAL_TOKEN — intentionally not a provider key.
+    LLM_STREAM_INTERNAL_URL: str | None = None
+    LLM_STREAM_INTERNAL_TOKEN: str | None = None
+    # ⚠️ 워커 자신의 OpenRouter 타임아웃(120초)보다 **반드시 커야** API가 워커보다
+    #    먼저 끊지 않는다.
+    LLM_STREAM_TIMEOUT_SECONDS: float = 130.0
