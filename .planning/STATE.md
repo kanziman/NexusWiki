@@ -6,7 +6,7 @@ current_phase: 04
 current_phase_name: hybrid-retrieval-and-fusion
 status: executing
 stopped_at: Phase 04 Plan 03 completed; ready for Plan 04
-last_updated: "2026-08-11T07:00:00.000Z"
+last_updated: "2026-08-11T09:06:14.662Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 04 Plan 03 hybrid retrieval orchestration completed
 progress:
@@ -165,6 +165,7 @@ None yet.
 - [Phase 3] chunk_text의 오버랩이 최소 조각 1개 단위라 청크가 조각 하나뿐일 때는 인접 청크가 겹치지 않고 맞닿는다 (실측 오버랩 min=0) — 인용 단위로서 문제가 되는지는 Phase 4 골든 세트가 판정한다
 - [해소 2026-08-10] [Phase 3] 비용 상한 거부는 사용자 승인 A에 따라 `0010`의 프로젝트 전용 `NW402`와 `api.errors` 단일 HTTP 매핑으로 402가 된다. Postgres가 만들 수 없는 코드라 실제 DB 자원 오류를 예산 초과로 오인하지 않는다 (`03-05-SUMMARY.md`).
 - [Phase 3] 03-07 예산 조회는 표시용(`authoritative: false`)이며, UTC 월 경계의 제한된 `usage_events` 합계는 인큐 가능 여부를 판정하지 않는다. 권위 있는 판정은 `enqueue_source_job` SQL 하나에 남는다 (D-P18).
+- [Phase 4] 04-04 Task 3 수용기준 #1 미충족 — strict_order 대 relaxed_order 비교 실행 기록이 없다. 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 아예 고르지 않으므로(Phase 2 관측 btree+sort 233 대 HNSW 349,657) 그 규모의 비교는 T-04-12(오도하는 튜닝)가 된다. 두 기본값(strict_order · graph off)은 `.claude/CLAUDE.md:21`·`0011:76,147`과 RTV-07 안전 기본값으로 **유지**했을 뿐 측정되지 않았다. 그래프 off/on도 `scripts/benchmark_retrieval.py`에 토글이 없어 비교 불가. 필요한 것: 10^4~10^5 청크 규모 + 동일 corpus/golden/policy/model 해시 양팔 + 프로덕션 유사 하드웨어. 언더필·플랜 형태는 합성 1024차원 벡터로 로컬에서 무료 선행 가능. Phase 7 OPS 이월 (`docs/ops/hnsw-order-benchmark.md` §한계, WINDOWS #10)
 
 ## Deferred Items
 

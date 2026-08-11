@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 8
+open_count: 9
 waived_count: 0
 fixed_count: 1
-total_count: 9
-last_updated: 2026-08-08T08:16:14.169Z
+total_count: 10
+last_updated: 2026-08-11T09:06:03.966Z
 ---
 
 # Broken Windows Ledger
@@ -24,6 +24,7 @@ last_updated: 2026-08-08T08:16:14.169Z
 | 7 | 03 | stub | apps/worker/src/worker/handlers/parse.py |  | source_chunks.search_tsv와 tsv_tokenizer_version을 비워 둔다 — 어휘 채널(RTV)은 Phase 4가 색인 RPC(0010)와 함께 소급 색인해야 한다 | open |  | 2026-08-08T08:16:13.922Z |  |
 | 8 | 03 | stub | apps/worker/src/worker/handlers/parse.py |  | content가 빈 파일·URL 소스는 SourceNotExtractedError로 끊긴다 — 추출 분기는 03-06(ING-03/ING-04)이 채운다 | open |  | 2026-08-08T08:16:14.047Z |  |
 | 9 | 03 | unrun-verify | apps/worker/src/worker/llm.py |  | 오류 되먹임 재시도가 실제 모델에서 복구로 이어지는지 미관측 — 1회차가 스키마를 만족해 재시도 경로가 실호출에서 타지 않았다 | open |  | 2026-08-08T08:16:14.169Z |  |
+| 10 | 04 | unrun-verify | docs/ops/hnsw-order-benchmark.md |  | strict_order 대 relaxed_order 비교 실행이 없다 — 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 고르지 않는다(Phase 2 관측 btree+sort 233 대 HNSW 349,657). 그 규모의 수치는 다른 플랜을 재는 것이라 T-04-12(오도하는 튜닝)에 해당한다. 두 기본값은 제약·안전 기본값으로 유지했을 뿐 측정되지 않았다. 그래프 off/on 비교도 러너에 토글이 없어 불가. Phase 7 OPS 이월 (04-04 Task 3 수용기준 #1 미충족) | open |  | 2026-08-11T09:06:03.966Z |  |
 
 ````json
 [
@@ -133,6 +134,18 @@ last_updated: 2026-08-08T08:16:14.169Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-08T08:16:14.169Z",
+    "resolved_at": null
+  },
+  {
+    "id": 10,
+    "kind": "unrun-verify",
+    "phase": "04",
+    "file": "docs/ops/hnsw-order-benchmark.md",
+    "line": null,
+    "description": "strict_order 대 relaxed_order 비교 실행이 없다 — 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 고르지 않는다(Phase 2 관측 btree+sort 233 대 HNSW 349,657). 그 규모의 수치는 다른 플랜을 재는 것이라 T-04-12(오도하는 튜닝)에 해당한다. 두 기본값은 제약·안전 기본값으로 유지했을 뿐 측정되지 않았다. 그래프 off/on 비교도 러너에 토글이 없어 불가. Phase 7 OPS 이월 (04-04 Task 3 수용기준 #1 미충족)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-11T09:06:03.966Z",
     "resolved_at": null
   }
 ]
