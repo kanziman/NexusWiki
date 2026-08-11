@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: hybrid-retrieval-and-fusion
 status: executing
-stopped_at: Completed 04-07-PLAN.md
-last_updated: "2026-08-11T13:15:06.709Z"
+stopped_at: Completed 04-09-PLAN.md
+last_updated: "2026-08-11T13:32:54.425Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 36
-  completed_plans: 34
+  completed_plans: 36
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-01)
 ## Current Position
 
 Phase: 04 (hybrid-retrieval-and-fusion) — EXECUTING
-Plan: 1 of 8
+Plan: 2 of 9
 Status: Ready to execute
 Last activity: 2026-08-11 — Phase 04 execution started
 
@@ -87,6 +87,7 @@ Progress: [██████████] 100% (execution; verification pending
 | Phase 04 P04 | 12min | 3 tasks | 6 files |
 | Phase 04 P05 | 5 min | 2 tasks | 7 files |
 | Phase 04 P06 | 14 min | 2 tasks | 3 files |
+| Phase 04 P09 | 5min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -144,6 +145,8 @@ Recent decisions affecting current work:
 - [Phase ?]: 03-03: 페이지 수준 축소 재처리는 페이지 삭제가 아니라 sources 역참조 제거 — 한 페이지를 여러 raw_source가 만들 수 있고 삭제는 남의 링크를 레드로 되돌린다 (D-P6, 구현은 03-04/03-08)
 - [Phase ?]: [Phase 04]: strict_order와 graph off는 유지하되 측정 근거는 없다 — `.claude/CLAUDE.md:21`·`0011:76,147` 제약과 RTV-07 안전 기본값에 따른 유지이며, 12/12/8행 코퍼스에서는 플래너가 HNSW를 고르지 않아 비교 자체가 T-04-12가 된다 (`docs/ops/hnsw-order-benchmark.md`)
 - [Phase ?]: [Phase 04]: 검색 정책 변경은 POLICY_VERSION 상승 + 동일 corpus/golden/model 해시 위 before/after 레코드 쌍 + 리뷰어 승인을 모두 통과해야 채택된다 (`docs/ops/retrieval-policy-change-log.md`, 04-CONTEXT.md > D-08)
+- [Phase ?]: [Phase 4] RTV-04 gap closure: _pins() now includes git_sha as a comparator pin; compare_order_records() asserts a distinct {strict_order, relaxed_order} pair. v5 strict/relaxed evidence pair (one identical commit) is now the valid comparability evidence; v4 pair marked superseded-invalid, preserved byte-for-byte.
+- [Phase ?]: [Phase 4] Relaxed-order arm again shows zero vector-channel hits in the v5 record (measured from one pinned revision, not a runner-mismatch artifact) — reinforces keeping strict_order as default; root cause investigation is out of scope for this gap-closure plan.
 
 ### Pending Todos
 
@@ -182,8 +185,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-11T11:01:17.726Z
-Stopped at: Completed 04-07-PLAN.md
+Last session: 2026-08-11T13:32:54.413Z
+Stopped at: Completed 04-09-PLAN.md
 Resume file: None
 
 **재개 시 첫 행동:** Phase 3 검증·완료 마킹을 실행한다. 실행 플랜 9/9가 끝났고, 03-08은

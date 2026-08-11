@@ -177,7 +177,7 @@ Plans:
   4. 응답마다 채널별 기여도(`channel_hits`)와 `returned < requested_k`가 1급 메트릭으로 기록되어, 벡터 채널이 `ef_search`·`max_scan_tuples` 한계로 조용히 부족하게 돌아오는 것이 관측된다
   5. `EXPLAIN` 회귀 테스트가 HNSW 인덱스 스캔 사용을 단언해, 플래너가 조용히 seq scan으로 이탈하는 것을 잡아낸다
 
-**Plans**: 7/8 plans executed
+**Plans**: 9/9 plans executed
 **Wave 1**
 
 - [x] 04-01-PLAN.md
@@ -206,7 +206,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 04-09-PLAN.md — RTV-04 gap closure: pin runner identity (`git_sha`) into `compare_order_records()`/`compare_graph_records()`, reject the invalid v4 strict/relaxed pair, and regenerate a valid single-commit v5 pair
+- [x] 04-09-PLAN.md — RTV-04 gap closure: pin runner identity (`git_sha`) into `compare_order_records()`/`compare_graph_records()`, reject the invalid v4 strict/relaxed pair, and regenerate a valid single-commit v5 pair
 
 ### Phase 5: Citation Integrity and Answer APIs
 
@@ -267,7 +267,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
 | 2. Security Spine and Shared Domain | 9/9 | Complete    | 2026-08-07 |
 | 3. Ingest and Compile Pipeline | 9/9 | Complete    | 2026-08-10 |
-| 4. Hybrid Retrieval and Fusion | 7/7 | In Progress|  |
+| 4. Hybrid Retrieval and Fusion | 9/9 | In Progress|  |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |
 | 6. Dashboard | 0/TBD | Not started | - |
 | 7. Integration and Ops Baseline | 0/TBD | Not started | - |
