@@ -97,6 +97,10 @@ def test_worker_refuses_to_boot_on_an_empty_secret(monkeypatch: pytest.MonkeyPat
         ("QUERY_EMBEDDING_RATE_CAPACITY", -1),
         ("QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND", 0),
         ("QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND", -0.1),
+        ("LLM_STREAM_RATE_CAPACITY", 0),
+        ("LLM_STREAM_RATE_CAPACITY", -1),
+        ("LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND", 0),
+        ("LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND", -0.1),
     ],
 )
 def test_query_embedding_rate_settings_must_be_positive(

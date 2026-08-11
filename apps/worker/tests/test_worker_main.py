@@ -38,12 +38,13 @@ async def test_query_embedding_listener_receives_explicit_rate_settings(
             await asyncio.sleep(0)
 
     monkeypatch.setattr(worker_main, "QueryEmbeddingService", FakeService)
-    monkeypatch.setattr(worker_main, "create_query_embedding_app", lambda service: object())
+    monkeypatch.setattr(worker_main, "add_query_embedding_route", lambda app, service: None)
+    monkeypatch.setattr(worker_main, "add_llm_stream_route", lambda app, service: None)
     monkeypatch.setattr(worker_main.uvicorn, "Server", FakeServer)
 
     stop = asyncio.Event()
     stop.set()
-    await worker_main._serve_query_embeddings(_settings(), stop)
+    await worker_main._serve_internal_listeners(_settings(), stop)
 
     assert constructed["rate_capacity"] == 7
     assert constructed["refill_tokens_per_second"] == 2.5

@@ -42,6 +42,16 @@ class WorkerSettings(BaseAppSettings):
     QUERY_EMBEDDING_RATE_CAPACITY: int = Field(default=100, gt=0)
     QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=1.0, gt=0)
 
+    # Dedicated caller credential for the private API-to-worker LLM-chat-streaming
+    # boundary (05-CONTEXT.md > D-01). Distinct value from
+    # QUERY_EMBEDDING_INTERNAL_TOKEN — never a provider credential, never in ApiSettings.
+    # 동시성/레이트가 QUERY_EMBEDDING_*보다 낮은 이유: 스트리밍 호출은 120초, 임베딩은 5초다
+    # (05-RESEARCH.md Pattern 1).
+    LLM_STREAM_INTERNAL_TOKEN: str | None = None
+    LLM_STREAM_MAX_CONCURRENCY: int = 2
+    LLM_STREAM_RATE_CAPACITY: int = Field(default=20, gt=0)
+    LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=0.2, gt=0)
+
     # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 — 없다고 worker가 못 뜰
     # 이유가 없다. 배포 환경에서 RTT 프로브만 끄고 싶을 때 쓴다.
     RTT_PROBE_ENABLED: bool = True

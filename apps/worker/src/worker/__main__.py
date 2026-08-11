@@ -6,9 +6,11 @@
 
 import asyncio
 import signal
+from collections.abc import AsyncIterator
 
 import httpx
 import uvicorn
+from fastapi import FastAPI
 
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import (
@@ -19,8 +21,9 @@ from nexuswiki_core.logging import (
 )
 from worker.db.service import ServiceDb, service_client
 from worker.embedding import embed_texts
-from worker.llm import openrouter_client
-from worker.query_embedding import QueryEmbeddingService, create_query_embedding_app
+from worker.llm import openrouter_client, stream_chat
+from worker.llm_stream import LlmChatRequest, LlmStreamService, add_llm_stream_route
+from worker.query_embedding import QueryEmbeddingService, add_query_embedding_route
 from worker.queue import resolve_worker_id, run_queue_loop
 from worker.queue_baseline import measure_queue_roundtrip
 from worker.rtt import measure_rtt
@@ -34,25 +37,52 @@ async def _embed_query(settings: WorkerSettings, text: str) -> list[float]:
     return result.vectors[0]
 
 
-async def _serve_query_embeddings(settings: WorkerSettings, stop: asyncio.Event) -> None:
-    """Run the private listener until the queue process receives its stop signal."""
-    if not settings.QUERY_EMBEDDING_INTERNAL_TOKEN:
+async def _stream_llm_chat(
+    settings: WorkerSettings, request: LlmChatRequest
+) -> AsyncIterator[bytes]:
+    """`_embed_query`와 같은 형태 — per-call client를 열고 스트림이 끝날 때까지 붙든다."""
+    async with openrouter_client(settings) as client:
+        async for chunk in stream_chat(client, settings=settings, messages=request.messages):
+            yield chunk
+
+
+async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Event) -> None:
+    """Run the private listener(s) until the queue process receives its stop signal.
+
+    05-01-PLAN.md Task 1: query-embedding과 llm-chat 두 라우트를 **하나의** FastAPI
+    앱/uvicorn.Server에 올린다 — 05-RESEARCH.md Pattern 1이 명시적으로 경고하는 대로,
+    두 번째 `uvicorn.Server`를 추가하면 SIGTERM 종료 표면만 두 배가 되고 격리 이득은
+    없다(`railway.json`의 private-networking 토글은 서비스 단위이지 포트 단위가 아니다).
+    """
+    if not settings.QUERY_EMBEDDING_INTERNAL_TOKEN and not settings.LLM_STREAM_INTERNAL_TOKEN:
         # No listener is safer than an unauthenticated listener during local setup.
         return
-    service = QueryEmbeddingService(
-        lambda text: _embed_query(settings, text),
-        internal_token=settings.QUERY_EMBEDDING_INTERNAL_TOKEN,
-        max_text_chars=settings.QUERY_EMBEDDING_MAX_TEXT_CHARS,
-        timeout_seconds=settings.QUERY_EMBEDDING_TIMEOUT_SECONDS,
-        max_concurrency=settings.QUERY_EMBEDDING_MAX_CONCURRENCY,
-        rate_capacity=settings.QUERY_EMBEDDING_RATE_CAPACITY,
-        refill_tokens_per_second=settings.QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND,
-    )
-    server = uvicorn.Server(
-        uvicorn.Config(
-            create_query_embedding_app(service), host="0.0.0.0", port=8081, log_level="warning"
+    app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+    if settings.QUERY_EMBEDDING_INTERNAL_TOKEN:
+        add_query_embedding_route(
+            app,
+            QueryEmbeddingService(
+                lambda text: _embed_query(settings, text),
+                internal_token=settings.QUERY_EMBEDDING_INTERNAL_TOKEN,
+                max_text_chars=settings.QUERY_EMBEDDING_MAX_TEXT_CHARS,
+                timeout_seconds=settings.QUERY_EMBEDDING_TIMEOUT_SECONDS,
+                max_concurrency=settings.QUERY_EMBEDDING_MAX_CONCURRENCY,
+                rate_capacity=settings.QUERY_EMBEDDING_RATE_CAPACITY,
+                refill_tokens_per_second=settings.QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND,
+            ),
         )
-    )
+    if settings.LLM_STREAM_INTERNAL_TOKEN:
+        add_llm_stream_route(
+            app,
+            LlmStreamService(
+                lambda request: _stream_llm_chat(settings, request),
+                internal_token=settings.LLM_STREAM_INTERNAL_TOKEN,
+                max_concurrency=settings.LLM_STREAM_MAX_CONCURRENCY,
+                rate_capacity=settings.LLM_STREAM_RATE_CAPACITY,
+                refill_tokens_per_second=settings.LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND,
+            ),
+        )
+    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=8081, log_level="warning"))
     server_task = asyncio.create_task(server.serve())
     await stop.wait()
     server.should_exit = True
@@ -169,7 +199,7 @@ async def main() -> None:
                         reap_timeout_seconds=settings.REAP_TIMEOUT_SECONDS,
                     )
                 )
-                group.create_task(_serve_query_embeddings(settings, stop))
+                group.create_task(_serve_internal_listeners(settings, stop))
             processed = queue_task.result()
         # 루프가 잡마다 clear_job_context()를 부르므로 위 bootstrap 컨텍스트는
         # 이미 지워져 있다. 종료 로그가 맨몸이 되지 않도록 다시 세운다.

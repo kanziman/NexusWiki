@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -40,6 +40,7 @@ __all__ = [
     "complete_structured",
     "openrouter_client",
     "render_template",
+    "stream_chat",
 ]
 
 OPENROUTER_BASE_URL: Final[str] = "https://openrouter.ai/api/v1"
@@ -133,6 +134,49 @@ def render_template(template: str, values: Mapping[str, str]) -> str:
         return values[key]
 
     return _PLACEHOLDER.sub(substitute, template)
+
+
+def _chat_stream_body(
+    *, settings: WorkerSettings, messages: list[dict[str, str]]
+) -> dict[str, Any]:
+    """스트리밍 채팅 요청 본문. `_chat_body`와 형제 함수이지 그 대체가 아니다.
+
+    ⚠️ `response_format`을 넣지 않는다 — 스트리밍과 구조화-출력-재시도는 서로 다른 호출
+    형태다(05-RESEARCH.md "State of the Art"). `usage.include`는 `_chat_body`와 같은
+    이유로 필요하다: 비어 있으면 비용 회계가 조용히 0이 된다.
+    """
+    return {
+        "model": settings.LLM_MODEL,
+        "messages": messages,
+        "stream": True,
+        "usage": {"include": True},
+    }
+
+
+async def stream_chat(
+    client: httpx.AsyncClient,
+    *,
+    settings: WorkerSettings,
+    messages: list[dict[str, str]],
+) -> AsyncIterator[bytes]:
+    """OpenRouter 채팅 완성을 원문 SSE 바이트로 그대로 릴레이한다.
+
+    `complete_structured()`의 형제 함수다 — 구조화 출력·재시도 경로를 고치지 않는다.
+
+    ⚠️ 여기서 `choices[0].delta.content`를 파싱하지 않는다. 그 파싱은 API 쪽(05-01-PLAN.md
+    Task 2)의 몫이다 — 이 함수는 투명한 바이트 릴레이일 뿐이다.
+    """
+    body = _chat_stream_body(settings=settings, messages=messages)
+    async with client.stream("POST", "/chat/completions", json=body) as response:
+        if response.status_code >= 400:
+            raise ProviderError(
+                provider=PROVIDER_NAME,
+                status_code=response.status_code,
+                kind="chat_completion",
+            )
+        async for line in response.aiter_lines():
+            if line:
+                yield (line + "\n").encode("utf-8")
 
 
 async def complete_structured(

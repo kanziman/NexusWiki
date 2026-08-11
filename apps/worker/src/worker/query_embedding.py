@@ -114,9 +114,13 @@ class QueryEmbeddingService:
         return QueryEmbeddingResponse(vector=[float(value) for value in vector])
 
 
-def create_query_embedding_app(service: QueryEmbeddingService) -> FastAPI:
-    """Small ASGI app intended for the Railway private network only."""
-    app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+def add_query_embedding_route(app: FastAPI, service: QueryEmbeddingService) -> None:
+    """Register `POST /internal/query-embedding` on an existing app.
+
+    Extracted from `create_query_embedding_app` (05-01-PLAN.md Task 1) so the worker's
+    private listener can host this route alongside `/internal/llm-chat` on one
+    `FastAPI` app / one `uvicorn.Server`, instead of a second app on a second port.
+    """
 
     @app.post("/internal/query-embedding", response_model=QueryEmbeddingResponse)
     async def query_embedding(
@@ -125,4 +129,13 @@ def create_query_embedding_app(service: QueryEmbeddingService) -> FastAPI:
     ) -> QueryEmbeddingResponse:
         return await service.embed(request, authorization)
 
+
+def create_query_embedding_app(service: QueryEmbeddingService) -> FastAPI:
+    """Small ASGI app intended for the Railway private network only.
+
+    Kept as a thin wrapper so every existing call site (including
+    `test_query_embedding.py`) keeps working unchanged.
+    """
+    app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+    add_query_embedding_route(app, service)
     return app
