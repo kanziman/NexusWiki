@@ -81,18 +81,18 @@
 
 ### Citation Integrity (CITE)
 
-- [ ] **CITE-01**: 인용 앵커가 서버 발급 짧은 별칭(`[[src:s3]]`)으로 프롬프트에 주입되고 서버가 실제 id로 해소한다 (36자 UUID를 모델이 정확히 복사하도록 요구하지 않음)
-- [ ] **CITE-02**: `double_citation`이 **파싱된 앵커 ∩ 검색 결과**로 구성된다 (검색 결과 그대로가 아니라)
-- [ ] **CITE-03**: 발급되지 않은 앵커는 조작으로 간주해 제거하고 카운트한다
-- [ ] **CITE-04**: 앵커가 하나도 없으면 "근거를 찾지 못했습니다"를 명시적으로 반환한다
+- [x] **CITE-01**: 인용 앵커가 서버 발급 짧은 별칭(`[[src:s3]]`)으로 프롬프트에 주입되고 서버가 실제 id로 해소한다 (36자 UUID를 모델이 정확히 복사하도록 요구하지 않음)
+- [x] **CITE-02**: `double_citation`이 **파싱된 앵커 ∩ 검색 결과**로 구성된다 (검색 결과 그대로가 아니라)
+- [x] **CITE-03**: 발급되지 않은 앵커는 조작으로 간주해 제거하고 카운트한다
+- [x] **CITE-04**: 앵커가 하나도 없으면 "근거를 찾지 못했습니다"를 명시적으로 반환한다
 - [ ] **CITE-05**: `dual_citation_rate` · `unsourced_sentence_ratio` · `fabricated_anchor_count` · `cited_anchor_count`가 측정된다
 - [ ] **CITE-06**: 수집된 소스가 위조한 `[[...]]` 앵커가 수집 시점에 제거된다 (소스를 통한 프롬프트 인젝션 차단)
 
 ### Ask & Read APIs (API)
 
-- [ ] **API-01**: Ask 엔드포인트가 SSE로 스트리밍한다 — `meta` → `delta*` → `citations` → `done` 순서, POST + fetch + ReadableStream (`EventSource` 불가 — GET 전용이라 `Authorization` 설정 불가)
+- [x] **API-01**: Ask 엔드포인트가 SSE로 스트리밍한다 — `meta` → `delta*` → `citations` → `done` 순서, POST + fetch + ReadableStream (`EventSource` 불가 — GET 전용이라 `Authorization` 설정 불가)
 - [ ] **API-02**: 상황별 `ask` 프롬프트 템플릿을 선택해 질문할 수 있다
-- [ ] **API-03**: 답변 언어가 질문 언어를 따른다
+- [x] **API-03**: 답변 언어가 질문 언어를 따른다
 - [ ] **API-04**: 위키 · 소스 · 그래프 · 잡 상태 조회 API가 제공된다 (RSC 직접 읽기로 대체 가능한 것은 제외)
 
 ### Knowledge Quality (QC)
@@ -228,15 +228,15 @@
 | RTV-07 | Phase 4 | Complete |
 | RTV-08 | Phase 4 | Complete |
 | RTV-09 | Phase 4 | Complete |
-| CITE-01 | Phase 5 | Pending |
-| CITE-02 | Phase 5 | Pending |
-| CITE-03 | Phase 5 | Pending |
-| CITE-04 | Phase 5 | Pending |
+| CITE-01 | Phase 5 | Complete |
+| CITE-02 | Phase 5 | Complete |
+| CITE-03 | Phase 5 | Complete |
+| CITE-04 | Phase 5 | Complete |
 | CITE-05 | Phase 5 | Pending |
 | CITE-06 | Phase 5 | Pending |
-| API-01 | Phase 5 | Pending |
+| API-01 | Phase 5 | Complete |
 | API-02 | Phase 5 | Pending |
-| API-03 | Phase 5 | Pending |
+| API-03 | Phase 5 | Complete |
 | API-04 | Phase 5 | Pending |
 | QC-01 | Phase 5 | Pending |
 | QC-02 | Phase 5 | Pending |

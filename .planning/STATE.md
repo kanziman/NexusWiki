@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 5
-current_phase_name: Citation Integrity and Answer APIs
+current_phase: 05
+current_phase_name: citation-integrity-and-answer-apis
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-08-11T22:55:21.823Z"
-last_activity: 2026-08-11
-last_activity_desc: Phase 04 complete, transitioned to Phase 5
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-08-11T23:15:01.959Z"
+last_activity: 2026-08-12
+last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 42
-  completed_plans: 36
+  completed_plans: 37
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-11)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** Phase 5 — Citation Integrity and Answer APIs
+**Current focus:** Phase 05 — citation-integrity-and-answer-apis
 
 ## Current Position
 
-Phase: 5 — Citation Integrity and Answer APIs
-Plan: Not started
+Phase: 05 (citation-integrity-and-answer-apis) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-11 — Phase 04 complete, transitioned to Phase 5
+Last activity: 2026-08-12 — Phase 05 execution started
 
-Progress: [██████████] 100% (execution; verification pending)
+Progress: [█████████░] 88% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -89,6 +89,7 @@ Progress: [██████████] 100% (execution; verification pending
 | Phase 04 P05 | 5 min | 2 tasks | 7 files |
 | Phase 04 P06 | 14 min | 2 tasks | 3 files |
 | Phase 04 P09 | 5min | 2 tasks | 5 files |
+| Phase 05 P01 | 35min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -148,6 +149,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 04]: 검색 정책 변경은 POLICY_VERSION 상승 + 동일 corpus/golden/model 해시 위 before/after 레코드 쌍 + 리뷰어 승인을 모두 통과해야 채택된다 (`docs/ops/retrieval-policy-change-log.md`, 04-CONTEXT.md > D-08)
 - [Phase ?]: [Phase 4] RTV-04 gap closure: _pins() now includes git_sha as a comparator pin; compare_order_records() asserts a distinct {strict_order, relaxed_order} pair. v5 strict/relaxed evidence pair (one identical commit) is now the valid comparability evidence; v4 pair marked superseded-invalid, preserved byte-for-byte.
 - [Phase ?]: [Phase 4] Relaxed-order arm again shows zero vector-channel hits in the v5 record (measured from one pinned revision, not a runner-mismatch artifact) — reinforces keeping strict_order as default; root cause investigation is out of scope for this gap-closure plan.
+- [Phase ?]: [Phase 5] Starlette sends http.response.start before iterating a StreamingResponse body — auth/rate-limit checks needing a clean HTTP status must run in a plain coroutine awaited before StreamingResponse is constructed, never inside the generator that becomes its body_iterator (05-01)
+- [Phase ?]: [Phase 5] AskService.ask() stays one all-in-one async generator (retrieve + evidence-check + LLM streaming) because none of its internal failure paths need a non-200 top-level status — router-level query-length pre-check + Pydantic requested_k bound matching DEFAULT_RETRIEVAL_POLICY mean retrieve() never raises inside the generator (05-01)
 
 ### Pending Todos
 
@@ -186,9 +189,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-11T13:57:10.377Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-citation-integrity-and-answer-apis/05-CONTEXT.md
+Last session: 2026-08-11T23:15:01.946Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
 
