@@ -204,6 +204,13 @@ def test_benchmark_cleanup_removes_only_the_fixed_workspace_rows() -> None:
     assert "delete from public.source_chunks;" not in cleanup
 
 
+def test_operational_arms_share_one_manifest_pinned_workspace() -> None:
+    module = _benchmark_module()
+    manifest = module.load_manifest()
+
+    assert module.benchmark_workspace(manifest) == module.benchmark_workspace(manifest)
+
+
 def test_policy_content_hash_detects_policy_change_without_version_change() -> None:
     module = _benchmark_module()
     from nexuswiki_core.retrieval_policy import RetrievalPolicy

@@ -52,6 +52,11 @@ def policy_content_sha256(policy=DEFAULT_RETRIEVAL_POLICY) -> str:
     return hashlib.sha256(_canonical(policy_content(policy)).encode()).hexdigest()
 
 
+def benchmark_workspace(manifest: dict) -> UUID:
+    """One controlled dataset identity, shared by every comparable arm."""
+    return uuid5(NS, f"{manifest['sha256']}:controlled-retrieval-workspace-v1")
+
+
 def _validate_inputs(corpus: dict, golden: dict) -> None:
     if corpus.get("version") != "representative-corpus-v1" or corpus.get("sha256") != canonical_hash(corpus): raise VerificationError("corpus_hash_or_version_mismatch")
     if golden.get("version") != "golden-queries-v1" or golden.get("sha256") != canonical_hash(golden): raise VerificationError("golden_hash_or_version_mismatch")
@@ -167,7 +172,7 @@ def _fixture(corpus: dict, golden: dict, overrides: dict[str, list[str]] | None 
 
 
 def operational(args, corpus: dict, golden: dict) -> dict:
-    manifest = load_manifest(); workspace = uuid5(NS, f"{manifest['sha256']}:{args.run_id}"); cleanup = loader_sql(manifest, workspace, True)
+    manifest = load_manifest(); workspace = benchmark_workspace(manifest); cleanup = loader_sql(manifest, workspace, True)
     if args.output.exists(): raise VerificationError("refusing_to_overwrite_prior_record")
     try:
         # A prior interrupted arm may have left only this deterministic workspace;
@@ -189,7 +194,7 @@ def operational(args, corpus: dict, golden: dict) -> dict:
         except Exception: pass
 
 
-def _pins(record: dict) -> dict: return {key: record.get(key) for key in ("corpus_sha256", "golden_sha256", "benchmark_manifest_sha256", "generator_seed", "embedding_model_version", "database_identity", "repeat_count")}
+def _pins(record: dict) -> dict: return {key: record.get(key) for key in ("corpus_sha256", "golden_sha256", "benchmark_manifest_sha256", "generator_seed", "raw_workspace_uuid", "embedding_model_version", "database_identity", "repeat_count")}
 def compare_order_records(left: dict, right: dict) -> dict:
     _validate_record(left); _validate_record(right)
     if _pins(left) != _pins(right) or left["policy_content"] != right["policy_content"] or left["policy_content_sha256"] != right["policy_content_sha256"]: raise VerificationError("order_pair_pin_or_policy_mismatch")
