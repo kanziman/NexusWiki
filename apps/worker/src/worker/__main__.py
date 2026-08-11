@@ -45,7 +45,8 @@ async def _serve_query_embeddings(settings: WorkerSettings, stop: asyncio.Event)
         max_text_chars=settings.QUERY_EMBEDDING_MAX_TEXT_CHARS,
         timeout_seconds=settings.QUERY_EMBEDDING_TIMEOUT_SECONDS,
         max_concurrency=settings.QUERY_EMBEDDING_MAX_CONCURRENCY,
-        max_requests=settings.QUERY_EMBEDDING_MAX_REQUESTS,
+        rate_capacity=settings.QUERY_EMBEDDING_RATE_CAPACITY,
+        refill_tokens_per_second=settings.QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND,
     )
     server = uvicorn.Server(
         uvicorn.Config(

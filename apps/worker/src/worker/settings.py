@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from pydantic import Field
+
 from nexuswiki_core.settings import BaseAppSettings
 
 __all__ = ["WorkerSettings"]
@@ -37,7 +39,8 @@ class WorkerSettings(BaseAppSettings):
     QUERY_EMBEDDING_MAX_TEXT_CHARS: int = 10_000
     QUERY_EMBEDDING_TIMEOUT_SECONDS: float = 5.0
     QUERY_EMBEDDING_MAX_CONCURRENCY: int = 4
-    QUERY_EMBEDDING_MAX_REQUESTS: int = 100
+    QUERY_EMBEDDING_RATE_CAPACITY: int = Field(default=100, gt=0)
+    QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=1.0, gt=0)
 
     # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 — 없다고 worker가 못 뜰
     # 이유가 없다. 배포 환경에서 RTT 프로브만 끄고 싶을 때 쓴다.
