@@ -39,8 +39,8 @@ def loader_sql(manifest: dict, workspace: UUID, cleanup: bool=False) -> str:
 insert into public.workspaces(id,name,owner_id) values ('{workspace}','hnsw benchmark','{workspace}'),('{decoy}','hnsw benchmark decoy','{decoy}') on conflict do nothing;
 insert into public.raw_sources(id,workspace_id,created_by,title,source_type,content,content_hash) values ('{source}','{workspace}','{workspace}','benchmark','text','benchmark','{marker}'),('{dsource}','{decoy}','{decoy}','benchmark','text','benchmark','{marker}-decoy') on conflict do nothing;
 insert into public.wiki_pages(id,workspace_id,created_by,slug,title,category,content) values ('{wiki}','{workspace}','{workspace}','benchmark','benchmark','concepts','benchmark'),('{dwiki}','{decoy}','{decoy}','benchmark','benchmark','concepts','benchmark') on conflict do nothing;
-insert into public.source_chunks(raw_source_id,workspace_id,chunk_index,content,char_start,char_end,embedding) select '{source}','{workspace}',g,'benchmark target '||g,0,18,{v} from generate_series(0,24999)g union all select '{dsource}','{decoy}',g,'benchmark decoy '||g,0,17,{v} from generate_series(0,24999)g;
-insert into public.wiki_embeddings(wiki_id,workspace_id,chunk_index,chunk_content,embedding) select '{wiki}','{workspace}',g,'benchmark target '||g,{v} from generate_series(0,24999)g union all select '{dwiki}','{decoy}',g,'benchmark decoy '||g,{v} from generate_series(0,24999)g;
+insert into public.source_chunks(raw_source_id,workspace_id,chunk_index,content,char_start,char_end,embedding) select '{source}'::uuid,'{workspace}'::uuid,g,'benchmark target '||g,0,18,{v} from generate_series(0,24999)g union all select '{dsource}'::uuid,'{decoy}'::uuid,g,'benchmark decoy '||g,0,17,{v} from generate_series(0,24999)g;
+insert into public.wiki_embeddings(wiki_id,workspace_id,chunk_index,chunk_content,embedding) select '{wiki}'::uuid,'{workspace}'::uuid,g,'benchmark target '||g,{v} from generate_series(0,24999)g union all select '{dwiki}'::uuid,'{decoy}'::uuid,g,'benchmark decoy '||g,{v} from generate_series(0,24999)g;
 analyze public.source_chunks; analyze public.wiki_embeddings;"""
 
 def main() -> int:
