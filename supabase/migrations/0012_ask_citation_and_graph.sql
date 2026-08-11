@@ -13,6 +13,14 @@
 
 begin;
 
+-- 0011과 동일한 이유로 pgvector를 먼저 로드합니다: hnsw.* GUC은 이 세션이
+-- extensions.vector를 한 번이라도 쓴 뒤에야 SET 가능한 파라미터로 인식됩니다.
+-- 로컬 `db reset`은 0011의 함수 정의가 이미 같은 세션에서 이 GUC들을 써서
+-- 문제가 드러나지 않지만, `db push`는 이 파일만 담은 새 세션이라 워밍업 없이
+-- find_similar_wiki_pages를 정의하면 "permission denied to set parameter"
+-- (SQLSTATE 42501)로 실패합니다 — 05-02 Task 2 클라우드 푸시에서 실측.
+select '[1,2,3]'::extensions.vector as pgvector_warmup;
+
 -- -----------------------------------------------------------------------------
 -- 1. ask 템플릿 인용 표기 교정 (D-10)
 --
