@@ -194,10 +194,11 @@ def operational(args, corpus: dict, golden: dict) -> dict:
         except Exception: pass
 
 
-def _pins(record: dict) -> dict: return {key: record.get(key) for key in ("corpus_sha256", "golden_sha256", "benchmark_manifest_sha256", "generator_seed", "raw_workspace_uuid", "embedding_model_version", "database_identity", "repeat_count")}
+def _pins(record: dict) -> dict: return {key: record.get(key) for key in ("corpus_sha256", "golden_sha256", "benchmark_manifest_sha256", "generator_seed", "raw_workspace_uuid", "embedding_model_version", "database_identity", "repeat_count", "git_sha")}
 def compare_order_records(left: dict, right: dict) -> dict:
     _validate_record(left); _validate_record(right)
     if _pins(left) != _pins(right) or left["policy_content"] != right["policy_content"] or left["policy_content_sha256"] != right["policy_content_sha256"]: raise VerificationError("order_pair_pin_or_policy_mismatch")
+    if {left.get("order_mode"), right.get("order_mode")} != {"strict_order", "relaxed_order"}: raise VerificationError("order_pair_mode_invalid")
     return {"status": "ok", "quality_delta": right["metrics"]["strict_query_pass_rate"] - left["metrics"]["strict_query_pass_rate"]}
 def compare_graph_records(off: dict, on: dict) -> dict:
     _validate_record(off); _validate_record(on)
