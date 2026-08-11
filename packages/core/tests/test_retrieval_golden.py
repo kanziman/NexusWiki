@@ -185,6 +185,7 @@ def test_benchmark_loader_isolates_decoy_parents_per_operational_workspace() -> 
         manifest, uuid4(), "source"
     )
     assert "benchmark filler" in first and first != second
+    assert "generate_series(1,24988) g on conflict (raw_source_id,chunk_index) do nothing" in first
 
 
 def test_benchmark_cleanup_removes_only_the_fixed_workspace_rows() -> None:

@@ -149,11 +149,11 @@ def loader_sql(manifest: dict, workspace: UUID, cleanup: bool = False) -> str:
         if table == "source_chunks":
             source = decoy_parent_id(manifest, workspace, "source")
             statements += [f"insert into public.raw_sources(id,workspace_id,created_by,title,source_type,content,content_hash) values ({_quote(str(source))}::uuid,{_quote(str(workspace))}::uuid,{_quote(str(workspace))}::uuid,'benchmark filler','text','benchmark filler',{_quote(marker+':fill')}) on conflict do nothing;",
-                f"insert into public.source_chunks(raw_source_id,workspace_id,chunk_index,content,char_start,char_end,embedding) select {_quote(str(source))}::uuid,{_quote(str(workspace))}::uuid,g,{_quote(content)},0,{len(content)},{unit} from generate_series(1,24988) g;"]
+                f"insert into public.source_chunks(raw_source_id,workspace_id,chunk_index,content,char_start,char_end,embedding) select {_quote(str(source))}::uuid,{_quote(str(workspace))}::uuid,g,{_quote(content)},0,{len(content)},{unit} from generate_series(1,24988) g on conflict (raw_source_id,chunk_index) do nothing;"]
         else:
             page = decoy_parent_id(manifest, workspace, "wiki")
             statements += [f"insert into public.wiki_pages(id,workspace_id,created_by,slug,title,category,content) values ({_quote(str(page))}::uuid,{_quote(str(workspace))}::uuid,{_quote(str(workspace))}::uuid,'benchmark-filler','benchmark filler','concepts','benchmark filler') on conflict do nothing;",
-                f"insert into public.wiki_embeddings(wiki_id,workspace_id,chunk_index,chunk_content,embedding) select {_quote(str(page))}::uuid,{_quote(str(workspace))}::uuid,g,{_quote(content)},{unit} from generate_series(1,24988) g;"]
+                f"insert into public.wiki_embeddings(wiki_id,workspace_id,chunk_index,chunk_content,embedding) select {_quote(str(page))}::uuid,{_quote(str(workspace))}::uuid,g,{_quote(content)},{unit} from generate_series(1,24988) g on conflict (wiki_id,chunk_index) do nothing;"]
     statements += ["analyze public.source_chunks;", "analyze public.wiki_embeddings;", "commit;"]
     return "\n".join(statements)
 
