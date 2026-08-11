@@ -95,7 +95,9 @@ class LocalRetrievalDb:
     def _run(self, sql: str) -> list[dict]:
         result = subprocess.run(["docker", "exec", "-i", self.container, "psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "-At"], input=sql, text=True, capture_output=True)
         if result.returncode: raise RuntimeError(result.stderr[-1000:])
-        line = result.stdout.strip(); return json.loads(line or "[]")
+        line = result.stdout.strip()
+        # Mutation/cleanup statements intentionally have no JSON result.
+        return json.loads(line) if line.startswith(("[", "{")) else []
     async def rpc(self, function: str, *, params: dict[str, object]) -> list[dict]:
         self.calls.append((function, params)); workspace = _sql_literal(params["p_workspace_id"])
         if function in {"search_chunks", "search_wiki_embeddings"} and self.order_mode == "relaxed_order":
@@ -103,7 +105,11 @@ class LocalRetrievalDb:
             vector = "'[' || array_to_string(array[" + ",".join(str(float(x)) for x in params["p_query"]) + "], ',') || ']'"
             sql = f"begin; set local hnsw.iterative_scan='relaxed_order'; set local hnsw.ef_search='200'; set local hnsw.max_scan_tuples='40000'; select coalesce(jsonb_agg(to_jsonb(row)), '[]'::jsonb) from (select {fields} from public.{table} where workspace_id={workspace}::uuid and embedding is not null order by embedding operator(extensions.<=>) ({vector})::extensions.vector(1024) limit least(greatest({_sql_literal(params['p_k'])},1),100)) row; commit;"
         else:
-            arguments = ",".join(f"{key} => {_sql_literal(value)}" + ("::extensions.vector(1024)" if key == "p_query" else "") for key, value in params.items())
+            def argument(key: str, value: object) -> str:
+                if key == "p_query":
+                    return "('[' || array_to_string(array[" + ",".join(str(float(item)) for item in value) + "], ',') || ']')::extensions.vector(1024)"
+                return _sql_literal(value)
+            arguments = ",".join(f"{key} => {argument(key, value)}" for key, value in params.items())
             sql = f"select coalesce(jsonb_agg(to_jsonb(row)), '[]'::jsonb) from (select * from public.{function}({arguments})) row;"
         return await asyncio.to_thread(self._run, sql)
 
@@ -140,6 +146,9 @@ def operational(args, corpus: dict, golden: dict) -> dict:
     manifest = load_manifest(); workspace = uuid5(NS, f"{manifest['sha256']}:{args.run_id}"); cleanup = loader_sql(manifest, workspace, True)
     if args.output.exists(): raise VerificationError("refusing_to_overwrite_prior_record")
     try:
+        # A prior interrupted arm may have left only this deterministic workspace;
+        # remove it before loading, never broad workspace data.
+        LocalRetrievalDb(args.db_container, args.order_mode)._run(cleanup)
         LocalRetrievalDb(args.db_container, args.order_mode)._run(loader_sql(manifest, workspace))
         mapping = logical_id_map(manifest, corpus); reverse = {value: key for key, value in mapping.items()}
         policy = replace(DEFAULT_RETRIEVAL_POLICY, graph_enabled=args.graph == "on")
