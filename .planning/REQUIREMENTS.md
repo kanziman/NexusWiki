@@ -69,15 +69,15 @@
 
 ### Retrieval (RTV)
 
-- [ ] **RTV-01**: 검색이 2웨이브로 동작한다 — 채널 1~4 동시 실행 후 RRF, 그 결과를 seed로 채널 5(그래프 확장) 실행 후 재융합
-- [ ] **RTV-02**: RRF가 순위만 사용하고 채널별 가중치·`k`·limit이 Python 정책 계층에 있다 (SQL 안에서 융합하지 않음)
-- [ ] **RTV-03**: `hnsw.iterative_scan` · `hnsw.ef_search` · `hnsw.max_scan_tuples` 세 GUC가 모두 설정된다 (`strict_order` 단독은 불충분 — `ef_search` 기본값 40에 묶임)
+- [x] **RTV-01**: 검색이 2웨이브로 동작한다 — 채널 1~4 동시 실행 후 RRF, 그 결과를 seed로 채널 5(그래프 확장) 실행 후 재융합
+- [x] **RTV-02**: RRF가 순위만 사용하고 채널별 가중치·`k`·limit이 Python 정책 계층에 있다 (SQL 안에서 융합하지 않음)
+- [x] **RTV-03**: `hnsw.iterative_scan` · `hnsw.ef_search` · `hnsw.max_scan_tuples` 세 GUC가 모두 설정된다 (`strict_order` 단독은 불충분 — `ef_search` 기본값 40에 묶임)
 - [x] **RTV-04**: `relaxed_order` 대 `strict_order`가 실제 코퍼스로 벤치마크되고 선택 근거가 기록된다
-- [ ] **RTV-05**: 채널별 기여도(`channel_hits`)와 `returned < requested_k`가 1급 메트릭으로 기록된다
+- [x] **RTV-05**: 채널별 기여도(`channel_hits`)와 `returned < requested_k`가 1급 메트릭으로 기록된다
 - [x] **RTV-06**: 한국어/영어/혼합 30~50문항 골든 질의 세트가 존재한다 (가중치·`k`·청크 크기·그래프 채널 가치를 판정하는 전제 조건)
 - [x] **RTV-07**: 그래프 채널이 depth ≤ 2 · fan-out 상한 · 사이클 가드를 갖고, 골든 세트로 가치가 입증될 때까지 기본 비활성 플래그 뒤에 있다
 - [x] **RTV-08**: `EXPLAIN` 회귀 테스트가 HNSW 인덱스 스캔 사용을 단언한다 (플래너가 조용히 seq scan으로 이탈하는 것을 탐지)
-- [ ] **RTV-09**: 한 채널이 실패해도 요청이 실패하지 않고 융합에서 빠지며 `meta`에 보고된다
+- [x] **RTV-09**: 한 채널이 실패해도 요청이 실패하지 않고 융합에서 빠지며 `meta`에 보고된다
 
 ### Citation Integrity (CITE)
 
@@ -219,15 +219,15 @@
 | COMP-07 | Phase 3 | Complete |
 | COMP-08 | Phase 3 | Complete |
 | OPS-01 | Phase 3 | Complete |
-| RTV-01 | Phase 4 | Pending |
-| RTV-02 | Phase 4 | Pending |
-| RTV-03 | Phase 4 | Pending |
+| RTV-01 | Phase 4 | Complete |
+| RTV-02 | Phase 4 | Complete |
+| RTV-03 | Phase 4 | Complete |
 | RTV-04 | Phase 4 | Complete |
-| RTV-05 | Phase 4 | Pending |
+| RTV-05 | Phase 4 | Complete |
 | RTV-06 | Phase 4 | Complete |
 | RTV-07 | Phase 4 | Complete |
 | RTV-08 | Phase 4 | Complete |
-| RTV-09 | Phase 4 | Pending |
+| RTV-09 | Phase 4 | Complete |
 | CITE-01 | Phase 5 | Pending |
 | CITE-02 | Phase 5 | Pending |
 | CITE-03 | Phase 5 | Pending |

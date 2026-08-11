@@ -25,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Bootstrap and Ground Truth** - 되돌릴 수 없는 결정을 전부 확정하고 두 서비스를 클라우드에 띄운다 (completed 2026-08-05)
 - [x] **Phase 2: Security Spine and Shared Domain** - 격리·트랜스포트·토크나이저를 라우터 이전에 구조로 확정한다 (completed 2026-08-07)
 - [x] **Phase 3: Ingest and Compile Pipeline** - 투입한 소스가 링크·임베딩된 위키 페이지가 되는 쓰기 경로 (completed 2026-08-10)
-- [ ] **Phase 4: Hybrid Retrieval and Fusion** - 5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다
+- [x] **Phase 4: Hybrid Retrieval and Fusion** - 5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다 (completed 2026-08-11)
 - [ ] **Phase 5: Citation Integrity and Answer APIs** - 실제로 인용한 근거만 이중 Citation으로 돌려주는 답변 계층
 - [ ] **Phase 6: Dashboard** - 브라우저만으로 워크스페이스를 운영하는 프론트엔드
 - [ ] **Phase 7: Integration and Ops Baseline** - E2E·멱등성·격리·품질·비용 기준선
@@ -267,7 +267,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Bootstrap and Ground Truth | 9/9 | Complete    | 2026-08-05 |
 | 2. Security Spine and Shared Domain | 9/9 | Complete    | 2026-08-07 |
 | 3. Ingest and Compile Pipeline | 9/9 | Complete    | 2026-08-10 |
-| 4. Hybrid Retrieval and Fusion | 9/9 | In Progress|  |
+| 4. Hybrid Retrieval and Fusion | 9/9 | Complete    | 2026-08-11 |
 | 5. Citation Integrity and Answer APIs | 0/TBD | Not started | - |
 | 6. Dashboard | 0/TBD | Not started | - |
 | 7. Integration and Ops Baseline | 0/TBD | Not started | - |
