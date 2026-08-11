@@ -1,137 +1,75 @@
 ---
 phase: 04-hybrid-retrieval-and-fusion
-verified: 2026-08-11T10:00:00Z
+verified: 2026-08-11T13:15:00Z
 status: gaps_found
-score: 6/10 must-haves verified
-behavior_unverified: 0
+score: 7/9 requirements satisfied; 2 benchmark-evidence gaps
+behavior_unverified: 2
 overrides_applied: 0
 gaps:
-  - truth: "A bounded private worker query-embedding boundary remains available for normal retrieval traffic."
+  - truth: "The strict/relaxed records measure labelled golden-query retrieval quality, underfill, channel contribution, and latency on identical pins."
     status: failed
-    reason: "The private listener consumes a process-lifetime request counter and never refills it. At the configured default, request 101 and every request after it return 429 until the worker restarts; the API then silently degrades all dense channels to lexical-only."
-    artifacts:
-      - path: apps/worker/src/worker/query_embedding.py
-        issue: "_remaining_requests is initialized once, decremented for every authenticated call, and has no time-window/token-bucket refill or recovery path."
-    missing:
-      - "Replace the lifetime counter with a time-based refill/token-bucket (or an explicit concurrency-only control), define quota accounting for failed and timed-out calls, and test restored capacity."
-  - truth: "The pinned golden corpus records an evidence-backed strict_order versus relaxed_order choice."
+    reason: "The operational runner times one synthetic source-vector count query and constructs every golden evaluation from each query's required labels. It never executes the labelled query text, lexical RPCs, RRF, or a four/five-channel retrieval path."
+  - truth: "The graph-off/on records exercise graph expansion and report measured graph deltas."
     status: failed
-    reason: "No comparable strict/relaxed run or raw run reference exists. The decision record explicitly says that neither comparison was executed and the benchmark emits order_mode=not_measured_fixture_adapter."
-    artifacts:
-      - path: docs/ops/hnsw-order-benchmark.md
-        issue: "Records the absence of measurement instead of the Plan 04 Task 3 required comparison."
-      - path: scripts/benchmark_retrieval.py
-        issue: "The --verify fixture adapter does not execute database/HNSW order-mode comparisons."
-    missing:
-      - "Run and retain same-input strict_order and relaxed_order benchmark records with raw run references, or formally re-scope the roadmap requirement."
-  - truth: "EXPLAIN regression tests assert HNSW Index Scan use for both source and wiki vector retrieval."
-    status: failed
-    reason: "The SQL contract checks that the three HNSW GUCs are configured, but contains no EXPLAIN assertion for source_chunks_embedding_idx or wiki_embeddings_embedding_idx."
-    artifacts:
-      - path: supabase/tests/0011_retrieval_contract.sql
-        issue: "No EXPLAIN/JSON-plan assertion names either required HNSW index."
-    missing:
-      - "Seed a selective representative corpus and add an executable EXPLAIN regression assertion naming both HNSW indexes."
-  - truth: "Graph-off and graph-on results are recorded on the pinned golden set before graph value is assessed."
-    status: failed
-    reason: "The graph remains safely disabled, but no off/on comparison was run; the runner has no graph toggle and reports graph_delta.status=not_measured_fixture_adapter."
-    artifacts:
-      - path: docs/ops/hnsw-order-benchmark.md
-        issue: "Explicitly records that graph off/on was not measured."
-      - path: scripts/benchmark_retrieval.py
-        issue: "Has no graph off/on execution mode."
-    missing:
-      - "Add graph toggling and per-query/aggregate graph delta recording, then retain paired golden-set runs before any graph promotion decision."
-deferred:
-  - truth: "Comparable strict/relaxed and graph off/on operational measurements"
-    addressed_in: "Phase 7"
-    evidence: "04-04-SUMMARY.md, WINDOWS #10, and the benchmark decision record explicitly defer production-like measurements to Phase 7 OPS. This does not remove the Phase 4 roadmap/plan gaps."
+    reason: "The graph argument is only serialized into the record; the runner never calls expand_wiki_graph or otherwise branches on it. graph contribution and graph_delta are constants."
+human_verification:
+  - "A reviewer must approve any later policy/default change after genuine paired full-path records are retained. No manual approval can make the current synthetic graph flag a measurement."
 ---
 
 # Phase 4: Hybrid Retrieval and Fusion Verification Report
 
-**Phase Goal:** 질문 하나가 5채널을 거쳐 **측정 가능하게** 옳은 근거 집합을 돌려준다
+**Phase goal:** 질문 하나가 5채널을 거쳐 **측정 가능하게** 옳은 근거 집합을 돌려준다
 
-**Verified:** 2026-08-11T10:00:00Z
+**Result:** `gaps_found` — the retrieval implementation and most contracts pass, but the new benchmark records do not substantiate the order-mode or graph-value decisions claimed by Plan 07.
 
-**Status:** gaps_found
+## Must-have evidence
 
-**Re-verification:** No — initial verification
+| Truth | Result | Evidence |
+| --- | --- | --- |
+| Four first-wave channels run concurrently, then optional bounded graph re-fusion runs from fused wiki seeds. | PASS | `apps/api/src/api/services/retrieval.py` gathers the four adapters, then calls `expand_wiki_graph` only when `graph_enabled`; focused service/integration tests passed. |
+| A failed channel does not fail the request and safe channel metadata plus underfill/contribution are returned. | PASS | Per-channel exception envelopes, cancellation re-raise, `underfill`, and contribution accounting are present in `retrieval.py`; focused tests passed. |
+| Rank-only, deterministic RRF and immutable Python policy are used. | PASS | `packages/core/src/nexuswiki_core/retrieval_policy.py` and `rrf.py`; policy/RRF tests passed. |
+| The query-embedding boundary has durable bounded capacity. | PASS | `QueryEmbeddingService` uses a monotonic refilling token bucket; 04-05 tests passed. |
+| Vector search configures all three HNSW GUCs and planner regression asserts the named indexes. | PASS | `0011_retrieval.sql` sets `iterative_scan`, `ef_search`, and `max_scan_tuples`; 04-06 provides recursive JSON-plan named-index assertions. SQL static gate passed. |
+| Golden set is multilingual, pinned, and 30–50 queries. | PASS | `golden_queries.v1.json` has 36 labels; fixture tests passed. |
+| Strict/relaxed quality evidence is genuinely measured on the golden retrieval path. | FAIL | In `scripts/benchmark_retrieval.py`, `evaluations` are fabricated from `required_evidence`, while the only timed operation is a synthetic source-vector `count(*)` query. The records therefore cannot establish recall, rank, underfill, or channel contribution equivalence. |
+| Graph-off/on value evidence is genuinely measured. | FAIL | `args.graph` is used only to set `graph_enabled` in emitted JSON. No code calls `expand_wiki_graph`, branches on graph state, or computes a delta; records report constant graph contribution `0` and delta `0`. |
 
-## Goal Achievement
+## Requirement accounting
 
-### Observable Truths
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| RTV-01 — two-wave five-channel retrieval | SATISFIED | Four concurrent adapters, rank fusion, seed-only graph call, and re-fusion are implemented and tested. |
+| RTV-02 — rank-only RRF and Python policy | SATISFIED | Immutable `RetrievalPolicy`, rank-only `fuse_ranked_hits`, deterministic ties. |
+| RTV-03 — three HNSW GUCs | SATISFIED | Both vector RPCs in `0011_retrieval.sql` set all required GUCs. |
+| RTV-04 — benchmark and record strict vs relaxed choice | GAP | Paired files and HNSW direct-query timings exist, but quality/underfill results are not generated by retrieval. The strict decision lacks valid quality evidence. |
+| RTV-05 — channel metrics and underfill | SATISFIED | Retrieval response meta has requested/returned/underfill/channel status/contribution. |
+| RTV-06 — 30–50 Korean/English/mixed golden queries | SATISFIED | Pinned 36-query fixture validates. |
+| RTV-07 — bounded default-off graph pending demonstrated value | PARTIAL | SQL and policy safety/default-off behavior pass, but the claimed off/on measurement is a no-op and cannot assess graph value. |
+| RTV-08 — HNSW EXPLAIN regression | SATISFIED | 04-06 named-index JSON-plan contract plus `ci_check_retrieval_contract.sh`. |
+| RTV-09 — isolated channel failures reported in meta | SATISFIED | Failure isolation and safe metadata/cancellation tests pass. |
 
-| # | Truth | Status | Evidence |
-| --- | --- | --- | --- |
-| 1 | Pinned multilingual golden set informs recorded order-mode tuning decisions. | ✗ FAILED | 36-query fixture exists, but strict/relaxed was not measured or recorded. |
-| 2 | Four concurrent channels are RRF-fused before bounded optional graph re-fusion. | ✓ VERIFIED | `RetrievalService.retrieve()` gathers four RPC adapters; graph uses fused wiki seeds only. Barrier and graph tests pass. |
-| 3 | A failed channel leaves a useful response and reports safe channel metadata. | ✓ VERIFIED | Per-channel exception envelopes and cancellation re-raise are implemented and covered by focused tests. |
-| 4 | Returned/underfill and channel contribution are first-class metadata. | ✓ VERIFIED | Retrieval response meta exposes requested, returned, underfill, channel status, raw IDs, contribution, and policy version. |
-| 5 | HNSW planner regression is detected by EXPLAIN. | ✗ FAILED | No executable EXPLAIN assertion names `source_chunks_embedding_idx` or `wiki_embeddings_embedding_idx`. |
-| 6 | RRF is rank-only with immutable/versioned Python policy and deterministic canonical ties. | ✓ VERIFIED | `retrieval_policy.py` and `rrf.py`; policy/RRF tests pass. |
-| 7 | API/browser lack provider credentials and the worker embedding boundary is safely bounded. | ✗ FAILED | Secret boundary is present, but `QueryEmbeddingService` permanently exhausts `max_requests` without refill. |
-| 8 | Versioned bigrams and user/service RPC boundaries are substantive and wired. | ✓ VERIFIED | `0011_retrieval.sql`, worker lexical calls, RLS integration test, and CI contract gate pass. |
-| 9 | Graph SQL is bounded, cycle-safe, workspace-scoped, and default-off. | ✓ VERIFIED | `expand_wiki_graph` bounds seeds/fanout/total/depth and policy defaults to disabled. |
-| 10 | Graph value is measured off/on before it is assessed for promotion. | ✗ FAILED | The record and runner explicitly state no graph comparison was run. |
+## Automated verification performed
 
-**Score:** 6/10 must-haves verified (0 present, behavior-unverified)
+| Command | Result |
+| --- | --- |
+| `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q packages/core/tests/test_retrieval_policy.py packages/core/tests/test_rrf.py packages/core/tests/test_retrieval_golden.py apps/worker/tests/test_query_embedding.py apps/worker/tests/test_worker_main.py apps/worker/tests/test_settings.py apps/api/tests/test_retrieval_service.py apps/api/tests/test_hybrid_search_integration.py` | PASS — 50 passed |
+| `bash scripts/ci_check_query_embedding_boundary.sh` | PASS |
+| `bash scripts/ci_check_retrieval_contract.sh` | PASS |
+| `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run python scripts/benchmark_retrieval.py --verify` | PASS as an offline fixture contract only; it explicitly reports `not_measured_fixture_adapter`. |
+| Local database availability probe | PASS — `supabase_db_NexusWiki` responded to `psql`. |
 
-### Required Artifacts
+## Gaps and required closure
 
-| Artifact | Expected | Status | Details |
-| --- | --- | --- | --- |
-| `packages/core/src/nexuswiki_core/retrieval_policy.py` | Immutable versioned policy | ✓ VERIFIED | Frozen dataclass and immutable mappings; tests pass. |
-| `packages/core/src/nexuswiki_core/rrf.py` | Rank-only deterministic RRF | ✓ VERIFIED | Canonical IDs, dedupe, contributions, and tie ordering are tested. |
-| `apps/api/src/api/services/retrieval.py` | Four-channel/two-wave orchestration | ✓ VERIFIED | Requester-JWT RPC flow is live; failures are isolated. |
-| `apps/worker/src/worker/query_embedding.py` | Bounded private vector service | ✗ FAILED | Lifetime quota makes normal dense retrieval non-durable. |
-| `supabase/migrations/0011_retrieval.sql` | Retrieval RPC and graph boundary | ✓ VERIFIED | ACL/GUC/graph bounds are substantive; static gate passes. |
-| `supabase/tests/0011_retrieval_contract.sql` | HNSW EXPLAIN regression contract | ✗ FAILED | Does not test query plans or named HNSW indexes. |
-| `scripts/benchmark_retrieval.py` | Reproducible operational comparisons | ✗ FAILED | Fixture contract verification is reproducible, not strict/relaxed or graph off/on measurement. |
+1. Replace synthetic golden evaluations with results returned by the actual retrieval pipeline (including lexical channels and Python RRF). Persist per-query ranked evidence, actual channel requested/returned/underfill/contribution, and derived quality metrics.
+2. Make `--graph off|on` control real second-wave graph expansion; calculate and retain per-query and aggregate graph contribution/quality/underfill/latency deltas.
+3. Re-run four immutable records with identical pins and update the decision document. The user’s `strict_keep_graph_off` approval can remain the safe default meanwhile, but it is not evidence that closes RTV-04 or the measurement portion of RTV-07.
 
-### Key Link Verification
+## Human verification
 
-| From | To | Via | Status | Details |
-| --- | --- | --- | --- | --- |
-| Retrieval service | `UserDb.rpc` | requester-JWT search RPCs | ✓ WIRED | Four adapters invoke authenticated RPC names; no worker service DB import in API retrieval code. |
-| Retrieval service | Private worker embedder | `QueryEmbeddingClient` | ⚠️ PARTIAL | Injection and credential boundary are wired, but the listener's non-refilling quota breaks sustained operation. |
-| Parse/compile handlers | lexical writer RPCs | normalized bigrams | ✓ WIRED | Handler/service paths and tests exercise the writer methods. |
-| First-wave RRF | `expand_wiki_graph` | fused wiki seed IDs | ✓ WIRED | Graph only runs after first fusion, with capped seed/fanout/total parameters. |
-| SQL contracts | planner behavior | EXPLAIN named-index assertion | ✗ NOT WIRED | No EXPLAIN test exists. |
-
-### Behavioral Spot-Checks
-
-| Behavior | Command | Result | Status |
-| --- | --- | --- | --- |
-| Focused retrieval, boundary, policy, RRF, integration, and golden tests | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q ...` | 27 passed | ✓ PASS |
-| Pinned fixture benchmark contract | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run python scripts/benchmark_retrieval.py --verify` | exit 0; explicitly `not_measured_fixture_adapter` | ✓ PASS (fixture contract only) |
-| Secret and SQL static contracts | `bash scripts/ci_check_query_embedding_boundary.sh && bash scripts/ci_check_retrieval_contract.sh` | exit 0 | ✓ PASS |
-
-### Requirements Coverage
-
-| Requirement | Source Plan | Status | Evidence |
-| --- | --- | --- | --- |
-| RTV-01 | 04-03 | ✓ SATISFIED | Four concurrent first-wave adapters, RRF, fused-seed graph re-fusion and tests. |
-| RTV-02 | 04-01 | ✓ SATISFIED | Rank-only RRF and immutable Python policy. |
-| RTV-03 | 04-02 | ✓ SATISFIED | Both vector RPCs set all three required HNSW GUCs. |
-| RTV-04 | 04-04 | ✗ BLOCKED | Strict/relaxed comparison and selection evidence do not exist. |
-| RTV-05 | 04-01/03 | ✓ SATISFIED | Channel contribution and underfill metadata are returned. |
-| RTV-06 | 04-04 | ✓ SATISFIED | Pinned 36-query Korean/English/mixed golden set validates. |
-| RTV-07 | 04-02/03/04 | ⚠️ PARTIAL | SQL and default-off safety are satisfied; promised golden-set off/on value comparison is absent. |
-| RTV-08 | 04-02 | ✗ BLOCKED | No named-index EXPLAIN regression assertion. |
-| RTV-09 | 04-01/03 | ✓ SATISFIED | Isolated channel failures yield safe meta and remaining evidence; cancellation propagates. |
-
-### Anti-Patterns Found
-
-| File | Line | Pattern | Severity | Impact |
-| --- | --- | --- | --- |
-| `apps/worker/src/worker/query_embedding.py` | 50–65 | Non-refilling lifetime request quota | 🛑 BLOCKER | Dense retrieval becomes permanently unavailable after ordinary traffic. |
-
-### Gaps Summary
-
-The phase has a substantive retrieval implementation and focused tests, but its goal is not achieved. Dense retrieval has a permanent capacity-exhaustion defect, the required HNSW EXPLAIN regression is absent, and the planned order-mode and graph value comparisons were deliberately not run. The Phase 7 deferral is documented, but cannot turn Phase 4's unfulfilled roadmap/plan contracts into a pass.
+No UI/manual product test is needed for the implemented retrieval contracts. A reviewer must inspect and approve any future policy or graph-default change after valid paired records exist; current records do not support promotion or a relaxed-order migration.
 
 ---
 
-_Verified: 2026-08-11T10:00:00Z_
-_Verifier: the agent (gsd-verifier)_
+_Verified: 2026-08-11T13:15:00Z_
+_Verifier: gsd verifier_
