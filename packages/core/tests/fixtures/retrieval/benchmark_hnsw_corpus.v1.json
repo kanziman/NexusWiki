@@ -1,0 +1,13 @@
+{
+  "version": "benchmark-hnsw-corpus-v1",
+  "generator_algorithm": "sha256-counter-stream-l2-v1",
+  "generator_version": "1",
+  "seed": "nexuswiki-phase-04-hnsw-v1",
+  "uuid_namespace": "6e786575-7377-696b-692d-62656e636830",
+  "embedding_model": "deterministic-sha256-l2",
+  "dimension": 1024,
+  "labelled_rows_per_relation": 12,
+  "target_rows_per_relation": 25000,
+  "decoy_rows_per_relation": 25000,
+  "sha256": "5f961eeb2ced94bef56134072244b6f5cb8392a4afffe86d5215be3e4005252b"
+}

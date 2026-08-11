@@ -12,6 +12,7 @@ from pathlib import Path
 FIXTURES = Path(__file__).parent / "fixtures" / "retrieval"
 CORPUS = FIXTURES / "representative_corpus.v1.json"
 GOLDEN = FIXTURES / "golden_queries.v1.json"
+MANIFEST = FIXTURES / "benchmark_hnsw_corpus.v1.json"
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -142,3 +143,39 @@ def test_fixture_validator_rejects_invalid_labels_and_unpinned_alternatives() ->
         except module.VerificationError:
             continue
         raise AssertionError(f"{field} mutation must fail closed")
+
+
+def test_benchmark_manifest_and_counter_stream_are_pinned_and_deterministic() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "benchmark_generator", Path("scripts/generate_retrieval_benchmark_corpus.py")
+    )
+    assert spec and spec.loader
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    manifest = _load(MANIFEST)
+    assert manifest["sha256"] == generator.canonical_hash(manifest)
+    assert (manifest["target_rows_per_relation"], manifest["decoy_rows_per_relation"]) == (
+        25000,
+        25000,
+    )
+    assert generator.identity(manifest, "source", 99) == generator.identity(manifest, "source", 99)
+    vector = generator.vector(manifest, "source", 99)
+    assert len(vector) == 1024
+    assert abs(sum(value * value for value in vector) - 1.0) < 1e-9
+
+
+def test_policy_content_hash_detects_policy_change_without_version_change() -> None:
+    module = _benchmark_module()
+    from nexuswiki_core.retrieval_policy import RetrievalPolicy
+
+    baseline = module.policy_content_sha256()
+    changed = RetrievalPolicy(
+        channel_weights={
+            "wiki_vector": 2.0,
+            "source_vector": 1.0,
+            "wiki_lexical": 1.0,
+            "source_lexical": 1.0,
+        }
+    )
+    assert changed.version == "hybrid-rrf-v1"
+    assert module.policy_content_sha256(changed) != baseline
