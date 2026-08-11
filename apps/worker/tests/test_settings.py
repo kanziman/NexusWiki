@@ -88,3 +88,24 @@ def test_worker_refuses_to_boot_on_an_empty_secret(monkeypatch: pytest.MonkeyPat
         WorkerSettings()
 
     assert "SUPABASE_SECRET_KEY" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("QUERY_EMBEDDING_RATE_CAPACITY", 0),
+        ("QUERY_EMBEDDING_RATE_CAPACITY", -1),
+        ("QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND", 0),
+        ("QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND", -0.1),
+    ],
+)
+def test_query_embedding_rate_settings_must_be_positive(
+    key: str, value: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_complete_worker_env(monkeypatch)
+    monkeypatch.setenv(key, str(value))
+
+    with pytest.raises(MissingSettingError) as excinfo:
+        WorkerSettings()
+
+    assert key in str(excinfo.value)

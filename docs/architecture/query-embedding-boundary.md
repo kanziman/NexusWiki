@@ -30,6 +30,24 @@ declares this private-only deployment property, and
   `UserDb.rpc` only; it uses no service-role database client.
 - Tests inject a fake embedding function rather than requiring a provider key.
 
+## Rate-limit decision and accounting
+
+The worker uses a lock-protected monotonic token bucket rather than a
+process-lifetime request counter. `QUERY_EMBEDDING_RATE_CAPACITY` defaults to
+100 tokens and `QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND` defaults to 1.0;
+both settings must be positive. Worker startup passes both explicit values to
+`QueryEmbeddingService`, so production does not silently rely on constructor
+defaults.
+
+Each authenticated, syntactically valid request reserves one token before
+provider work. Missing credentials and invalid text reserve no token. A
+provider exception, timeout, malformed vector, or cancellation after its
+attempt begins retains the reservation: tokens are never refunded. The bucket
+uses `time.monotonic()` elapsed time, refills only up to capacity, and is
+protected by an async lock so simultaneous callers cannot overspend it. This
+allows ordinary traffic to recover dense-retrieval capacity predictably while
+preserving a hard bound on provider attempts.
+
 ## Rejected alternatives
 
 Direct browser embedding and adding `OPENROUTER_API_KEY` to `ApiSettings` are
