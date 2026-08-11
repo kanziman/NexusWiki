@@ -133,7 +133,31 @@ def _validate_record(record: dict) -> None:
     if record.get("policy_content_sha256") != hashlib.sha256(_canonical(record.get("policy_content")).encode()).hexdigest(): raise VerificationError("policy_content_sha_mismatch")
     for result in record.get("query_results", []):
         if set(result.get("channels", {})) != set(CHANNELS): raise VerificationError("missing_five_channel_envelopes")
-        if not result.get("ranked_uuid_evidence") or "evaluation" not in result: raise VerificationError("fabricated_or_label_only_evaluation")
+        if "evaluation" not in result or not _observed_retrieval_result(result): raise VerificationError("fabricated_or_label_only_evaluation")
+
+
+def _observed_retrieval_result(result: dict) -> bool:
+    """Recognize a serialized RetrievalService observation, including an empty ranking.
+
+    The explicit provenance marker and complete channel envelopes are emitted in the
+    same loop that calls ``RetrievalService.retrieve``.  Labels are deliberately
+    absent from this check, so a label-only evaluation cannot masquerade as an
+    observed empty result.
+    """
+    if result.get("retrieval_observation") != "retrieval_service_channel_envelopes_v1":
+        return False
+    ranked = result.get("ranked_uuid_evidence")
+    if not isinstance(ranked, list) or not all(isinstance(item, str) for item in ranked):
+        return False
+    for channel in result["channels"].values():
+        if not isinstance(channel, dict) or not {"status", "requested", "returned", "underfill", "raw_uuid_ids", "logical_ids", "contribution"} <= set(channel):
+            return False
+        raw = channel["raw_uuid_ids"]
+        if not isinstance(raw, list) or channel["returned"] != len(raw):
+            return False
+        if channel["underfill"] != (channel["returned"] < channel["requested"]):
+            return False
+    return True
 
 
 def _fixture(corpus: dict, golden: dict, overrides: dict[str, list[str]] | None = None) -> dict:
@@ -157,7 +181,7 @@ def operational(args, corpus: dict, golden: dict) -> dict:
             started = time.perf_counter(); response = asyncio.run(service.retrieve(workspace, query["query"], query["requested_k"], db)); elapsed = round((time.perf_counter() - started) * 1000, 3)
             ranked_uuid = [hit.document_id if hit.kind == "wiki" else hit.evidence_id for hit in response.evidence]; ranked_logical = [reverse.get(item, item) for item in ranked_uuid]
             channels = {name: _channel_record(response.meta[name], reverse) for name in CHANNELS}
-            results.append({"query_id": query["id"], "query_text": query["query"], "language": query["language"], "ranked_uuid_evidence": ranked_uuid, "ranked_logical_evidence": ranked_logical, "evaluation": _evaluate_query(query, ranked_logical), "total_latency_ms": elapsed, "underfill": response.meta["underfill"], "channels": channels})
+            results.append({"query_id": query["id"], "query_text": query["query"], "language": query["language"], "retrieval_observation": "retrieval_service_channel_envelopes_v1", "ranked_uuid_evidence": ranked_uuid, "ranked_logical_evidence": ranked_logical, "evaluation": _evaluate_query(query, ranked_logical), "total_latency_ms": elapsed, "underfill": response.meta["underfill"], "channels": channels})
         record = {"record_schema": "retrieval-benchmark-v3", "run_kind": "full_path_retrieval_measurement", "timestamp": datetime.now(UTC).isoformat(), "git_sha": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(), "policy_version": POLICY_VERSION, "policy_content": policy_content(policy), "policy_content_sha256": policy_content_sha256(policy), "corpus_version": corpus["version"], "corpus_sha256": corpus["sha256"], "golden_version": golden["version"], "golden_sha256": golden["sha256"], "benchmark_manifest_sha256": manifest["sha256"], "generator_seed": manifest["seed"], "raw_workspace_uuid": str(workspace), "logical_id_to_uuid": mapping, "embedding_model_version": "fixture-token-hash-l2-v1", "database_identity": args.db_container, "repeat_count": args.repeat_count, "order_mode": args.order_mode, "graph_enabled": args.graph == "on", "query_results": results, "metrics": _metrics(results)}
         _validate_record(record); return record
     finally:

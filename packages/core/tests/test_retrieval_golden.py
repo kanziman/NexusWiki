@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 FIXTURES = Path(__file__).parent / "fixtures" / "retrieval"
 CORPUS = FIXTURES / "representative_corpus.v1.json"
 GOLDEN = FIXTURES / "golden_queries.v1.json"
@@ -179,3 +181,44 @@ def test_policy_content_hash_detects_policy_change_without_version_change() -> N
     )
     assert changed.version == "hybrid-rrf-v1"
     assert module.policy_content_sha256(changed) != baseline
+
+
+def test_operational_validator_accepts_observed_empty_retrieval_result_only() -> None:
+    """An empty service result is evidence; an empty label-built result is not."""
+    module = _benchmark_module()
+    channels = {
+        name: {
+            "status": "ok" if name != "graph" else "disabled",
+            "requested": 1,
+            "returned": 0,
+            "underfill": True,
+            "elapsed_ms": 0.1,
+            "error_code": None,
+            "raw_hit_ids": [],
+            "raw_uuid_ids": [],
+            "logical_ids": [],
+            "contribution": 0,
+        }
+        for name in ("wiki_vector", "source_vector", "wiki_lexical", "source_lexical", "graph")
+    }
+    record = {
+        "run_kind": "full_path_retrieval_measurement",
+        "order_mode": "strict_order",
+        "policy_content": module.policy_content(),
+        "policy_content_sha256": module.policy_content_sha256(),
+        "query_results": [
+            {
+                "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+                "ranked_uuid_evidence": [],
+                "ranked_logical_evidence": [],
+                "evaluation": {"id": "empty", "passed": False, "checks": []},
+                "channels": channels,
+            }
+        ],
+    }
+
+    module._validate_record(record)
+
+    del record["query_results"][0]["retrieval_observation"]
+    with pytest.raises(module.VerificationError, match="fabricated_or_label_only_evaluation"):
+        module._validate_record(record)
