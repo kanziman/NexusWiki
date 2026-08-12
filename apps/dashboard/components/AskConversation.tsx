@@ -10,6 +10,7 @@ import {
   type ResolvedAnchor,
   type TextPart,
 } from "@/lib/citation-anchors";
+import { requireEnv } from "@/lib/env";
 import { parseSseStream } from "@/lib/sse";
 import { createClient } from "@/lib/supabase/client";
 
@@ -151,8 +152,10 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
       // apiFetch()를 쓰지 않는다 — 그 헬퍼는 JSON 응답을 가정하지만 이 엔드포인트는
       // SSE 스트림을 반환한다(06-04-SUMMARY.md). 인증 헤더 부착 방식만 apiFetch와
       // 동일하게 맞춘다(요청마다 새 세션 토큰을 읽는다).
+      // 06-REVIEW.md WR-05: unset이면 이전에는 이 문자열이 그대로
+      // "undefined/..."로 나갔다 — requireEnv로 fail-fast(CLAUDE.md 규칙)한다.
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/workspaces/${workspaceId}/ask`,
+        `${requireEnv("NEXT_PUBLIC_API_URL")}/workspaces/${workspaceId}/ask`,
         {
           method: "POST",
           headers: {

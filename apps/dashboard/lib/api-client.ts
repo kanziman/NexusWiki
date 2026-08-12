@@ -1,3 +1,4 @@
+import { requireEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -77,7 +78,9 @@ export async function apiFetch<T>(
     }
   }
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
+  // 06-REVIEW.md WR-05: unset이면 이전에는 이 문자열이 그대로
+  // "undefined/..."로 나갔다 — requireEnv로 fail-fast(CLAUDE.md 규칙)한다.
+  const response = await fetch(`${requireEnv("NEXT_PUBLIC_API_URL")}${path}`, {
     method: init?.method ?? "GET",
     headers,
     body,

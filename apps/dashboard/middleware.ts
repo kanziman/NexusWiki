@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { requireEnv } from "@/lib/env";
+
 /**
  * 테넌트 게이트이자 유일한 쿠키 기록자.
  *
@@ -19,13 +21,16 @@ import { NextResponse, type NextRequest } from "next/server";
  * 이 파일은 로그인 여부만 본다. 존재/멤버십 판정은 RLS로 읽는
  * `app/w/[workspaceId]/layout.tsx`의 몫이며, 거기서도 두 경우를 구분하지 않고
  * 동일하게 `/`로 리다이렉트한다.
+ *
+ * 06-REVIEW.md WR-05: `!` 비-null 단언 대신 `requireEnv`로 런타임에 실제로
+ * 검증한다(CLAUDE.md fail-fast 규칙).
  */
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requireEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     {
       cookies: {
         getAll() {

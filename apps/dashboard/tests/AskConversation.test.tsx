@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // parseSseStream만 모킹한다 — AskConversation은 이 파서가 내보내는 이벤트
 // 순서(meta -> delta* -> citations -> done)로만 상태 기계를 구동하므로,
@@ -61,12 +61,21 @@ async function askQuestion(text: string) {
 }
 
 describe("AskConversation", () => {
+  const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
   beforeEach(() => {
     sseFrames.mockReset();
     // 06-REVIEW.md WR-02 fix: AskConversation이 SSE 루프에 들어가기 전에
     // response.ok를 확인하므로, 기존 성공 경로 테스트들이 계속 통과하려면
     // 목 fetch도 ok:true를 흉내내야 한다.
     global.fetch = vi.fn().mockResolvedValue({ ok: true } as Response);
+    // 06-REVIEW.md WR-05 fix: fetch URL 조립이 이제 requireEnv로 이 값의
+    // 존재를 요구한다(api-client.test.ts와 같은 패턴).
+    process.env.NEXT_PUBLIC_API_URL = "http://api.test";
+  });
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_API_URL = originalApiUrl;
   });
 
   it("빈 대화에서는 empty-state 문구를 렌더링한다", () => {
