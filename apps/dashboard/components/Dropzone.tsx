@@ -9,6 +9,12 @@ import { ApiError, apiFetch } from "@/lib/api-client";
 export type DropzoneProps = {
   workspaceId: string;
   onIngested?: (jobId: string, rawSourceId: string) => void;
+  // RedLinkCta.handleCreate → sources/page.tsx → SourcesList가 이어 넘기는
+  // prefill 값 — 06-REVIEW.md CR-01: 이전에는 이 두 prop이 없어 빨간 링크
+  // CTA의 "지금 생성" 클릭이 빈 File 탭으로만 이동했다. 마운트 시 텍스트
+  // 탭의 제목 필드와 활성 탭을 시드한다.
+  prefillTitle?: string;
+  initialTab?: TabValue;
 };
 
 type IngestResponse = { job_id: string; raw_source_id: string };
@@ -65,8 +71,13 @@ function mapIngestError(error: unknown): string {
  * 원시 바이트 본문을 받는다(D-P11). apiFetch의 `contentType` 이스케이프 해치로 파일
  * 자신의 MIME을 Content-Type으로 실어 보낸다.
  */
-export function Dropzone({ workspaceId, onIngested }: DropzoneProps) {
-  const [tab, setTab] = useState<TabValue>("file");
+export function Dropzone({
+  workspaceId,
+  onIngested,
+  prefillTitle,
+  initialTab,
+}: DropzoneProps) {
+  const [tab, setTab] = useState<TabValue>(initialTab ?? "file");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -83,7 +94,7 @@ export function Dropzone({ workspaceId, onIngested }: DropzoneProps) {
   const [url, setUrl] = useState("");
   const [urlTitle, setUrlTitle] = useState("");
 
-  const [textTitle, setTextTitle] = useState("");
+  const [textTitle, setTextTitle] = useState(prefillTitle ?? "");
   const [text, setText] = useState("");
 
   function switchTab(value: string) {

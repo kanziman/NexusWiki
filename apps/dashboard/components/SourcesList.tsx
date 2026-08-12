@@ -18,6 +18,11 @@ export type SourceRow = {
 export type SourcesListProps = {
   workspaceId: string;
   initialSources: SourceRow[];
+  // RedLinkCta.handleCreate가 심는 ?prefillTitle=&tab=text를 page.tsx가 읽어
+  // 여기로 넘긴다 — Dropzone까지 이어져야 06-REVIEW.md CR-01의 실제 동작이
+  // 완성된다.
+  prefillTitle?: string;
+  initialTab?: "text";
 };
 
 // UI-SPEC Copywriting Contract "Empty state heading/body" — 문구를 한 글자도
@@ -56,7 +61,12 @@ function formatDate(iso: string): string {
  * 클라이언트 래퍼로 분리했다 (SettingsMembersPanel.tsx와 같은 계열, 06-03-SUMMARY.md
  * Deviation 3 참고).
  */
-export function SourcesList({ workspaceId, initialSources }: SourcesListProps) {
+export function SourcesList({
+  workspaceId,
+  initialSources,
+  prefillTitle,
+  initialTab,
+}: SourcesListProps) {
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
 
   // Dropzone.onIngested는 (jobId, rawSourceId) 두 인자만 준다(Task 1의 고정된
@@ -80,7 +90,12 @@ export function SourcesList({ workspaceId, initialSources }: SourcesListProps) {
 
   return (
     <div className="flex flex-col gap-lg">
-      <Dropzone workspaceId={workspaceId} onIngested={handleIngested} />
+      <Dropzone
+        workspaceId={workspaceId}
+        onIngested={handleIngested}
+        prefillTitle={prefillTitle}
+        initialTab={initialTab}
+      />
 
       {sources.length === 0 ? (
         <div className="flex flex-col items-center gap-xs py-section text-center">
