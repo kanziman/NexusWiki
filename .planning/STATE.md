@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
-current_phase_name: citation-integrity-and-answer-apis
-status: executing
+current_phase: 6
+current_phase_name: Dashboard
+status: planning
 stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-08-11T23:24:42.100Z"
+last_updated: "2026-08-12T02:11:16.190Z"
 last_activity: 2026-08-12
-last_activity_desc: Phase 05 execution started
+last_activity_desc: Phase 05 complete, transitioned to Phase 6
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 42
-  completed_plans: 38
+  completed_phases: 5
+  total_plans: 43
+  completed_plans: 43
 ---
 
 # Project State
@@ -27,18 +27,18 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 
 ## Current Position
 
-Phase: 05 (citation-integrity-and-answer-apis) — EXECUTING
-Plan: 3 of 6
-Status: Ready to execute
-Last activity: 2026-08-12 — Phase 05 execution started
+Phase: 6 — Dashboard
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-12 — Phase 05 complete, transitioned to Phase 6
 
-Progress: [█████████░] 90% (execution; verification pending)
+Progress: [█████████░] 91% (execution; verification pending)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 36
+- Total plans completed: 43
 - Average duration: —
 - Total execution time: —
 
@@ -50,6 +50,7 @@ Progress: [█████████░] 90% (execution; verification pending)
 | 02 | 9 | - | - |
 | 03 | 9 | - | - |
 | 04 | 9 | - | - |
+| 05 | 7 | - | - |
 
 **Recent Trend:**
 
@@ -155,6 +156,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 5] ask 템플릿 인용 표기는 4종의 서로 다른 문구를 문자열 치환하지 않고 append로 교정한다 — 가장 최근 지시가 우선하는 성질을 이용해 D-02 별칭 스킴을 강제 (05-02)
 - [Phase ?]: [Phase 5] wiki_graph_neighborhood는 expand_wiki_graph를 재사용하지 않고 새로 만든다 — Phase 4 검색-융합 정책과 API-04 그래프 읽기는 서로 다른 소비자이므로 독립 버전으로 분리 (05-02, D-07.1/D-11)
 - [Phase ?]: [Phase 5] hnsw.* GUC을 설정하는 함수가 있는 마이그레이션은 supabase db push 단독 세션에서 실패하지 않도록 파일마다 pgvector 워밍업 쿼리를 필요로 한다 — db reset은 이전 마이그레이션이 이미 세션을 데워서 이 버그를 가린다 (05-02)
+- [Phase ?]: [Phase 5] CITE-06은 파일·URL·텍스트 분기마다가 아니라 parse.py에서 최종 content가 합류한 직후, chunk_text() 전에 전체 텍스트에 한 번 적용한다 — 청크 경계에 걸친 위조 앵커도 구조적으로 제거하고 ING-05 offset은 정제된 content 기준으로 보존한다 (05-03)
+- [Phase ?]: [Phase 5] template_id는 요청자 JWT/RLS로 읽힌 행만 우선 사용하고 빈 결과는 기본 템플릿 조회 체인으로 폴백한다 — foreign/missing id를 구별하지 않아 템플릿 존재 여부를 노출하지 않는다 (05-03)
 
 ### Pending Todos
 

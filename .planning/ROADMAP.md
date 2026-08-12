@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Security Spine and Shared Domain** - 격리·트랜스포트·토크나이저를 라우터 이전에 구조로 확정한다 (completed 2026-08-07)
 - [x] **Phase 3: Ingest and Compile Pipeline** - 투입한 소스가 링크·임베딩된 위키 페이지가 되는 쓰기 경로 (completed 2026-08-10)
 - [x] **Phase 4: Hybrid Retrieval and Fusion** - 5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다 (completed 2026-08-11)
-- [ ] **Phase 5: Citation Integrity and Answer APIs** - 실제로 인용한 근거만 이중 Citation으로 돌려주는 답변 계층
+- [x] **Phase 5: Citation Integrity and Answer APIs** - 실제로 인용한 근거만 이중 Citation으로 돌려주는 답변 계층 (completed 2026-08-12)
 - [ ] **Phase 6: Dashboard** - 브라우저만으로 워크스페이스를 운영하는 프론트엔드
 - [ ] **Phase 7: Integration and Ops Baseline** - E2E·멱등성·격리·품질·비용 기준선
 
@@ -232,12 +232,12 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 05-03-PLAN.md — 인용 완성: 수집 시점 위조 앵커 제거(CITE-06), dual_citation_rate 등 4대 지표(CITE-05), 템플릿 선택(API-02)
-- [ ] 05-04-PLAN.md — Ask LLM 호출 비용 상한 게이트(D-09)와 usage_events 기록
-- [ ] 05-05-PLAN.md — 검증 상태 전이 API(QC-02)와 그래프 읽기 API(API-04)
+- [x] 05-04-PLAN.md — Ask LLM 호출 비용 상한 게이트(D-09)와 usage_events 기록
+- [x] 05-05-PLAN.md — 검증 상태 전이 API(QC-02)와 그래프 읽기 API(API-04)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-06-PLAN.md — 지식 충돌 감지 잡 체인(QC-01) — 후보 탐색 + LLM 판정 + disputed 표시
+- [x] 05-06-PLAN.md — 지식 충돌 감지 잡 체인(QC-01) — 후보 탐색 + LLM 판정 + disputed 표시
 
 ### Phase 6: Dashboard
 
@@ -284,7 +284,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Security Spine and Shared Domain | 9/9 | Complete    | 2026-08-07 |
 | 3. Ingest and Compile Pipeline | 9/9 | Complete    | 2026-08-10 |
 | 4. Hybrid Retrieval and Fusion | 9/9 | Complete    | 2026-08-11 |
-| 5. Citation Integrity and Answer APIs | 2/6 | In Progress|  |
+| 5. Citation Integrity and Answer APIs | 7/7 | Complete    | 2026-08-12 |
 | 6. Dashboard | 0/TBD | Not started | - |
 | 7. Integration and Ops Baseline | 0/TBD | Not started | - |
 
