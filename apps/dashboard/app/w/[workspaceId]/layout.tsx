@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { NavShell } from "@/components/NavShell";
 import { createClient } from "@/lib/supabase/server";
 
 type WorkspaceLayoutProps = {
@@ -32,18 +33,23 @@ export default async function WorkspaceLayout({
     redirect("/");
   }
 
+  // Task 2: 스위처가 보여줄 전체 목록 — .eq 필터가 없다. RLS
+  // workspaces_select_member가 이미 요청자가 멤버인 워크스페이스로만
+  // scoping하므로, 이 두 번째 조회는 위의 단일 행 조회(현재 워크스페이스
+  // 존재/멤버십 판정)와 다른 목적이며 그대로 남는다 — 하나로 합치면
+  // "현재 워크스페이스가 존재하지 않음"과 "목록이 비어 있음"을 구분할 수
+  // 없게 된다.
+  const { data: workspaces } = await supabase
+    .from("workspaces")
+    .select("id,name")
+    .order("name");
+
   return (
     <div style={{ minHeight: "100vh" }}>
-      <header
-        style={{
-          borderBottom: "1px solid var(--color-hairline)",
-          padding: "var(--spacing-base) var(--spacing-lg)",
-        }}
-      >
-        <h1 style={{ font: "var(--font-title-md)", margin: 0 }}>
-          {workspace.name}
-        </h1>
-      </header>
+      <NavShell
+        workspaces={workspaces ?? []}
+        currentWorkspaceId={workspaceId}
+      />
       <main style={{ padding: "var(--spacing-lg)" }}>{children}</main>
     </div>
   );
