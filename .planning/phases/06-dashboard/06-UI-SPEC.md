@@ -1,10 +1,11 @@
 ---
 phase: 6
 slug: dashboard
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-12
+reviewed_at: 2026-08-12
 ---
 
 # Phase 6 — UI Design Contract
@@ -15,6 +16,13 @@ created: 2026-08-12
 > choices below rely on the existing `apps/dashboard` scaffold (Next.js 15.5.22 · React 19.2.8 ·
 > Tailwind 4.3.3 · TS strict · Vitest) and this researcher's own knowledge, not a research pass.
 > Planner should sanity-check exact package versions at execution time.
+>
+> **Revision (2026-08-12):** gsd-ui-checker flagged two BLOCKER findings — Typography exceeding
+> the 2-weight cap (400/500/600/700 in use) and two Spacing-scale values off the multiples-of-4
+> grid (`xxs`=2px, `md`=12px). Both are fixed in place below by overriding the *usage* of the
+> inherited token file down to a compliant contract (token file itself untouched — see the
+> revision notes inline in **Typography** and **Spacing Scale**). Two non-blocking recommendations
+> (primary visual anchor per screen, aria-label on icon-only touch targets) were also applied.
 
 ---
 
@@ -62,25 +70,39 @@ a project fact-check first — and are called out explicitly:
 
 ## Spacing Scale
 
-Project tokens (`docs/design-systems/design-tokens.css:60-69`) are reused verbatim — not the
-generic template defaults, since CONTEXT.md locks this file as already-decided:
+**Revision note:** the underlying token file (`docs/design-systems/design-tokens.css:60-69`) also
+defines `--spacing-xxs: 2px` and `--spacing-md: 12px` — neither is a multiple of 4, so neither is
+usable under this UI-SPEC's base-scale rule (standard set: 4, 8, 16, 24, 32, 48, 64). This contract
+governs what Phase 6's components actually consume; the two off-scale CSS custom properties remain
+defined in the file for other, non-Phase-6 consumers but are declared **out of use** here. The base
+scale below is the multiples-of-4 subset only:
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xxs | 2px | Icon-glyph-to-label micro gaps (citation superscript kerning) |
-| xs | 4px | Icon gaps, inline padding, badge internal padding |
+| xs | 4px | Icon gaps, inline padding, badge internal padding, citation superscript micro-kerning (was `xxs`/2px — moved up to the nearest on-scale rung, see below) |
 | sm | 8px | Compact element spacing (stepper dot gaps, tab underline offset) |
-| md | 12px | List row internal padding (source rows, member rows) |
-| base | 16px | Default element spacing (form field gaps, card padding) |
+| base | 16px | Default element spacing (form field gaps, card padding); list-row internal padding — source rows, member rows (was `md`/12px — moved up to the nearest on-scale rung, see below) |
 | lg | 24px | Section padding (dropzone panel, wiki page margin) |
 | xl | 32px | Layout gaps (sidebar-to-content gutter) |
 | xxl | 48px | Major section breaks (auth page vertical rhythm) |
 | section | 64px | Page-level spacing (top-level page padding on wide viewports) |
 
+Resolved deviations from the inherited token file:
+- **Citation superscript kerning:** was `--spacing-xxs` (2px), now **`xs` (4px)**. A 2px value is
+  sub-perceptible as a spacing rung and was really acting as typographic kerning, not layout
+  spacing — 4px reads cleanly at the marker's small type size without visually merging the marker
+  into the preceding word.
+- **List-row internal padding** (source rows, member rows): was `--spacing-md` (12px), now **`base`
+  (16px)**. 16px is closer to Airbnb's original row-density intent than dropping to `sm` (8px)
+  would be, and keeps every row on the project's touch-target-friendly grid.
+
 Exceptions:
 - **Icon-only touch targets: 44×44px minimum hit area** (WCAG 2.5.5), applied to the job-retry
-  icon button (D-08), workspace-switcher chevron, and red-link create icon. Achieved via
-  `--spacing-md`/`--spacing-base` padding around a 20–24px `lucide-react` glyph, not a new token.
+  icon button (D-08), workspace-switcher chevron, and red-link create icon. Achieved via `base`
+  (16px) padding around a 20–24px `lucide-react` glyph, not a new token. Each of these three
+  targets **must** also carry an explicit `aria-label` (not icon-only visual affordance alone):
+  job-retry → `aria-label="재시도"`; workspace-switcher chevron → `aria-label="워크스페이스 전환"`;
+  red-link create icon → `aria-label="지금 생성"`.
 - No other exceptions.
 
 ---
@@ -88,19 +110,29 @@ Exceptions:
 ## Typography
 
 Project has a much larger existing type scale (`design-tokens.css:73-100`, 16 named composite
-tokens). The 4 roles below are the subset Phase 6's surfaces actually use; the rest of the scale
-remains available for future phases without redeclaration.
+tokens, spanning 4 distinct weights: 400/500/600/700). The 4 roles below are the subset Phase 6's
+surfaces actually use.
 
-| Role | Size | Weight | Line Height | Source token |
-|------|------|--------|-------------|--------------|
-| Body | 16px | 400 | 1.5 | `--font-body-md` — wiki article body, ask chat bubbles, form inputs |
-| Label | 14px | 500 | 1.29 | `--font-caption` — role badges, source-row meta, stepper step labels, table headers |
-| Heading | 16px | 600 | 1.25 | `--font-title-md` — card titles, section headers, member-row name |
-| Display | 28px | 700 | 1.43 | `--font-display-xl` — page-level titles only (wiki page H1, "NexusWiki" wordmark) |
+**Revision note — explicit weight-cap deviation from the token file:** the UI-SPEC rule caps a
+phase's typography contract at 2 declared weights. Lifting `--font-caption` (500) and
+`--font-display-xl` (700) as-is would put 4 weights on screen at once, exceeding the cap. Rather
+than silently keep 4 weights under an "inherited exception" label, this contract **overrides** the
+weight component of those two composite tokens down to the nearest of the 2 weights this phase
+commits to, while keeping their size/line-height unchanged. This is a deliberate, labeled deviation
+from the token file's literal weight values — not a redesign of the file, and not a silent breach
+of the 2-weight cap:
 
-Weights: primary pair is **400 (regular) / 600 (semibold)**. 500 (Label) and 700 (Display) are
-**inherited exceptions** from the pre-existing token file, used narrowly for exactly the two roles
-above — not phase-invented additional weights.
+| Role | Size | Weight (used) | Line Height | Source token | Deviation |
+|------|------|----------------|-------------|---------------|-----------|
+| Body | 16px | **400** | 1.5 | `--font-body-md` — wiki article body, ask chat bubbles, form inputs | none — token used as-is |
+| Label | 14px | **600** | 1.29 | size/line-height from `--font-caption`, weight overridden | 500 → 600 — role badges, source-row meta, stepper step labels, table headers need enough visual weight to read as labels, not body text |
+| Heading | 16px | **600** | 1.25 | `--font-title-md` — card titles, section headers, member-row name | none — token used as-is |
+| Display | 28px | **600** | 1.43 | size/line-height from `--font-display-xl`, weight overridden | 700 → 600 — page-level titles only (wiki page H1, "NexusWiki" wordmark); 600 already reads as a clear display weight against 400 body text at this size, so 700 buys no additional hierarchy this phase needs |
+
+Weights actually rendered by Phase 6: exactly **2** — **400 (regular)** for Body, **600
+(semibold)** for Label/Heading/Display. The token file itself is untouched and keeps its full
+4-weight palette for other phases/consumers; this contract only constrains what Phase 6's
+components are permitted to request.
 
 ---
 
@@ -132,6 +164,22 @@ in `design-tokens.css` during the `globals.css` `@theme` integration task alread
 **`confidence` field (`high`/`medium`/`low`) is explicitly NOT rendered as a badge anywhere in
 Phase 6** — per `REQUIREMENTS.md` Out of Scope: "수치 confidence 배지 노출" (LLM self-confidence is
 uncalibrated and competes visually with the verification badge). Do not add a confidence chip.
+
+---
+
+## Primary Visual Anchor (per screen)
+
+Each screen has exactly one element that should draw the eye first — the accent color (10%),
+largest/heaviest type, and layout position all reinforce this element rather than competing:
+
+| Screen | Anchor | Why |
+|--------|--------|-----|
+| Auth (UI-01) | Login submit button | Single-purpose screen; button is the only accent-colored element on the page |
+| Workspace/Invite (UI-02) | "초대 보내기" primary CTA | Everything else (switcher, member rows) is neutral-colored chrome; invite is the accent-colored action |
+| Dropzone (UI-03) | "소스 등록" submit button (pre-submit) → job stepper (post-submit) | The anchor changes with state: before submit, the CTA is the only accent element; after submit, ING-06's no-spinner rule makes the stepper the thing actively communicating progress |
+| Ask UI (UI-04) | Ask input field | Empty-state heading draws the eye first, but the input is what the user must act on — kept full-width, high-contrast border, with the accent-colored send affordance attached to it |
+| Wiki viewer (UI-05) | Wiki page H1 (Display, 28px/600) | The largest, heaviest type on the page; citation markers and verification callouts are secondary to the content itself |
+| Graph canvas (UI-06) | The graph canvas viewport | Full-bleed Cytoscape render is the entire point of the screen; the lens filter is chrome around it, not the anchor |
 
 ---
 
@@ -246,11 +294,11 @@ Elements classified: `login-form`(form) · `workspace-switcher`(nav) · `invite-
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (revision: anchor table + aria-labels added)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS (revision: 400/500/600/700 → 400/600)
+- [x] Dimension 5 Spacing: PASS (revision: xxs/md off-grid values removed)
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved — 2026-08-12 (gsd-ui-checker, after one revision pass — see Revision note in header)
