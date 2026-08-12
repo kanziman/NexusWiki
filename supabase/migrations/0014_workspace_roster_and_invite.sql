@@ -85,9 +85,13 @@ begin
       using errcode = '22023';
   end if;
 
-  select id into v_user_id
-  from auth.users
-  where lower(email) = lower(btrim(p_email))
+  -- `u` 별칭이 필요하다: RETURNS TABLE의 출력 컬럼 `email`이 plpgsql 본문
+  -- 안에서 암묵적 변수로 스코프에 들어와, 별칭 없는 `email`은 그 변수와
+  -- auth.users.email 사이에서 "column reference is ambiguous"로 죽는다
+  -- (로컬 db reset 실행 중 실측).
+  select u.id into v_user_id
+  from auth.users u
+  where lower(u.email) = lower(btrim(p_email))
   limit 1;
 
   if v_user_id is null then
@@ -95,9 +99,14 @@ begin
       using errcode = 'NW404';
   end if;
 
+  -- `on conflict on constraint`을 쓰는 이유: `on conflict (workspace_id,
+  -- user_id)`처럼 컬럼명을 나열하면 plpgsql이 RETURNS TABLE 출력 컬럼과
+  -- 이름이 같은 `user_id`를 로컬 변수로 오인해 "column reference is
+  -- ambiguous"로 죽는다(위 auth.users 조회와 같은 클래스의 문제, 로컬
+  -- db reset 실행 중 실측). 제약 이름으로 지정하면 이 경로를 완전히 피한다.
   insert into public.workspace_members (workspace_id, user_id, role)
   values (p_workspace_id, v_user_id, p_role)
-  on conflict (workspace_id, user_id) do nothing;
+  on conflict on constraint workspace_members_pkey do nothing;
 
   if not found then
     raise exception '이미 워크스페이스 멤버입니다'
