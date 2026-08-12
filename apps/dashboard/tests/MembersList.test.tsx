@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // 강제한다 — lib/supabase/client.ts를 모킹해 실제 네트워크 호출 없이 rpc/from
 // 호출 인자만 관찰한다 (LoginForm.test.tsx와 같은 패턴).
 const rpc = vi.fn();
-const match = vi.fn();
+// 06-REVIEW.md WR-03 fix: handleConfirmRemove가 이제 .match() 뒤에 .select()를
+// 체이닝해 삭제된 행 수를 확인한다 — 목도 그 체인 모양을 그대로 흉내낸다.
+const select = vi.fn();
+const match = vi.fn(() => ({ select }));
 const del = vi.fn(() => ({ match }));
 const from = vi.fn(() => ({ delete: del }));
 
@@ -34,10 +37,14 @@ const rows = [
 describe("MembersList", () => {
   beforeEach(() => {
     rpc.mockReset();
-    match.mockReset();
+    match.mockClear();
+    select.mockReset();
     del.mockClear();
     from.mockClear();
-    match.mockResolvedValue({ error: null });
+    select.mockResolvedValue({
+      data: [{ user_id: "editor-1" }],
+      error: null,
+    });
   });
 
   it("workspace_members_list RPC가 반환한 두 멤버의 이메일과 역할 배지를 렌더링한다", async () => {
@@ -87,6 +94,32 @@ describe("MembersList", () => {
       }),
     );
     expect(from).toHaveBeenCalledWith("workspace_members");
+    expect(select).toHaveBeenCalled();
+    expect(screen.queryByText("editor@example.com")).not.toBeInTheDocument();
+  });
+
+  it("06-REVIEW.md WR-03: RLS에 막혀 0행이 삭제되면(error:null, data:[]) 에러 배너를 보여주고 멤버를 목록에 남긴다", async () => {
+    rpc.mockResolvedValue({ data: rows, error: null });
+    select.mockResolvedValue({ data: [], error: null });
+    const user = userEvent.setup();
+
+    render(<MembersList workspaceId="ws-1" currentUserId="owner-1" />);
+
+    await screen.findByText("editor@example.com");
+
+    await user.click(
+      screen.getByRole("button", { name: "제거: editor@example.com" }),
+    );
+
+    await screen.findByText(
+      "제거: editor@example.com님을 이 워크스페이스에서 제거하시겠습니까? 소유한 콘텐츠는 유지되지만 접근 권한이 즉시 사라집니다.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "제거" }));
+
+    await screen.findByText("멤버를 제거하지 못했습니다.");
+    // 0행 삭제는 성공이 아니다 — 로컬 state에서 낙관적으로 지워지면 안 된다.
+    expect(screen.getByText("editor@example.com")).toBeInTheDocument();
   });
 
   it("owner 자신의 행에는 제거 버튼을 그리지 않는다", async () => {

@@ -87,14 +87,20 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
     setRemoveError(null);
 
     const supabase = createClient();
-    const { error } = await supabase
+    // 06-REVIEW.md WR-03: CLAUDE.md "Error Handling"이 명시한 대로, RLS
+    // USING 실패로 막힌 UPDATE/DELETE는 예외 없이 0행 영향으로 반환된다
+    // (`error: null`). `.select()`로 삭제된 행을 되받아 실제 행 수를
+    // 확인해야만 "차단됨"과 "성공"을 구분할 수 있다 — error만 보면 둘 다
+    // 동일하게 성공으로 오판된다.
+    const { data, error } = await supabase
       .from("workspace_members")
       .delete()
-      .match({ workspace_id: workspaceId, user_id: removeTarget.user_id });
+      .match({ workspace_id: workspaceId, user_id: removeTarget.user_id })
+      .select();
 
     setRemoving(false);
 
-    if (error) {
+    if (error || !data || data.length === 0) {
       setRemoveError("멤버를 제거하지 못했습니다.");
       return;
     }
