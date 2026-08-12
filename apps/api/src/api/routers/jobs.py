@@ -26,7 +26,7 @@ _bearer = HTTPBearer()
 
 # `worker.handlers.HANDLERS`에서 noop을 뺀 사실상의 파이프라인 순서다. api는 worker를
 # import하지 않으므로 수기로 유지한다. 어긋나면 사용자는 새 단계를 알 수 없는 단계로 본다.
-CHAIN_ORDER: Final[tuple[str, ...]] = ("parse", "compile", "link_sync", "embed")
+CHAIN_ORDER: Final[tuple[str, ...]] = ("parse", "compile", "link_sync", "embed", "conflict_check")
 
 # 라벨은 서버가 소유한다. 클라이언트가 type 문자열을 매칭하면 새 type 추가 때 조용히 빈
 # 라벨이 된다. 그래서 응답은 type과 step_label을 함께 돌려준다.
@@ -35,6 +35,7 @@ STEP_LABELS: Final[dict[str, str]] = {
     "compile": "위키 컴파일",
     "link_sync": "링크 동기화",
     "embed": "임베딩",
+    "conflict_check": "지식 충돌 검사",
     "noop": "무동작",
 }
 

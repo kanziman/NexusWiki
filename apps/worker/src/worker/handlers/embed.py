@@ -80,7 +80,17 @@ async def handle_embed(*, job_id: str, workspace_id: str, payload: dict[str, Any
                 )
                 if chunks:
                     await _record_usage(db, workspace_id, job_id, result)
-        await db.complete_job_and_chain(job_id)
+        if scope == "wiki":
+            await db.complete_job_and_chain(
+                job_id,
+                next_type="conflict_check",
+                next_payload={
+                    "target_id": f"{source_id}:conflict_check",
+                    "raw_source_id": source_id,
+                },
+            )
+        else:
+            await db.complete_job_and_chain(job_id)
 
 
 async def _record_usage(db: ServiceDb, workspace_id: str, job_id: str, result: Any) -> None:

@@ -11,6 +11,7 @@ import pytest
 from fastapi import status
 
 from api.errors import FORBIDDEN_BODY
+from api.routers.jobs import _job_response
 
 TEXT_PATH = "/workspaces/{workspace_id}/sources/text"
 JOBS_PATH = "/workspaces/{workspace_id}/sources/{raw_source_id}/jobs"
@@ -83,6 +84,27 @@ async def test_enqueued_parse_job_has_ui_progress_without_payload(
     assert job["step_label"]
     assert job["chain_position"] == 1
     assert "payload" not in job
+
+
+def test_conflict_check_has_a_named_final_job_progress_step() -> None:
+    job = _job_response(
+        {
+            "id": str(uuid4()),
+            "type": "conflict_check",
+            "status": "queued",
+            "attempts": 0,
+            "max_attempts": 3,
+            "run_after": None,
+            "last_error": None,
+            "cancel_requested_at": None,
+            "created_at": "2026-08-12T00:00:00Z",
+            "updated_at": "2026-08-12T00:00:00Z",
+        }
+    )
+
+    assert job["step_label"] == "지식 충돌 검사"
+    assert job["chain_position"] == 5
+    assert job["chain_total"] == 5
 
 
 @pytest.mark.asyncio

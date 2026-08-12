@@ -11,7 +11,7 @@ from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker import handlers
 from worker.handlers import compile as compile_handler
-from worker.handlers import embed, link_sync, noop, parse
+from worker.handlers import conflict, embed, link_sync, noop, parse
 from worker.handlers.noop import handle_noop
 
 JOB_ID = "22222222-2222-4222-8222-222222222222"
@@ -28,7 +28,14 @@ def test_registry_holds_exactly_the_job_types_this_phase_registered() -> None:
     #    그것이 목적이다 — 핸들러를 딕셔너리에 넣고 이 열거를 갱신하지 않으면
     #    `HANDLERS`가 사실상의 잡 종류 열거라는 계약(0003_jobs.sql:31-36)이 흐려진다.
     #    깨지면 값을 확인하고 여기 이름을 더할 것. 단언을 지워서 통과시키지 말 것.
-    assert set(handlers.HANDLERS) == {"noop", "parse", "compile", "link_sync", "embed"}
+    assert set(handlers.HANDLERS) == {
+        "noop",
+        "parse",
+        "compile",
+        "link_sync",
+        "embed",
+        "conflict_check",
+    }
 
 
 def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> None:
@@ -40,6 +47,7 @@ def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> N
         "compile": compile_handler.COMPILE_JOB_TYPE,
         "link_sync": link_sync.LINK_SYNC_JOB_TYPE,
         "embed": embed.EMBED_JOB_TYPE,
+        "conflict_check": conflict.CONFLICT_CHECK_JOB_TYPE,
     }
 
     assert set(constants) == set(handlers.HANDLERS)
@@ -135,7 +143,7 @@ async def test_wiki_embed_skips_pages_already_at_the_current_embedding_version(
         async def delete_wiki_embeddings_from(self, **_values: Any) -> None:
             return None
 
-        async def complete_job_and_chain(self, _job_id: str) -> None:
+        async def complete_job_and_chain(self, _job_id: str, **_values: Any) -> None:
             return None
 
     @asynccontextmanager
@@ -157,6 +165,164 @@ async def test_wiki_embed_skips_pages_already_at_the_current_embedding_version(
         workspace_id=WORKSPACE_ID,
         payload={"raw_source_id": "raw-source", "scope": "wiki"},
     )
+
+
+@pytest.mark.asyncio
+async def test_embed_chains_wiki_scope_to_conflict_check_but_leaves_source_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Db:
+        def __init__(self) -> None:
+            self.chains: list[dict[str, Any]] = []
+
+        async def list_source_chunks_missing_embedding(
+            self, **_values: Any
+        ) -> list[dict[str, str]]:
+            return []
+
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, str]]:
+            return []
+
+        async def complete_job_and_chain(self, _job_id: str, **values: Any) -> None:
+            self.chains.append(values)
+
+    db = Db()
+
+    @asynccontextmanager
+    async def no_op_client(_settings: object):
+        yield object()
+
+    monkeypatch.setattr(embed, "WorkerSettings", lambda: SimpleNamespace(EMBED_BATCH_SIZE=16))
+    monkeypatch.setattr(embed, "service_client", no_op_client)
+    monkeypatch.setattr(embed, "openrouter_client", no_op_client)
+    monkeypatch.setattr(embed, "ServiceDb", lambda _client: db)
+    monkeypatch.setattr(embed, "embedding_version", lambda _settings: "model@provider-v1")
+
+    await embed.handle_embed(
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source", "scope": "wiki"},
+    )
+    await embed.handle_embed(
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source", "scope": "source"},
+    )
+
+    assert db.chains == [
+        {
+            "next_type": "conflict_check",
+            "next_payload": {
+                "target_id": "raw-source:conflict_check",
+                "raw_source_id": "raw-source",
+            },
+        },
+        {},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_conflict_check_marks_both_pages_only_for_real_contradictions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Db:
+        def __init__(self) -> None:
+            self.disputed: list[str] = []
+            self.completed = False
+
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": "The service is available in Seoul."}]
+
+        async def find_similar_wiki_pages(self, **_values: Any) -> list[dict[str, float | str]]:
+            return [{"candidate_wiki_id": "page-b", "similarity": 0.93}]
+
+        async def _select(self, _table: str, *, params: dict[str, str]) -> list[dict[str, str]]:
+            assert params["id"] == "eq.page-b"
+            return [{"id": "page-b", "content": "The service is not available in Seoul."}]
+
+        async def set_wiki_page_disputed(self, wiki_id: str, *, workspace_id: str) -> None:
+            assert workspace_id == WORKSPACE_ID
+            self.disputed.append(wiki_id)
+
+        async def complete_job_and_chain(self, _job_id: str) -> None:
+            self.completed = True
+
+    async def contradiction(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            payload=conflict.ConflictJudgement(is_contradiction=True, rationale="facts clash")
+        )
+
+    monkeypatch.setattr(conflict, "complete_structured", contradiction)
+    db = Db()
+    await conflict.run_conflict_check(
+        db,  # type: ignore[arg-type]
+        object(),
+        settings=object(),
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+    )
+
+    assert db.disputed == ["page-a", "page-b"]
+    assert db.completed is True
+
+
+@pytest.mark.asyncio
+async def test_conflict_check_skips_variations_and_zero_candidate_llm_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Db:
+        def __init__(self, candidates: list[dict[str, float | str]]) -> None:
+            self.candidates = candidates
+            self.disputed: list[str] = []
+
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": "A"}]
+
+        async def find_similar_wiki_pages(self, **_values: Any) -> list[dict[str, float | str]]:
+            return self.candidates
+
+        async def _select(self, _table: str, *, params: dict[str, str]) -> list[dict[str, str]]:
+            return [{"id": "page-b", "content": "B"}]
+
+        async def set_wiki_page_disputed(self, wiki_id: str, *, workspace_id: str) -> None:
+            self.disputed.append(wiki_id)
+
+        async def complete_job_and_chain(self, _job_id: str) -> None:
+            return None
+
+    calls = 0
+
+    async def variation(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        return SimpleNamespace(
+            payload=conflict.ConflictJudgement(is_contradiction=False, rationale="scope differs")
+        )
+
+    monkeypatch.setattr(conflict, "complete_structured", variation)
+    variation_db = Db([{"candidate_wiki_id": "page-b", "similarity": 0.93}])
+    await conflict.run_conflict_check(
+        variation_db,  # type: ignore[arg-type]
+        object(),
+        settings=object(),
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+    )
+    assert calls == 1
+    assert variation_db.disputed == []
+
+    empty_db = Db([])
+    await conflict.run_conflict_check(
+        empty_db,  # type: ignore[arg-type]
+        object(),
+        settings=object(),
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+    )
+    assert calls == 1
 
 
 class _ParseDb:
