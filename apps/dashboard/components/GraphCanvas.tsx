@@ -105,13 +105,17 @@ export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
       const capped =
         count !== null ? count > PAGE_ROW_CAP : nodes.length === PAGE_ROW_CAP;
 
-      const nodeIds = nodes.map((node) => node.id);
+      // ⚠️ 이전에는 `.in("from_wiki_id", nodeIds)`로 최대 1000개 UUID를 URL에
+      // 나열했다 — 노드가 캡에 가까울수록 URL이 커져 서버가 요청 자체를
+      // 거부했다(실측: UAT 06 세션, 1001개 노드에서 엣지 fetch가 브라우저에
+      // CORS 오류로 보이는 형태로 실패 — 실제 원인은 URL 길이 초과). workspace_id로만
+      // 스코프하고, 아래 cytoscape 이펙트가 이미 하는 nodeIdSet 필터링에 맡긴다
+      // (from/to 둘 다 조회된 노드 집합 안에 있는 엣지만 그린다).
       const { data: edges, error: edgeError } = await supabase
         .from("wiki_links")
         .select("from_wiki_id,to_wiki_id")
         .eq("workspace_id", workspaceId)
         .not("to_wiki_id", "is", null)
-        .in("from_wiki_id", nodeIds)
         .returns<WikiEdge[]>();
 
       if (cancelled) return;
@@ -135,9 +139,9 @@ export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
   useEffect(() => {
     if (state.status !== "ready" || !containerRef.current) return;
 
-    // 조회된 노드 집합 밖을 가리키는 엣지는 그리지 않는다 — from/to 둘 다
-    // nodeIds .in() 필터를 통과했더라도, to_wiki_id가 카테고리 필터로 배제된
-    // 노드를 가리킬 수 있다(엣지 쿼리는 from_wiki_id만 nodeIds로 스코핑했다).
+    // 조회된 노드 집합 밖을 가리키는 엣지는 그리지 않는다 — 엣지 쿼리는
+    // workspace_id로만 스코핑하므로(URL 길이 문제로 from_wiki_id .in() 필터를
+    // 뺐다), 카테고리 필터로 배제된 노드를 가리키는 엣지가 여기 섞여 들어온다.
     const nodeIdSet = new Set(state.nodes.map((node) => node.id));
 
     const cy = cytoscape({
