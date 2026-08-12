@@ -63,7 +63,11 @@ export async function apiFetch<T>(
   let body: BodyInit | undefined;
   if (init?.body !== undefined) {
     if (init.body instanceof Uint8Array || init.body instanceof Blob) {
-      body = init.body;
+      // TS 5.9의 lib.dom.d.ts에서 Uint8Array가 제네릭(Uint8Array<ArrayBufferLike>)이
+      // 되면서 BodyInit 유니언에 구조적으로 안 맞는다고 오판한다 — 런타임의 fetch는
+      // ArrayBufferView를 그대로 받아들이므로(Blob 분기와 동일하게 동작 변경 없음)
+      // 타입 단언만으로 좁힌다.
+      body = init.body as BodyInit;
       if (init.contentType) {
         headers["Content-Type"] = init.contentType;
       }
