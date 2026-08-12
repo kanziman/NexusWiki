@@ -104,8 +104,8 @@
 
 - [x] **UI-01**: 사용자가 로그인하면 `middleware.ts`가 유일한 쿠키 기록자로 동작하고 `/w/[workspaceId]`가 테넌시의 단일 진실 소스가 된다 (React state의 낡은 id는 에러 없이 빈 결과를 내므로 URL이 소유)
 - [x] **UI-02**: 사용자가 워크스페이스를 전환하고, 이메일로 멤버를 초대하고, 3역할을 부여할 수 있다
-- [ ] **UI-03**: 드롭존에서 소스를 투입하고 잡 체인 진행 상태를 실제 단계로 확인한다
-- [ ] **UI-04**: Ask UI가 상황별 프롬프트 칩과 이중 Citation 카드를 제공하고, 인용 마커가 **근거가 되는 절 옆에** 인라인으로 붙으며, 스트리밍 중 제자리에서 해소된다; 원문은 `char_start`/`char_end` 구간이 하이라이트되고 근거 없음 상태가 구분된다
+- [x] **UI-03**: 드롭존에서 소스를 투입하고 잡 체인 진행 상태를 실제 단계로 확인한다
+- [x] **UI-04**: Ask UI가 상황별 프롬프트 칩과 이중 Citation 카드를 제공하고, 인용 마커가 **근거가 되는 절 옆에** 인라인으로 붙으며, 스트리밍 중 제자리에서 해소된다; 원문은 `char_start`/`char_end` 구간이 하이라이트되고 근거 없음 상태가 구분된다
 - [ ] **UI-05**: 위키 뷰어가 **읽기 전용임을 명시**하고("이 페이지는 컴파일됩니다") WikiLink 내비게이션 · 레드 링크("아직 작성되지 않음 · 지금 생성") · 상태 콜아웃을 제공한다
 - [ ] **UI-06**: Cytoscape 지식 캔버스가 렌즈 필터(`wiki_pages.category` 재사용)와 함께 동작하고, **PostgREST 1000행 상한에 대한 처리**(페이지네이션 또는 서브그래프 제한)를 포함한다
 
@@ -242,8 +242,8 @@
 | QC-02 | Phase 5 | Complete |
 | UI-01 | Phase 6 | Complete |
 | UI-02 | Phase 6 | Complete |
-| UI-03 | Phase 6 | Pending |
-| UI-04 | Phase 6 | Pending |
+| UI-03 | Phase 6 | Complete |
+| UI-04 | Phase 6 | Complete |
 | UI-05 | Phase 6 | Pending |
 | UI-06 | Phase 6 | Pending |
 | OPS-02 | Phase 7 | Pending |
