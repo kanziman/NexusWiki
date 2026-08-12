@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: dashboard
 status: executing
-stopped_at: Completed 06-05-PLAN.md (UI-03, Dropzone + JobStepper)
-last_updated: "2026-08-12T10:03:35.958Z"
+stopped_at: Completed 06-06-PLAN.md (UI-04, Ask UI + inline dual citation)
+last_updated: "2026-08-12T10:17:51.611Z"
 last_activity: 2026-08-12
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 51
-  completed_plans: 49
+  completed_plans: 50
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 ## Current Position
 
 Phase: 06 (dashboard) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-08-12 — Phase 06 execution started
 
-Progress: [██████████] 96% (execution; verification pending)
+Progress: [██████████] 98% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -98,6 +98,7 @@ Progress: [██████████] 96% (execution; verification pending)
 | Phase 06 P04 | ~20min | 2 tasks | 4 files |
 | Phase 06 P08 | ~2h | 3 tasks | 5 files |
 | Phase 06 P05 | ~1h | 3 tasks | 6 files |
+| Phase 06 P06 | ~35min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -180,6 +181,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 6] JobStepper의 5단계 헤더 캡션은 jobs.py STEP_LABELS와 별개의 D-05 verbatim 고정 문구다 — STEP_LABELS는 dead 에러 템플릿에만 소비 (06-05)
 - [Phase ?]: [Phase 6] Dropzone.onIngested는 (jobId, rawSourceId) 2-arg 고정 시그니처라 SourcesList는 전체 재조회 대신 단일 행 targeted select로 prepend한다 (06-05)
 - [Phase ?]: [Phase 6] Radix Tabs는 activationMode=automatic이라 jsdom 테스트에서 fireEvent.click이 아닌 userEvent.click으로 탭을 전환해야 한다 (06-05)
+- [Phase ?]: [Phase 6] AskConversation의 citations 프레임(또는 스트림 종료 시점의 부재)만 턴의 최종 렌더를 결정한다 — done 프레임은 상태 전이에 관여하지 않는다. citations 이후 done 직전 네트워크가 끊겨도 이미 완결된 답변을 dropped로 되돌리지 않기 위해서다 (06-06)
+- [Phase ?]: [Phase 6] CitationSidePanelProps에 선택적 workspaceId를 추가했다 — Task 3 <action>이 요구하는 위키 카드 링크(/w/[workspaceId]/wiki/[slug])는 {part,onClose} 2필드만으로는 구성 불가능하다 (06-06, Rule 2)
 
 ### Pending Todos
 
@@ -219,8 +222,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T10:03:35.944Z
-Stopped at: Completed 06-05-PLAN.md (UI-03, Dropzone + JobStepper)
+Last session: 2026-08-12T10:17:51.596Z
+Stopped at: Completed 06-06-PLAN.md (UI-04, Ask UI + inline dual citation)
 Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
