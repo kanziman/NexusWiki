@@ -97,13 +97,13 @@ export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
         return;
       }
 
-      // count가 있으면 그것으로(1000행 페이지와 "정확히 1000개"를 구분할 수
-      // 있다), count 헤더가 어떤 이유로든 없으면 페이지 길이로 폴백한다 —
-      // 둘 다 없으면 캡을 놓치느니 안전하게 캡 표시를 하지 않는 쪽은 없다:
-      // count 부재는 fallback으로 항상 방어된다.
+      // count가 있으면 그것만으로 판단한다(1000행 페이지와 "정확히 1000개"를
+      // 구분할 수 있다) — count 헤더가 어떤 이유로든 없을 때만 페이지 길이로
+      // 폴백한다. 06-REVIEW.md WR-01: 이전에는 `||`로 두 조건을 합쳐서, count가
+      // 정확히 1000일 때(캡 아님)도 nodes.length === PAGE_ROW_CAP이 참이 되어
+      // 오탐(false positive) 캡 배너가 떴다.
       const capped =
-        (count !== null && count > PAGE_ROW_CAP) ||
-        nodes.length === PAGE_ROW_CAP;
+        count !== null ? count > PAGE_ROW_CAP : nodes.length === PAGE_ROW_CAP;
 
       const nodeIds = nodes.map((node) => node.id);
       const { data: edges, error: edgeError } = await supabase
