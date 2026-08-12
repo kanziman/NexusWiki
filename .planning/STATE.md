@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: dashboard
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-08-12T08:56:52.366Z"
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-08-12T09:22:45.292Z"
 last_activity: 2026-08-12
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 51
-  completed_plans: 45
+  completed_plans: 46
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 ## Current Position
 
 Phase: 06 (dashboard) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-08-12 — Phase 06 execution started
 
-Progress: [█████████░] 88% (execution; verification pending)
+Progress: [█████████░] 90% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ Progress: [█████████░] 88% (execution; verification pending)
 | Phase 05 P02 | 25min | 2 tasks | 1 files |
 | Phase 06 P01 | ~40min | 2 tasks | 16 files |
 | Phase 06 P02 | 35min | 2 tasks | 5 files |
+| Phase 06 P03 | ~20min (continuation) + earlier Task0/1/1b session | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -165,6 +166,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 6] Tailwind 4 @theme 색상 키는 design-tokens.css의 동일 이름 커스텀 프로퍼티를 var()로 셀프 참조 — CSS Cascade Layers가 unlayered 선언에 무조건 우선순위를 주므로 순환 참조가 되지 않고 원본 값으로 정확히 해석됨을 실측 확인 (06-01)
 - [Phase ?]: [Phase 6] NavShell 로딩 backstop은 useTransition()이 router.push()를 감싸는 방식으로 구현 — 별도 isLoading state 없이 Next.js App Router의 라우트 전환 신호를 그대로 쓴다 (06-02)
 - [Phase ?]: [Phase 6] jsdom은 Pointer Capture/scrollIntoView/ResizeObserver를 구현하지 않는다 — vitest.setup.ts에 전역 폴리필을 추가해 이후 모든 Phase 6 Radix 컴포넌트 테스트가 공유하게 했다 (06-02)
+- [Phase ?]: [Phase 6] invite_workspace_member의 RETURNS TABLE 출력 컬럼(user_id/email/role)이 plpgsql 본문에서 암묵적 변수로 스코프에 들어와, 같은 이름의 바닥 컬럼 참조(auth.users.email, ON CONFLICT (workspace_id,user_id))가 ambiguous로 죽는다 — 테이블 별칭 + ON CONFLICT ON CONSTRAINT로 회피 (06-03)
+- [Phase ?]: [Phase 6] Tailwind max-w-*/w-*/h-* 유틸리티가 이 프로젝트의 커스텀 --spacing-{xs,sm,base,lg,xl,xxl,section} @theme 오버라이드와 이름이 겹치면 Tailwind 기본 --container-* 대신 --spacing-*로 잘못 해석된다(실측: max-w-xl -> 32px) — 겹치는 크기 유틸리티는 인라인 style로 대체 (06-03, WINDOWS #11)
+- [Phase ?]: [Phase 6] MembersList는 owner 자신의 행에 제거 버튼을 그리지 않는다 — protect_owner_membership 트리거(0004)가 owner 자기 삭제를 DB 레벨에서 거부하므로 클릭만 되고 항상 실패하는 버튼을 만들지 않는다 (06-03)
 
 ### Pending Todos
 
@@ -204,8 +208,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T08:56:52.352Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-08-12T09:22:45.278Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
