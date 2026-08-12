@@ -1,30 +1,21 @@
 ---
-status: testing
+status: complete
 phase: 06-dashboard
 source: [06-VERIFICATION.md]
 started: 2026-08-13T00:20:00+09:00
-updated: 2026-08-13T00:45:00+09:00
+updated: 2026-08-13T01:10:00+09:00
 ---
 
 ## Current Test
 
-number: 1
-name: Full ingest flow — dropzone to job-chain completion
-expected: |
-  Drop a file/URL/text source with apps/api + worker + supabase running. Real stage names
-  shown throughout (업로드 → 파싱 → 컴파일 → 링크 동기화 → 임베딩), never an indeterminate
-  spinner. A dead job shows a retry button. Polling stops once the chain reaches a terminal
-  state, and resumes on retry/cancel (WR-04 fix).
-awaiting: user response — needs apps/api + worker running with real OPENROUTER_API_KEY
-  (blocked at .env directory permission level for this session — user must run these two
-  services themselves, or grant .env access)
+[testing complete]
 
 ## Tests
 
 ### 1. Full ingest flow — dropzone to job-chain completion
 expected: 실제 단계 이름으로 진행 표시, dead job 재시도 버튼, 종료 상태에서 폴링 정지·재시도 시 재개
-result: [pending]
-reason: "apps/api + worker require OPENROUTER_API_KEY from .env, which this session's permission settings deny reading (Bash and Read tool both denied at the directory level). Needs the user to run the services or grant access."
+result: skipped
+reason: "User chose to skip for now (2026-08-13). apps/api + worker require OPENROUTER_API_KEY from .env; this session's permission settings denied reading it (Bash and Read tool both refused at the directory level), and the mid-session settings-adjustment attempt didn't take effect before the user opted to move on. Not a code defect — a live-environment prerequisite deferred by user choice."
 
 ### 2. Full ask flow — dual-citation markers
 expected: |
@@ -34,8 +25,8 @@ expected: |
   exactly its own cited content (single-card-per-click is the accepted interpretation of
   D-10 per the applied override — this test also confirms/refutes whether that's sufficient
   in practice).
-result: [pending]
-reason: "Same .env blocker as test 1 — apps/api's /ask endpoint needs OPENROUTER_API_KEY."
+result: skipped
+reason: "Same .env blocker as test 1 (deferred by user choice, 2026-08-13) — apps/api's /ask endpoint needs OPENROUTER_API_KEY. Also would have been the real-world sufficiency check for the D-10 accepted override."
 
 ### 3. Wiki viewer — all verification states + red links
 expected: |
@@ -106,8 +97,8 @@ evidence: |
 total: 5
 passed: 3
 issues: 0
-pending: 2
-skipped: 0
+pending: 0
+skipped: 2
 blocked: 0
 
 ## Gaps
