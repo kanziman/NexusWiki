@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 06
 current_phase_name: dashboard
-status: executing
-stopped_at: Completed 06-06-PLAN.md (UI-04, Ask UI + inline dual citation)
-last_updated: "2026-08-12T10:17:51.611Z"
+status: verifying
+stopped_at: Completed 06-07-PLAN.md (UI-05, wiki viewer) — Phase 6 (dashboard) complete, all 6 requirements delivered
+last_updated: "2026-08-12T14:34:32.310Z"
 last_activity: 2026-08-12
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 51
-  completed_plans: 50
+  completed_plans: 51
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 
 Phase: 06 (dashboard) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-12 — Phase 06 execution started
 
-Progress: [██████████] 98% (execution; verification pending)
+Progress: [██████████] 100% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Progress: [██████████] 98% (execution; verification pending)
 | Phase 06 P08 | ~2h | 3 tasks | 5 files |
 | Phase 06 P05 | ~1h | 3 tasks | 6 files |
 | Phase 06 P06 | ~35min | 3 tasks | 8 files |
+| Phase 06 P07 | ~2h | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -183,6 +184,10 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 6] Radix Tabs는 activationMode=automatic이라 jsdom 테스트에서 fireEvent.click이 아닌 userEvent.click으로 탭을 전환해야 한다 (06-05)
 - [Phase ?]: [Phase 6] AskConversation의 citations 프레임(또는 스트림 종료 시점의 부재)만 턴의 최종 렌더를 결정한다 — done 프레임은 상태 전이에 관여하지 않는다. citations 이후 done 직전 네트워크가 끊겨도 이미 완결된 답변을 dropped로 되돌리지 않기 위해서다 (06-06)
 - [Phase ?]: [Phase 6] CitationSidePanelProps에 선택적 workspaceId를 추가했다 — Task 3 <action>이 요구하는 위키 카드 링크(/w/[workspaceId]/wiki/[slug])는 {part,onClose} 2필드만으로는 구성 불가능하다 (06-06, Rule 2)
+- [Phase ?]: [Phase 6] baseSlug()/normalize()는 nexuswiki_core.slug._base_slug/tokenizer.normalize의 근사 포팅이다 — 충돌 접미(-2) 해소와 정확한 casefold는 재현하지 않는다(안전한 실패, 06-07)
+- [Phase ?]: [Phase 6] 위키 뷰어의 disputed 콜아웃은 verification_status와 무관하게 항상 본문보다 먼저 렌더링된다 — 파일/DOM 순서 구조적 보장 (T-06-22, 06-07)
+- [Phase ?]: [Phase 6] canVerify는 has_workspace_role RPC 우선, workspace_members 직접 읽기로 폴백해 서버에서 판정한다 — 실제 쓰기 경계는 wiki.py RLS다 (T-06-21, 06-07)
+- [Phase ?]: [Phase 6] 06-07 라이브 Playwright 검증은 두 차례 중단되어 정적 검증(vitest/tsc/next build)만으로 대체 — WINDOWS.md #12로 추적, Phase 6 6개 요구사항(UI-01~06) 전부 완료
 
 ### Pending Todos
 
@@ -211,6 +216,7 @@ None yet.
 - [Phase 3] 03-07 예산 조회는 표시용(`authoritative: false`)이며, UTC 월 경계의 제한된 `usage_events` 합계는 인큐 가능 여부를 판정하지 않는다. 권위 있는 판정은 `enqueue_source_job` SQL 하나에 남는다 (D-P18).
 - [Phase 4] 04-04 Task 3 수용기준 #1 미충족 — strict_order 대 relaxed_order 비교 실행 기록이 없다. 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 아예 고르지 않으므로(Phase 2 관측 btree+sort 233 대 HNSW 349,657) 그 규모의 비교는 T-04-12(오도하는 튜닝)가 된다. 두 기본값(strict_order · graph off)은 `.claude/CLAUDE.md:21`·`0011:76,147`과 RTV-07 안전 기본값으로 **유지**했을 뿐 측정되지 않았다. 그래프 off/on도 `scripts/benchmark_retrieval.py`에 토글이 없어 비교 불가. 필요한 것: 10^4~10^5 청크 규모 + 동일 corpus/golden/policy/model 해시 양팔 + 프로덕션 유사 하드웨어. 언더필·플랜 형태는 합성 1024차원 벡터로 로컬에서 무료 선행 가능. Phase 7 OPS 이월 (`docs/ops/hnsw-order-benchmark.md` §한계, WINDOWS #10)
 - [Phase 6] middleware.ts 리다이렉트 동작과 /w/[workspaceId]의 RLS 스코프 읽기에 대한 자동 회귀 테스트가 없다 (06-01 SUMMARY coverage: D1/D3 human_judgment=true) — 이번 세션엔 로컬 supabase start에 대한 curl 왕복으로만 검증했다
+- [Phase 6] 06-07 위키 뷰어(읽기전용 배너, 4종 verification 콜아웃, disputed 우선순위, WikiLink 해소/red 내비게이션, canVerify RPC 판정)가 실제 로컬 스택에서 라이브 검증되지 않았다 — 두 차례 Playwright 시도가 중단됨. .planning/WINDOWS.md #12 (unrun-verify)로 추적
 
 ## Deferred Items
 
@@ -222,8 +228,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T10:17:51.596Z
-Stopped at: Completed 06-06-PLAN.md (UI-04, Ask UI + inline dual citation)
+Last session: 2026-08-12T14:34:32.296Z
+Stopped at: Completed 06-07-PLAN.md (UI-05, wiki viewer) — Phase 6 (dashboard) complete, all 6 requirements delivered
 Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).

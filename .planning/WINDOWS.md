@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 10
+open_count: 11
 waived_count: 0
 fixed_count: 1
-total_count: 11
-last_updated: 2026-08-12T09:19:45.765Z
+total_count: 12
+last_updated: 2026-08-12T14:32:01.260Z
 ---
 
 # Broken Windows Ledger
@@ -26,6 +26,7 @@ last_updated: 2026-08-12T09:19:45.765Z
 | 9 | 03 | unrun-verify | apps/worker/src/worker/llm.py |  | 오류 되먹임 재시도가 실제 모델에서 복구로 이어지는지 미관측 — 1회차가 스키마를 만족해 재시도 경로가 실호출에서 타지 않았다 | open |  | 2026-08-08T08:16:14.169Z |  |
 | 10 | 04 | unrun-verify | docs/ops/hnsw-order-benchmark.md |  | strict_order 대 relaxed_order 비교 실행이 없다 — 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 고르지 않는다(Phase 2 관측 btree+sort 233 대 HNSW 349,657). 그 규모의 수치는 다른 플랜을 재는 것이라 T-04-12(오도하는 튜닝)에 해당한다. 두 기본값은 제약·안전 기본값으로 유지했을 뿐 측정되지 않았다. 그래프 off/on 비교도 러너에 토글이 없어 불가. Phase 7 OPS 이월 (04-04 Task 3 수용기준 #1 미충족) | open |  | 2026-08-11T09:06:03.966Z |  |
 | 11 | 06 | deviation | apps/dashboard/app/globals.css |  | Tailwind max-w-*/w-*/h-* 유틸리티가 이 프로젝트의 커스텀 --spacing-{xs,sm,base,lg,xl,xxl,section} @theme 오버라이드와 이름이 겹치면 --container-*(Tailwind 기본) 대신 --spacing-*로 잘못 해석된다 (실측: max-w-xl -> 32px, 06-03 SettingsMembersPanel에서 발견/수정). max-w-md는 안전(--spacing-md 미정의). 이후 Phase 6 플랜은 xs/sm/base/lg/xl/xxl/section과 겹치는 크기 유틸리티 사용 전 getComputedStyle로 실측 확인할 것. | open |  | 2026-08-12T09:19:45.765Z |  |
+| 12 | 06 | unrun-verify | apps/dashboard/components/WikiPageContent.tsx |  | WikiLink 네비게이션(해소/red)과 4종 verification 콜아웃, disputed 우선순위를 로컬 스택 대상 실제 클릭스루로 검증하지 못했다 — Playwright 라이브 검증 시도가 반복 중단되어(watchdog) 정적 검증(vitest/tsc/next build)만으로 대체했다. 시딩한 테스트 데이터/계정은 정리 완료(0행 확인) | open |  | 2026-08-12T14:32:01.260Z |  |
 
 ````json
 [
@@ -159,6 +160,18 @@ last_updated: 2026-08-12T09:19:45.765Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-12T09:19:45.765Z",
+    "resolved_at": null
+  },
+  {
+    "id": 12,
+    "kind": "unrun-verify",
+    "phase": "06",
+    "file": "apps/dashboard/components/WikiPageContent.tsx",
+    "line": null,
+    "description": "WikiLink 네비게이션(해소/red)과 4종 verification 콜아웃, disputed 우선순위를 로컬 스택 대상 실제 클릭스루로 검증하지 못했다 — Playwright 라이브 검증 시도가 반복 중단되어(watchdog) 정적 검증(vitest/tsc/next build)만으로 대체했다. 시딩한 테스트 데이터/계정은 정리 완료(0행 확인)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-12T14:32:01.260Z",
     "resolved_at": null
   }
 ]
