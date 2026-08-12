@@ -40,6 +40,31 @@ const GENERIC_ERROR_MESSAGE =
 const REQUESTED_K = 8; // RetrievalService.DEFAULT_RETRIEVAL_POLICY.requested_k와 일치
 
 /**
+ * `/ask` SSE 엔드포인트가 non-2xx로 응답할 때(401/402/403/500 등)의 본문은
+ * `lib/api-client.ts`의 `ApiError`와 같은 `{ detail: string, ... }` 형태를
+ * 따른다는 보장이 없으므로 최선 노력으로만 파싱한다 — 파싱에 실패해도 예외를
+ * 밖으로 던지지 않고 고정 토큰으로 대체한다(threat T-06-13과 동일한 방어).
+ */
+async function readAskErrorToken(response: Response): Promise<string> {
+  try {
+    const text = await response.text();
+    if (text.length === 0) return "unknown_error";
+    const parsed: unknown = JSON.parse(text);
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      "detail" in parsed &&
+      typeof (parsed as { detail: unknown }).detail === "string"
+    ) {
+      return (parsed as { detail: string }).detail;
+    }
+    return "unknown_error";
+  } catch {
+    return "unknown_error";
+  }
+}
+
+/**
  * Ask UI 대화 상태 기계 — `meta -> delta* -> citations -> done` 이벤트 순서를
  * 그대로 소비한다 (05-CONTEXT.md D-01~D-03, 06-CONTEXT.md D-09~D-11).
  *
@@ -141,6 +166,18 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           }),
         },
       );
+
+      // 06-REVIEW.md WR-02: 응답이 SSE가 아닌 JSON 에러 본문(401/402/403/500 등)일
+      // 수 있다 — response.ok를 먼저 확인하지 않으면 parseSseStream이 프레임
+      // 경계를 하나도 못 찾고 조용히 0개 이벤트만 내보내, 아래 finally의
+      // "streaming으로 남아있으면 dropped" 규칙이 실제 서버 에러를 일반
+      // "연결이 끊어졌습니다" 재시도 안내로 뭉개버린다. 여기서 먼저 걸러서
+      // 명시적인 error 상태로 분기한다.
+      if (!response.ok) {
+        const errorToken = await readAskErrorToken(response);
+        patchTurn({ status: "error", errorToken });
+        return;
+      }
 
       for await (const frame of parseSseStream(response)) {
         if (frame.event === "meta") {
