@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 6
 current_phase_name: Dashboard
 status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-08-12T03:28:17.439Z"
+stopped_at: Phase 6 UI-SPEC approved
+last_updated: "2026-08-12T03:45:02.583Z"
 last_activity: 2026-08-12
 last_activity_desc: Phase 05 complete, transitioned to Phase 6
 progress:
@@ -196,9 +196,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T03:28:17.415Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-dashboard/06-CONTEXT.md
+Last session: 2026-08-12T03:45:02.557Z
+Stopped at: Phase 6 UI-SPEC approved
+Resume file: .planning/phases/06-dashboard/06-UI-SPEC.md
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
 
