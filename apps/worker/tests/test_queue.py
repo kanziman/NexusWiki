@@ -17,15 +17,19 @@ import secrets
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
+from worker import __main__ as worker_main
 from worker import handlers, queue
 from worker.db.service import ServiceDb, service_client
 from worker.errors import ProviderError, UnsafeFetchTarget
+from worker.handlers import conflict
 from worker.handlers.noop import handle_noop
 from worker.settings import WorkerSettings
 
@@ -512,6 +516,8 @@ class LocalQueueStack:
     db: ServiceDb
     client: httpx.AsyncClient
     workspace_id: str
+    user_id: str
+    access_token: str
 
     async def enqueue(
         self,
@@ -614,7 +620,11 @@ async def local_queue() -> AsyncIterator[LocalQueueStack]:
 
                 try:
                     yield LocalQueueStack(
-                        db=ServiceDb(client), client=client, workspace_id=workspace_id
+                        db=ServiceDb(client),
+                        client=client,
+                        workspace_id=workspace_id,
+                        user_id=user_id,
+                        access_token=access_token,
                     )
                 finally:
                     # 워크스페이스 삭제가 jobs를 cascade로 지운다(0003:29). `jobs`에는
@@ -628,6 +638,166 @@ async def local_queue() -> AsyncIterator[LocalQueueStack]:
         finally:
             # workspaces.owner_id 는 on delete restrict 이므로 사용자는 언제나 그 다음이다.
             await client.delete(f"{LOCAL_SUPABASE_URL}/auth/v1/admin/users/{user_id}")
+
+
+def _local_worker_settings() -> WorkerSettings:
+    return WorkerSettings(
+        SUPABASE_URL=LOCAL_SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY="local-publishable-unused-on-service-path",
+        SUPABASE_SECRET_KEY=LOCAL_SERVICE_KEY,
+        DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54422/postgres",
+        OPENROUTER_API_KEY="unused-in-phase-5",
+        OPENAI_API_KEY="unused-in-phase-5",
+        LLM_MODEL="unused-in-phase-5",
+    )
+
+
+@pytest.mark.asyncio
+async def test_local_budget_aggregate_is_complete_and_private(local_queue: LocalQueueStack) -> None:
+    """The real RPC sees all rows and rejects Ask at the inclusive cap boundary."""
+    now = datetime.now(UTC)
+    since = datetime(now.year, now.month, 1, tzinfo=UTC).isoformat()
+    total = 1001
+    rows = [
+        {
+            "workspace_id": local_queue.workspace_id,
+            "kind": "llm",
+            "provider": "test",
+            "model": "test",
+            "cost_micros": 1,
+            "occurred_at": since,
+        }
+        for _ in range(total)
+    ]
+    inserted = await local_queue.client.post(
+        "/usage_events", json=rows, headers={"Prefer": "return=representation"}
+    )
+    inserted.raise_for_status()
+
+    assert (
+        await local_queue.db.sum_usage_events_since(
+            workspace_id=local_queue.workspace_id, since=since
+        )
+        == total
+    )
+
+    async with httpx.AsyncClient(
+        base_url=f"{LOCAL_SUPABASE_URL}/rest/v1",
+        headers={
+            "apikey": LOCAL_SERVICE_KEY,
+            "Authorization": f"Bearer {local_queue.access_token}",
+        },
+    ) as requester:
+        denied = await requester.post(
+            "/rpc/sum_usage_events_since",
+            json={"p_workspace_id": local_queue.workspace_id, "p_since": since},
+        )
+        assert denied.status_code in (401, 403), denied.text
+        updated = await requester.patch(
+            f"/workspaces?id=eq.{local_queue.workspace_id}",
+            json={"monthly_budget_micros": total},
+            headers={"Prefer": "return=representation"},
+        )
+        updated.raise_for_status()
+
+    assert (
+        await worker_main._check_ask_budget(_local_worker_settings(), local_queue.workspace_id)
+        is False
+    )
+
+
+@pytest.mark.asyncio
+async def test_local_automated_dispute_retains_human_verification_audit(
+    local_queue: LocalQueueStack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real service-role dispute must not overwrite an earlier requester audit stamp."""
+    pages = []
+    page_specs = (
+        ("verified", "The policy permits this."),
+        ("conflict", "The policy forbids this."),
+    )
+    for slug, content in page_specs:
+        response = await local_queue.client.post(
+            "/wiki_pages",
+            json={
+                "workspace_id": local_queue.workspace_id,
+                "slug": f"{slug}-{uuid.uuid4().hex}",
+                "title": slug,
+                "category": "concepts",
+                "content": content,
+                "sources": ["source-under-test"],
+            },
+            headers={"Prefer": "return=representation"},
+        )
+        response.raise_for_status()
+        pages.append(response.json()[0])
+    first, second = pages
+
+    async with httpx.AsyncClient(
+        base_url=f"{LOCAL_SUPABASE_URL}/rest/v1",
+        headers={
+            "apikey": LOCAL_SERVICE_KEY,
+            "Authorization": f"Bearer {local_queue.access_token}",
+        },
+    ) as requester:
+        verified = await requester.patch(
+            f"/wiki_pages?id=eq.{first['id']}&workspace_id=eq.{local_queue.workspace_id}",
+            json={"verification_status": "verified"},
+            headers={"Prefer": "return=representation"},
+        )
+        verified.raise_for_status()
+        audited = verified.json()[0]
+    assert audited["verified_by"] == local_queue.user_id
+    assert audited["verified_at"] is not None
+    audit_pair = (audited["verified_by"], audited["verified_at"])
+
+    class CandidateAdapter:
+        def __init__(self, real: ServiceDb) -> None:
+            self.real = real
+
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, Any]]:
+            return [first]
+
+        async def find_similar_wiki_pages(self, **_values: Any) -> list[dict[str, Any]]:
+            return [{"candidate_wiki_id": second["id"], "similarity": 0.99}]
+
+        async def _select(self, table: str, *, params: dict[str, str]) -> list[dict[str, Any]]:
+            return await self.real._select(table, params=params)  # noqa: SLF001
+
+        async def set_wiki_page_disputed(self, wiki_id: str, *, workspace_id: str) -> None:
+            await self.real.set_wiki_page_disputed(wiki_id, workspace_id=workspace_id)
+
+        async def complete_job_and_chain(self, _job_id: str) -> None:
+            return None
+
+    async def contradiction(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            payload=conflict.ConflictJudgement(is_contradiction=True, rationale="facts clash")
+        )
+
+    monkeypatch.setattr(conflict, "complete_structured", contradiction)
+    await conflict.run_conflict_check(
+        CandidateAdapter(local_queue.db),  # type: ignore[arg-type]
+        object(),
+        settings=_local_worker_settings(),
+        job_id=str(uuid.uuid4()),
+        workspace_id=local_queue.workspace_id,
+        payload={"raw_source_id": "source-under-test"},
+    )
+
+    current = await local_queue.db._select(  # noqa: SLF001
+        "wiki_pages",
+        params={
+            "workspace_id": f"eq.{local_queue.workspace_id}",
+            "id": f"in.({first['id']},{second['id']})",
+        },
+    )
+    by_id = {row["id"]: row for row in current}
+    assert by_id[first["id"]]["verification_status"] == "disputed"
+    assert by_id[first["id"]]["disputed"] is True
+    assert (by_id[first["id"]]["verified_by"], by_id[first["id"]]["verified_at"]) == audit_pair
+    assert by_id[second["id"]]["verification_status"] == "disputed"
+    assert by_id[second["id"]]["disputed"] is True
 
 
 @pytest.mark.asyncio
