@@ -109,7 +109,7 @@ def test_importing_the_module_reads_no_credentials_and_holds_no_client(
 # -----------------------------------------------------------------------------
 
 
-def test_every_public_helper_is_classified_as_table_or_queue_rpc() -> None:
+def test_every_public_helper_is_classified_as_table_or_approved_rpc() -> None:
     # 새 헬퍼가 분류를 빠져나가면 workspace 스코프 강제가 조용히 뚫린다.
     public_helpers = {
         name
@@ -123,11 +123,14 @@ def test_every_public_helper_is_classified_as_table_or_queue_rpc() -> None:
         | service.CATALOG_RPC_FUNCTIONS
         | service.LEXICAL_RPC_FUNCTIONS
         | service.CONFLICT_RPC_FUNCTIONS
+        | service.BUDGET_RPC_FUNCTIONS
     )
     assert not (service.TABLE_HELPERS & service.QUEUE_RPC_FUNCTIONS)
     assert not (service.TABLE_HELPERS & service.CATALOG_RPC_FUNCTIONS)
     assert not (service.QUEUE_RPC_FUNCTIONS & service.CATALOG_RPC_FUNCTIONS)
     assert not (service.TABLE_HELPERS & service.CONFLICT_RPC_FUNCTIONS)
+    assert not (service.TABLE_HELPERS & service.BUDGET_RPC_FUNCTIONS)
+    assert not (service.BUDGET_RPC_FUNCTIONS & service.QUEUE_RPC_FUNCTIONS)
 
 
 def test_table_helpers_declare_workspace_id_without_a_default() -> None:
@@ -351,7 +354,7 @@ async def test_workspace_budget_helpers_read_the_cap_and_sum_usage_since() -> No
         seen.append(request)
         if request.url.path.endswith("/workspaces"):
             return httpx.Response(200, json=[{"monthly_budget_micros": 250}])
-        return httpx.Response(200, json=[{"cost_micros": 40}, {"cost_micros": "60"}])
+        return httpx.Response(200, json={"sum_usage_events_since": 1001})
 
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(handler), base_url="https://example.invalid/rest/v1"
@@ -363,18 +366,19 @@ async def test_workspace_budget_helpers_read_the_cap_and_sum_usage_since() -> No
         )
 
     assert cap == 250
-    assert spent == 100
+    assert spent == 1001
     assert dict(seen[0].url.params) == {
         "id": f"eq.{WORKSPACE_ID}",
         "select": "monthly_budget_micros",
         "limit": "1",
     }
-    assert dict(seen[1].url.params) == {
-        "workspace_id": f"eq.{WORKSPACE_ID}",
-        "occurred_at": "gte.2026-08-01T00:00:00+00:00",
-        "select": "cost_micros",
-        "limit": "1000",
+    assert seen[1].method == "POST"
+    assert seen[1].url.path.endswith("/rpc/sum_usage_events_since")
+    assert json.loads(seen[1].content) == {
+        "p_workspace_id": WORKSPACE_ID,
+        "p_since": "2026-08-01T00:00:00+00:00",
     }
+    assert all(not request.url.path.endswith("/usage_events") for request in seen)
 
 
 @pytest.mark.asyncio
@@ -396,6 +400,25 @@ async def test_workspace_budget_helpers_distinguish_no_cap_from_zero_spend() -> 
 
     assert cap is None
     assert spent == 0
+
+
+@pytest.mark.asyncio
+async def test_usage_aggregate_accepts_scalar_and_rejects_unexpected_shape() -> None:
+    async with client_returning(1001) as client:
+        db = service.ServiceDb(client)
+        assert (
+            await db.sum_usage_events_since(
+                workspace_id=WORKSPACE_ID, since="2026-08-01T00:00:00+00:00"
+            )
+            == 1001
+        )
+
+    async with client_returning({"unexpected": 1, "also_unexpected": 2}) as client:
+        db = service.ServiceDb(client)
+        with pytest.raises(ValueError, match="unexpected sum_usage_events_since result"):
+            await db.sum_usage_events_since(
+                workspace_id=WORKSPACE_ID, since="2026-08-01T00:00:00+00:00"
+            )
 
 
 @pytest.mark.asyncio

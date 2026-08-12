@@ -19,6 +19,7 @@ from worker.settings import WorkerSettings
 
 __all__ = [
     "QUEUE_RPC_FUNCTIONS",
+    "BUDGET_RPC_FUNCTIONS",
     "CATALOG_RPC_FUNCTIONS",
     "CONFLICT_RPC_FUNCTIONS",
     "RPC_HELPERS",
@@ -49,7 +50,6 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "list_wiki_pages_for_source",
         "insert_usage_event",
         "get_workspace_budget_cap",
-        "sum_usage_events_since",
         "list_wiki_links",
         "upsert_wiki_links",
         "delete_wiki_links_not_in",
@@ -81,8 +81,13 @@ LEXICAL_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
     {"index_source_chunk_lexical", "index_wiki_page_lexical"}
 )
 CONFLICT_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"find_similar_wiki_pages"})
+BUDGET_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"sum_usage_events_since"})
 RPC_HELPERS: Final[frozenset[str]] = (
-    QUEUE_RPC_FUNCTIONS | CATALOG_RPC_FUNCTIONS | LEXICAL_RPC_FUNCTIONS | CONFLICT_RPC_FUNCTIONS
+    QUEUE_RPC_FUNCTIONS
+    | CATALOG_RPC_FUNCTIONS
+    | LEXICAL_RPC_FUNCTIONS
+    | CONFLICT_RPC_FUNCTIONS
+    | BUDGET_RPC_FUNCTIONS
 )
 
 # PostgREST 업서트에 필요한 Prefer 조합. `resolution=merge-duplicates`가 없으면 충돌이
@@ -455,17 +460,25 @@ class ServiceDb:
         return int(rows[0]["monthly_budget_micros"]) if rows else None
 
     async def sum_usage_events_since(self, *, workspace_id: str, since: str) -> int:
-        """Sum usage in a caller-defined UTC window, preserving SQL's ``coalesce(..., 0)``."""
-        rows = await self._select(
-            "usage_events",
-            params={
-                "workspace_id": f"eq.{workspace_id}",
-                "occurred_at": f"gte.{since}",
-                "select": "cost_micros",
-                "limit": "1000",
-            },
+        """Return the database's complete usage aggregate for a UTC window."""
+        result = await self._rpc(
+            "sum_usage_events_since",
+            {"p_workspace_id": workspace_id, "p_since": since},
         )
-        return sum(int(row["cost_micros"]) for row in rows)
+        if result is None:
+            return 0
+        if isinstance(result, dict):
+            if len(result) != 1:
+                raise ValueError(f"unexpected sum_usage_events_since result: {result!r}")
+            result = next(iter(result.values()))
+        if result is None:
+            return 0
+        if isinstance(result, bool):
+            raise ValueError(f"unexpected sum_usage_events_since result: {result!r}")
+        try:
+            return int(result)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"unexpected sum_usage_events_since result: {result!r}") from exc
 
     async def list_source_chunks_missing_embedding(
         self, *, workspace_id: str, raw_source_id: str, embedding_version: str
@@ -736,14 +749,14 @@ class ServiceDb:
         payload = response.json()
         return payload if isinstance(payload, list) else [payload]
 
-    async def _rpc(self, function: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    async def _rpc(self, function: str, payload: dict[str, Any]) -> Any:
         response = await self._client.post(f"/rpc/{function}", json=payload)
         response.raise_for_status()
         result = response.json()
         if isinstance(result, list):
             result = result[0] if result else None
         if not isinstance(result, dict):
-            return None
+            return result
         # ⚠️ `returns public.jobs` 함수(complete_job · fail_job)가 0행을 돌려주면
         #    PostgREST는 null이 아니라 **모든 필드가 null인 레코드**를 만들어 준다.
         #    0003의 큐 함수들은 `where ... and status = 'running'` 절 덕분에 재호출이
