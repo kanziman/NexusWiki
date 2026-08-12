@@ -252,7 +252,7 @@ Plans:
   4. 위키 뷰어가 읽기 전용임을 명시하고("이 페이지는 컴파일됩니다") WikiLink 내비게이션·레드 링크("아직 작성되지 않음 · 지금 생성")·상태 콜아웃을 제공한다
   5. Cytoscape 지식 캔버스가 렌즈 필터(`wiki_pages.category` 재사용)와 함께 동작하고, PostgREST 1000행 상한에서 조용히 잘리지 않는다 (이 페이즈에서 **가장 마지막** 표면)
 
-**Plans**: 1/8 plans executed
+**Plans**: 2/8 plans executed
 **UI hint**: yes
 
 Plans:
@@ -263,7 +263,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 06-02-PLAN.md — 워크스페이스 스위처(D-03) + 5개 표면 내비게이션
+- [x] 06-02-PLAN.md — 워크스페이스 스위처(D-03) + 5개 표면 내비게이션
 - [ ] 06-03-PLAN.md — 멤버 명부 + 이메일 초대(D-04) — 마이그레이션 0014(신규 RPC 2종) + [BLOCKING] db push
 - [ ] 06-04-PLAN.md — 공용 apps/api 인증 fetch 래퍼(`lib/api-client.ts`) + SSE 프레임 파서(`lib/sse.ts`)
 
@@ -304,7 +304,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Ingest and Compile Pipeline | 9/9 | Complete    | 2026-08-10 |
 | 4. Hybrid Retrieval and Fusion | 9/9 | Complete    | 2026-08-11 |
 | 5. Citation Integrity and Answer APIs | 7/7 | Complete    | 2026-08-12 |
-| 6. Dashboard | 1/8 | In Progress|  |
+| 6. Dashboard | 2/8 | In Progress|  |
 | 7. Integration and Ops Baseline | 0/TBD | Not started | - |
 
 ## Coverage

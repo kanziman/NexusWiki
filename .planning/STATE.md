@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 06
 current_phase_name: dashboard
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-08-12T08:34:01.452Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-08-12T08:56:52.366Z"
 last_activity: 2026-08-12
 last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 51
-  completed_plans: 44
+  completed_plans: 45
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 ## Current Position
 
 Phase: 06 (dashboard) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-08-12 — Phase 06 execution started
 
-Progress: [█████████░] 86% (execution; verification pending)
+Progress: [█████████░] 88% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Progress: [█████████░] 86% (execution; verification pending)
 | Phase 05 P01 | 35min | 2 tasks | 16 files |
 | Phase 05 P02 | 25min | 2 tasks | 1 files |
 | Phase 06 P01 | ~40min | 2 tasks | 16 files |
+| Phase 06 P02 | 35min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -162,6 +163,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 6] window.location.assign 대신 router.push를 쓰면 signInWithPassword 직후 RSC soft-navigation이 방금 쓴 세션 쿠키보다 먼저 도착할 수 있다 — 전체 네비게이션으로 구조적으로 제거 (06-01)
 - [Phase ?]: [Phase 6] docs/design-systems/design-tokens.css/.json을 이번에 처음 git에 커밋 — 이전 세션 산출물이 미추적 상태였고 Phase 6 전체가 이 파일 존재를 전제한다 (06-01)
 - [Phase ?]: [Phase 6] Tailwind 4 @theme 색상 키는 design-tokens.css의 동일 이름 커스텀 프로퍼티를 var()로 셀프 참조 — CSS Cascade Layers가 unlayered 선언에 무조건 우선순위를 주므로 순환 참조가 되지 않고 원본 값으로 정확히 해석됨을 실측 확인 (06-01)
+- [Phase ?]: [Phase 6] NavShell 로딩 backstop은 useTransition()이 router.push()를 감싸는 방식으로 구현 — 별도 isLoading state 없이 Next.js App Router의 라우트 전환 신호를 그대로 쓴다 (06-02)
+- [Phase ?]: [Phase 6] jsdom은 Pointer Capture/scrollIntoView/ResizeObserver를 구현하지 않는다 — vitest.setup.ts에 전역 폴리필을 추가해 이후 모든 Phase 6 Radix 컴포넌트 테스트가 공유하게 했다 (06-02)
 
 ### Pending Todos
 
@@ -201,8 +204,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T08:34:01.439Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-08-12T08:56:52.352Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
