@@ -25,7 +25,14 @@ export function SettingsMembersPanel({
   const [refreshToken, setRefreshToken] = useState(0);
 
   return (
-    <div className="flex max-w-xl flex-col gap-xl">
+    // [Rule 1 - Bug] Tailwind의 max-w-xl 유틸리티를 쓰지 않는다 — 이 프로젝트의
+    // globals.css @theme이 --spacing-xl(32px)만 정의하고 --container-xl은
+    // 정의하지 않아, 컴파일된 CSS에서 max-w-xl이 --spacing-xl(32px)로
+    // 잘못 해석되는 것을 실측으로 확인했다(Playwright getComputedStyle,
+    // maxWidth: "32px"). 640px 고정값을 인라인 style로 직접 지정한다 —
+    // LoginForm.tsx/NavShell.tsx가 @theme에 없는 토큰(font 축약형 등)에
+    // 인라인 style을 쓰는 것과 같은 패턴.
+    <div className="flex flex-col gap-xl" style={{ maxWidth: "640px" }}>
       <section className="flex flex-col gap-base">
         <h2 className="text-ink" style={{ font: "var(--font-title-md)" }}>
           멤버
