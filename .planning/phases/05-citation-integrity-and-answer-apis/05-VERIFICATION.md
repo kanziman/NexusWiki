@@ -1,88 +1,90 @@
 ---
 phase: 05-citation-integrity-and-answer-apis
-verified: 2026-08-12T00:00:00+09:00
-status: gaps_found
-score: 16/18 plan must-have truths verified; 11/12 phase requirements satisfied
+verified: 2026-08-12T12:00:00+09:00
+status: passed
+score: 18/18 plan must-have truths verified; 12/12 phase requirements satisfied
 behavior_unverified: 0
 overrides_applied: 0
 requirements:
-  satisfied: [CITE-01, CITE-02, CITE-03, CITE-04, CITE-05, CITE-06, API-01, API-02, API-03, API-04, QC-01]
-  blocked: [QC-02]
+  satisfied: [CITE-01, CITE-02, CITE-03, CITE-04, CITE-05, CITE-06, API-01, API-02, API-03, API-04, QC-01, QC-02]
+  blocked: []
   needs_human: []
-gaps:
-  - "The conflict-check service-role transition overwrites verified_by/verified_at through the verification trigger, losing the previous human audit identity and timestamp (QC-02)."
-  - "Ask monthly-cap accounting reads only the first 1,000 usage_events, so a high-volume workspace can pass the preflight budget check after its actual cap is reached."
+gaps: []
 ---
 
 # Phase 5: Citation Integrity and Answer APIs Verification Report
 
-**Phase goal:** 답변이 실제로 사용한 근거만 인용하고, 위키와 원문 양쪽으로 추적된다.
+**Phase goal:** Answers cite only evidence actually used by the model and remain traceable to both wiki and source records.
 
-**Result:** `gaps_found` — citation integrity, Ask SSE, read APIs, and write-time conflict detection are implemented and tested. Two review-confirmed correctness gaps prevent completion: QC-02's human verification audit can be overwritten by automated disputes, and the Phase 05 Ask budget cap only sums the first 1,000 events.
+**Result:** `passed` — all Phase 05 requirements and plan must-have truths are implemented, regression-tested, and the two earlier safety gaps are closed.
 
 ## Goal achievement
 
 | # | Roadmap success criterion | Status | Independent evidence |
 | --- | --- | --- | --- |
-| 1 | Short issued aliases; citations are parsed-anchor ∩ issued-map | ✓ VERIFIED | `ask.py:118-134` creates only `wN`/`sN` aliases; `resolve_citations()` intersects parsed aliases with `issuance` (`147-189`). The focused citation/SSE tests passed. |
-| 2 | Forged aliases are removed and counted; no evidence returns the explicit message | ✓ VERIFIED | Broad anchors are stripped in `citations.py` and `parse.py` before chunking; `AskService.ask()` short-circuits empty evidence to `근거를 찾지 못했습니다.` (`366-382`). |
-| 3 | Four citation metrics per answer; injected source anchors removed before prompt context | ✓ VERIFIED | `resolve_citations()` returns both ratios and both counts; parse applies `strip_forged_anchors()` before `chunk_text()`. |
-| 4 | POST SSE event order, selectable Ask templates, question-language behavior | ✓ VERIFIED | Ask router returns `StreamingResponse`; service emits `meta`, zero-or-more `delta`, `citations`, `done` (`414-489`). RLS-scoped template selection and migration 0012's language/alias instruction are present. |
-| 5 | Read APIs, disputes, and verification audit preserve who/when/until | ✗ GAP | Graph/job/wiki APIs and write-time conflict check exist, but automated `disputed` transitions overwrite the preceding human verifier audit fields (QC-02 gap below). |
+| 1 | Short issued aliases; citations are parsed-anchor ∩ issued-map | ✓ VERIFIED | `ask.py` issues per-request `wN`/`sN` aliases and `resolve_citations()` intersects parsed aliases with the issuance map, rather than returning raw retrieval hits. Focused citation/SSE tests pass. |
+| 2 | Forged aliases are removed and counted; no evidence returns the explicit message | ✓ VERIFIED | Broad anchors are stripped during parse before chunking; `AskService.ask()` short-circuits empty evidence with `근거를 찾지 못했습니다.` and no provider call. |
+| 3 | Four citation metrics per answer; injected source anchors removed before prompt context | ✓ VERIFIED | Citation resolution returns both rates plus fabricated/cited counts; source parse strips forged anchors before `chunk_text()`. |
+| 4 | POST SSE event order, selectable Ask templates, question-language behavior | ✓ VERIFIED | Ask returns a `StreamingResponse` and produces `meta`, zero-or-more `delta`, `citations`, then `done`; the RLS-scoped template selection and updated Ask seed prompts are present. |
+| 5 | Read APIs, disputes, and verification audit preserve who/when/until | ✓ VERIFIED | Bounded graph, job, and wiki surfaces exist; conflict detection marks confirmed pairs disputed; the replacement trigger preserves a preceding human audit pair during service-role automation. |
 
-**Roadmap score:** 4/5 success criteria verified.
+**Roadmap score:** 5/5 success criteria verified.
 
 ## Requirement accounting
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | CITE-01 | ✓ SATISFIED | Server-only `wN`/`sN` issuance and context blocks; real IDs are resolved only after model output. |
-| CITE-02 | ✓ SATISFIED | `parsed_aliases & issuance.keys()` drives `resolved`, not the raw retrieval list. |
-| CITE-03 | ✓ SATISFIED | Broad forged forms are removed and non-issued narrow aliases counted. |
+| CITE-02 | ✓ SATISFIED | `parsed_aliases & issuance.keys()` drives resolved citations, not the raw retrieval list. |
+| CITE-03 | ✓ SATISFIED | Broad forged forms are stripped and non-issued narrow aliases are counted. |
 | CITE-04 | ✓ SATISFIED | Empty retrieval skips the provider and emits the required Korean message. |
 | CITE-05 | ✓ SATISFIED | Both citation rates and both counts are emitted in the citations event. |
 | CITE-06 | ✓ SATISFIED | All source types converge on a pre-chunk broad-anchor strip. |
-| API-01 | ✓ SATISFIED | Private worker listener plus POST SSE relay with fixed event ordering; focused worker/API tests pass. |
-| API-02 | ✓ SATISFIED | Requested template is RLS-read; hidden/invalid IDs silently fall back to default. |
-| API-03 | ✓ SATISFIED | The corrected seeded Ask prompts instruct response language to follow the question. |
-| API-04 | ✓ SATISFIED | Bounded graph RPC/router, wiki verification read surface, and existing job-status chain are present; conflict step is surfaced. |
-| QC-01 | ✓ SATISFIED | Wiki embedding chains `conflict_check`; bounded same-workspace candidates are LLM-judged and both confirmed pages become disputed. |
-| QC-02 | ✗ GAP | User verification endpoint and DB trigger record fields initially, but a subsequent automated conflict transition destroys the prior human audit record. |
+| API-01 | ✓ SATISFIED | Private worker listener plus POST SSE relay uses the fixed event ordering. |
+| API-02 | ✓ SATISFIED | A visible requested Ask template is selected; unavailable IDs fall back to the default. |
+| API-03 | ✓ SATISFIED | Seeded Ask prompts instruct the response to follow the question language. |
+| API-04 | ✓ SATISFIED | Bounded graph RPC/router, wiki verification read surface, and existing source-job chain status are available. |
+| QC-01 | ✓ SATISFIED | Bounded same-workspace embedding candidates are LLM-judged and confirmed conflicts mark both pages disputed. |
+| QC-02 | ✓ SATISFIED | Editor transitions record DB-derived verifier/timestamp/expiry; a later service-role dispute retains the prior human `verified_by` and `verified_at`. |
 
-**Requirements score:** 11/12 satisfied.
+**Requirements score:** 12/12 satisfied.
 
-## Required gaps
+## Closure evidence for the prior gaps
 
-### GAP-01 — QC-02 audit fields are overwritten by automated disputes
+### Ask monthly cap: complete aggregate and requester boundary
 
-`ServiceDb.set_wiki_page_disputed()` intentionally changes `verification_status` to `disputed` without supplying audit fields (`apps/worker/src/worker/db/service.py:414-430`), and the conflict handler calls it for both pages (`apps/worker/src/worker/handlers/conflict.py:104-108`). Migration `0012`'s `stamp_wiki_verification()` trigger unconditionally sets `new.verified_by := auth.uid()` and `new.verified_at := now()` on *every* status change (`supabase/migrations/0012_ask_citation_and_graph.sql:193-205`). In the service-role conflict path, that replaces the prior human verifier/timestamp (normally with a non-human/null identity), contradicting the helper's documented intent and QC-02's durable “who/when/until” audit requirement.
+Migration `0013_ask_budget_and_verification_audit.sql` defines `public.sum_usage_events_since(uuid, timestamptz)` as `coalesce(sum(cost_micros), 0)` over every matching `usage_events` row. Its default execute privileges are revoked and execution is granted only to `service_role`. `ServiceDb.sum_usage_events_since()` calls that RPC directly, with no paginated table read, and `_check_ask_budget()` retains the inclusive `spent < cap` decision.
 
-**Closure needed:** distinguish authenticated human verification transitions from automated disputes in the trigger/write model, or store automated dispute history separately while preserving the prior human verification fields. Add a regression that starts with a human-verified page, runs a confirmed conflict, and asserts `verified_by` and `verified_at` remain intact.
+`test_local_budget_aggregate_is_complete_and_private` inserted 1,001 same-window events into the real local stack, received the complete total through the service-role client, proved a requester JWT is denied (401/403) at the RPC endpoint, and proved Ask preflight rejects when the cap equals that total. This explicitly covers both the former 1,000-row bypass and the requester privilege boundary.
 
-### GAP-02 — Ask monthly cap is bypassable after 1,000 usage events
+### Automated dispute: durable human audit
 
-`sum_usage_events_since()` selects `usage_events` with `limit=1000` and sums only that returned page (`apps/worker/src/worker/db/service.py:457-468`). The Ask listener uses that value as its preflight monthly-cap decision. A workspace with more than 1,000 events in the window omits later spend and can open billable streams after the real cap is reached.
+The replacement `stamp_wiki_verification()` stamps `verified_by` and `verified_at` only when `auth.uid()` is a human requester. On an unauthenticated/service-role transition it instead copies `OLD.verified_by` and `OLD.verified_at`. `set_wiki_page_disputed()` remains the real service-role write used by `run_conflict_check()`.
 
-**Closure needed:** use a database aggregate/RPC, or deterministically paginate to exhaustion before comparing spend to the cap; add a >1,000-row regression test.
+`test_local_automated_dispute_retains_human_verification_audit` first creates a real requester-JWT `verified` transition, records its human audit pair, then drives a confirmed conflict through the production service-role dispute method. Both pages become `disputed`; the previously verified page retains the exact original `verified_by` and `verified_at` pair.
+
+### Linked Supabase Cloud deployment evidence
+
+`05-07-SUMMARY.md` records a successful `supabase db push --yes` of only migration `0013` to the already-linked remote, followed by `supabase db dump --linked --schema public`. The inspected live schema contained the aggregate RPC signature, its `service_role` execute grant, and the `OLD.verified_by` / `OLD.verified_at` preservation branch; the temporary dump was removed. This is deployment evidence, not an inferred local-only result.
 
 ## Automated verification performed
 
 | Command | Result |
 | --- | --- |
-| `uv run pytest apps/worker/tests/test_llm_stream.py apps/worker/tests/test_service_client.py apps/worker/tests/test_handlers.py apps/api/tests/test_ask_citations.py apps/api/tests/test_ask_router.py apps/api/tests/test_graph_router.py apps/api/tests/test_workspaces_isolation.py apps/api/tests/test_jobs_router.py packages/core/tests/test_citations.py packages/core/tests/test_sentences.py -x` | PASS — 89 passed |
-| `uv run pytest -q` | PASS — 405 tests; command exited 0 (executor output stream truncated after progress rendering) |
-| `git diff --check HEAD -- apps packages supabase .planning/phases/05-citation-integrity-and-answer-apis` | PASS |
+| `uv run pytest apps/worker/tests/test_queue.py apps/worker/tests/test_service_client.py apps/worker/tests/test_handlers.py apps/worker/tests/test_worker_main.py apps/api/tests/test_ask_citations.py apps/api/tests/test_ask_router.py apps/api/tests/test_graph_router.py apps/api/tests/test_workspaces_isolation.py apps/api/tests/test_jobs_router.py packages/core/tests/test_citations.py packages/core/tests/test_sentences.py -x -rs` | PASS — 109 passed. |
+| `uv run pytest -q` | PASS — full suite completed successfully. Plan summary additionally records 408 passed immediately after the gap closure. |
+| `git diff --check HEAD -- apps packages supabase .planning/phases/05-citation-integrity-and-answer-apis` | PASS. |
 
 ## Plan must-have assessment
 
-All Plan 01/02/03/05/06 truth statements are verified except the QC-02 audit preservation implication. Plan 04's first-1,000-row usage read also fails its stated budget-cap truth at scale. Thus 16/18 plan must-have truths are verified, with no behavior left merely untested.
+All Plan 01–07 must-have truths are verified: 18/18. The former Plan 04 scale gap is closed by the database aggregate, and the former Plan 05/06 audit-preservation implication is closed by the replacement trigger and real local-stack integration test.
 
-## Gaps summary
+## Completion recommendation
 
-Do not mark Phase 05 complete yet. The citation and API core are ready, but the two concrete gaps above need closure and regression coverage before the phase can truthfully claim durable verification audit and reliable Ask spend enforcement.
+Phase 05 may be marked complete. No implementation, safety, or verification gap remains.
 
 ---
 
-_Verified: 2026-08-12T00:00:00+09:00_
+_Verified: 2026-08-12T12:00:00+09:00_
 
 _Verifier: Codex (GSD verifier)_
