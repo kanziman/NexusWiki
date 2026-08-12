@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 6
-current_phase_name: Dashboard
+current_phase: 06
+current_phase_name: dashboard
 status: executing
-stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-08-12T04:25:36.820Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-08-12T08:34:01.452Z"
 last_activity: 2026-08-12
-last_activity_desc: Phase 05 complete, transitioned to Phase 6
+last_activity_desc: Phase 06 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 51
-  completed_plans: 43
+  completed_plans: 44
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-11)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** Phase 05 — citation-integrity-and-answer-apis
+**Current focus:** Phase 06 — dashboard
 
 ## Current Position
 
-Phase: 6 — Dashboard
-Plan: Not started
+Phase: 06 (dashboard) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-12 — Phase 05 complete, transitioned to Phase 6
+Last activity: 2026-08-12 — Phase 06 execution started
 
-Progress: [█████████░] 91% (execution; verification pending)
+Progress: [█████████░] 86% (execution; verification pending)
 
 ## Performance Metrics
 
@@ -92,6 +92,7 @@ Progress: [█████████░] 91% (execution; verification pending)
 | Phase 04 P09 | 5min | 2 tasks | 5 files |
 | Phase 05 P01 | 35min | 2 tasks | 16 files |
 | Phase 05 P02 | 25min | 2 tasks | 1 files |
+| Phase 06 P01 | ~40min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -158,6 +159,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 5] hnsw.* GUC을 설정하는 함수가 있는 마이그레이션은 supabase db push 단독 세션에서 실패하지 않도록 파일마다 pgvector 워밍업 쿼리를 필요로 한다 — db reset은 이전 마이그레이션이 이미 세션을 데워서 이 버그를 가린다 (05-02)
 - [Phase ?]: [Phase 5] CITE-06은 파일·URL·텍스트 분기마다가 아니라 parse.py에서 최종 content가 합류한 직후, chunk_text() 전에 전체 텍스트에 한 번 적용한다 — 청크 경계에 걸친 위조 앵커도 구조적으로 제거하고 ING-05 offset은 정제된 content 기준으로 보존한다 (05-03)
 - [Phase ?]: [Phase 5] template_id는 요청자 JWT/RLS로 읽힌 행만 우선 사용하고 빈 결과는 기본 템플릿 조회 체인으로 폴백한다 — foreign/missing id를 구별하지 않아 템플릿 존재 여부를 노출하지 않는다 (05-03)
+- [Phase ?]: [Phase 6] window.location.assign 대신 router.push를 쓰면 signInWithPassword 직후 RSC soft-navigation이 방금 쓴 세션 쿠키보다 먼저 도착할 수 있다 — 전체 네비게이션으로 구조적으로 제거 (06-01)
+- [Phase ?]: [Phase 6] docs/design-systems/design-tokens.css/.json을 이번에 처음 git에 커밋 — 이전 세션 산출물이 미추적 상태였고 Phase 6 전체가 이 파일 존재를 전제한다 (06-01)
+- [Phase ?]: [Phase 6] Tailwind 4 @theme 색상 키는 design-tokens.css의 동일 이름 커스텀 프로퍼티를 var()로 셀프 참조 — CSS Cascade Layers가 unlayered 선언에 무조건 우선순위를 주므로 순환 참조가 되지 않고 원본 값으로 정확히 해석됨을 실측 확인 (06-01)
 
 ### Pending Todos
 
@@ -185,6 +189,7 @@ None yet.
 - [해소 2026-08-10] [Phase 3] 비용 상한 거부는 사용자 승인 A에 따라 `0010`의 프로젝트 전용 `NW402`와 `api.errors` 단일 HTTP 매핑으로 402가 된다. Postgres가 만들 수 없는 코드라 실제 DB 자원 오류를 예산 초과로 오인하지 않는다 (`03-05-SUMMARY.md`).
 - [Phase 3] 03-07 예산 조회는 표시용(`authoritative: false`)이며, UTC 월 경계의 제한된 `usage_events` 합계는 인큐 가능 여부를 판정하지 않는다. 권위 있는 판정은 `enqueue_source_job` SQL 하나에 남는다 (D-P18).
 - [Phase 4] 04-04 Task 3 수용기준 #1 미충족 — strict_order 대 relaxed_order 비교 실행 기록이 없다. 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 아예 고르지 않으므로(Phase 2 관측 btree+sort 233 대 HNSW 349,657) 그 규모의 비교는 T-04-12(오도하는 튜닝)가 된다. 두 기본값(strict_order · graph off)은 `.claude/CLAUDE.md:21`·`0011:76,147`과 RTV-07 안전 기본값으로 **유지**했을 뿐 측정되지 않았다. 그래프 off/on도 `scripts/benchmark_retrieval.py`에 토글이 없어 비교 불가. 필요한 것: 10^4~10^5 청크 규모 + 동일 corpus/golden/policy/model 해시 양팔 + 프로덕션 유사 하드웨어. 언더필·플랜 형태는 합성 1024차원 벡터로 로컬에서 무료 선행 가능. Phase 7 OPS 이월 (`docs/ops/hnsw-order-benchmark.md` §한계, WINDOWS #10)
+- [Phase 6] middleware.ts 리다이렉트 동작과 /w/[workspaceId]의 RLS 스코프 읽기에 대한 자동 회귀 테스트가 없다 (06-01 SUMMARY coverage: D1/D3 human_judgment=true) — 이번 세션엔 로컬 supabase start에 대한 curl 왕복으로만 검증했다
 
 ## Deferred Items
 
@@ -196,9 +201,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T03:45:02.557Z
-Stopped at: Phase 6 UI-SPEC approved
-Resume file: .planning/phases/06-dashboard/06-UI-SPEC.md
+Last session: 2026-08-12T08:34:01.439Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None
 
 **재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
 
