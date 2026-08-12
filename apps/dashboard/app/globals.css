@@ -1,8 +1,65 @@
 @import "tailwindcss";
+@import "../../../docs/design-systems/design-tokens.css";
+
+/* Tailwind 4 @theme 편입 (06-01-PLAN.md Task 2).
+ *
+ * design-tokens.css의 커스텀 프로퍼티를 그대로 var()로 참조한다 — 값을 다시
+ * 적지 않는다(단일 소스, 06-CONTEXT.md "reuse tokens, do not reinvent"). 여기
+ * 없는 --spacing-xxs(2px)/--spacing-md(12px)는 06-UI-SPEC.md Spacing Scale
+ * 개정에 따라 의도적으로 제외했다 — 4의 배수 그리드에서 벗어난 값이라 Phase 6
+ * 컴포넌트가 쓰면 안 된다(원본 토큰 파일 자체는 그대로 두고, Phase 6이 소비하는
+ * 부분집합만 여기서 노출).
+ */
+@theme {
+  /* Color — UI-SPEC Color 섹션의 Dominant/Secondary/Accent/Destructive +
+     QC-01/QC-02 gap-fill 두 개, 인풋/버튼 restyle에 필요한 on-primary/
+     border-strong 두 개(같은 design-tokens.css 원본 값 참조, 새 값 아님) */
+  --color-primary: var(--color-primary);
+  --color-primary-active: var(--color-primary-active);
+  --color-primary-disabled: var(--color-primary-disabled);
+  --color-primary-error-text: var(--color-primary-error-text);
+  --color-canvas: var(--color-canvas);
+  --color-surface-soft: var(--color-surface-soft);
+  --color-hairline: var(--color-hairline);
+  --color-border-strong: var(--color-border-strong);
+  --color-ink: var(--color-ink);
+  --color-body: var(--color-body);
+  --color-muted: var(--color-muted);
+  --color-on-primary: var(--color-on-primary);
+  --color-success-text: var(--color-success-text);
+  --color-warning-text: var(--color-warning-text);
+
+  /* Spacing — UI-SPEC의 4의 배수 서브셋 (xxs/md 제외) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-base: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-section: 64px;
+
+  /* Radius — none을 제외한 나머지 전부, design-tokens.css 원본 그대로 */
+  --radius-xs: var(--rounded-xs);
+  --radius-sm: var(--rounded-sm);
+  --radius-md: var(--rounded-md);
+  --radius-lg: var(--rounded-lg);
+  --radius-xl: var(--rounded-xl);
+  --radius-full: var(--rounded-full);
+}
+
+/* --font-family-base는 Tailwind 유틸리티 클래스를 만들지 않는 일반 커스텀
+ * 프로퍼티다(design-tokens.css의 --font-caption 등 합성 폰트 토큰이 이미
+ * var(--font-family-base)를 참조하므로, 여기서 한 번만 덮어쓰면 그 합성
+ * 토큰 전부가 자동으로 Inter를 쓴다). Airbnb Cereal/Circular은 라이선스가
+ * 없어 이 프로젝트에서 쓸 수 없다(06-UI-SPEC.md Design System 표) — Inter로
+ * 대체하고, app/layout.tsx의 next/font가 --font-inter 변수를 공급한다.
+ */
+:root {
+  --font-family-base:
+    var(--font-inter), -apple-system, BlinkMacSystemFont, Roboto,
+    "Helvetica Neue", sans-serif;
+}
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
 }
-
-/* 디자인 토큰(`docs/design-systems/design-tokens.css`)의 `@theme` 편입은 Phase 6 UI 작업 범위 */

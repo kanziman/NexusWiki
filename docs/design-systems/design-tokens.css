@@ -1,0 +1,251 @@
+/**
+ * NexusWiki - Airbnb Design System Tokens
+ * Source: DESIGN-airbnb.md
+ * Generated: 2026-08-01
+ */
+
+:root {
+  /* ==========================================================================
+     1. COLOR TOKENS
+     ========================================================================== */
+
+  /* Brand & Accents */
+  --color-primary: #ff385c;              /* Airbnb Rausch - Primary CTA, Orb, Heart, Rating dot */
+  --color-primary-active: #e00b41;       /* Rausch Active / Pressed */
+  --color-primary-disabled: #ffd1da;     /* Rausch Disabled tint */
+  --color-primary-error-text: #c13515;   /* Form inline error text */
+  --color-primary-error-hover: #b32505;  /* Error text hover */
+  --color-luxe: #460479;                 /* Sub-brand: Airbnb Luxe */
+  --color-plus: #92174d;                 /* Sub-brand: Airbnb Plus */
+
+  /* Neutral & Base Fills */
+  --color-canvas: #ffffff;               /* Default pure white page floor */
+  --color-surface-soft: #f7f7f7;         /* Lightest fill (disabled inputs, sub-nav hover) */
+  --color-surface-card: #ffffff;         /* Card background surface */
+  --color-surface-strong: #f2f2f2;       /* Circular icon-button background */
+
+  /* Hairlines & Strokes */
+  --color-hairline: #dddddd;             /* Default 1px hairline border */
+  --color-hairline-soft: #ebebeb;        /* Soft body text divider */
+  --color-border-strong: #c1c1c1;        /* Focused/hovered input border */
+
+  /* Text & Ink */
+  --color-ink: #222222;                  /* Primary near-black text */
+  --color-body: #3f3f3f;                 /* Secondary running review copy */
+  --color-muted: #6a6a6a;                /* Sub-labels, inactive tabs, captions */
+  --color-muted-soft: #929292;           /* Disabled text */
+  --color-star-rating: #222222;          /* Rating text & star icon (Ink) */
+  --color-on-primary: #ffffff;           /* Text on primary CTA */
+  --color-on-dark: #ffffff;              /* Text on dark surfaces */
+  --color-legal-link: #428bff;          /* Legal sub-band links */
+
+  /* Scrim & Overlays */
+  --color-scrim: rgba(0, 0, 0, 0.5);    /* Global modal backdrop tone */
+
+  /* Verification/dispute semantic states (06-UI-SPEC.md Auto-Mode Notice #2,
+     QC-01/QC-02 gap-fill — Phase 6 wiki viewer 상태 콜아웃 전용, 06-01 Task 2) */
+  --color-success-text: #0a7d34;         /* verification_status = 'verified' (미만료) */
+  --color-warning-text: #8a5300;         /* verification_status = 'partial' 또는 만료된 verified */
+
+
+  /* ==========================================================================
+     2. RADIUS TOKENS (SHAPES)
+     ========================================================================== */
+  --rounded-none: 0px;
+  --rounded-xs: 4px;
+  --rounded-sm: 8px;                     /* Buttons, Inputs */
+  --rounded-md: 14px;                    /* Property & Host Cards */
+  --rounded-lg: 20px;                    /* Soft Card containers */
+  --rounded-xl: 32px;                    /* Category strip tabs */
+  --rounded-full: 9999px;                /* Search bar, Pill CTAs, Orbs, Badges */
+
+
+  /* ==========================================================================
+     3. SPACING TOKENS (8px Grid)
+     ========================================================================== */
+  --spacing-xxs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-base: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-section: 64px;
+
+
+  /* ==========================================================================
+     4. TYPOGRAPHY TOKENS
+     ========================================================================== */
+  --font-family-base: 'Airbnb Cereal VF', Circular, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+
+  /* Display & Titles */
+  --font-rating-display: 700 64px/1.1 var(--font-family-base);
+  --font-display-xl: 700 28px/1.43 var(--font-family-base);
+  --font-display-lg: 500 22px/1.18 var(--font-family-base);
+  --font-display-md: 700 21px/1.43 var(--font-family-base);
+  --font-display-sm: 600 20px/1.20 var(--font-family-base);
+
+  --font-title-md: 600 16px/1.25 var(--font-family-base);
+  --font-title-sm: 500 16px/1.25 var(--font-family-base);
+
+  /* Body & Running Copy */
+  --font-body-md: 400 16px/1.5 var(--font-family-base);
+  --font-body-sm: 400 14px/1.43 var(--font-family-base);
+  --font-caption: 500 14px/1.29 var(--font-family-base);
+  --font-caption-sm: 400 13px/1.23 var(--font-family-base);
+
+  /* Micro Labels & Buttons */
+  --font-badge: 600 11px/1.18 var(--font-family-base);
+  --font-micro-label: 700 12px/1.33 var(--font-family-base);
+  --font-uppercase-tag: 700 8px/1.25 var(--font-family-base);
+  
+  --font-button-md: 500 16px/1.25 var(--font-family-base);
+  --font-button-sm: 500 14px/1.29 var(--font-family-base);
+  --font-nav-link: 600 16px/1.25 var(--font-family-base);
+
+
+  /* ==========================================================================
+     5. ELEVATION & SHADOW TOKENS
+     ========================================================================== */
+  --shadow-card-hover: 0 4px 8px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  --shadow-search-pill: 0 3px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-dropdown: 0 6px 20px rgba(0, 0, 0, 0.12);
+  --shadow-modal: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+
+/* ==========================================================================
+   6. UTILITY CLASSES & COMPONENT TOKENS
+   ========================================================================== */
+
+/* Primary Button */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font: var(--font-button-md);
+  border-radius: var(--rounded-sm);
+  padding: 14px 24px;
+  height: 48px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.btn-primary:active {
+  background-color: var(--color-primary-active);
+  transform: scale(0.98);
+}
+.btn-primary:disabled {
+  background-color: var(--color-primary-disabled);
+  cursor: not-allowed;
+}
+
+/* Secondary Outline Button */
+.btn-secondary {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font: var(--font-button-md);
+  border-radius: var(--rounded-sm);
+  padding: 13px 23px;
+  height: 48px;
+  border: 1px solid var(--color-ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+.btn-secondary:hover {
+  background-color: var(--color-surface-soft);
+}
+
+/* Search Orb Button */
+.search-orb {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--rounded-full);
+  width: 48px;
+  height: 48px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.search-orb:hover {
+  background-color: var(--color-primary-active);
+}
+
+/* Global Search Bar Pill */
+.search-bar-pill {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  border-radius: var(--rounded-full);
+  border: 1px solid var(--color-hairline);
+  box-shadow: var(--shadow-search-pill);
+  height: 64px;
+  padding: 0 8px 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Property / Content Card */
+.airbnb-card {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  border-radius: var(--rounded-md);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.airbnb-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Guest Favorite Badge */
+.badge-guest-favorite {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font: var(--font-badge);
+  border-radius: var(--rounded-full);
+  padding: 4px 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* New Tag */
+.tag-new {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font: var(--font-uppercase-tag);
+  border-radius: var(--rounded-full);
+  padding: 2px 6px;
+  border: 1px solid var(--color-hairline);
+  text-transform: uppercase;
+  letter-spacing: 0.32px;
+}
+
+/* Form Text Input */
+.airbnb-input {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font: var(--font-body-md);
+  border-radius: var(--rounded-sm);
+  border: 1px solid var(--color-border-strong);
+  padding: 14px 12px;
+  height: 56px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s ease;
+}
+.airbnb-input:focus {
+  border-color: var(--color-ink);
+  border-width: 2px;
+  padding: 13px 11px;
+}

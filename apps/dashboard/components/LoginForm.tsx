@@ -51,27 +51,22 @@ export function LoginForm() {
     window.location.assign("/");
   }
 
-  // 스타일은 1차로 design-tokens.css의 기존 유틸리티 클래스(.airbnb-input,
-  // .btn-primary)와 CSS 커스텀 프로퍼티만 사용한다 — Tailwind @theme 편입(06-01
-  // Task 2)이 아직 없으므로 존재하지 않는 유틸리티 클래스명을 미리 쓰지 않는다.
+  // Task 2: globals.css의 @theme 매핑이 생성한 Tailwind 유틸리티 클래스를 쓴다
+  // (bg-primary/rounded-sm/p-lg 등) — Task 1의 .airbnb-input/.btn-primary
+  // 원시 유틸리티 클래스 대신이다. 로그인 제출 버튼만 accent 색(bg-primary)을
+  // 쓰는 것이 이 화면의 유일한 accent 요소여야 한다는 UI-SPEC Primary Visual
+  // Anchor 계약이다. 4개 타이포그래피 역할(Body/Label/Heading/Display)은
+  // design-tokens.css의 합성 `font` 축약 토큰을 그대로 쓴다 — Tailwind
+  // `--text-*`/`--font-weight-*` 네임스페이스로 재매핑하지 않는다(Task 2
+  // action이 색상/spacing/radius/font-family만 @theme으로 옮기라고 명시).
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        display: "flex",
-        width: "100%",
-        flexDirection: "column",
-        gap: "var(--spacing-base)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--spacing-xs)",
-        }}
-      >
-        <label htmlFor={emailId} style={{ font: "var(--font-caption)" }}>
+    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-base">
+      <div className="flex flex-col gap-xs">
+        <label
+          htmlFor={emailId}
+          className="text-ink"
+          style={{ font: "var(--font-caption)" }}
+        >
           이메일
         </label>
         <input
@@ -82,18 +77,17 @@ export function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="airbnb-input"
+          className="h-14 w-full rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-ink focus:border-2"
+          style={{ font: "var(--font-body-md)" }}
         />
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--spacing-xs)",
-        }}
-      >
-        <label htmlFor={passwordId} style={{ font: "var(--font-caption)" }}>
+      <div className="flex flex-col gap-xs">
+        <label
+          htmlFor={passwordId}
+          className="text-ink"
+          style={{ font: "var(--font-caption)" }}
+        >
           비밀번호
         </label>
         <input
@@ -104,14 +98,10 @@ export function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="airbnb-input"
+          className="h-14 w-full rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-ink focus:border-2"
+          style={{ font: "var(--font-body-md)" }}
         />
-        <p
-          style={{
-            font: "var(--font-caption-sm)",
-            color: "var(--color-muted)",
-          }}
-        >
+        <p className="text-muted" style={{ font: "var(--font-caption-sm)" }}>
           비밀번호는 12자 이상이어야 합니다.
         </p>
       </div>
@@ -120,10 +110,8 @@ export function LoginForm() {
         <p
           data-state="error"
           role="alert"
-          style={{
-            font: "var(--font-caption)",
-            color: "var(--color-primary-error-text)",
-          }}
+          className="text-primary-error-text"
+          style={{ font: "var(--font-caption)" }}
         >
           {error}
         </p>
@@ -132,7 +120,8 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={!canSubmit || submitting}
-        className="btn-primary"
+        className="h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:bg-primary-disabled disabled:cursor-not-allowed"
+        style={{ font: "var(--font-button-md)" }}
       >
         로그인
       </button>

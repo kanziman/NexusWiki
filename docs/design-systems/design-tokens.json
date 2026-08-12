@@ -1,0 +1,81 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "Airbnb Design System Tokens",
+  "version": "1.0.0",
+  "color": {
+    "primary": { "value": "#ff385c", "type": "color", "description": "Airbnb Rausch primary brand CTA color" },
+    "primary-active": { "value": "#e00b41", "type": "color" },
+    "primary-disabled": { "value": "#ffd1da", "type": "color" },
+    "primary-error-text": { "value": "#c13515", "type": "color" },
+    "primary-error-hover": { "value": "#b32505", "type": "color" },
+    "luxe": { "value": "#460479", "type": "color" },
+    "plus": { "value": "#92174d", "type": "color" },
+    "ink": { "value": "#222222", "type": "color", "description": "Primary text near-black" },
+    "body": { "value": "#3f3f3f", "type": "color" },
+    "muted": { "value": "#6a6a6a", "type": "color" },
+    "muted-soft": { "value": "#929292", "type": "color" },
+    "hairline": { "value": "#dddddd", "type": "color" },
+    "hairline-soft": { "value": "#ebebeb", "type": "color" },
+    "border-strong": { "value": "#c1c1c1", "type": "color" },
+    "canvas": { "value": "#ffffff", "type": "color" },
+    "surface-soft": { "value": "#f7f7f7", "type": "color" },
+    "surface-card": { "value": "#ffffff", "type": "color" },
+    "surface-strong": { "value": "#f2f2f2", "type": "color" },
+    "on-primary": { "value": "#ffffff", "type": "color" },
+    "on-dark": { "value": "#ffffff", "type": "color" },
+    "legal-link": { "value": "#428bff", "type": "color" }
+  },
+  "typography": {
+    "fontFamily": {
+      "base": { "value": "'Airbnb Cereal VF', Circular, -apple-system, system-ui, Roboto, sans-serif", "type": "fontFamily" }
+    },
+    "display-xl": {
+      "fontSize": { "value": "28px" },
+      "fontWeight": { "value": 700 },
+      "lineHeight": { "value": 1.43 }
+    },
+    "display-lg": {
+      "fontSize": { "value": "22px" },
+      "fontWeight": { "value": 500 },
+      "lineHeight": { "value": 1.18 },
+      "letterSpacing": { "value": "-0.44px" }
+    },
+    "title-md": {
+      "fontSize": { "value": "16px" },
+      "fontWeight": { "value": 600 },
+      "lineHeight": { "value": 1.25 }
+    },
+    "body-md": {
+      "fontSize": { "value": "16px" },
+      "fontWeight": { "value": 400 },
+      "lineHeight": { "value": 1.5 }
+    },
+    "body-sm": {
+      "fontSize": { "value": "14px" },
+      "fontWeight": { "value": 400 },
+      "lineHeight": { "value": 1.43 }
+    }
+  },
+  "border": {
+    "radius": {
+      "none": { "value": "0px" },
+      "xs": { "value": "4px" },
+      "sm": { "value": "8px" },
+      "md": { "value": "14px" },
+      "lg": { "value": "20px" },
+      "xl": { "value": "32px" },
+      "full": { "value": "9999px" }
+    }
+  },
+  "spacing": {
+    "xxs": { "value": "2px" },
+    "xs": { "value": "4px" },
+    "sm": { "value": "8px" },
+    "md": { "value": "12px" },
+    "base": { "value": "16px" },
+    "lg": { "value": "24px" },
+    "xl": { "value": "32px" },
+    "xxl": { "value": "48px" },
+    "section": { "value": "64px" }
+  }
+}
