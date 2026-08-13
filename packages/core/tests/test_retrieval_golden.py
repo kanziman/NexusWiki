@@ -271,6 +271,86 @@ def test_operational_validator_accepts_observed_empty_retrieval_result_only() ->
         module._validate_record(record)
 
 
+def _explain_evidence(*, decision: str = "inconclusive_escalate_scale") -> dict[str, object]:
+    """Small but complete scoped-plan fixture for record-schema contracts."""
+    captures = []
+    for channel, function, relation in (
+        ("source_vector", "search_chunks", "source_chunks"),
+        ("wiki_vector", "search_wiki_embeddings", "wiki_embeddings"),
+    ):
+        captures.append(
+            {
+                "channel": channel,
+                "rpc_function": function,
+                "relation": relation,
+                "query_id": "golden-01",
+                "requested_k": 20,
+                "order_mode": "strict_order",
+                "graph_enabled": False,
+                "plan": [{"Plan": {"Node Type": "Sort", "Plans": []}}],
+            }
+        )
+    return {
+        "schema": "retrieval-hnsw-explain-v1",
+        "captures": captures,
+        "hnsw_observed": False,
+        "observed_index_names": [],
+        "decision": decision,
+    }
+
+
+def test_explain_evidence_accepts_complete_inconclusive_and_hnsw_captures() -> None:
+    module = _benchmark_module()
+    inconclusive = _explain_evidence()
+    module._validate_explain_evidence(inconclusive, order_mode="strict_order", graph_enabled=False)
+
+    observed = _explain_evidence(decision="representative_hnsw_observed")
+    observed["hnsw_observed"] = True
+    observed["observed_index_names"] = [
+        "source_chunks_embedding_hnsw_idx",
+        "wiki_embeddings_embedding_hnsw_idx",
+    ]
+    for capture, index_name in zip(
+        observed["captures"], observed["observed_index_names"], strict=True
+    ):
+        capture["plan"] = [
+            {"Plan": {"Node Type": "Index Scan", "Index Name": index_name, "Plans": []}}
+        ]
+    module._validate_explain_evidence(observed, order_mode="strict_order", graph_enabled=False)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error"),
+    (
+        (lambda evidence: evidence.pop("captures"), "explain_captures_invalid"),
+        (
+            lambda evidence: evidence["captures"][0].update({"relation": "wiki_embeddings"}),
+            "explain_capture_scope_mismatch",
+        ),
+        (
+            lambda evidence: evidence["captures"][0].update({"plan": {"Plan": {}}}),
+            "explain_plan_invalid",
+        ),
+        (
+            lambda evidence: evidence.update(
+                {
+                    "decision": "representative_hnsw_observed",
+                    "hnsw_observed": True,
+                    "observed_index_names": ["not_hnsw"],
+                }
+            ),
+            "explain_hnsw_decision_unconfirmed",
+        ),
+    ),
+)
+def test_explain_evidence_rejects_unscoped_or_false_hnsw_claims(mutate, error: str) -> None:
+    module = _benchmark_module()
+    evidence = _explain_evidence()
+    mutate(evidence)
+    with pytest.raises(module.VerificationError, match=error):
+        module._validate_explain_evidence(evidence, order_mode="strict_order", graph_enabled=False)
+
+
 def test_compare_order_records_rejects_historical_invalid_v4_pair_with_mismatched_git_sha() -> None:
     """The exact defect 04-VERIFICATION.md found: _pins() must include git_sha.
 

@@ -119,6 +119,108 @@ class LocalRetrievalDb:
         return await asyncio.to_thread(self._run, sql)
 
 
+def _vector_literal(values: list[float]) -> str:
+    return "('[' || array_to_string(array[" + ",".join(str(float(value)) for value in values) + "], ',') || ']')::extensions.vector(1024)"
+
+
+def _vector_statement(*, relation: str, workspace: UUID, vector: list[float], requested_k: int) -> str:
+    fields = "id, raw_source_id, chunk_index" if relation == "source_chunks" else "id, wiki_id, chunk_index, chunk_content"
+    return f"select {fields} from public.{relation} where workspace_id={_sql_literal(str(workspace))}::uuid and embedding is not null order by embedding operator(extensions.<=>) {_vector_literal(vector)} limit least(greatest({_sql_literal(requested_k)},1),100)"
+
+
+def _explain_capture(
+    db: LocalRetrievalDb, *, channel: str, function: str, relation: str, workspace: UUID,
+    query_id: str, vector: list[float], requested_k: int, order_mode: str, graph_enabled: bool,
+) -> dict:
+    """Capture only the arm's vector SQL shape after its scoped corpus load.
+
+    The full-path timing remains the prior RetrievalService call.  This separate,
+    read-only statement exists solely to retain auditable planner evidence.
+    """
+    sql = "; ".join((
+        "begin",
+        f"set local hnsw.iterative_scan={_sql_literal(order_mode)}",
+        "set local hnsw.ef_search='200'",
+        "set local hnsw.max_scan_tuples='40000'",
+        "explain (analyze, buffers, format json) " + _vector_statement(
+            relation=relation, workspace=workspace, vector=vector, requested_k=requested_k
+        ),
+        "commit",
+    )) + ";"
+    result = subprocess.run(
+        ["docker", "exec", "-i", db.container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "-At"],
+        input=sql, text=True, capture_output=True,
+    )
+    if result.returncode:
+        raise VerificationError("explain_capture_failed")
+    plan_lines = [line for line in result.stdout.splitlines() if line.lstrip().startswith("[")]
+    if len(plan_lines) != 1:
+        raise VerificationError("explain_capture_output_invalid")
+    try:
+        plan = json.loads(plan_lines[0])
+    except json.JSONDecodeError as error:
+        raise VerificationError("explain_capture_output_invalid") from error
+    return {
+        "channel": channel, "rpc_function": function, "relation": relation,
+        "query_id": query_id, "requested_k": requested_k, "order_mode": order_mode,
+        "graph_enabled": graph_enabled, "plan": plan,
+    }
+
+
+def _plan_hnsw_indexes(plan: object) -> set[str]:
+    if isinstance(plan, list):
+        return set().union(*(_plan_hnsw_indexes(item) for item in plan)) if plan else set()
+    if not isinstance(plan, dict):
+        return set()
+    if isinstance(plan.get("Plan"), dict):
+        return _plan_hnsw_indexes(plan["Plan"])
+    index = plan.get("Index Name")
+    # These captures use only the embedding distance ORDER BY shape.  An index
+    # scan named by its raw plan is therefore the HNSW access path; a Seq Scan
+    # plus Sort is deliberately not promoted to a representative selection.
+    found = {index} if plan.get("Node Type") in {"Index Scan", "Index Only Scan"} and isinstance(index, str) else set()
+    return found | _plan_hnsw_indexes(plan.get("Plans", []))
+
+
+def _validate_explain_evidence(evidence: object, *, order_mode: str, graph_enabled: bool) -> None:
+    if not isinstance(evidence, dict) or evidence.get("schema") != "retrieval-hnsw-explain-v1":
+        raise VerificationError("explain_schema_invalid")
+    captures = evidence.get("captures")
+    if not isinstance(captures, list) or len(captures) != 2:
+        raise VerificationError("explain_captures_invalid")
+    expected = {
+        ("source_vector", "search_chunks", "source_chunks"),
+        ("wiki_vector", "search_wiki_embeddings", "wiki_embeddings"),
+    }
+    actual = set()
+    indexes: set[str] = set()
+    for capture in captures:
+        if not isinstance(capture, dict) or not isinstance(capture.get("plan"), list) or not capture["plan"]:
+            raise VerificationError("explain_plan_invalid")
+        item = (capture.get("channel"), capture.get("rpc_function"), capture.get("relation"))
+        actual.add(item)
+        if (not isinstance(capture.get("query_id"), str) or not capture["query_id"] or
+                not isinstance(capture.get("requested_k"), int) or capture["requested_k"] < 1 or
+                capture.get("order_mode") != order_mode or capture.get("graph_enabled") is not graph_enabled):
+            raise VerificationError("explain_capture_scope_mismatch")
+        indexes |= _plan_hnsw_indexes(capture["plan"])
+    if actual != expected:
+        raise VerificationError("explain_capture_scope_mismatch")
+    observed = evidence.get("hnsw_observed")
+    names = evidence.get("observed_index_names")
+    decision = evidence.get("decision")
+    if not isinstance(observed, bool) or not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+        raise VerificationError("explain_hnsw_fields_invalid")
+    if decision not in {"representative_hnsw_observed", "inconclusive_escalate_scale"}:
+        raise VerificationError("explain_decision_invalid")
+    if decision == "representative_hnsw_observed" and not indexes:
+        raise VerificationError("explain_hnsw_decision_unconfirmed")
+    if set(names) != indexes or observed != bool(indexes):
+        raise VerificationError("explain_hnsw_evidence_mismatch")
+    if (decision == "representative_hnsw_observed") != observed:
+        raise VerificationError("explain_hnsw_decision_unconfirmed")
+
+
 def _channel_record(meta: dict, uuid_to_logical: dict[str, str]) -> dict:
     result = dict(meta); raw = result.get("raw_hit_ids", [])
     result["raw_uuid_ids"] = raw; result["logical_ids"] = [uuid_to_logical.get(value, value) for value in raw]
@@ -130,12 +232,20 @@ def _metrics(results: list[dict]) -> dict:
     ranks = [check["rank"] for check in total_checks if check["rank"] is not None]
     latencies = sorted(item["total_latency_ms"] for item in results); n = len(latencies)
     channels = {name: [item["channels"][name] for item in results] for name in CHANNELS}
-    return {"recall_at_k": sum(check["passed"] for check in total_checks) / len(total_checks), "strict_query_pass_rate": sum(item["passed"] for item in evaluations) / len(evaluations), "mrr": sum(1 / rank for rank in ranks) / len(total_checks), "mean_required_rank": sum(ranks) / len(ranks) if ranks else None, "channel_hits": {name: sum(channel["returned"] for channel in rows) for name, rows in channels.items()}, "channel_contribution": {name: sum(channel.get("contribution", 0) for channel in rows) for name, rows in channels.items()}, "latency_ms": {"p50_total": median(latencies), "p95_total": latencies[min(n - 1, round((n - 1) * .95))]}, "underfill": {"queries": sum(item["underfill"] for item in results), "rate": sum(item["underfill"] for item in results) / len(results), "by_channel": {name: sum(channel["underfill"] for channel in rows) for name, rows in channels.items()}}}
+    def summary(values: list[float]) -> dict[str, float]:
+        ordered = sorted(values)
+        return {"p50": median(ordered), "p95": ordered[min(len(ordered) - 1, round((len(ordered) - 1) * .95))]}
+    return {"recall_at_k": sum(check["passed"] for check in total_checks) / len(total_checks), "strict_query_pass_rate": sum(item["passed"] for item in evaluations) / len(evaluations), "mrr": sum(1 / rank for rank in ranks) / len(total_checks), "mean_required_rank": sum(ranks) / len(ranks) if ranks else None, "channel_hits": {name: sum(channel["returned"] for channel in rows) for name, rows in channels.items()}, "channel_contribution": {name: sum(channel.get("contribution", 0) for channel in rows) for name, rows in channels.items()}, "latency_ms": {"p50_total": median(latencies), "p95_total": latencies[min(n - 1, round((n - 1) * .95))], "by_channel": {name: summary([float(channel.get("elapsed_ms", 0.0)) for channel in rows]) for name, rows in channels.items()}}, "underfill": {"queries": sum(item["underfill"] for item in results), "rate": sum(item["underfill"] for item in results) / len(results), "by_channel": {name: sum(channel["underfill"] for channel in rows) for name, rows in channels.items()}}}
 
 
 def _validate_record(record: dict) -> None:
     if record.get("run_kind") != "full_path_retrieval_measurement" or record.get("order_mode") == "not_measured_fixture_adapter": raise VerificationError("not_measured_fixture_adapter")
     if record.get("policy_content_sha256") != hashlib.sha256(_canonical(record.get("policy_content")).encode()).hexdigest(): raise VerificationError("policy_content_sha_mismatch")
+    if record.get("record_schema") == "retrieval-benchmark-v4":
+        corpus = record.get("benchmark_corpus")
+        if not isinstance(corpus, dict) or (corpus.get("dimension"), corpus.get("source_vector_rows"), corpus.get("wiki_vector_rows")) != (1024, 25000, 25000):
+            raise VerificationError("benchmark_corpus_cardinality_invalid")
+        _validate_explain_evidence(record.get("explain_evidence"), order_mode=record.get("order_mode"), graph_enabled=record.get("graph_enabled"))
     for result in record.get("query_results", []):
         if set(result.get("channels", {})) != set(CHANNELS): raise VerificationError("missing_five_channel_envelopes")
         if "evaluation" not in result or not _observed_retrieval_result(result): raise VerificationError("fabricated_or_label_only_evaluation")
@@ -182,12 +292,21 @@ def operational(args, corpus: dict, golden: dict) -> dict:
         mapping = logical_id_map(manifest, corpus); reverse = {value: key for key, value in mapping.items()}
         policy = replace(DEFAULT_RETRIEVAL_POLICY, graph_enabled=args.graph == "on")
         service = RetrievalService(BenchmarkEmbeddingClient(), policy=policy); db = LocalRetrievalDb(args.db_container, args.order_mode); results = []
-        for query in golden["queries"]:
-            started = time.perf_counter(); response = asyncio.run(service.retrieve(workspace, query["query"], query["requested_k"], db)); elapsed = round((time.perf_counter() - started) * 1000, 3)
-            ranked_uuid = [hit.document_id if hit.kind == "wiki" else hit.evidence_id for hit in response.evidence]; ranked_logical = [reverse.get(item, item) for item in ranked_uuid]
-            channels = {name: _channel_record(response.meta[name], reverse) for name in CHANNELS}
-            results.append({"query_id": query["id"], "query_text": query["query"], "language": query["language"], "retrieval_observation": "retrieval_service_channel_envelopes_v1", "ranked_uuid_evidence": ranked_uuid, "ranked_logical_evidence": ranked_logical, "evaluation": _evaluate_query(query, ranked_logical), "total_latency_ms": elapsed, "underfill": response.meta["underfill"], "channels": channels})
-        record = {"record_schema": "retrieval-benchmark-v3", "run_kind": "full_path_retrieval_measurement", "timestamp": datetime.now(UTC).isoformat(), "git_sha": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(), "policy_version": POLICY_VERSION, "policy_content": policy_content(policy), "policy_content_sha256": policy_content_sha256(policy), "corpus_version": corpus["version"], "corpus_sha256": corpus["sha256"], "golden_version": golden["version"], "golden_sha256": golden["sha256"], "benchmark_manifest_sha256": manifest["sha256"], "generator_seed": manifest["seed"], "raw_workspace_uuid": str(workspace), "logical_id_to_uuid": mapping, "embedding_model_version": "fixture-token-hash-l2-v1", "database_identity": args.db_container, "repeat_count": args.repeat_count, "order_mode": args.order_mode, "graph_enabled": args.graph == "on", "query_results": results, "metrics": _metrics(results)}
+        for repeat in range(args.repeat_count):
+            for query in golden["queries"]:
+                started = time.perf_counter(); response = asyncio.run(service.retrieve(workspace, query["query"], query["requested_k"], db)); elapsed = round((time.perf_counter() - started) * 1000, 3)
+                ranked_uuid = [hit.document_id if hit.kind == "wiki" else hit.evidence_id for hit in response.evidence]; ranked_logical = [reverse.get(item, item) for item in ranked_uuid]
+                channels = {name: _channel_record(response.meta[name], reverse) for name in CHANNELS}
+                results.append({"query_id": query["id"], "repeat": repeat + 1, "query_text": query["query"], "language": query["language"], "retrieval_observation": "retrieval_service_channel_envelopes_v1", "ranked_uuid_evidence": ranked_uuid, "ranked_logical_evidence": ranked_logical, "evaluation": _evaluate_query(query, ranked_logical), "total_latency_ms": elapsed, "underfill": response.meta["underfill"], "channels": channels})
+        explain_query = golden["queries"][0]
+        vector_limit = min(policy.overfetch["wiki_vector"], policy.vector_sql_max_candidates)
+        explain_evidence = {"schema": "retrieval-hnsw-explain-v1", "captures": [
+            _explain_capture(db, channel="source_vector", function="search_chunks", relation="source_chunks", workspace=workspace, query_id=explain_query["id"], vector=text_vector(explain_query["query"]), requested_k=vector_limit, order_mode=args.order_mode, graph_enabled=args.graph == "on"),
+            _explain_capture(db, channel="wiki_vector", function="search_wiki_embeddings", relation="wiki_embeddings", workspace=workspace, query_id=explain_query["id"], vector=text_vector(explain_query["query"]), requested_k=vector_limit, order_mode=args.order_mode, graph_enabled=args.graph == "on"),
+        ]}
+        indexes = set().union(*(_plan_hnsw_indexes(capture["plan"]) for capture in explain_evidence["captures"]))
+        explain_evidence.update({"hnsw_observed": bool(indexes), "observed_index_names": sorted(indexes), "decision": "representative_hnsw_observed" if indexes else "inconclusive_escalate_scale"})
+        record = {"record_schema": "retrieval-benchmark-v4", "run_kind": "full_path_retrieval_measurement", "timestamp": datetime.now(UTC).isoformat(), "run_id": args.run_id, "git_sha": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(), "policy_version": POLICY_VERSION, "policy_content": policy_content(policy), "policy_content_sha256": policy_content_sha256(policy), "corpus_version": corpus["version"], "corpus_sha256": corpus["sha256"], "golden_version": golden["version"], "golden_sha256": golden["sha256"], "benchmark_manifest_sha256": manifest["sha256"], "generator_seed": manifest["seed"], "benchmark_corpus": {"dimension": manifest["dimension"], "source_vector_rows": manifest["target_rows_per_relation"], "wiki_vector_rows": manifest["target_rows_per_relation"]}, "raw_workspace_uuid": str(workspace), "logical_id_to_uuid": mapping, "embedding_model_version": "fixture-token-hash-l2-v1", "database_identity": args.db_container, "repeat_count": args.repeat_count, "order_mode": args.order_mode, "graph_enabled": args.graph == "on", "query_results": results, "metrics": _metrics(results), "explain_evidence": explain_evidence}
         _validate_record(record); return record
     finally:
         try: LocalRetrievalDb(args.db_container, args.order_mode)._run(cleanup)
