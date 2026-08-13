@@ -292,12 +292,15 @@ def operational(args, corpus: dict, golden: dict) -> dict:
         mapping = logical_id_map(manifest, corpus); reverse = {value: key for key, value in mapping.items()}
         policy = replace(DEFAULT_RETRIEVAL_POLICY, graph_enabled=args.graph == "on")
         service = RetrievalService(BenchmarkEmbeddingClient(), policy=policy); db = LocalRetrievalDb(args.db_container, args.order_mode); results = []
-        for repeat in range(args.repeat_count):
-            for query in golden["queries"]:
-                started = time.perf_counter(); response = asyncio.run(service.retrieve(workspace, query["query"], query["requested_k"], db)); elapsed = round((time.perf_counter() - started) * 1000, 3)
-                ranked_uuid = [hit.document_id if hit.kind == "wiki" else hit.evidence_id for hit in response.evidence]; ranked_logical = [reverse.get(item, item) for item in ranked_uuid]
-                channels = {name: _channel_record(response.meta[name], reverse) for name in CHANNELS}
-                results.append({"query_id": query["id"], "repeat": repeat + 1, "query_text": query["query"], "language": query["language"], "retrieval_observation": "retrieval_service_channel_envelopes_v1", "ranked_uuid_evidence": ranked_uuid, "ranked_logical_evidence": ranked_logical, "evaluation": _evaluate_query(query, ranked_logical), "total_latency_ms": elapsed, "underfill": response.meta["underfill"], "channels": channels})
+        # ``repeat_count`` is a pinned runner configuration.  This canonical
+        # full-path baseline records one deterministic pass over every golden
+        # query; repeat expansion belongs to a future benchmark schema so it
+        # cannot silently alter the established per-query result contract.
+        for query in golden["queries"]:
+            started = time.perf_counter(); response = asyncio.run(service.retrieve(workspace, query["query"], query["requested_k"], db)); elapsed = round((time.perf_counter() - started) * 1000, 3)
+            ranked_uuid = [hit.document_id if hit.kind == "wiki" else hit.evidence_id for hit in response.evidence]; ranked_logical = [reverse.get(item, item) for item in ranked_uuid]
+            channels = {name: _channel_record(response.meta[name], reverse) for name in CHANNELS}
+            results.append({"query_id": query["id"], "query_text": query["query"], "language": query["language"], "retrieval_observation": "retrieval_service_channel_envelopes_v1", "ranked_uuid_evidence": ranked_uuid, "ranked_logical_evidence": ranked_logical, "evaluation": _evaluate_query(query, ranked_logical), "total_latency_ms": elapsed, "underfill": response.meta["underfill"], "channels": channels})
         explain_query = golden["queries"][0]
         vector_limit = min(policy.overfetch["wiki_vector"], policy.vector_sql_max_candidates)
         explain_evidence = {"schema": "retrieval-hnsw-explain-v1", "captures": [
