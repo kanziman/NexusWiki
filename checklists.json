@@ -1,14 +1,16 @@
 {
   "title": "NexusWiki Task Checklists",
   "project_name": "NexusWiki (Cairni-style Living Wiki SaaS)",
-  "source_plan": "/Users/zorba/.gemini/antigravity-ide/brain/cd4e9e77-14f6-441b-90b0-c7953aa0abea/implementation_plan.md",
+  "source_plan": ".planning/ROADMAP.md",
   "created_at": "2026-07-31T23:27:15+09:00",
-  "updated_at": "2026-08-07",
-  "revision": 4,
+  "updated_at": "2026-08-08",
+  "revision": 6,
   "_notes": [
-    "summary 집계 필드는 제거했습니다. status가 바뀌면 즉시 stale해지는 파생값이라, 필요 시 조회 시점에 계산하세요.",
-    "$schema 선언도 제거했습니다. 이 파일은 JSON Schema가 아니라 데이터입니다.",
-    "각 태스크의 verification은 '통과/불통과를 기계적으로 판정할 수 있는 기준'으로 작성했습니다."
+    "GSD 로드맵(.planning/ROADMAP.md 및 .planning/REQUIREMENTS.md)과 1:1 동기화된 완벽한 작업 체크리스트입니다.",
+    "v1 requirements 73개 전수(BOOT 10, SEC 6, DOM 9, ING 7, COMP 8, RTV 9, CITE 6, API 4, QC 2, UI 6, OPS 6)가 7단계 GSD 페이즈에 정확히 매핑되어 있습니다.",
+    "각 태스크마다 target_files, depends_on, priority, estimate, verification, verification_result, notes/deviations 등 모든 세부 메타데이터가 포함되어 있습니다.",
+    "Phase 1(Bootstrap) 및 Phase 2(Security Spine & Shared Domain)는 100% 완료되었으며 실측 검증 기록(verification_result)이 반영되어 있습니다.",
+    "v2 요구사항 및 Out of Scope 목록이 포함되어 스코프 경계가 명확하게 정의되어 있습니다."
   ],
   "decisions": {
     "tenancy": {
@@ -43,19 +45,19 @@
       "rationale": "새 인프라 0. 잡 상태를 그대로 프론트에 노출 가능. 재시도/데드레터가 투명."
     },
     "deployment": {
-      "value": "Railway",
-      "detail": "단일 프로젝트에 api(웹) + worker(상주) 두 서비스. Hobby $5/월은 워크스페이스 단위 구독이며 $5 사용량 크레딧 포함. Usage Limit을 걸어 비용 폭주 방지.",
+      "value": "Railway (asia-southeast1)",
+      "detail": "단일 프로젝트에 api(웹) + worker(상주) 두 서비스. 단일 Dockerfile공유, worker만 Custom Start Command. Usage Limit을 걸어 비용 폭주 방지.",
       "alternatives_considered": "Fly.io(~$6.5/월, 최저가·Tokyo 리전, Dockerfile 직접 관리) / Render($14/월 고정, Web+Worker 개념 분리)"
     },
     "db_access": {
       "value": "hybrid — 사용자 요청 경로는 요청자 JWT, 워커/마이그레이션만 service_role",
       "rationale": "service_role 키는 RLS를 완전히 우회합니다. 백엔드가 이 키만 쓰면 워크스페이스 격리가 전적으로 애플리케이션 코드 책임이 되고, 엔드포인트 한 곳에서 workspace_id 필터를 빠뜨리면 그대로 데이터 유출입니다. 사용자 요청 경로에서 요청자 JWT로 쿼리하면 DB가 격리를 강제하므로 코드 실수를 정책이 잡아냅니다.",
-      "implication": "Supabase 클라이언트 팩토리를 두 종류로 분리해야 합니다: user_client(access_token) / service_client(). 워커는 사용자 컨텍스트가 없으므로 service_client + 명시적 workspace_id 필터를 씁니다."
+      "implication": "Supabase 클라이언트 팩토리를 두 종류로 분리: UserDb(access_token) / ServiceDb(). 워커는 service_client + 명시적 workspace_id 필터를 씁니다."
     },
     "db_transport": {
-      "value": "rpc — SECURITY INVOKER 검색 함수 + 요청자 JWT (PostgREST /rest/v1/rpc). 대안이던 asyncpg + Supavisor session mode는 채택하지 않습니다.",
-      "rationale": "문서가 아니라 실측이 결정했습니다. 근거 전문은 docs/ops/db-transport-spike.md에 있으며 재현용 자산은 supabase/spike/ 와 scripts/spike_db_transport.py입니다. 50,000행 중 타깃 750행(1.5%) 적대적 코퍼스에서 양 경로를 3회씩 돌린 결과, 판정 3조건이 겨냥한 실패 양상(GUC 미전달·HNSW 미사용·k 미충족)이 RPC 경로에서 하나도 관측되지 않았습니다. 반대로 asyncpg는 트랜잭션마다 set local role authenticated + set local request.jwt.claims를 직접 세워야 하고 하나라도 빠지면 격리가 에러 없이 풀리는 위험을 측정된 이득 없이 떠안습니다.",
-      "implication": "검색 쿼리는 마이그레이션이 소유합니다 — 0007 섹션 1의 검색 함수가 security invoker + stable + set search_path + hnsw GUC 3종 형태를 그대로 따르고, 쿼리가 바뀔 때마다 새 마이그레이션(0008, 0009…)이 필요합니다. 이 반복 비용은 인지한 상태에서 감수한 대가입니다. apps/api의 UserDb는 PostgREST RPC 호출 어댑터가 되며 asyncpg 커넥션 계층을 두지 않습니다. Phase 4 EXPLAIN 회귀 테스트(RTV-08)는 scripts/spike_db_transport.py의 계획 파싱을 원형으로 씁니다."
+      "value": "rpc — SECURITY INVOKER 검색 함수 + 요청자 JWT (PostgREST /rest/v1/rpc).",
+      "rationale": "스파이크 실측이 결정. docs/ops/db-transport-spike.md 참조. RPC 경로에서 GUC 미전달·HNSW 미사용·k 미충족 등이 전혀 관측되지 않음.",
+      "implication": "검색 쿼리는 마이그레이션이 소유합니다. 0007의 검색 함수가 security invoker + stable + set search_path 형태를 따릅니다."
     },
     "search_channels_5way": [
       "1. wiki_embeddings 벡터 유사도 (pgvector HNSW)",
@@ -65,381 +67,52 @@
       "5. wiki_links N-hop 그래프 확장 (recursive CTE)"
     ],
     "embedding_model": {
-      "value": "bge-m3 (BAAI, 1024차) 호스티드 API. OpenAI text-embedding-3-small(1536차)은 채택하지 않습니다. 자체 호스팅과 KURE-v1은 예산 밖으로 보류합니다.",
-      "rationale": "근거는 비용이 아니라 한국어 검색 품질입니다. 고려대 NLP&AI Lab 한국어 검색 리더보드 NDCG@10에서 OpenAI의 상위 모델 text-embedding-3-large가 0.61670으로 주요 오픈소스 전부에 밀립니다 — bge-m3 0.68723, KURE-v1 0.69473, multilingual-e5-large 0.66370. 계획했던 3-small은 표에 없으며 3-large보다 낮을 것으로 보이나 측정값이 아닙니다. 단가는 bge-m3가 $0.01/1M로 3-small의 $0.02/1M보다 싸지만 이 규모에서 양쪽 다 반올림 오차이므로 결정에 기여하지 않습니다. KURE-v1이 0.0075 더 높으나 호스티드 API가 없어 자체 호스팅이 유일한 경로이고, bge-m3 3~4GB RAM은 Railway Hobby $5/월의 약 10배(월 $40~50)라 예산과 양립하지 않습니다. 조사 전문은 .planning/research/EMBEDDING.md에 있습니다.",
-      "implication": "0008 보정 마이그레이션이 Phase 3 착수 전에 필요합니다 — 0007이 클라우드에 올라가 0007 이하는 영구 수정 불가입니다. 작업은 (1) source_chunks.embedding·wiki_embeddings.embedding을 extensions.vector(1024)로 (2) HNSW 인덱스 2개 drop→recreate (3) 0007:72의 search_chunks RPC를 drop→recreate — 시그니처에 p_query extensions.vector(1536)이 박혀 있음 (4) embedding_version에 모델 식별자를 쓰는 앱 계약 확정. 임베딩 데이터가 0건이므로 재임베딩은 없으며, 이 창은 Phase 3가 첫 임베딩을 생성하는 순간 닫힙니다. 0002:76의 'text-embedding-3-small(1536차원)' 주석은 0002 수정 불가로 남으므로 0008 헤더에 무효임을 명시해야 합니다. '오픈소스 모델'이 '키 제거'를 뜻하지 않습니다 — 벤더가 OpenAI에서 이동할 뿐 OPENAI_API_KEY 자리를 대체할 키가 여전히 필요합니다."
+      "value": "bge-m3 (BAAI, 1024차) 호스티드 API (OpenAI 1536차에서 변경).",
+      "rationale": "한국어 검색 품질 NDCG@10 우수. 마이그레이션 0008이 차원을 extensions.vector(1024)로 보정완료.",
+      "implication": "0008 마이그레이션으로 vector(1024) 및 HNSW 인덱스 재생성 완료."
+    },
+    "wiki_read_only_ui": {
+      "value": "v1 위키 페이지는 읽기 전용으로 UI에 명시",
+      "rationale": "자유 편집이 (workspace_id, slug) 업서트와 정면 충돌하여 재컴파일 시 편집을 덮어쓰게 됩니다."
+    },
+    "region_selection": {
+      "value": "Supabase ap-southeast-1 + Railway asia-southeast1 (싱가포르)",
+      "rationale": "Railway에 서울/도쿄 리전이 없어 싱가포르 양쪽으로 고정하여 네트워크 지연 최소화."
     }
   },
   "open_questions": [
-    "[해소 2026-08-08] OpenRouter의 정확한 모델 슬러그 확인 — 채팅은 anthropic/claude-sonnet-4.6, 임베딩은 baai/bge-m3 + 공급자 고정 deepinfra/fp32로 닫았습니다. 셋 다 실제 응답으로 관측했으며 임베딩 벡터 길이 1024가 0008_embedding_dimension.sql의 extensions.vector(1024)와 일치함을 함께 확인했습니다. ⚠️ .env/.env.sample에 있던 anthropic/claude-3.5-sonnet은 더 이상 존재하지 않아 404이며, 그 사실은 03-04 tracer 스모크가 드러냈습니다. 실측 비용·능력 탐지 결과·한계 6건은 docs/ops/openrouter-contract-record.md 참조.",
-    "[해소 2026-08-05] Supabase ap-southeast-1 + Railway asia-southeast1 조합 확정 및 실측 완료 — docs/ops/rtt-baseline.md",
-    "[해소 2026-08-08] 청킹 파라미터(토큰 수/오버랩) 초기값 — 03-03-PLAN이 목표 512토큰 · 오버랩 64토큰 · 재귀 분리자로 닫았습니다(D-P5). 세는 도구는 tiktoken cl100k_base이며 이것은 임베딩 모델 bge-m3의 실제 토크나이저(XLM-R SentencePiece)가 아니라 의도적 근사입니다 — 한국어를 더 많이 세는 방향이라 512 목표가 모델의 8192 예산을 넘길 위험이 구조적으로 없습니다(D-P4). ⚠️ 두 값에는 문헌 근거가 없습니다. 읽을 만한 인용 단위와 배치 비용 사이의 경험적 출발점이며 Phase 4 골든 질의 세트(RTV-06)가 반증할 대상입니다. 값은 packages/core/src/nexuswiki_core/chunking.py의 CHUNK_TARGET_TOKENS · CHUNK_OVERLAP_TOKENS로 노출되어 있고 CHUNKER_VERSION='recursive-cl100k-512-64-v1'이 알고리즘·토크나이저·두 파라미터를 인코딩해 재청킹 범위를 좁힙니다. 실측(03-CONTEXT.md 16,696자)은 청크 31개 · 토큰 min 183 / max 511 / avg 407 · 오버랩 문자수 min 0 / avg 138. .planning/phases/03-ingest-and-compile-pipeline/03-03-SUMMARY.md 참조.",
-    "[해소 2026-08-08] 워크스페이스별 월 LLM 비용 상한값 — P4-OPS-01 예정이었으나 OPS-01이 첫 LLM 호출과 같은 페이즈에 있어야 하므로 Phase 3가 앞당겨 닫았습니다. 0009가 workspaces.monthly_budget_micros(bigint, 기본 5000000 micro-dollar = $5.00/월/워크스페이스)를 신설하고 enqueue_source_job이 인큐 시점에 이번 달 usage_events 합과 비교해 같거나 크면 53400으로 거부합니다. 단위·값의 근거와 로컬·클라우드 적용 관측, 그리고 한계 6건은 docs/ops/migration-0009-record.md 참조.",
-    "[해소 2026-08-06] DB 트랜스포트 — RPC 채택. decisions.db_transport 및 docs/ops/db-transport-spike.md 참조",
-    "[해소 2026-08-07] 권한 공백 (P2-BE-01 스파이크에서 발견, 영구 수정 소유자는 0007 / 02-06-PLAN): anon·authenticated·service_role이 public 스키마 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE)를 하나도 갖고 있지 않습니다. pg_default_acl의 postgres|public|r 항목이 세 롤에 Dxtm만 부여합니다. RLS는 이미 가진 권한을 좁힐 뿐 없는 권한을 만들지 않으므로 0004의 정책 20여 개가 현재 상태에서 무력하며, 요청자 JWT 경로와 service_role 워커 경로 모두 실제 질의에서 42501로 떨어집니다. 이 때문에 0004_rls_policies.sql:12-13의 'anon/authenticated는 이미 전권 GRANT를 가진다'는 머리말 전제는 현재 Supabase CLI 기본값에서 사실이 아닙니다(주석도 함께 정정 대상). — 0007 섹션 8이 9개 테이블에서 세 롤의 기존 권한(TRUNCATE 포함)을 전부 회수하고 최소권한 매트릭스를 부여해 해소했습니다. 로컬/원격 양쪽에서 anon 0건, authenticated 23건, service_role 25건을 확인했습니다. docs/ops/migration-0007-record.md 참조.",
-    "[해소 2026-08-07] 위 권한 공백의 수정 형태 (사용자 결정): 0007에 최소권한 역할 × 테이블 × 동작 매트릭스로 넣습니다. anon에는 실제로 필요하지 않으면 아무것도 부여하지 않고, authenticated는 Phase 2의 실제 요청자 경로가 쓰는 테이블·동작만, service_role은 Phase 2의 실제 워커 경로가 쓰는 테이블·동작만 받습니다. 포괄적 grant all은 금지입니다. 두 롤 모두 함수 EXECUTE 권한을 명시하되 claim_job/complete_job/fail_job/reap_stale_jobs가 anon·authenticated에서 revoke된 0003의 경계는 깨지 않습니다. — 0007 섹션 8이 이 형태 그대로 구현되었습니다: anon 무권한, authenticated는 0004가 정책을 건 테이블·동작만, service_role은 워커 경로가 쓰는 테이블·동작만, grant all 없음, 0003의 큐 함수 revoke 경계 유지.",
-    "스파이크 코퍼스는 로컬 전용입니다 — supabase/spike/의 50,000행 × 1536차 벡터는 클라우드에 적재하지 않으며 supabase db reset(02-06-PLAN Task 2)이 지웁니다. 0002_search_fn_rpc.sql의 grant select on public.source_chunks to authenticated는 스파이크 진행용 비영구 국소 조치이며 영구 해법으로 오해하면 안 됩니다.",
-    "[해소 2026-08-07] 토크나이저 버전 컬럼 타입 불일치 (02-05-PLAN 실행 중 발견, 해소 소유자는 0007 / 02-06-PLAN): packages/core/src/nexuswiki_core/tokenizer.py의 TSV_TOKENIZER_VERSION은 'bigram-nfkc-cf-v1' 문자열인데 source_chunks.tsv_tokenizer_version(0002_search_schema.sql:94)과 wiki_pages.tsv_tokenizer_version(:220)은 smallint여서 이 값을 그대로 쓸 수 없습니다. 두 컬럼 모두 지금 행이 0개라 alter table … type text가 데이터 마이그레이션 없는 한 줄로 끝나는 창은 지금뿐이며, 미루면 0008 하나와 막힌 P2-ING-02가 비용으로 남습니다 — 0007(02-06-PLAN) 섹션 7에서 확정합니다. — 0007 섹션 7이 두 컬럼을 text로 바꿨고 로컬/원격 모두 text 2개·smallint 0개를 확인했습니다.",
-    "임베딩 공급자 미정 (DeepInfra vs Together vs OpenRouter) — 0008 착수 전 판정. 셋 다 $0.01/1M 수준이라 가격은 변별력이 없고, 판정 기준은 ap-southeast-1/asia-southeast1 지연과 OpenAI 임베딩 API 호환 여부 — decisions.embedding_model",
-    "bge-m3의 sparse 벡터가 앱 레이어 bigram 어휘 채널을 보강·대체할 수 있는지 — 5채널 구조와 tsv_tokenizer_version을 동시에 건드리므로 Phase 4 RTV-06 골든 질의 세트로 판정 (지금 결정하지 않음)"
+    "[해소 2026-08-08] OpenRouter 모델 슬러그: anthropic/claude-sonnet-4.6 및 baai/bge-m3 (vector 1024). docs/ops/openrouter-contract-record.md 참조.",
+    "[해소 2026-08-05] Supabase ap-southeast-1 + Railway asia-southeast1 조합 확정 및 RTT 실측 완료 — docs/ops/rtt-baseline.md",
+    "[해소 2026-08-08] 청킹 파라미터: 512토큰, 64토큰 오버랩, tiktoken cl100k_base. packages/core/src/nexuswiki_core/chunking.py에 적용.",
+    "[해소 2026-08-08] 워크스페이스별 월 비용 상한: $5.00/월/워크스페이스 (0009 마이그레이션 및 03-02-PLAN 적용).",
+    "[해소 2026-08-06] DB 트랜스포트: SECURITY INVOKER RPC 채택.",
+    "[해소 2026-08-07] 권한 공백: 0007 섹션 8 최소권한 매트릭스로 해소.",
+    "[해소 2026-08-07] 토크나이저 버전 컬럼 타입 불일치: 0007 섹션 7에서 text 타입으로 변경 해소.",
+    "[결정 대기] 비용 상한 거부(53400)가 PostgREST 경유 시 opaque 500이 되는 문제: 0010에서 NW402 커스텀 에러 코드로 변환 여부 결정 필요."
   ],
   "phases": [
     {
-      "phase_id": "phase_0",
-      "name": "Phase 0: 프로젝트 부트스트랩",
-      "description": "monorepo 구조, 백엔드/프론트엔드 스캐폴딩, 설정 관리, Railway 배포 파이프라인. 기존 계획서에 통째로 누락돼 있던 단계.",
-      "tasks": [
-        {
-          "id": "P0-INIT-00",
-          "category": "Infrastructure",
-          "title": "Supabase 프로젝트 생성 및 로컬 개발 스택 구성",
-          "description": "Supabase 프로젝트 생성(리전 ap-northeast-2 서울 권장), CLI 설치 및 supabase init/link, Docker 기반 로컬 스택 기동. RLS 정책은 클라우드에서 직접 디버깅하기 매우 어려우므로 로컬에서 supabase db reset을 반복하며 다듬은 뒤 push하는 흐름을 확립합니다.",
-          "target_files": [
-            "supabase/config.toml",
-            ".env.local"
-          ],
-          "depends_on": [],
-          "priority": "P0",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "supabase start 후 로컬 Studio(localhost:54423) 접속 가능. supabase db reset이 에러 없이 완료. supabase link 상태에서 supabase db push가 클라우드에 반영됨",
-          "verification_result": {
-            "date": "2026-08-05",
-            "method": "Supabase CLI 로컬 reset, linked migration 및 Cloud Auth HTTP 검증 — docs/ops/cloud-bootstrap-record.md, docs/ops/auth-hardening-record.md",
-            "results": [
-              "Supabase CLI 2.111.0 이상에서 supabase db reset 종료 코드 0 ✅",
-              "클라우드 리전 ap-southeast-1 및 상태 ACTIVE_HEALTHY 확인 ✅",
-              "클라우드 migration ledger에 0001~0006 순서대로 6행 존재 ✅",
-              "6자 비밀번호 가입이 HTTP 422 weak_password로 거부됨 ✅",
-              "미확인 이메일 로그인이 HTTP 400 email_not_confirmed로 거부됨 ✅"
-            ]
-          },
-          "notes": "이전 리비전에서 통째로 누락돼 있던 태스크입니다. 모든 DB 작업의 실질적 0번입니다. [진행상황] supabase init + 로컬 스택 기동 완료. 클라우드 프로젝트 생성 및 link는 미완 — 배포(P0-INIT-04) 시점까지 미뤄도 무방.",
-          "local_ports": {
-            "_why": "같은 머신에서 zettlink 프로젝트의 Supabase 스택이 기본 포트(54321-54324, 54327)를 점유 중이라 544xx 대역으로 이동. 두 스택 동시 실행 가능.",
-            "api": 54421,
-            "db": 54422,
-            "shadow_db": 54420,
-            "studio": 54423,
-            "inbucket": 54424,
-            "analytics": 54427,
-            "pooler": 54429
-          }
-        },
-        {
-          "id": "P0-INIT-01",
-          "category": "Repo Setup",
-          "title": "monorepo 구조 및 공통 툴링 구성",
-          "description": "apps/api, apps/worker, apps/dashboard, supabase/ 디렉토리 구조 확정. 루트 README, .gitignore, .editorconfig, pre-commit(ruff+prettier) 구성.",
-          "target_files": [
-            "README.md",
-            ".gitignore",
-            ".pre-commit-config.yaml",
-            "package.json"
-          ],
-          "depends_on": [],
-          "priority": "P0",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "루트에서 pre-commit run --all-files가 통과하고, apps/ 하위 두 앱이 각자 독립적으로 설치·실행 가능",
-          "verification_result": {
-            "date": "2026-08-05",
-            "method": "클린 clone frozen install, 전체 pre-commit 및 포맷 위반 커밋 프로브",
-            "results": [
-              "별도 clone에서 uv sync --frozen 종료 코드 0 및 uv.lock 추적 확인 ✅",
-              "pre-commit run --all-files 종료 코드 0 및 실행 전후 기존 파일 변경 0건 ✅",
-              "포맷 위반 Python과 TypeScript 프로브 커밋이 각각 거부됨 ✅"
-            ]
-          },
-          "deviations_from_plan": [
-            "Python 런타임을 3.12로 고정 — 01-CONTEXT.md > D-04"
-          ]
-        },
-        {
-          "id": "P0-INIT-02",
-          "category": "Backend Scaffold",
-          "title": "FastAPI 프로젝트 스캐폴딩 및 설정 관리",
-          "description": "pyproject.toml(uv 또는 poetry), pydantic-settings 기반 Settings 클래스, .env.example, 구조화 로깅 설정. Supabase 클라이언트 팩토리는 decisions.db_access=hybrid에 따라 두 종류로 분리: user_client(access_token) — 요청자 JWT로 RLS 적용, service_client() — 워커 전용 RLS 우회. 필수 환경변수: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, OPENROUTER_API_KEY, LLM_MODEL, OPENAI_API_KEY(임베딩).",
-          "target_files": [
-            "apps/api/pyproject.toml",
-            "apps/api/src/api/config.py",
-            "apps/api/src/api/db.py",
-            "apps/api/.env.example"
-          ],
-          "depends_on": [
-            "P0-INIT-01"
-          ],
-          "priority": "P0",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "환경변수 하나를 누락시키면 부팅 시 어떤 키가 없는지 명시한 에러로 즉시 실패. .env.example의 모든 키가 config.py에 정의돼 있음",
-          "verification_result": {
-            "date": "2026-08-03",
-            "method": "API health/readiness smoke, 구조화 로그 및 redaction pytest",
-            "results": [
-              "DB 설정 없이 /health가 HTTP 200 반환 ✅",
-              "DB 도달 불가 시 /health/ready가 3초 이내 HTTP 503 반환 ✅",
-              "job_id와 workspace_id를 동시에 포함하는 JSON 로그 1행 확인 ✅",
-              "민감 필드 마스킹 단위 테스트 통과 ✅"
-            ]
-          }
-        },
-        {
-          "id": "P0-INIT-03",
-          "category": "Frontend Scaffold",
-          "title": "Next.js 15 앱 스캐폴딩 및 테스트 러너 구성",
-          "description": "App Router + Tailwind + TypeScript strict. Supabase 브라우저/서버 클라이언트, API 베이스 URL 환경변수. 테스트 러너는 Vitest + Testing Library로 확정.",
-          "target_files": [
-            "apps/dashboard/package.json",
-            "apps/dashboard/vitest.config.ts",
-            "apps/dashboard/lib/supabase.ts",
-            "apps/dashboard/.env.example"
-          ],
-          "depends_on": [
-            "P0-INIT-01"
-          ],
-          "priority": "P0",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "pnpm dev로 기동, pnpm test가 샘플 테스트 1건 통과, tsc --noEmit 에러 0",
-          "verification_result": {
-            "date": "2026-08-03",
-            "method": "frozen install, TypeScript 검사, Vitest 및 production build",
-            "results": [
-              "Next.js 버전 15.5.22 이상 확인 ✅",
-              "tsc --noEmit 종료 코드 0 ✅",
-              "vitest run에서 클라이언트 컴포넌트와 순수 함수 테스트 2건 통과 ✅"
-            ]
-          }
-        },
-        {
-          "id": "P0-INIT-04",
-          "category": "Deployment",
-          "title": "Railway 배포 파이프라인 (api + worker 분리)",
-          "description": "Railway 프로젝트에 api(웹) / worker(상주) 두 서비스 구성. GitHub 연동 자동 배포, 환경변수 주입, Usage Limit 설정. 프론트는 Vercel.",
-          "target_files": [
-            "railway.json",
-            "apps/worker/pyproject.toml"
-          ],
-          "depends_on": [
-            "P0-INIT-02"
-          ],
-          "priority": "P1",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "main 푸시 시 두 서비스가 각각 자동 배포되고, api의 /health가 공개 URL에서 200을 반환. worker 로그에 폴링 시작 메시지 출력",
-          "risk": "Railway는 사용량 과금이므로 워커 폴링 주기를 너무 짧게 잡으면 비용이 증가. 초기 폴링 간격 5초 + 지수 백오프 권장",
-          "verification_result": {
-            "date": "2026-08-05",
-            "method": "Railway deployment metadata, service variable scope, public health 및 RTT 로그 — docs/ops/railway-deploy-record.md, docs/ops/rtt-baseline.md",
-            "results": [
-              "api와 worker 서비스가 asia-southeast1에서 running 상태 ✅",
-              "배포된 api /health가 HTTP 200 반환 ✅",
-              "동일 커밋 SHA·Dockerfile 경로·런타임 GIT_SHA로 동일 빌드 판정 통과 ✅",
-              "api 서비스 변수 목록에 SUPABASE_SECRET_KEY 없음 ✅",
-              "배포 worker가 N=50 RTT 표본의 p50과 p95를 기록함 ✅"
-            ]
-          },
-          "deviations_from_plan": [
-            "RTT를 api 라우터 대신 같은 이미지의 worker 기동 경로에서 측정 — 01-CONTEXT.md > D-14"
-          ]
-        }
-      ]
-    },
-    {
       "phase_id": "phase_1",
-      "name": "Phase 1: 데이터 계층 (Supabase Postgres + Storage)",
-      "description": "코어 스키마, 검색 스키마(벡터+bigram), 잡 큐, 멀티테넌트 RLS, 원본 파일 스토리지, 프롬프트 시드.",
+      "name": "Phase 1: Bootstrap and Ground Truth",
+      "description": "되돌릴 수 없는 결정을 전부 확정하고 두 서비스를 클라우드에 띄운다 (completed 2026-08-05).",
+      "status": "completed",
       "tasks": [
         {
-          "id": "P1-DB-01",
-          "category": "Database Schema",
-          "title": "코어 스키마 마이그레이션 (멀티테넌시 포함)",
-          "description": "workspaces, workspace_members(role: owner|editor|viewer), raw_sources, wiki_pages, prompt_templates DDL 작성. raw_sources/wiki_pages에 created_by uuid REFERENCES auth.users, raw_sources에 content_hash text(멱등성 키), storage_path/mime_type/byte_size 컬럼 포함.",
-          "target_files": [
-            "supabase/migrations/0001_core_schema.sql"
-          ],
-          "depends_on": [
-            "P0-INIT-00",
-            "P0-INIT-01"
-          ],
-          "priority": "P0",
-          "estimate": "1d",
-          "status": "completed",
-          "verification": "마이그레이션 적용 후 5개 테이블 생성. workspace_members(workspace_id, user_id) 복합 PK, role CHECK 위반 INSERT가 거부됨. raw_sources에 (workspace_id, content_hash) UNIQUE 제약 존재",
-          "notes": "마이그레이션 번호를 0003 → 0001로 정정. 신규 프로젝트라 선행 마이그레이션이 없습니다. [완료 2026-08-01] 로컬 스택에서 적용·검증 완료: 테이블 5, RLS 5/5 활성(정책 0=전면거부), 트리거 3, UNIQUE 2. 소유자 자동 멤버 트리거·CHECK 제약·전역 기본 프롬프트 유일성·authenticated 역할 조회 0행 모두 실측 확인. P0-INIT-01(monorepo 구조)보다 먼저 진행했으나 마이그레이션 파일은 repo 구조에 의존하지 않아 문제 없음.",
-          "deviations_from_plan": [
-            "text PK → uuid PK + gen_random_uuid(): auth.users.id가 uuid라 FK 타입 정합성 확보, 앱 측 ID 생성 불필요",
-            "wiki_pages.related_wikis jsonb 제거 → 0002의 wiki_links로 정규화. jsonb 배열은 인덱스/조인이 불가해 5번째 검색 채널(N-hop)에 사용할 수 없음",
-            "workspaces에 owner_id 추가: 원안에 소유자 개념이 없어 RLS 기준점이 부재했음",
-            "소유자 자동 멤버 등록 트리거 추가: 멤버 0명 워크스페이스는 RLS 하에서 영구히 접근 불가가 되므로 앱 코드가 아닌 DB가 보장",
-            "RLS를 0001에서 선행 활성화(정책 없음=전면거부): 0002~0003 사이 테이블이 anon 키에 노출되는 창 제거",
-            "source_type에 'url' 추가, prompt_templates.is_default 유일성을 partial unique index로 강제"
-          ]
-        },
-        {
-          "id": "P1-DB-02",
-          "category": "Search Schema",
-          "title": "검색 스키마: source_chunks / wiki_embeddings / wiki_links + 인덱스",
-          "description": "source_chunks(raw_source_id, workspace_id, chunk_index, content, char_start, char_end, embedding vector(1536), search_tsv tsvector) 신설 — 이중 Citation의 '원문 청크' 측 데이터. wiki_embeddings, wiki_links(workspace_id, from_wiki_id, target_slug, to_wiki_id nullable, resolved bool) 생성. pgvector HNSW(vector_cosine_ops) 인덱스 2개, search_tsv GIN 인덱스 2개, wiki_links 양방향 조회 인덱스.",
-          "target_files": [
-            "supabase/migrations/0002_search_schema.sql"
-          ],
-          "depends_on": [
-            "P1-DB-01"
-          ],
-          "priority": "P0",
-          "estimate": "1d",
-          "status": "done",
-          "verification": "EXPLAIN ANALYZE로 벡터 유사도 쿼리가 HNSW 인덱스를 타고, tsvector 쿼리가 GIN 인덱스를 탐. wiki_links에 to_wiki_id IS NULL인 미해결 링크(red link) 행이 삽입 가능",
-          "notes": "search_tsv는 generated column이 아니라 애플리케이션이 bigram 토크나이즈한 문자열을 to_tsvector('simple', ...)로 넣습니다. DB가 자동 생성하면 한국어가 공백 단위로만 쪼개져 무용해집니다. [검증 중 발견] 질의 측은 to_tsquery가 아니라 phraseto_tsquery('simple', bigram(q))를 써야 합니다. bigram 문자열을 to_tsquery에 넣으면 '한국 국어'가 syntax error를 냅니다. phraseto_tsquery는 <-> 로 묶어 인접성까지 검사하므로 부분 문자열 의미가 보존됩니다(plainto_tsquery는 &라 순서 뒤바뀐 오탐 발생).",
-          "completed_at": "2026-08-01",
-          "deviations_from_plan": [
-            "search_tsv를 wiki_pages에도 추가 (0001엔 없었음). 5-Way 3번 채널(위키 어휘 검색)의 물리 컬럼이 어디에도 없어 채널이 성립하지 않았습니다. ALTER TABLE로 0002에서 보강.",
-            "raw_sources/wiki_pages에 (id, workspace_id) 복합 UNIQUE 추가. 자식 테이블이 복합 FK를 걸 수 있게 해서 '청크의 workspace_id ≠ 부모의 workspace_id' 조합을 DB가 거부합니다. 워커는 service_role로 RLS를 우회하므로(HANDOFF §5) 테넌트 경계를 지켜줄 다른 장치가 없었습니다.",
-            "wiki_embeddings에 chunk_index 추가 (원안 명세엔 없음). 순번이 없으면 재임베딩 시 멱등 upsert 키가 없어 중복 행이 쌓입니다. unique(wiki_id, chunk_index).",
-            "wiki_links.resolved를 일반 컬럼이 아닌 generated always as (to_wiki_id is not null) stored로. 두 컬럼을 따로 관리하면 어긋날 수 있습니다. (한국어 토크나이징과 무관하므로 generated가 안전한 자리)",
-            "wiki_links.to_wiki_id의 FK를 on delete set null (to_wiki_id) (PG15+ 컬럼 지정)로. 대상 위키 삭제 시 간선이 red link로 되돌아가고, workspace_id는 NOT NULL이라 함께 NULL이 되면 안 되므로 컬럼 지정이 필수입니다.",
-            "source_chunks/wiki_pages에 tsv_tokenizer_version smallint 추가. 토크나이저 교체 시 재색인 대상을 전수 재처리 없이 골라내기 위함 (HANDOFF §5의 '버전 상수' 함정).",
-            "pgvector를 extensions 스키마에 설치하고 마이그레이션 내에서는 extensions.vector / extensions.vector_cosine_ops로 수식. 실행 롤의 search_path에 의존하지 않기 위함.",
-            "self-link 금지 / 빈 target_slug 금지 / char_end > char_start CHECK 추가."
-          ],
-          "verification_result": {
-            "date": "2026-08-01",
-            "method": "2000행 시드 후 EXPLAIN ANALYZE + 제약 스모크 13종",
-            "results": [
-              "source_chunks 벡터 쿼리 → Index Scan using source_chunks_embedding_idx (HNSW) ✅",
-              "wiki_embeddings 벡터 쿼리 → Index Scan using wiki_embeddings_embedding_idx (HNSW) ✅",
-              "source_chunks tsvector 쿼리 → Bitmap Index Scan on source_chunks_search_tsv_idx (GIN) ✅",
-              "wiki_pages tsvector 쿼리 → Bitmap Index Scan on wiki_pages_search_tsv_idx (GIN) ✅",
-              "3-hop recursive CTE → Index Scan using wiki_links_from_idx ✅",
-              "red link(to_wiki_id IS NULL) 삽입 가능, resolved=false ✅",
-              "to_wiki_id 채우면 resolved=true 자동 전환, 대상 삭제 시 red link 복귀(행 유지) ✅",
-              "교차 테넌트 청크 삽입 → foreign_key_violation으로 차단 ✅",
-              "char_start/char_end 슬라이스 = chunk.content 2000/2000 일치 ✅",
-              "제약 6종(범위 역전/중복 순번/self-link/generated 직접대입/차원불일치/빈 slug) 전부 거부 ✅",
-              "신규 3테이블 RLS on + 정책 0개, authenticated 롤 조회 결과 0행 ✅"
-            ]
-          }
-        },
-        {
-          "id": "P1-DB-03",
-          "category": "Job Queue",
-          "title": "jobs 테이블 및 큐 조작 함수",
-          "description": "jobs(id, workspace_id, type, status: queued|running|succeeded|failed|dead, payload jsonb, attempts int, max_attempts int, last_error text, locked_at, locked_by, created_at, updated_at). status/created_at 부분 인덱스로 폴링 최적화.",
-          "target_files": [
-            "supabase/migrations/0003_jobs.sql"
-          ],
-          "depends_on": [
-            "P1-DB-01"
-          ],
-          "priority": "P0",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "두 세션이 동시에 SELECT ... FOR UPDATE SKIP LOCKED를 실행했을 때 같은 잡을 집어가지 않음을 psql 두 창으로 확인",
-          "completed_at": "2026-08-01",
-          "deviations_from_plan": [
-            "run_after timestamptz 추가 (명세에 없음). 백오프 없이 실패 잡을 즉시 재시도하면 워커가 LLM/임베딩 API를 타이트 루프로 때립니다. 폴링은 run_after <= now()만 대상으로 하고, 기본값이 now()라 신규 잡은 즉시 대상이자 FIFO입니다.",
-            "'failed'를 종착점이 아니라 '백오프 후 재시도 예정' 상태로 정의. 사람이 손대야 하는 종착점은 'dead' 하나. 폴링은 status in ('queued','failed'). 프론트가 '3번 중 2번째 실패, 4분 후 재시도'를 그대로 보여줄 수 있습니다(decisions.job_queue의 '상태를 그대로 노출').",
-            "type에 CHECK 열거를 걸지 않음 — 0001/0002의 하우스 스타일과 유일하게 다른 지점입니다. 계획서가 명시하는 잡 종류는 'compile' 하나뿐이고 Phase 2에서 파이프라인 분할에 따라 계속 바뀝니다. DB에 박으면 잡 추가마다 마이그레이션이 필요합니다. 대신 P2-JOB-01 워커가 미등록 type을 즉시 dead + last_error로 보내야 합니다.",
-            "attempts를 fail 시점이 아니라 claim 시점에 증가. 워커가 잡을 물고 죽어도 reap 후 재시도에서 시도가 소진되므로 워커를 죽이는 독약 잡이 무한 루프를 돌지 않습니다.",
-            "jobs_lock_consistency CHECK 추가 — running이면 락 정보 필수, 아니면 NULL 필수. 완료/회수 처리가 락을 안 지우고 빠져나가는 버그를 DB가 막습니다.",
-            "큐 조작 함수 4종(claim_job / complete_job / fail_job / reap_stale_jobs)에서 anon/authenticated의 EXECUTE를 명시적으로 회수하고 service_role에만 부여. Supabase는 public 스키마 함수에 기본 실행 권한을 주므로, 놔두면 PostgREST /rpc/ 로 남의 잡을 점유·종료할 수 있습니다.",
-            "reap_stale_jobs의 기본 타임아웃 15분 — LLM 컴파일 잡이 수 분 걸릴 수 있어 넉넉하게. 짧으면 살아 있는 워커의 잡을 뺏어 같은 잡이 두 번 처리됩니다."
-          ],
-          "verification_result": {
-            "date": "2026-08-01",
-            "method": "5000행 시드 EXPLAIN + 단일 세션 기능 검증 10종 + 2세션 동시 점유 + 8워커 400잡 스트레스",
-            "results": [
-              "폴링 쿼리 → Index Scan using jobs_poll_idx (부분 인덱스) ✅",
-              "claim_job → running/attempts=1/locked_by 세팅 ✅",
-              "complete_job → succeeded + 락 해제 ✅",
-              "fail_job(재시도 여지) → failed + run_after 30초 뒤로 재예약 ✅",
-              "max_attempts 소진 → dead ✅",
-              "백오프 중인 failed는 미점유, run_after 경과 후 점유 ✅",
-              "reap_stale_jobs → 락 타임아웃 잡 queued 회수 + last_error 기록, 타임아웃 전 잡은 불간섭 ✅",
-              "제약 4종(락 없는 running / 락 남은 succeeded / max_attempts=0 / 빈 type) 거부 ✅",
-              "authenticated·anon의 큐 함수 EXECUTE 권한 없음(insufficient_privilege), service_role만 t ✅",
-              "jobs RLS on + 정책 0개 ✅",
-              "동시성 A: 잡2 워커2 → 서로 다른 잡 점유(A=1, B=2) ✅",
-              "동시성 B: 잡1 워커2 → 두 번째 워커 NONE 즉시 반환(172ms, A의 5초 락에 블로킹되지 않음) ✅",
-              "스트레스: 8워커 × 400잡 → sum(attempts)=400 (모든 잡이 정확히 1회씩 점유), 잔여 락 0행, 중복 처리 0건 ✅"
-            ]
-          },
-          "notes": "워커(P2-JOB-01)는 claim_job/complete_job/fail_job/reap_stale_jobs만 호출하면 됩니다. jobs 테이블을 직접 UPDATE하지 마세요 — 락 일관성 CHECK와 attempts 회계가 함수 안에 있습니다. graceful shutdown은 SIGTERM 수신 시 새 claim을 멈추고 진행 중 잡을 complete/fail로 닫은 뒤 종료하면 됩니다."
-        },
-        {
-          "id": "P1-SEC-01",
-          "category": "Security / RLS",
-          "title": "멀티테넌트 RLS 정책 작성",
-          "description": "0001에서 deny-by-default로 켜둔 RLS에 실제 정책을 부여. is_workspace_member(ws_id) / workspace_role(ws_id)를 SECURITY DEFINER + STABLE + SET search_path 함수로 정의하고 모든 정책이 이를 호출하게 함 — workspace_members 정책이 workspace_members를 다시 조회하면 무한 재귀 에러가 나므로 SECURITY DEFINER로 끊는 것이 필수. 멤버면 SELECT, editor 이상 INSERT/UPDATE, owner만 DELETE.",
-          "target_files": [
-            "supabase/migrations/0004_rls_policies.sql"
-          ],
-          "depends_on": [
-            "P1-DB-01",
-            "P1-DB-02",
-            "P1-DB-03"
-          ],
-          "priority": "P0",
-          "estimate": "1d",
-          "status": "done",
-          "verification": "워크스페이스 A 멤버 토큰으로 워크스페이스 B의 wiki_pages/raw_sources/source_chunks를 조회하면 0행 반환(에러 아님). viewer 역할로 INSERT 시 정책 위반 에러",
-          "risk": "decisions.db_access = hybrid이므로 사용자 요청 경로는 RLS가 강제됩니다. 다만 워커와 마이그레이션은 service_role로 RLS를 우회하므로, 워커 코드에는 workspace_id 필터를 반드시 명시해야 합니다. P4-SEC-01에서 양쪽 경로를 모두 검증.",
-          "completed_at": "2026-08-01",
-          "deviations_from_plan": [
-            "workspaces UPDATE를 editor가 아니라 owner로 제한. workspaces 행의 UPDATE는 곧 이름 변경과 owner_id 이전(소유권 양도)이라, editor에게 열면 editor가 스스로를 소유자로 만들 수 있습니다.",
-            "workspace_members 쓰기 전부를 owner로 제한. editor에게 INSERT를 열면 자신을 owner 역할 행으로 추가해 즉시 권한 상승이 가능합니다. 멤버 관리는 소유자 행위.",
-            "source_chunks/wiki_embeddings/wiki_links는 사용자 경로에서 읽기 전용(SELECT 정책만). 셋 다 워커가 만드는 파생 데이터이고 계획서에 사용자 쓰기 경로가 없습니다. 특히 source_chunks INSERT를 열면 editor가 원문에 없는 청크를 심어 '이중 Citation의 원문 측' 인용을 위조할 수 있습니다. 워커는 service_role(BYPASSRLS)이라 무영향.",
-            "raw_sources에 UPDATE 정책 없음 — '불변 원본 보존' 약속(decisions.original_file_retention)을 DB가 강제. 파서 개선 시 재처리는 워커 경로라 영향 없음.",
-            "workspaces SELECT 정책에 owner_id = auth.uid() 조건 추가. INSERT ... RETURNING의 RETURNING은 SELECT 정책을 통과해야 하는데, 소유자를 멤버로 넣는 0001의 트리거는 AFTER 트리거라 그 시점에 멤버십 행이 아직 없습니다. 멤버십만으로 판정하면 워크스페이스 생성 자체가 실패합니다.",
-            "protect_owner_membership 트리거 신설 — 소유자가 자기 멤버십 행을 삭제하거나 역할을 낮추거나 user_id를 바꾸는 것을 차단. 0001이 '멤버 0명 워크스페이스'를 자동 등록 트리거로 막았는데, 등록된 뒤 지우면 같은 상태(owner_id는 그대로인데 관리 불가)로 되돌아갑니다.",
-            "prompt_templates SELECT에 workspace_id IS NULL 조건 포함 — 전역 기본 템플릿(P1-SEED-01)이 아무에게도 안 보이면 '질문하기' 화면이 빈 채로 뜹니다. 쓰기는 workspace_id IS NOT NULL로 한정해 전역 템플릿 생성/수정을 차단.",
-            "모든 정책을 to authenticated로 한정. anon에는 정책이 하나도 없으므로 비로그인 요청은 계속 전면 거부입니다.",
-            "정책 내 auth.uid()를 (select auth.uid())로 감쌈 — initplan으로 한 번만 평가되게 하는 Supabase RLS 성능 관용구."
-          ],
-          "verification_result": {
-            "date": "2026-08-01",
-            "method": "워크스페이스 2개(A: owner/editor/viewer, B: owner) + 외부인/비멤버 픽스처로 38개 케이스 매트릭스",
-            "results": [
-              "38/38 PASS",
-              "합격 기준 1 — A 멤버 토큰으로 B의 wiki_pages/raw_sources/source_chunks 조회 시 에러가 아니라 0행 ✅",
-              "합격 기준 2 — viewer의 INSERT는 42501 정책 위반 에러 ✅",
-              "무한 재귀 없음 — viewer가 workspace_members 조회 시 42P17 발생하지 않음 (SECURITY DEFINER로 차단) ✅",
-              "권한 상승 차단 — editor가 자신을 owner로 추가(42501), 자기 역할 상향(0행) 모두 실패 ✅",
-              "소유자 멤버십 보호 — owner의 자기 멤버십 삭제/강등이 트리거로 차단(P0001) ✅",
-              "교차 워크스페이스 쓰기 차단 — B에 INSERT(42501), 페이지를 B로 이동(with check 42501) ✅",
-              "파생 데이터 위조 차단 — editor의 source_chunks/wiki_links INSERT 42501 ✅",
-              "원본 불변 — editor의 raw_sources UPDATE 0행 ✅",
-              "INSERT ... RETURNING으로 워크스페이스 생성 성공 (AFTER 트리거 타이밍 함정 회피 확인) ✅",
-              "전역 프롬프트 템플릿은 비멤버에게도 보이고(1행), 전역 템플릿 생성은 42501 ✅",
-              "jobs는 읽기만 — INSERT 42501, UPDATE 0행, claim_job() 호출 42501 ✅",
-              "anon 전면 거부 0행, service_role BYPASSRLS로 전체 조회 정상 ✅",
-              "9개 테이블 전부 RLS on + 정책 부여 완료 (정책 0개 테이블 없음) ✅",
-              "헬퍼 3종 전부 security definer + stable + search_path=public 확인 ✅",
-              "RLS 적용 상태에서 벡터 검색이 여전히 HNSW 인덱스 사용 (source_chunks_embedding_idx) ✅"
-            ]
-          },
-          "notes": "검증 중 발견: RLS 정책 자체가 HNSW 인덱스 스캔의 사후 필터로 동작합니다(플랜에 'Filter: is_workspace_member(workspace_id), Rows Removed by Filter: 5'). 즉 앱이 where workspace_id를 빠뜨려도 격리는 되지만, HNSW가 뽑은 k개 중 남의 워크스페이스 행이 걸러지면서 결과가 k개보다 적게 나올 수 있습니다. P2-BE-01은 (1) where workspace_id = $1을 명시하고 (2) set local hnsw.iterative_scan = strict_order를 켜야 합니다."
-        },
-        {
-          "id": "P1-STO-01",
-          "category": "Storage",
-          "title": "Supabase Storage 버킷 및 접근 정책",
-          "description": "sources 버킷 생성(비공개). 경로 규칙 {workspace_id}/{raw_source_id}/{filename}. 멤버십 기반 Storage RLS 정책. 서명 URL 발급 유효기간 정책 확정.",
+          "id": "BOOT-01",
+          "category": "Storage & DB",
+          "title": "sources 비공개 버킷 및 storage.objects 정책 적용",
+          "description": "0005 마이그레이션으로 sources 비공개 버킷과 경로 규약({workspace_id}/{raw_source_id}/{filename}) 강제 정책 적용.",
           "target_files": [
             "supabase/migrations/0005_storage.sql"
           ],
-          "depends_on": [
-            "P1-SEC-01"
-          ],
-          "priority": "P1",
+          "depends_on": [],
+          "priority": "P0",
           "estimate": "0.5d",
-          "status": "done",
-          "verification": "비멤버 토큰으로 서명 URL 요청 시 거부. 멤버 토큰으로 발급한 URL로 원본 PDF 다운로드 성공, 만료 후 403",
+          "status": "completed",
+          "verification": "비멤버 업로드 42501 거부, 올바른 UUID 3세그먼트 경로 업로드 성공",
           "verification_result": {
             "date": "2026-08-05",
-            "method": "로컬 RLS 행위 검증 및 linked Cloud bucket/policy 조회 — docs/ops/cloud-bootstrap-record.md",
+            "method": "로컬 RLS 행위 검증 및 linked Cloud bucket/policy 조회",
             "results": [
               "비멤버 workspace 경로 INSERT가 SQLSTATE 42501로 거부됨 ✅",
               "2세그먼트 및 UUID가 아닌 경로 INSERT가 SQLSTATE 42501로 거부됨 ✅",
@@ -449,474 +122,1479 @@
           }
         },
         {
-          "id": "P1-SEED-01",
-          "category": "Seed Data",
-          "title": "상황별 프롬프트 템플릿 시드",
-          "description": "Technical Deep-Dive, Executive Summary, Action Items Extractor, FAQ & Guide Generator 4종(target_type='ask') + 위키 컴파일용 시스템 프롬프트 1종(target_type='compile') 시드. workspace_id NULL = 전역 기본 템플릿.",
+          "id": "BOOT-02",
+          "category": "Cloud Infra",
+          "title": "Supabase Cloud 싱가포르(ap-southeast-1) 프로젝트 구성",
+          "description": "ap-southeast-1 리전에 프로젝트 생성 및 sb_publishable_/sb_secret_ 키 체계 적용.",
           "target_files": [
-            "supabase/migrations/0006_seed_prompts.sql"
+            "supabase/config.toml",
+            ".env.local"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "클라우드 헬스 ACTIVE_HEALTHY 및 0001~0006 마이그레이션 적용 확인",
+          "verification_result": {
+            "date": "2026-08-05",
+            "method": "Supabase CLI 로컬 reset 및 linked migration ledger 검증",
+            "results": [
+              "Supabase CLI 2.111.0 이상에서 supabase db reset 종료 코드 0 ✅",
+              "클라우드 리전 ap-southeast-1 및 상태 ACTIVE_HEALTHY 확인 ✅",
+              "클라우드 migration ledger에 0001~0006 순서대로 6행 존재 ✅"
+            ]
+          }
+        },
+        {
+          "id": "BOOT-03",
+          "category": "Tooling",
+          "title": "Supabase CLI 2.111.0+ 업그레이드",
+          "description": "첫 db push 이전에 Supabase CLI 최신화.",
+          "target_files": [
+            "package.json"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.2d",
+          "status": "completed",
+          "verification": "CLI 업그레이드 및 db reset 0 확인"
+        },
+        {
+          "id": "BOOT-04",
+          "category": "Repo Architecture",
+          "title": "uv 워크스페이스 monorepo 구성",
+          "description": "apps/api, apps/worker, packages/core monorepo 구조 구축.",
+          "target_files": [
+            "pyproject.toml",
+            "uv.lock",
+            "packages/core/pyproject.toml"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "uv sync --frozen 종료 코드 0 및 packages/core 의존성 연결 확인"
+        },
+        {
+          "id": "BOOT-05",
+          "category": "Code Quality",
+          "title": "pre-commit 및 리포지토리 설정",
+          "description": "ruff + prettier pre-commit hook 및 .editorconfig, README 정합성 확보.",
+          "target_files": [
+            ".pre-commit-config.yaml",
+            ".editorconfig",
+            "README.md"
           ],
           "depends_on": [
-            "P1-DB-01"
+            "BOOT-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "pre-commit run --all-files 통과 및 위반 커밋 차단 확인"
+        },
+        {
+          "id": "BOOT-06",
+          "category": "Backend Scaffold",
+          "title": "FastAPI lifespan 및 structlog 구조화 로깅",
+          "description": "FastAPI 스캐폴딩, /health & /health/ready 엔드포인트, job_id/workspace_id 컨텍스트 바인딩.",
+          "target_files": [
+            "apps/api/src/api/main.py",
+            "apps/api/src/api/config.py",
+            "apps/api/src/api/logging.py"
+          ],
+          "depends_on": [
+            "BOOT-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "/health 200 반환 및 JSON 로그 컨텍스트 바인딩 확인"
+        },
+        {
+          "id": "BOOT-07",
+          "category": "Frontend Scaffold",
+          "title": "Next.js 15.5.22 대시보드 스캐폴딩",
+          "description": "Next.js App Router + Tailwind 4 + TS Strict + Vitest 환경 구축.",
+          "target_files": [
+            "apps/dashboard/package.json",
+            "apps/dashboard/vitest.config.ts"
+          ],
+          "depends_on": [
+            "BOOT-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "tsc --noEmit 0 및 Vitest 2건 통과"
+        },
+        {
+          "id": "BOOT-08",
+          "category": "Deployment",
+          "title": "Railway asia-southeast1 멀티 서비스 배포",
+          "description": "단일 Dockerfile로 api 및 worker 두 서비스 배포 및 동일 이미지 보장.",
+          "target_files": [
+            "Dockerfile",
+            "railway.json"
+          ],
+          "depends_on": [
+            "BOOT-06"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "두 서비스 running 및 /health 200 응답 확인",
+          "verification_result": {
+            "date": "2026-08-05",
+            "method": "Railway deployment metadata 및 service variable scope 조회",
+            "results": [
+              "api와 worker 서비스가 asia-southeast1에서 running 상태 ✅",
+              "배포된 api /health가 HTTP 200 반환 ✅",
+              "동일 커밋 SHA·Dockerfile 경로·런타임 GIT_SHA로 동일 빌드 판정 통과 ✅"
+            ]
+          }
+        },
+        {
+          "id": "BOOT-09",
+          "category": "Observability",
+          "title": "Railway ↔ Supabase 실측 RTT 측정",
+          "description": "배포 환경 간 네트워크 RTT 측정 및 측정 기록 수립.",
+          "target_files": [
+            "docs/ops/rtt-baseline.md"
+          ],
+          "depends_on": [
+            "BOOT-08"
           ],
           "priority": "P1",
-          "estimate": "0.5d",
-          "status": "done",
-          "verification": "prompt_templates에서 target_type='ask' 4행, 'compile' 1행 조회. is_default=true인 행이 target_type별로 정확히 1개",
-          "completed_at": "2026-08-01",
-          "deviations_from_plan": [
-            "플레이스홀더를 {{변수}} 이중 중괄호로 규약화. 파이썬 str.format을 쓰면 프롬프트와 주입 본문에 들어있는 마크다운/코드/JSON의 단일 중괄호 때문에 KeyError로 터지거나 내용이 망가집니다. 단순 문자열 치환을 쓰세요.",
-            "prompt_templates_global_name_idx (전역 템플릿 이름 유일) 신설 + on conflict do nothing. 0001이 강제하는 건 is_default 유일성뿐이라 시드를 재적용하면 중복이 쌓입니다. 이 인덱스로 시드가 멱등해집니다.",
-            "ask 4종 전부에 동일한 이중 Citation 표기를 강제: 위키는 [[wiki:slug]], 원문은 [[src:청크id]]. 프론트가 파싱할 형식이 하나여야 하므로 템플릿마다 다르면 안 됩니다.",
-            "'원문과 위키가 어긋나면 원문 우선 + 그 사실을 답변에 명시'를 ask 4종 공통 규칙으로. P2-QC-01의 지식 충돌 감지(disputed)로 넘어갈 입력이 됩니다.",
-            "compile 출력 스키마의 열거값(category, confidence)을 0001의 CHECK 제약 문자열과 정확히 일치시킴. 어긋나면 Pydantic 검증은 통과하고 INSERT에서 터집니다.",
-            "compile 프롬프트에 {{existing_slugs}} 주입 — 기존 slug를 재사용하지 않으면 (workspace_id, slug) upsert가 무력해져 같은 주제의 중복 문서가 생깁니다. 멱등성의 실질적 근거.",
-            "각 템플릿에 '자료에 없으면 지어내지 말고 빈칸을 드러내라'는 규칙을 명시. 특히 실행 항목 추출은 그럴듯한 다음 단계를 지어내는 것이 가장 흔한 실패 모드라 별도로 경고."
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "docs/ops/rtt-baseline.md 수립 완료"
+        },
+        {
+          "id": "BOOT-10",
+          "category": "Security",
+          "title": "프로덕션 Auth 설정 하드닝",
+          "description": "비밀번호 최소 12자 및 이메일 확인 강제.",
+          "target_files": [
+            "supabase/config.toml",
+            "docs/ops/auth-hardening-record.md"
           ],
-          "verification_result": {
-            "date": "2026-08-01",
-            "method": "시드 적용 후 9종 검증",
-            "results": [
-              "target_type='ask' 4행, 'compile' 1행, 전부 workspace_id NULL(전역) ✅",
-              "is_default=true가 target_type별로 정확히 1개 (ask=기술 심층 분석, compile=위키 컴파일러) ✅",
-              "플레이스홀더가 문서화한 변수 집합과 정확히 일치 (ask 3종, compile 4종, 초과/누락 0) ✅",
-              "이중 Citation 표기가 ask 4/4 전부에 존재 ✅",
-              "compile 스키마의 category/confidence 열거값이 0001 CHECK와 문자열 일치 ✅",
-              "두 번째 전역 ask 기본값 삽입이 unique_violation으로 거부됨 (0001 partial unique index) ✅",
-              "0006 전체를 재실행해도 행수 불변 (ask 4, compile 1) — 시드 멱등 ✅",
-              "RLS: 어떤 워크스페이스에도 속하지 않은 사용자가 전역 템플릿 5개 모두 조회 가능 ✅",
-              "RLS: anon(비로그인)은 0행 ✅"
-            ]
-          },
-          "notes": "마이그레이션 번호 0006은 계획서 지정값 그대로입니다. 0005는 P1-STO-01(Storage) 자리로 비어 있습니다. 클라우드에 push한 적이 없어 로컬 reset에서는 파일명 순서대로 적용되므로 문제 없지만, 클라우드 생성 후에 0005를 추가하면 순서가 어긋납니다 — P1-STO-01을 P0-INIT-04(배포) 전에 끝내세요."
+          "depends_on": [
+            "BOOT-02"
+          ],
+          "priority": "P0",
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "취약 비밀번호 422 및 미확인 이메일 400 거부 확인"
         }
       ]
     },
     {
       "phase_id": "phase_2",
-      "name": "Phase 2: FastAPI 백엔드",
-      "description": "수집 파이프라인, 잡 워커, LLM 컴파일러, 링크 그래프, 임베딩, 5-Way 하이브리드 검색, 읽기 API, 품질 통제.",
+      "name": "Phase 2: Security Spine and Shared Domain",
+      "description": "격리·트랜스포트·토크나이저를 라우터 이전에 구조로 확정한다 (completed 2026-08-07).",
+      "status": "completed",
       "tasks": [
         {
-          "id": "P2-BE-01",
-          "category": "FastAPI Core",
-          "title": "엔트리포인트, 인증 미들웨어, 워크스페이스 컨텍스트",
-          "description": "Uvicorn 기동, CORS, Supabase JWT 검증 의존성, 요청별 workspace_id 해석 및 멤버십 확인, /health, 구조화 예외 핸들러. 라우터는 원칙적으로 user_client(요청자 JWT)를 주입받아 RLS가 적용되게 하고, service_client 사용은 예외로 취급해 코드 리뷰에서 눈에 띄게 합니다.",
+          "id": "SEC-01",
+          "category": "Security Spine",
+          "title": "ApiSettings 키 격리",
+          "description": "ApiSettings에서 service_role 키 완전히 제거, WorkerSettings만 보유.",
           "target_files": [
-            "apps/api/main.py",
-            "apps/api/app/auth.py",
-            "apps/api/app/deps.py"
+            "apps/api/src/api/config.py"
           ],
           "depends_on": [
-            "P0-INIT-02",
-            "P1-SEC-01"
+            "BOOT-06"
           ],
           "priority": "P0",
-          "estimate": "1d",
-          "status": "pending",
-          "verification": "GET /health → 200. 토큰 없이 보호 엔드포인트 호출 → 401. 비멤버 워크스페이스 ID로 호출 → 403. /docs 접근 가능",
-          "deviations_from_plan": [
-            "격리 증명 표면을 위해 PATCH/DELETE /workspaces/{id} 두 경로만 먼저 세웠다 — 이 태스크가 원래 요구하는 인증 미들웨어·워크스페이스 컨텍스트 해석은 아직 없다. 라우터는 요청자 JWT를 HTTPBearer로 받아 UserDb에 넘기기만 한다. 근거: 02-CONTEXT.md > D-13 (상태 코드를 라우터에 두지 않는다).",
-            "교차 테넌트 쓰기를 막는 술어가 workspaces에서 두 겹이라는 사실을 실측했다 — SELECT 정책과 UPDATE 정책이 각각 독립적으로 막는다. update ... where id = $1이 대상 행을 먼저 읽어야 하므로 SELECT 정책이 가린 행은 UPDATE 술어를 풀어도 0행이다. 따라서 격리 회귀를 재현하려면 정책 두 개를 함께 풀어야 하며, 하나만 푸는 fail-first는 green으로 통과해버린다. 실측 표: docs/ops/tenant-isolation-proof.md §결과.",
-            "테스트 픽스처가 워크스페이스를 service_role이 아니라 소유자 JWT로 만든다 — 0007 섹션 8의 최소권한 매트릭스가 service_role에 workspaces SELECT만 주기 때문이다. 워커가 워크스페이스를 만드는 경로는 설계에 없으므로 이 좁음은 결함이 아니라 정상이다. 삭제도 같은 이유로 소유자 경로다."
-          ]
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "ApiSettings에 service key 필드 부재 확인"
         },
         {
-          "id": "P2-BE-02",
-          "category": "Search Utility",
-          "title": "한국어 bigram 토크나이저 (색인/질의 공용 모듈)",
-          "description": "한글은 2글자 bigram으로, 라틴/숫자는 단어 단위로 분리하는 토크나이저. 색인 시와 질의 시 반드시 동일 함수를 호출하도록 단일 모듈로 제공. tsquery 안전 이스케이프 포함.",
+          "id": "SEC-02",
+          "category": "Security Spine",
+          "title": "UserDb 및 ServiceDb 분리",
+          "description": "db/user.py와 db/service.py 분리 및 banned-api 규칙 적용.",
           "target_files": [
-            "apps/api/services/tokenizer.py",
-            "apps/api/tests/test_tokenizer.py"
+            "packages/core/src/nexuswiki_core/db/user.py",
+            "packages/core/src/nexuswiki_core/db/service.py"
           ],
           "depends_on": [
-            "P0-INIT-02"
+            "SEC-01"
           ],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "'지식관리를' → ['지식','식관','관리','리를'] 형태로 분해. 한영 혼합('KPT-2 회고')에서 'KPT-2'가 통째로 보존됨. 색인 토큰과 질의 토큰이 동일 입력에 대해 일치하는 property test 통과",
-          "risk": "색인과 질의에서 토크나이저 버전이 어긋나면 검색이 조용히 실패합니다. 토크나이저 변경 시 전체 재색인이 필요하므로 버전 상수를 두고 마이그레이션 경로를 명시하세요."
+          "status": "completed",
+          "verification": "banned-api ruff 검사 통과"
         },
         {
-          "id": "P2-ING-01",
-          "category": "Source Ingestion",
-          "title": "소스 수집 API (파일/URL/텍스트) + Storage 업로드 + 잡 생성",
-          "description": "POST /api/sources 로 파일 업로드·URL·원문 텍스트 수집. 원본을 Storage에 저장하고 raw_sources 행 생성 후 compile 잡을 enqueue. content_hash 기반 중복 검사. 파일 크기 상한, URL 수집 시 SSRF 방어(사설 IP 대역 차단, 리다이렉트 제한).",
+          "id": "SEC-03",
+          "category": "Security Spine",
+          "title": "CI service_client 탐지 게이트",
+          "description": "worker 밖에서 service_client 사용 시 CI 빌드 실패 조치.",
           "target_files": [
-            "apps/api/services/ingest.py",
-            "apps/api/routers/sources.py"
+            ".github/workflows/ci.yml"
           ],
           "depends_on": [
-            "P2-BE-01",
-            "P1-STO-01",
-            "P1-DB-03"
+            "SEC-02"
           ],
           "priority": "P0",
-          "estimate": "1.5d",
-          "status": "pending",
-          "verification": "PDF/URL/텍스트 각각 업로드 시 raw_sources 1행 + Storage 객체 1개 + jobs 1행 생성, 202와 job_id 반환. 동일 파일 재업로드 시 새 행 없이 기존 raw_source_id 반환. http://169.254.169.254 등 사설 대역 URL은 400으로 거부"
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "GitHub Actions 02-09 PR 게이트 확인"
         },
         {
-          "id": "P2-ING-02",
-          "category": "Parsing & Chunking",
-          "title": "문서 파서 및 청킹 파이프라인",
-          "description": "PDF(pypdf), Markdown, TXT, HTML(웹 URL) 텍스트 추출. 청킹 시 원문 문자 오프셋(char_start/char_end)을 보존해 source_chunks에 저장 — Citation이 원문 어느 지점인지 가리키려면 필수. bigram tsvector 동시 생성.",
+          "id": "SEC-04",
+          "category": "Security Spine",
+          "title": "UserDb affected_rows=0 → 403 매핑",
+          "description": "UserDb 계층에서 RLS 실패 및 영향 행 0을 단일 403 예외로 정규화.",
           "target_files": [
-            "apps/api/services/parser.py",
-            "apps/api/services/chunker.py",
-            "apps/api/tests/test_chunker.py"
+            "packages/core/src/nexuswiki_core/db/user.py"
           ],
           "depends_on": [
-            "P2-ING-01",
-            "P2-BE-02",
-            "P1-DB-02"
+            "SEC-02"
           ],
           "priority": "P0",
-          "estimate": "1.5d",
-          "status": "pending",
-          "verification": "샘플 PDF 처리 후 source_chunks의 char_start/char_end로 raw_sources.content를 슬라이스하면 chunk.content와 정확히 일치. 청크 경계가 문장 중간을 자르지 않음",
-          "notes": "OCR은 MVP 범위 밖. 텍스트 레이어가 없는 스캔 PDF는 '추출 실패'로 명시적으로 처리하고 사용자에게 알립니다."
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "교차 테넌트 접근 시 403 예외 발생 확인"
         },
         {
-          "id": "P2-JOB-01",
-          "category": "Worker",
-          "title": "잡 워커 프로세스 (폴링, 재시도, 데드레터)",
-          "description": "FOR UPDATE SKIP LOCKED 폴링 루프, 지수 백오프 재시도(max_attempts 초과 시 status=dead), 유실된 락 회수(locked_at 타임아웃), graceful shutdown(SIGTERM 시 진행 중 잡 완료 후 종료).",
+          "id": "SEC-05",
+          "category": "Security Spine",
+          "title": "클라이언트 번들 secret 키 검증",
+          "description": "프론트엔드 번들에 secret 키 노출 방지 CI 스크립트.",
           "target_files": [
-            "apps/api/worker.py",
-            "apps/api/services/jobs.py",
-            "apps/api/tests/test_jobs.py"
+            ".github/workflows/ci.yml"
           ],
           "depends_on": [
-            "P1-DB-03",
-            "P0-INIT-02"
+            "BOOT-07"
+          ],
+          "priority": "P0",
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "bundle-secrets CI 잡 green 확인"
+        },
+        {
+          "id": "SEC-06",
+          "category": "Security Spine",
+          "title": "교차 테넌트 접근 차단 검증",
+          "description": "애플리케이션 경로에서 타 테넌트 데이터 접근 시도 차단 스위트.",
+          "target_files": [
+            "apps/api/tests/test_tenant_isolation.py"
+          ],
+          "depends_on": [
+            "SEC-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "test_tenant_isolation.py 100% 통과"
+        },
+        {
+          "id": "DOM-01",
+          "category": "Shared Domain",
+          "title": "DB 트랜스포트 스파이크 및 확정",
+          "description": "SECURITY INVOKER RPC 트랜스포트 채택 및 GUC HNSW 적용 검증.",
+          "target_files": [
+            "docs/ops/db-transport-spike.md",
+            "scripts/spike_db_transport.py"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "completed",
+          "verification": "docs/ops/db-transport-spike.md 수립"
+        },
+        {
+          "id": "DOM-02",
+          "category": "Shared Domain",
+          "title": "마이그레이션 0007 작성",
+          "description": "검색 함수, jobs_dedup_idx, complete_job_and_chain(), 테이블 권한 매트릭스 추가.",
+          "target_files": [
+            "supabase/migrations/0007_security_spine.sql"
+          ],
+          "depends_on": [
+            "DOM-01"
           ],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
-          "verification": "워커 2개 동시 기동 시 같은 잡이 중복 처리되지 않음. 의도적으로 실패하는 잡이 max_attempts 후 status=dead로 전이하고 last_error에 스택트레이스 기록. 워커 강제 종료 후 재기동 시 locked_at 타임아웃 지난 잡이 회수됨",
-          "deviations_from_plan": [
-            "0007이 저장소 최초로 마이그레이션 자신을 begin/commit으로 감쌌습니다. 0001~0006은 어느 것도 그러지 않았습니다. 02-SPEC.md R7이 \"부분 적용 불가\"를 수용기준으로 요구하므로 여덟 섹션이 전부 적용되거나 전부 되돌아가야 하며, 특히 섹션 7(컬럼 타입 변경)만 남고 섹션 8(권한)이 빠지는 조합은 원인을 되짚기 가장 어렵습니다.",
-            "0007이 02-CONTEXT.md > D-21이 열거한 여섯 섹션을 넘어 섹션 7(tsv_tokenizer_version을 smallint에서 text로)을 추가했습니다. 사유는 창의 시점입니다 — 두 컬럼의 행이 0개라 using 절 없는 한 줄로 끝나며, 미루면 0008 하나와 첫 색인 INSERT에서 막히는 P2-ING-02가 비용으로 남습니다. D-21은 02-CONTEXT.md의 ### Claude's Discretion 블록에 있어 뒤집기가 허용되되 이유를 남기라고 요구하며 이 항목이 그 요구를 충족합니다.",
-            "0007 섹션 8이 02-06-PLAN이 문자 그대로 지시한 범위(새 함수의 revoke/grant)를 넘어 9개 테이블 × 3개 롤 최소권한 매트릭스 전체를 포함합니다. 사유: STATE.md 블로커와 02-01-SUMMARY와 이 파일의 open_questions가 모두 권한 공백의 영구 수정 소유자를 0007로 지정했고, 그것 없이는 0004의 정책 20여 개가 무력한 채 남아 요청자 JWT 경로와 service_role 워커 경로 모두 42501로 떨어집니다. 부수적으로 세 롤이 갖고 있던 TRUNCATE(RLS를 우회함)도 함께 회수했습니다. 사용자가 blocking 체크포인트에서 이 확대를 명시적으로 승인했습니다.",
-            "02-06-PLAN Task 3의 수용기준이 서로 모순됩니다 — 한 기준은 open_questions의 tsv_tokenizer_version 항목이 [해소 …] 접두로 닫힐 것을 요구하고, 마지막 기준은 open_questions가 변경되지 않았을 것을 요구합니다. 플랜 <action> 본문이 항목을 닫으라고 명시하므로 <action>을 권위로 삼아 open_questions를 갱신하고 decisions만 불변으로 두었습니다.",
-            "0007 섹션 4의 public.release_job이 (p_job_id, p_worker_id) 2인자라, 02-03이 만든 apps/worker/src/worker/db/service.py의 ServiceDb.release_job(p_job_id 하나만 전송)이 PostgREST에서 함수를 해소하지 못합니다. 02-06-PLAN의 files_modified 밖이지만 이 마이그레이션이 직접 만든 불일치이므로 같은 페이즈에서 고쳤습니다 — worker_id를 keyword-only 필수 인자로 올려 기본값으로 락 소유자 검사를 우회할 길을 남기지 않았습니다."
-          ]
+          "status": "completed",
+          "verification": "0007 마이그레이션 로컬 reset 및 클라우드 push 완료"
         },
         {
-          "id": "P2-LLM-01",
-          "category": "LLM Compiler",
-          "title": "위키 컴파일러 (OpenRouter + Pydantic 검증 + 재시도)",
-          "description": "raw_source를 입력받아 Concepts/Entities/Guides/Maps 4종 마크다운 위키로 컴파일. 모델은 환경변수 LLM_MODEL. 출력은 프롬프트에 JSON 스키마를 명시하고 Pydantic으로 검증, 검증 실패 시 에러 메시지를 되먹여 최대 3회 재시도. wiki_pages에 (workspace_id, slug) upsert.",
+          "id": "DOM-03",
+          "category": "Shared Domain",
+          "title": "검증 필드 스키마 확장",
+          "description": "wiki_pages에 verified_by / verified_at / expires_at 추가.",
           "target_files": [
-            "apps/api/services/compiler.py",
-            "apps/api/services/llm_client.py",
-            "apps/api/tests/test_compiler.py"
+            "supabase/migrations/0007_security_spine.sql"
           ],
           "depends_on": [
-            "P2-JOB-01",
-            "P2-ING-02",
-            "P1-SEED-01"
+            "DOM-02"
           ],
           "priority": "P0",
-          "estimate": "2d",
-          "status": "pending",
-          "verification": "고정 샘플 소스 입력 시 wiki_pages에 category가 4종 CHECK를 만족하는 행들이 생성됨. LLM이 스키마 위반 JSON을 반환하는 상황을 mock으로 주입했을 때 재시도 후 성공하거나 3회 실패 시 잡이 failed로 전이. sources 필드에 원본 raw_source_id 기록",
-          "risk": "OpenRouter 경유로 Anthropic 네이티브 구조화 출력/프롬프트 캐싱을 못 씁니다. 소스 볼륨이 늘면 컴파일 프롬프트 반복분의 비용이 그대로 청구되므로 P4-OPS-01에서 실측 후 Anthropic 직결 전환을 재검토하세요."
+          "estimate": "0.2d",
+          "status": "completed",
+          "verification": "0007 스키마 반영 확인"
         },
         {
-          "id": "P2-LNK-01",
-          "category": "Link Graph",
-          "title": "[[WikiLink]] 파싱·slug 정규화·wiki_links 동기화",
-          "description": "마크다운에서 [[...]] 추출, slug 정규화 규칙 확정(NFC 정규화 + 소문자 + 공백→하이픈, 한글 보존), 대상 위키가 없으면 to_wiki_id NULL·resolved=false로 저장(red link). 새 위키 생성 시 해당 slug를 가리키던 미해결 링크를 일괄 해소.",
+          "id": "DOM-04",
+          "category": "Shared Domain",
+          "title": "버전 추적 컬럼 추가",
+          "description": "embedding_version / chunker_version 스키마 추가.",
           "target_files": [
-            "apps/api/services/wikilinks.py",
-            "apps/api/tests/test_wikilinks.py"
+            "supabase/migrations/0007_security_spine.sql"
           ],
           "depends_on": [
-            "P2-LLM-01",
-            "P1-DB-02"
+            "DOM-02"
           ],
           "priority": "P0",
-          "estimate": "1d",
-          "status": "pending",
-          "verification": "존재하지 않는 페이지를 가리키는 [[링크]]가 resolved=false로 저장되고, 이후 해당 slug 페이지가 생성되면 같은 행이 resolved=true + to_wiki_id 채워짐. '지식 관리'와 '지식-관리'가 동일 slug로 정규화됨"
+          "estimate": "0.2d",
+          "status": "completed",
+          "verification": "0007 스키마 반영 확인"
         },
         {
-          "id": "P2-EMB-01",
-          "category": "Embeddings",
-          "title": "임베딩 파이프라인 (위키 + 원문 청크)",
-          "description": "OpenAI text-embedding-3-small(1536)로 wiki_embeddings와 source_chunks.embedding 생성. 배치 호출, 레이트리밋 백오프, 부분 실패 시 재개 가능한 설계.",
+          "id": "DOM-05",
+          "category": "Shared Domain",
+          "title": "공용 한국어 토크나이저 모듈",
+          "description": "packages/core에 normalize() 및 bigram() 토크나이저 구현.",
           "target_files": [
-            "apps/api/services/embeddings.py",
-            "apps/api/tests/test_embeddings.py"
+            "packages/core/src/nexuswiki_core/tokenizer.py"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "bigram-nfkc-cf-v1 토크나이저 단위 테스트 통과"
+        },
+        {
+          "id": "DOM-06",
+          "category": "Shared Domain",
+          "title": "토크나이저 자가검색 자음/모음/전각 테스트",
+          "description": "NFC, NFD, 전각 입력 정규화 및 상호 검색 가능성 검증.",
+          "target_files": [
+            "packages/core/tests/test_tokenizer.py"
           ],
           "depends_on": [
-            "P2-ING-02",
-            "P2-LLM-01"
+            "DOM-05"
           ],
           "priority": "P0",
-          "estimate": "1d",
-          "status": "pending",
-          "verification": "컴파일 완료 후 해당 워크스페이스의 embedding IS NULL인 wiki_embeddings/source_chunks 행이 0개. 임베딩 API 429를 mock 주입 시 백오프 후 성공"
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "test_tokenizer.py 통과"
         },
         {
-          "id": "P2-RAG-01",
-          "category": "Hybrid RAG Engine",
-          "title": "5-Way 하이브리드 검색 + RRF 융합 + 이중 Citation",
-          "description": "5개 채널(위키 벡터 / 원문청크 벡터 / 위키 bigram / 원문청크 bigram / wiki_links N-hop 확장)을 병렬 실행하고 RRF로 융합. 상위 컨텍스트로 LLM 답변 생성 시 응답에 double_citation: { raw_sources: [{raw_source_id, chunk_id, char_start, char_end, excerpt}], wiki_pages: [{wiki_id, slug, title}] } 포함.",
+          "id": "DOM-07",
+          "category": "Shared Domain",
+          "title": "결정적 슬러그 생성 함수",
+          "description": "title 기반 결정적 slug_v1 함수 구현 (LLM이 슬러그 소유하지 않음).",
           "target_files": [
-            "apps/api/services/hybrid_search.py",
-            "apps/api/routers/ask.py",
-            "apps/api/tests/test_hybrid_search.py"
+            "packages/core/src/nexuswiki_core/slug.py"
           ],
           "depends_on": [
-            "P2-EMB-01",
-            "P2-LNK-01",
-            "P2-BE-02"
+            "DOM-05"
           ],
           "priority": "P0",
-          "estimate": "2.5d",
-          "status": "pending",
-          "verification": "POST /api/ask 응답 JSON이 double_citation 스키마를 만족하고 raw_sources·wiki_pages 배열이 모두 비어있지 않음. 각 채널을 개별 비활성화했을 때 결과 순위가 변하는 것으로 5개 채널이 실제로 융합에 기여함을 확인. 고유명사 질의('KPT-2')가 어휘 채널에서 상위 진입"
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "한글 유지 및 슬러그 유일성 검증 완료"
         },
         {
-          "id": "P2-API-01",
-          "category": "Read API",
-          "title": "읽기 API (위키/소스/그래프/잡 상태)",
-          "description": "GET /api/wiki/{slug}, GET /api/sources/{id}(+Storage 서명 URL), GET /api/graph?lens={category}(노드+엣지), GET /api/jobs/{id}. 프론트 4개 컴포넌트가 호출할 대상.",
+          "id": "DOM-08",
+          "category": "Shared Domain",
+          "title": "워커 스켈레톤 및 noop 잡 루프",
+          "description": "SIGTERM handling, noop 잡 claim->complete 처리 및 큐 안정성 검증.",
           "target_files": [
-            "apps/api/routers/wiki.py",
-            "apps/api/routers/graph.py",
-            "apps/api/routers/jobs.py"
+            "apps/worker/src/worker/main.py",
+            "apps/worker/src/worker/handlers/noop.py"
           ],
           "depends_on": [
-            "P2-LNK-01",
-            "P1-STO-01",
-            "P2-JOB-01"
+            "DOM-02"
           ],
           "priority": "P0",
-          "estimate": "1.5d",
-          "status": "pending",
-          "verification": "각 엔드포인트가 OpenAPI 스키마에 노출되고 200 응답. /api/graph?lens=concepts 호출 시 category=concepts 노드만 반환. /api/sources/{id}가 만료 있는 서명 URL 포함"
+          "estimate": "0.8d",
+          "status": "completed",
+          "verification": "워커 실행 및 graceful shutdown 통과"
         },
         {
-          "id": "P2-QC-01",
-          "category": "Quality Control",
-          "title": "지식 충돌 감지 및 검증 상태 전이 API",
-          "description": "동일 slug/주제에 상충하는 서술이 들어올 때 LLM 판정으로 양쪽에 disputed=true + 모순 콜아웃 보존(삭제 금지). explored/verification_status를 사람이 전이시키는 PATCH /api/wiki/{id}/verify 엔드포인트.",
+          "id": "DOM-09",
+          "category": "Shared Domain",
+          "title": "reap 타임아웃 실측 및 문서화",
+          "description": "Railway 오버헤드 실측 기준선 문서 작성.",
           "target_files": [
-            "apps/api/services/conflict.py",
-            "apps/api/routers/verify.py"
+            "docs/ops/reap-timeout-baseline.md"
           ],
           "depends_on": [
-            "P2-LLM-01",
-            "P2-API-01"
+            "DOM-08"
           ],
           "priority": "P1",
-          "estimate": "1.5d",
-          "status": "pending",
-          "verification": "의도적으로 상충하는 소스 2건 투입 시 관련 위키 양쪽에 disputed=true가 세팅되고 기존 서술이 삭제되지 않음. editor 역할이 PATCH로 explored=true 전이 가능, viewer는 403",
-          "notes": "계획서 §2-6이 컬럼만 정의하고 전이 주체를 명시하지 않아 이 태스크로 확정합니다. explored는 사람만, disputed는 시스템이 세팅하고 사람이 해소."
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "docs/ops/reap-timeout-baseline.md 작성"
         }
       ]
     },
     {
       "phase_id": "phase_3",
-      "name": "Phase 3: Next.js 15 프론트엔드",
-      "description": "인증/워크스페이스, 소스 드롭존, Ask UI, 그래프 캔버스, 위키 뷰어.",
+      "name": "Phase 3: Ingest and Compile Pipeline",
+      "description": "투입한 소스가 링크·임베딩된 위키 페이지가 되는 쓰기 경로 및 비용 상한 (Executing).",
+      "status": "in_progress",
       "tasks": [
         {
-          "id": "P3-UI-00",
-          "category": "Auth & Workspace",
-          "title": "인증, 워크스페이스 전환, 멤버 초대 UI",
-          "description": "Supabase Auth 로그인/가입, 워크스페이스 목록·전환, 멤버 초대 및 역할 변경 화면. 팀 우선 결정에 따라 필수.",
+          "id": "ING-01",
+          "category": "Ingestion",
+          "title": "소스 인큐 API (즉시 202 반환)",
+          "description": "파일, URL, 텍스트 인큐 요청 시 즉시 202 및 job_id 반환.",
           "target_files": [
-            "apps/dashboard/app/(auth)/login/page.tsx",
-            "apps/dashboard/components/WorkspaceSwitcher.tsx",
-            "apps/dashboard/components/MemberManagement.tsx"
+            "apps/api/src/api/routers/sources.py"
           ],
           "depends_on": [
-            "P0-INIT-03",
-            "P2-BE-01"
+            "DOM-02",
+            "SEC-04"
           ],
           "priority": "P0",
-          "estimate": "1.5d",
+          "estimate": "0.5d",
           "status": "pending",
-          "verification": "로그인 후 소속 워크스페이스만 목록에 표시. 전환 시 이후 모든 API 호출의 workspace_id가 바뀜. viewer 계정에서는 초대 버튼이 비활성"
+          "verification": "POST /sources 호출 시 non-blocking 202 응답"
         },
         {
-          "id": "P3-UI-01",
-          "category": "Frontend Dropzone",
-          "title": "소스 드롭존 + 잡 진행 상태 표시",
-          "description": "파일(PDF/MD/TXT) 드래그앤드롭, URL 입력, 원문 텍스트 붙여넣기 통합 UI. 업로드 후 반환된 job_id로 /api/jobs/{id}를 폴링해 대기/처리중/완료/실패 상태를 표시.",
+          "id": "ING-02",
+          "category": "Ingestion",
+          "title": "동일 content_hash 재투입 감지",
+          "description": "동일 content_hash 소스 재투입 시 건너넒 상태를 UI에 명시.",
           "target_files": [
-            "apps/dashboard/components/SourceDropzone.tsx"
+            "apps/api/src/api/routers/sources.py"
           ],
           "depends_on": [
-            "P3-UI-00",
-            "P2-ING-01",
-            "P2-API-01"
+            "ING-01"
           ],
           "priority": "P0",
-          "estimate": "1.5d",
+          "estimate": "0.3d",
           "status": "pending",
-          "verification": "업로드 직후 '처리 중' 표시, 컴파일 완료 시 자동으로 '완료'로 전환되고 생성된 위키 링크 노출. 잡 실패 시 에러 메시지와 재시도 버튼 표시"
+          "verification": "중복 파일 업로드 시 건너넒 상태 반환"
         },
         {
-          "id": "P3-UI-02",
-          "category": "Frontend Ask Engine",
-          "title": "Ask UI + 상황별 프롬프트 칩 + 이중 Citation 카드",
-          "description": "질문 입력, 프롬프트 프리셋 칩(Technical Deep-Dive / Exec Summary / Action Items / FAQ), 답변 렌더링, double_citation을 [원문] / [위키] 두 그룹으로 나눠 표시하고 각각 딥링크.",
+          "id": "ING-03",
+          "category": "Ingestion",
+          "title": "Supabase Storage 원본 파일 보존",
+          "description": "{workspace_id}/{raw_source_id}/{filename} 경로로 Storage 보존.",
           "target_files": [
-            "apps/dashboard/components/AskCanvas.tsx"
+            "apps/api/src/api/routers/sources.py"
           ],
           "depends_on": [
-            "P3-UI-00",
-            "P2-RAG-01"
+            "BOOT-01"
           ],
           "priority": "P0",
-          "estimate": "2d",
+          "estimate": "0.5d",
           "status": "pending",
-          "verification": "칩 전환 시 요청 payload의 prompt_template_id가 바뀌고 답변 톤이 달라짐. 원문 Citation 클릭 시 해당 char_start 위치가 하이라이트된 소스 뷰로, 위키 Citation 클릭 시 해당 위키 페이지로 이동"
+          "verification": "Storage 경로 정상 저장 확인"
         },
         {
-          "id": "P3-UI-03",
-          "category": "Frontend Graph",
-          "title": "Cytoscape 지식 캔버스 + 렌즈 필터",
-          "description": "/api/graph 응답으로 노드·엣지 렌더링. 렌즈 필터는 category 기반 [전체]/[개념]/[엔티티]/[가이드]/[맵]. 미해결 링크(resolved=false)는 점선/흐림 처리.",
+          "id": "ING-04",
+          "category": "Ingestion",
+          "title": "문서 파서 품질 게이트 (needs_ocr)",
+          "description": "추출 품질 미달 문서에 needs_ocr 부여 후 잡 실패 조치.",
           "target_files": [
-            "apps/dashboard/components/GraphCanvas.tsx"
+            "apps/worker/src/worker/handlers/parse.py"
           ],
           "depends_on": [
-            "P3-UI-00",
-            "P2-API-01"
+            "ING-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "스캔본 PDF 업로드 시 needs_ocr 에러 노출"
+        },
+        {
+          "id": "ING-05",
+          "category": "Ingestion",
+          "title": "토큰 기준 청킹 및 슬라이싱 좌표 자가 검증",
+          "description": "tiktoken 512/64 토큰 청킹 및 content[char_start:char_end] 좌표 일치 속성 검증.",
+          "target_files": [
+            "packages/core/src/nexuswiki_core/chunking.py",
+            "packages/core/tests/test_chunking.py"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "03-03-PLAN 실행 및 test_chunking.py 통과"
+        },
+        {
+          "id": "ING-06",
+          "category": "Ingestion",
+          "title": "잡 진행 상태 단계별 표시",
+          "description": "parse -> compile -> link_sync -> embed 단계별 진행 상황 반환.",
+          "target_files": [
+            "apps/api/src/api/routers/jobs.py"
+          ],
+          "depends_on": [
+            "COMP-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "GET /api/jobs/{id}에서 단계명 노출"
+        },
+        {
+          "id": "ING-07",
+          "category": "Ingestion",
+          "title": "dead 잡 재시도 API",
+          "description": "dead 상태 잡 재인큐 기능.",
+          "target_files": [
+            "apps/api/src/api/routers/jobs.py"
+          ],
+          "depends_on": [
+            "ING-06"
           ],
           "priority": "P1",
-          "estimate": "2d",
+          "estimate": "0.3d",
           "status": "pending",
-          "verification": "렌즈 [개념] 선택 시 category=concepts 노드만 남고 나머지가 캔버스에서 사라짐. 노드 클릭 시 해당 위키로 라우팅. 노드 200개에서 초기 렌더 3초 이내",
-          "notes": "계획서의 렌즈 라벨([기술결정]/[회의록]/[절차])은 스키마와 축이 달라 category 기반으로 교체했습니다."
+          "verification": "POST /jobs/{id}/retry 동작 확인"
         },
         {
-          "id": "P3-UI-04",
-          "category": "Frontend Wiki Viewer",
-          "title": "위키 뷰어 + WikiLink 네비게이션 + 상태 콜아웃",
-          "description": "마크다운 렌더링, [[WikiLink]]를 내부 라우팅 링크로 변환(미해결 링크는 생성 유도 UI), verification_status/disputed/explored 콜아웃 바, 출처 목록.",
+          "id": "COMP-01",
+          "category": "Compile Pipeline",
+          "title": "OpenRouter LLM 위키 컴파일 및 Pydantic 재시도",
+          "description": "LLM 컴파일 + Pydantic 스키마 검증 + 3회 에러 피드백 재시도.",
           "target_files": [
-            "apps/dashboard/components/WikiViewer.tsx"
+            "apps/worker/src/worker/handlers/compile.py"
           ],
           "depends_on": [
-            "P3-UI-00",
-            "P2-API-01",
-            "P2-QC-01"
+            "DOM-07"
           ],
           "priority": "P0",
-          "estimate": "1.5d",
+          "estimate": "1d",
+          "status": "completed",
+          "verification": "03-04-PLAN tracer 스모크 통과 및 OpenRouter 모델 호환 증명"
+        },
+        {
+          "id": "COMP-02",
+          "category": "Compile Pipeline",
+          "title": "Python enum ↔ DB CHECK 부팅 시 대조",
+          "description": "기동 시 도메인 enum과 마이그레이션 CHECK 제약 불일치 검사.",
+          "target_files": [
+            "packages/core/src/nexuswiki_core/enums.py"
+          ],
+          "depends_on": [
+            "ING-05"
+          ],
+          "priority": "P0",
+          "estimate": "0.3d",
           "status": "pending",
-          "verification": "[[링크]] 클릭 시 클라이언트 라우팅으로 즉시 이동(전체 리로드 없음). disputed=true 문서에 경고 콜아웃 렌더링. 미해결 링크는 시각적으로 구분되고 클릭 시 '아직 없는 문서' 안내"
+          "verification": "enum 불일치 시 부팅 즉시 실패"
+        },
+        {
+          "id": "COMP-03",
+          "category": "Compile Pipeline",
+          "title": "LLM 검증 실패 피드백 재시도",
+          "description": "검증 에러 메시지를 프롬프트에 동적으로 첨부하여 재시도.",
+          "target_files": [
+            "apps/worker/src/worker/handlers/compile.py"
+          ],
+          "depends_on": [
+            "COMP-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "03-04-PLAN 검증 피드백 구현 및 테스트 완료"
+        },
+        {
+          "id": "COMP-04",
+          "category": "Compile Pipeline",
+          "title": "잡 파이프라인 단계 분리",
+          "description": "parse -> compile -> link_sync -> embed 잡 체인 분리.",
+          "target_files": [
+            "apps/worker/src/worker/handlers/pipeline.py"
+          ],
+          "depends_on": [
+            "COMP-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "단계별 독립 멱등 키 동작"
+        },
+        {
+          "id": "COMP-05",
+          "category": "Compile Pipeline",
+          "title": "WikiLink 동기화 및 레드 링크 생성",
+          "description": "[[WikiLink]] 추출 및 wiki_links 테이블 동기화 (미해결 시 to_wiki_id IS NULL).",
+          "target_files": [
+            "apps/worker/src/worker/handlers/link_sync.py"
+          ],
+          "depends_on": [
+            "COMP-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "wiki_links 행 생성 및 resolved 여부 확인"
+        },
+        {
+          "id": "COMP-06",
+          "category": "Compile Pipeline",
+          "title": "위키 & 원문 양방향 bge-m3 임베딩",
+          "description": "bge-m3 1024차원 모델로 source_chunks 및 wiki_embeddings 임베딩 생성 (0008).",
+          "target_files": [
+            "supabase/migrations/0008_embedding_dimension.sql",
+            "apps/worker/src/worker/handlers/embed.py"
+          ],
+          "depends_on": [
+            "COMP-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "completed",
+          "verification": "03-01-PLAN vector(1024) 마이그레이션 및 HNSW 인덱스 반영"
+        },
+        {
+          "id": "COMP-07",
+          "category": "Compile Pipeline",
+          "title": "축소 재처리 시 잔여 행 정리 (upsert_and_truncate)",
+          "description": "재처리 청크 수 감소 시 초과 청크/임베딩 원자적 삭제.",
+          "target_files": [
+            "apps/worker/src/worker/handlers/truncate.py"
+          ],
+          "depends_on": [
+            "COMP-04"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "축소 재수집 후 잔여 행 0 확인"
+        },
+        {
+          "id": "COMP-08",
+          "category": "Compile Pipeline",
+          "title": "provider 예외 마스킹",
+          "description": "jobs.last_error에 외부 API API key/비밀 노출 방지 마스킹.",
+          "target_files": [
+            "apps/worker/src/worker/logging.py"
+          ],
+          "depends_on": [
+            "COMP-01"
+          ],
+          "priority": "P1",
+          "estimate": "0.3d",
+          "status": "pending",
+          "verification": "에러 로그 마스킹 적용 확인"
+        },
+        {
+          "id": "OPS-01",
+          "category": "Cost Control",
+          "title": "워크스페이스 월 비용 상한 및 usage_events (0009)",
+          "description": "0009 마이그레이션으로 인큐 시점 월 예산($5.00기본) 검사 및 usage_events 기록.",
+          "target_files": [
+            "supabase/migrations/0009_cost_limit.sql",
+            "apps/api/src/api/services/usage.py"
+          ],
+          "depends_on": [
+            "DOM-02"
+          ],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "예산 초과 인큐 시 53400/402 거부 (03-02-PLAN 및 03-05-PLAN 검증 중)"
         }
       ]
     },
     {
       "phase_id": "phase_4",
-      "name": "Phase 4: 통합 검증 및 운영 준비",
-      "description": "단위 테스트는 각 태스크의 verification에 포함돼 있습니다. 이 단계는 단일 태스크로 검증할 수 없는 교차 관심사만 다룹니다.",
+      "name": "Phase 4: Hybrid Retrieval and Fusion",
+      "description": "5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다.",
+      "status": "pending",
       "tasks": [
         {
-          "id": "P4-E2E-01",
-          "category": "End-to-End",
-          "title": "수집 → 컴파일 → 임베딩 → 검색 E2E 시나리오",
-          "description": "실제 소스 3건(PDF/URL/텍스트)을 넣고 위키가 생성되어 질문에 이중 출처가 달린 답변이 나오기까지의 전 구간을 자동화 테스트로 검증.",
+          "id": "RTV-01",
+          "category": "Retrieval",
+          "title": "5채널 2웨이브 검색 파이프라인",
+          "description": "채널 1~4 동시 실행 후 RRF -> Seed 기반 채널 5(그래프 확장) 실행 및 재융합.",
           "target_files": [
-            "apps/api/tests/test_e2e.py"
+            "apps/api/src/api/services/search.py"
           ],
           "depends_on": [
-            "P2-RAG-01",
-            "P2-API-01"
+            "RTV-02",
+            "RTV-03"
           ],
           "priority": "P0",
-          "estimate": "1d",
+          "estimate": "1.5d",
           "status": "pending",
-          "verification": "테스트 1회 실행으로 raw_sources 3, source_chunks > 0, wiki_pages > 0, wiki_links > 0이 생성되고 /api/ask 응답의 double_citation 양쪽 배열이 비어있지 않음"
+          "verification": "2웨이브 검색 응답 및 융합 결과 확인"
         },
         {
-          "id": "P4-QA-01",
-          "category": "Idempotency",
-          "title": "재수집 멱등성 검증",
-          "description": "멱등성 정의: '동일 content_hash 소스 재수집 시 raw_sources 행이 늘지 않고, 컴파일 결과는 (workspace_id, slug) 기준 upsert되어 중복 위키가 생기지 않는다.' LLM 출력 텍스트의 동일성은 요구하지 않음.",
+          "id": "RTV-02",
+          "category": "Retrieval",
+          "title": "Python 정책 계층 RRF 융합",
+          "description": "Python 코드에서 채널별 가중치, k, limit 제어.",
           "target_files": [
-            "apps/api/tests/test_idempotency.py"
+            "packages/core/src/nexuswiki_core/rrf.py"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "가중치 변경에 따른 순위 변동 확인"
+        },
+        {
+          "id": "RTV-03",
+          "category": "Retrieval",
+          "title": "Postgres HNSW GUC 3종 설정",
+          "description": "hnsw.iterative_scan, ef_search, max_scan_tuples 세팅.",
+          "target_files": [
+            "packages/core/src/nexuswiki_core/db/user.py"
           ],
           "depends_on": [
-            "P2-LLM-01",
-            "P2-ING-01"
+            "DOM-01"
           ],
           "priority": "P0",
           "estimate": "0.5d",
           "status": "pending",
-          "verification": "같은 파일을 3회 업로드 후 raw_sources 1행, 동일 slug의 wiki_pages 1행. 3회 모두 같은 raw_source_id 반환",
-          "notes": "기존 P4-QA-02는 '멱등하게 생성'만 적혀 있어 판정 불가능했습니다. LLM은 비결정적이므로 텍스트 동일성이 아닌 행 중복 없음으로 정의를 확정합니다."
+          "verification": "GUC 설정 후 쿼리 플랜 확인"
         },
         {
-          "id": "P4-SEC-01",
-          "category": "Multi-tenancy",
-          "title": "워크스페이스 격리 검증",
-          "description": "RLS 정책과 백엔드 코드 레벨 필터를 양쪽에서 검증. 백엔드가 service_role 키를 쓰므로 코드가 workspace_id 필터를 빠뜨리면 RLS가 막아주지 않습니다.",
+          "id": "RTV-04",
+          "category": "Retrieval",
+          "title": "relaxed_order 대 strict_order 벤치마크",
+          "description": "실제 코퍼스로 두 검색 순서 벤치마크 및 기록.",
           "target_files": [
-            "apps/api/tests/test_tenant_isolation.py"
+            "docs/ops/hnsw-order-benchmark.md"
           ],
           "depends_on": [
-            "P1-SEC-01",
-            "P2-API-01"
+            "RTV-03"
+          ],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "docs/ops 벤치마크 리포트 작성"
+        },
+        {
+          "id": "RTV-05",
+          "category": "Retrieval",
+          "title": "채널별 기여도 및 메트릭 기록",
+          "description": "channel_hits 및 returned < requested_k 메트릭 관측.",
+          "target_files": [
+            "apps/api/src/api/services/search.py"
+          ],
+          "depends_on": [
+            "RTV-01"
+          ],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "검색 응답 meta에 기여도 노출"
+        },
+        {
+          "id": "RTV-06",
+          "category": "Retrieval",
+          "title": "골든 질의 세트 구축",
+          "description": "한국어/영어/혼합 30~50문항 튜닝용 골든셋 픽스처 작성.",
+          "target_files": [
+            "apps/api/tests/fixtures/golden_queries.json"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "golden_queries.json 검증"
+        },
+        {
+          "id": "RTV-07",
+          "category": "Retrieval",
+          "title": "그래프 확장 채널 안전장치",
+          "description": "depth <= 2, fan-out 제한, 사이클 가드 및 비활성 플래그.",
+          "target_files": [
+            "apps/api/src/api/services/graph_expand.py"
+          ],
+          "depends_on": [
+            "RTV-01"
+          ],
+          "priority": "P1",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "무한 루프 방지 및 가드 동작 확인"
+        },
+        {
+          "id": "RTV-08",
+          "category": "Retrieval",
+          "title": "EXPLAIN HNSW 회귀 테스트",
+          "description": "벡터 검색 시 HNSW 인덱스 스캔 사용 단언 테스트.",
+          "target_files": [
+            "apps/api/tests/test_explain_hnsw.py"
+          ],
+          "depends_on": [
+            "RTV-03"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "seq scan 이탈 시 테스트 실패"
+        },
+        {
+          "id": "RTV-09",
+          "category": "Retrieval",
+          "title": "단일 채널 장애 격리 (Fault Tolerance)",
+          "description": "특정 채널 오류 시 전체 요청 실패 방지 및 meta 보고.",
+          "target_files": [
+            "apps/api/src/api/services/search.py"
+          ],
+          "depends_on": [
+            "RTV-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "1개 채널 강제 오류 시에도 검색 응답 성공"
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_5",
+      "name": "Phase 5: Citation Integrity and Answer APIs",
+      "description": "실제로 인용한 근거만 이중 Citation으로 돌려주는 답변 계층.",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "CITE-01",
+          "category": "Citation",
+          "title": "서버 발급 인용 별칭 주입 ([[src:s3]])",
+          "description": "프롬프트에 짧은 별칭 주입 후 서버가 실제 id로 해소.",
+          "target_files": [
+            "apps/api/src/api/services/citation.py"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "UUID 대신 s1, s2 인용 별칭 생성"
+        },
+        {
+          "id": "CITE-02",
+          "category": "Citation",
+          "title": "이중 Citation 교집합 구성",
+          "description": "double_citation = 모델 파싱 앵커 ∩ 검색 결과.",
+          "target_files": [
+            "apps/api/src/api/services/citation.py"
+          ],
+          "depends_on": [
+            "CITE-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "검색 결과 무조건 인용 방지 확인"
+        },
+        {
+          "id": "CITE-03",
+          "category": "Citation",
+          "title": "미발급 위조 앵커 검출 및 제거",
+          "description": "프롬프트에 없는 환각 앵커 제거 및 메트릭 기록.",
+          "target_files": [
+            "apps/api/src/api/services/citation.py"
+          ],
+          "depends_on": [
+            "CITE-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "위조 앵커 자동 필터링"
+        },
+        {
+          "id": "CITE-04",
+          "category": "Citation",
+          "title": "근거 부재 시 명시적 안내 반환",
+          "description": "앵커 없을 때 '근거를 찾지 못했습니다' 반환.",
+          "target_files": [
+            "apps/api/src/api/services/ask.py"
+          ],
+          "depends_on": [
+            "CITE-02"
+          ],
+          "priority": "P0",
+          "estimate": "0.3d",
+          "status": "pending",
+          "verification": "근거 없는 질문에 명시적 메시지 출력"
+        },
+        {
+          "id": "CITE-05",
+          "category": "Citation",
+          "title": "Citation 관련 지표 측정",
+          "description": "dual_citation_rate, unsourced_sentence_ratio 등 측정.",
+          "target_files": [
+            "apps/api/src/api/services/citation_metrics.py"
+          ],
+          "depends_on": [
+            "CITE-02"
+          ],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "응답 메트릭 포함 확인"
+        },
+        {
+          "id": "CITE-06",
+          "category": "Citation",
+          "title": "소스를 통한 프롬프트 인젝션 앵커 차단",
+          "description": "수집 원문에 들어있는 [[...]] 태그 사전 제거.",
+          "target_files": [
+            "apps/worker/src/worker/handlers/parse.py"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.3d",
+          "status": "pending",
+          "verification": "원문 인젝션 앵커 무력화"
+        },
+        {
+          "id": "API-01",
+          "category": "API",
+          "title": "POST ReadableStream SSE Ask 엔드포인트",
+          "description": "meta -> delta* -> citations -> done 순 스트리밍 API.",
+          "target_files": [
+            "apps/api/src/api/routers/ask.py"
+          ],
+          "depends_on": [
+            "CITE-02"
+          ],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "SSE 스트리밍 이벤트 순서 검증"
+        },
+        {
+          "id": "API-02",
+          "category": "API",
+          "title": "상황별 Ask 프롬프트 템플릿 선택",
+          "description": "질문 요청 시 prompt_template_id 지정 기능.",
+          "target_files": [
+            "apps/api/src/api/routers/ask.py"
+          ],
+          "depends_on": [
+            "API-01"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "템플릿 변경에 따른 답변 톤 변환"
+        },
+        {
+          "id": "API-03",
+          "category": "API",
+          "title": "질문 언어 추종 답변",
+          "description": "질문 언어(한국어/영어)에 부합하는 답변 생성.",
+          "target_files": [
+            "apps/api/src/api/services/ask.py"
+          ],
+          "depends_on": [
+            "API-01"
+          ],
+          "priority": "P1",
+          "estimate": "0.3d",
+          "status": "pending",
+          "verification": "영문 질문 시 영문 답변 응답"
+        },
+        {
+          "id": "API-04",
+          "category": "API",
+          "title": "위키/소스/그래프/잡 조회 API",
+          "description": "프론트엔드용 조회 REST API 제공.",
+          "target_files": [
+            "apps/api/src/api/routers/wiki.py",
+            "apps/api/src/api/routers/graph.py"
+          ],
+          "depends_on": [
+            "SEC-04"
           ],
           "priority": "P0",
           "estimate": "1d",
           "status": "pending",
-          "verification": "워크스페이스 A 사용자 토큰으로 B의 wiki_id/source_id/job_id를 직접 지정해 전 엔드포인트를 호출했을 때 전부 403 또는 404. 검색 결과에 B의 데이터가 단 한 건도 섞이지 않음",
-          "risk": "이 테스트가 이 프로젝트에서 가장 중요한 보안 게이트입니다. 새 엔드포인트를 추가할 때마다 케이스를 늘리세요."
+          "verification": "각 엔드포인트 정상 조회 확인"
         },
         {
-          "id": "P4-PERF-01",
-          "category": "Search Quality",
-          "title": "검색 품질·지연 기준선 수립",
-          "description": "질문 20건 규모의 골든셋(정답 위키/원문 표기)을 만들고 recall@5, MRR, p95 지연을 측정. RRF 가중치 튜닝의 기준점.",
+          "id": "QC-01",
+          "category": "Quality Control",
+          "title": "지식 충돌 감지 (disputed)",
+          "description": "상충하는 모순 지식 감지 시 disputed 플래그 지정.",
           "target_files": [
-            "apps/api/tests/fixtures/golden_queries.json",
+            "apps/api/src/api/services/qc.py"
+          ],
+          "depends_on": [
+            "API-04"
+          ],
+          "priority": "P1",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "모순 소스 입력 시 disputed=true"
+        },
+        {
+          "id": "QC-02",
+          "category": "Quality Control",
+          "title": "검증 상태 전이 API (verified_by/at/expires_at)",
+          "description": "누가, 언제, 언제까지 검증했는지 추적 기록.",
+          "target_files": [
+            "apps/api/src/api/routers/wiki.py"
+          ],
+          "depends_on": [
+            "DOM-03"
+          ],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "검증 상태 업데이트 API 동작"
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_6",
+      "name": "Phase 6: Dashboard",
+      "description": "브라우저만으로 워크스페이스를 운영하는 프론트엔드.",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "UI-01",
+          "category": "Frontend Shell",
+          "title": "middleware.ts 기반 단일 테넌트 라우팅 (/w/[workspaceId])",
+          "description": "쿠키 기반 싱글 트루스 라우팅 및 미들웨어 처리.",
+          "target_files": [
+            "apps/dashboard/middleware.ts",
+            "apps/dashboard/app/w/[workspaceId]/layout.tsx"
+          ],
+          "depends_on": [
+            "BOOT-07"
+          ],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "워크스페이스 URL 라우팅 검증"
+        },
+        {
+          "id": "UI-02",
+          "category": "Frontend Management",
+          "title": "워크스페이스 전환 & 멤버 초대 (3역할)",
+          "description": "소유자/편집자/조회자 역할 초대 UI.",
+          "target_files": [
+            "apps/dashboard/components/WorkspaceSettings.tsx"
+          ],
+          "depends_on": [
+            "UI-01"
+          ],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "초대 및 권한 변경 동작 확인"
+        },
+        {
+          "id": "UI-03",
+          "category": "Frontend Dropzone",
+          "title": "소스 드롭존 + 잡 진행 상태 컴포넌트",
+          "description": "파일/URL/텍스트 드롭존 및 단계별 진행 스피너/프로그레스.",
+          "target_files": [
+            "apps/dashboard/components/SourceDropzone.tsx"
+          ],
+          "depends_on": [
+            "UI-01",
+            "ING-01"
+          ],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "업로드 후 잡 단계 실시간 표시"
+        },
+        {
+          "id": "UI-04",
+          "category": "Frontend Ask",
+          "title": "Ask UI + 인라인 Citation + 원문 하이라이트",
+          "description": "질문 캔버스, 프롬프트 칩, 이중 Citation 하이라이팅 카드.",
+          "target_files": [
+            "apps/dashboard/components/AskCanvas.tsx"
+          ],
+          "depends_on": [
+            "UI-01",
+            "API-01"
+          ],
+          "priority": "P0",
+          "estimate": "2d",
+          "status": "pending",
+          "verification": "Citation 클릭 시 char_start 좌표 하이라이트"
+        },
+        {
+          "id": "UI-05",
+          "category": "Frontend Wiki",
+          "title": "읽기 전용 위키 뷰어 & WikiLink 라우팅",
+          "description": "위키 마크다운 렌더링, 레드 링크 안내, 상태 콜아웃.",
+          "target_files": [
+            "apps/dashboard/components/WikiViewer.tsx"
+          ],
+          "depends_on": [
+            "UI-01",
+            "API-04"
+          ],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "WikiLink 클릭 시 페이지 라우팅"
+        },
+        {
+          "id": "UI-06",
+          "category": "Frontend Graph",
+          "title": "Cytoscape 지식 캔버스 & 렌즈 필터",
+          "description": "Cytoscape.js 위키 그래프 렌더링 및 category 렌즈 필터링.",
+          "target_files": [
+            "apps/dashboard/components/GraphCanvas.tsx"
+          ],
+          "depends_on": [
+            "UI-01",
+            "API-04"
+          ],
+          "priority": "P1",
+          "estimate": "2d",
+          "status": "pending",
+          "verification": "노드 필터링 및 캔버스 렌더링 통과"
+        }
+      ]
+    },
+    {
+      "phase_id": "phase_7",
+      "name": "Phase 7: Integration and Ops Baseline",
+      "description": "E2E·멱등성·격리·품질·비용 기준선 수립.",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "OPS-02",
+          "category": "Integration & Ops",
+          "title": "수집 → 컴파일 → 임베딩 → 검색 E2E 자동화 테스트",
+          "description": "전 구간 통과 자동화 E2E 테스트 스위트.",
+          "target_files": [
+            "apps/api/tests/test_e2e.py"
+          ],
+          "depends_on": [
+            "API-01",
+            "COMP-06"
+          ],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "test_e2e.py 100% 성공"
+        },
+        {
+          "id": "OPS-03",
+          "category": "Integration & Ops",
+          "title": "재수집 멱등성 및 축소 재처리 전수 검증",
+          "description": "동일 content_hash 무증가 및 축소 재수집 검증.",
+          "target_files": [
+            "apps/api/tests/test_idempotency.py"
+          ],
+          "depends_on": [
+            "COMP-07"
+          ],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "test_idempotency.py 성공"
+        },
+        {
+          "id": "OPS-04",
+          "category": "Integration & Ops",
+          "title": "전수 애플리케이션 경로 테넌트 격리 검증",
+          "description": "모든 API 엔드포인트 교차 테넌트 접근 차단 스위트.",
+          "target_files": [
+            "apps/api/tests/test_full_tenant_isolation.py"
+          ],
+          "depends_on": [
+            "SEC-06"
+          ],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "tenant_isolation_proof.md 수립"
+        },
+        {
+          "id": "OPS-05",
+          "category": "Integration & Ops",
+          "title": "검색 품질 (골든셋) 및 지연 기준선 수립",
+          "description": "recall@5, MRR, p95 지연 측정 기준선 수립.",
+          "target_files": [
             "apps/api/tests/test_search_quality.py"
           ],
           "depends_on": [
-            "P4-E2E-01"
+            "RTV-06"
           ],
           "priority": "P1",
           "estimate": "1.5d",
           "status": "pending",
-          "verification": "골든셋에서 recall@5 ≥ 0.8, p95 검색 지연 ≤ 1.5초를 초기 목표로 기록. 목표 미달 시 채널별 기여도를 출력해 튜닝 근거 제공",
-          "notes": "임계값은 첫 측정 후 현실적인 값으로 재조정합니다. 중요한 건 회귀를 감지할 기준선이 존재하는 것입니다."
+          "verification": "품질 메트릭 리포트 작성"
         },
         {
-          "id": "P4-OPS-01",
-          "category": "Cost & Observability",
-          "title": "LLM/임베딩 비용 가드레일 및 관측",
-          "description": "워크스페이스별 월 토큰 사용량 집계, 상한 초과 시 컴파일 잡 차단, 잡 처리량·실패율·큐 적체 로깅. Railway Usage Limit 설정.",
+          "id": "OPS-06",
+          "category": "Integration & Ops",
+          "title": "LLM/임베딩 비용 및 잡 관측 대시보드",
+          "description": "워크스페이스별 토큰 사용량 및 잡 파이프라인 관측 구축.",
           "target_files": [
-            "apps/api/services/usage.py",
-            "supabase/migrations/0007_usage.sql"
+            "apps/api/src/api/services/usage.py"
           ],
           "depends_on": [
-            "P2-LLM-01",
-            "P2-EMB-01",
-            "P0-INIT-04"
+            "OPS-01"
           ],
           "priority": "P1",
           "estimate": "1d",
           "status": "pending",
-          "verification": "소스 1건 컴파일 후 usage 테이블에 입력/출력 토큰과 추정 비용이 기록됨. 상한을 인위적으로 낮추면 신규 컴파일 잡이 명확한 사유와 함께 거부됨",
-          "risk": "OpenRouter 경유라 Anthropic 프롬프트 캐싱 이점을 못 받습니다. 여기서 실측한 비용이 예상보다 높으면 Anthropic 직결 전환을 재검토하세요(decisions.llm 참조)."
+          "verification": "사용량 관측 메트릭 수집 확인"
         }
       ]
     }
-  ]
+  ],
+  "v2_requirements": [
+    {
+      "id": "NAV-01",
+      "category": "Navigation",
+      "title": "페이지별 backlinks 패널",
+      "description": "wiki_links 역방향 조회 1회 패널.",
+      "complexity": "LOW"
+    },
+    {
+      "id": "NAV-02",
+      "category": "Navigation",
+      "title": "랭킹된 레드링크 백로그",
+      "description": "참조 수 기준 우선순위 산정 레드링크 백로그.",
+      "complexity": "MEDIUM"
+    },
+    {
+      "id": "NAV-03",
+      "category": "Navigation",
+      "title": "wiki_links 연관 후속 질문 칩",
+      "description": "LLM 비용 없이 wiki_links 구조 기반 칩 제시.",
+      "complexity": "LOW"
+    },
+    {
+      "id": "MNT-01",
+      "category": "Maintain",
+      "title": "maintain 워크플로우 (중복 탐지/병합/린트)",
+      "description": "살아있는 위키를 위한 Karpathy 세 번째 워크플로우.",
+      "complexity": "HIGH"
+    },
+    {
+      "id": "MNT-02",
+      "category": "Maintain",
+      "title": "컴파일 이력 로그",
+      "description": "소스-컴파일-프롬프트 버전 추적 로그.",
+      "complexity": "MEDIUM"
+    },
+    {
+      "id": "MNT-03",
+      "category": "Maintain",
+      "title": "검증 상태 RRF 랭킹 연결",
+      "description": "만료 콘텐츠 검색 랭킹 자동 강등.",
+      "complexity": "MEDIUM"
+    },
+    {
+      "id": "QCV-01",
+      "category": "Quality & History",
+      "title": "타입별 충돌 감지",
+      "description": "시간적/사실적 불일치 분류 에스컬레이션.",
+      "complexity": "HIGH"
+    },
+    {
+      "id": "QCV-02",
+      "category": "Quality & History",
+      "title": "답변 이력 저장 (ask_answers)",
+      "description": "퍼머링크 및 피드백 루프 구축.",
+      "complexity": "MEDIUM"
+    },
+    {
+      "id": "QCV-03",
+      "category": "Quality & History",
+      "title": "조종 가능한 컴파일 아웃라인",
+      "description": "사용자 아웃라인 제어 컴파일 기능.",
+      "complexity": "HIGH"
+    },
+    {
+      "id": "PLT-01",
+      "category": "Platform",
+      "title": "채팅 전용 공개 공유",
+      "description": "anon 경로 격리 기반 공개 공유 기능.",
+      "complexity": "HIGH"
+    },
+    {
+      "id": "PLT-02",
+      "category": "Platform",
+      "title": "외부 커넥터 (Notion, Google Drive, Slack)",
+      "description": "외부 문서 플랫폼 연동 연동 수집.",
+      "complexity": "HIGH"
+    },
+    {
+      "id": "PLT-03",
+      "category": "Platform",
+      "title": "SSO / SAML 지원",
+      "description": "엔터프라이즈 SSO 인증 체계 지원.",
+      "complexity": "MEDIUM"
+    }
+  ],
+  "out_of_scope": [
+    {
+      "feature": "수치 confidence 배지 노출",
+      "reason": "검증 배지와 신뢰 신호가 경쟁해 둘 다 안 읽히게 됨. LLM 자기 확신도는 캘리브레이션되지 않음"
+    },
+    {
+      "feature": "위키 페이지 자유 텍스트 편집",
+      "reason": "(workspace_id, slug) 업서트와 정면 충돌 — 재컴파일이 편집을 덮어씀. v1은 읽기 전용임을 UI가 명시"
+    },
+    {
+      "feature": "전체 자동 재컴파일",
+      "reason": "비용이 소스 수에 선형이고 사용자가 통제할 수 없음"
+    },
+    {
+      "feature": "페이지 단위 권한",
+      "reason": "워크스페이스 3역할이 엔터프라이즈 규모에서도 실질 상한"
+    },
+    {
+      "feature": "Neo4j 등 그래프 DB",
+      "reason": "GDS가 Aura 기본 티어에 없고 이 규모에서 순회 이점 없음. 팀 모드에선 RLS 부재가 보안 부담. wiki_links + recursive CTE로 대체"
+    },
+    {
+      "feature": "pg_bigm / pgroonga",
+      "reason": "Supabase 미제공"
+    },
+    {
+      "feature": "search_tsv 생성 컬럼화",
+      "reason": "Postgres에 한국어 형태소 분석기 없음 — 공백 분리만 되어 어휘 검색이 무력화됨"
+    },
+    {
+      "feature": "PyMuPDF",
+      "reason": "AGPL-3.0이 네트워크 사용자에게 미침 — 호스팅 SaaS는 소스 공개 또는 Artifex 라이선스 구매 필요. pypdf(BSD-3)로 대체"
+    },
+    {
+      "feature": "react-cytoscapejs",
+      "reason": "2022-09-02 마지막 배포, 이슈 45건, React 18 StrictMode 이전. Cytoscape 직접 사용"
+    },
+    {
+      "feature": "Celery / arq / dramatiq / RQ",
+      "reason": "전부 브로커(Redis)를 요구하고 이미 검증된 claim_job 계약을 중복 구현"
+    },
+    {
+      "feature": "Alembic / SQLAlchemy",
+      "reason": "마이그레이션 진실 소스가 둘이 됨"
+    },
+    {
+      "feature": "Turborepo / Nx",
+      "reason": "JS 패키지가 하나뿐"
+    },
+    {
+      "feature": "Gunicorn",
+      "reason": "Railway SIGTERM drain을 깨고 $5/mo 인스턴스에서 유휴 메모리 2배"
+    },
+    {
+      "feature": "Fly.io / Render 배포",
+      "reason": "각 ~$6.5/mo, $14/mo 고정 — Railway Hobby($5/mo, 워크스페이스 단위) 대비 불리"
+    },
+    {
+      "feature": "서울 리전",
+      "reason": "Railway에 서울·도쿄 리전이 없어 교차 리전 왕복이 5채널마다 곱해짐. 싱가포르 양쪽으로 확정"
+    },
+    {
+      "feature": "모바일 네이티브 앱",
+      "reason": "웹 우선"
+    },
+    {
+      "feature": "외부 큐 브로커 / 캐시 계층",
+      "reason": "Postgres 하나로 충분하고 잡 상태를 프론트에 그대로 노출 가능"
+    }
+  ],
+  "finetuning_roadmap": {
+    "title": "Fine-Tuning Candidates & Strategy",
+    "promising_candidates": [
+      {
+        "rank": 1,
+        "title": "검색 리랭커 파인튜닝",
+        "priority": 1,
+        "description": "5채널 결과를 RRF로 합친 뒤, 최종 근거 순서를 재정렬하는 작은 cross-encoder/reranker를 도메인 데이터로 학습하는 방식.",
+        "training_data": [
+          "질문",
+          "관련 근거 문단 (positive)",
+          "헷갈리지만 틀린 문단 (hard negative)"
+        ],
+        "effects": [
+          "bigram 검색 잡음 억제",
+          "벡터 검색의 의미적으로 비슷하지만 답이 아닌 결과 제거",
+          "사내 약어·제품명·업무 용어 적응",
+          "생성 모델보다 훨씬 저렴하게 검색 품질 개선"
+        ],
+        "prerequisites": "Phase 4 골든 세트와 검색 로그가 생긴 후 시작. 초기에는 수백 건으로 실험하고, 실제 도입 판단에는 대략 1,000건 이상의 검증된 query-document 관계 필요."
+      },
+      {
+        "rank": 2,
+        "title": "문서 → 위키 컴파일 모델",
+        "priority": 2,
+        "description": "raw source → 구조화된 wiki pages 변환은 반복적이고 출력 스키마가 명확해서 SFT/LoRA 증류에 잘 맞음.",
+        "training_behaviors": [
+          "적절한 문서 분할",
+          "제목·카테고리·별칭 생성",
+          "불필요한 내용을 위키로 만들지 않는 판단",
+          "프로젝트의 일정한 문체",
+          "CompileResult 스키마 준수",
+          "페이지 수와 출력 길이 절제"
+        ],
+        "effects": "Claude급 성공 출력을 검수해 데이터셋으로 만들고 작은 모델로 증류하여 컴파일 비용 절감 및 온프레미스 대응 가능.",
+        "required_logs": [
+          "원본 입력과 prompt version",
+          "최초 모델 출력",
+          "validation 실패 내역",
+          "최종 채택 결과",
+          "사람이 수정한 내용",
+          "생성된 페이지가 실제로 사용됐는지 여부"
+        ]
+      },
+      {
+        "rank": 3,
+        "title": "Citation 답변 모델",
+        "priority": 3,
+        "description": "Phase 5 이후에는 근거 범위 안에서만 답하고 서버 발급 앵커를 정확하게 배치하도록 학습.",
+        "precautions": "모델이 '근거를 확인하는 법'보다 '그럴듯한 인용 문법'만 학습할 수 있으므로 파인튜닝 후에도 서버 검증은 필수 유지.",
+        "server_validations_required": [
+          "발급하지 않은 앵커 제거",
+          "실제 인용한 근거만 Citation으로 반환",
+          "근거 없는 문장 측정",
+          "앵커가 없으면 명시적 근거 없음 반환"
+        ]
+      }
+    ],
+    "non_finetuning_targets": [
+      {
+        "target": "bigram/형태소 검색",
+        "alternative": "골든 세트 기반 검색 알고리즘 비교"
+      },
+      {
+        "target": "RRF 채널 가중치",
+        "alternative": "정책 튜닝 또는 최적화"
+      },
+      {
+        "target": "JSON 문법 오류",
+        "alternative": "strict schema와 검증·재시도"
+      },
+      {
+        "target": "최신 사내 지식",
+        "alternative": "RAG와 재색인"
+      },
+      {
+        "target": "Semantic Cache",
+        "alternative": "캐시 키·무효화 설계"
+      },
+      {
+        "target": "PDF/OCR 품질",
+        "alternative": "파서와 OCR 모델 선택"
+      }
+    ],
+    "recommended_sequence": [
+      "1. 지금은 파인튜닝하지 않고 학습 가능한 로그 구조를 준비",
+      "2. Phase 4에서 골든 세트와 hard negative를 수집",
+      "3. 리랭커 파인튜닝으로 첫 실험",
+      "4. Phase 5 이후 검수된 컴파일 결과가 충분해지면 작은 모델로 증류",
+      "5. Citation 모델은 서버 검증 체계가 완성된 후 검토"
+    ],
+    "tenant_privacy_note": "멀티테넌트 제품에서는 고객 문서를 공용 파인튜닝 데이터로 섞으면 안 됨. 초기 공용 모델은 합성·자체 소유·명시적 동의 데이터 사용, 고객 고유 지식은 RAG에 유지.",
+    "top_recommendation": "한국어 도메인 리랭커 파인튜닝을 가장 먼저 선택 (품질 개선 측정 용이, 기존 5채널 검색 유지, 저비용)."
+  }
 }
