@@ -1,56 +1,54 @@
 # 🤝 Handoff Document
 
-- **작성 일시**: 2026-08-13 09:35 KST
+- **작성 일시**: 2026-08-13 10:45 KST
 - **작업 브랜치**: `main`
 
 ## 🎯 1. 작업 목표 & 현재 상태
 
-- **목표**: `/gsd-execute-phase 6` — Phase 6(Dashboard) 8개 플랜 전체 실행, 코드 리뷰·회귀·페이즈 검증·보안·UI 감사 게이트 통과, `/gsd-verify-work 6`로 UAT 마무리.
-- **진행률**: **코드·품질 게이트는 100% 완료.** 페이즈 완료 체크박스(ROADMAP.md `[ ]`)만 미완 — UAT 5개 중 2개(라이브 LLM 필요)가 사용자 선택으로 `skipped` 상태라 자동 전환 게이트(`gsd_run phase uat-passed`)가 막혀 있다. 나머지는 전부 그린.
+- **목표**: 이전 세션이 남긴 worker `JSONDecodeError` 진단, UAT 1·2번(인제스트/Ask 흐름) 라이브 테스트, Phase 6(Dashboard) 완료 전환. 이어서 미커밋 상태 정리.
+- **진행률**: **완료.** Phase 6은 ROADMAP.md/STATE.md 양쪽에서 `[x]` 완료로 전환됐고, `.planning/phases/06-dashboard/06-UAT.md`는 5/5 전부 `pass`다. 워킹 트리는 완전히 clean — untracked/modified 상태였던 모든 파일이 논리적 커밋으로 정리됐다. **다음 세션은 Phase 7(Integration and Ops Baseline)을 처음부터 시작한다** — `_auto_chain_active: false`라 자동으로 넘어가지 않았다.
 
 ## ✏️ 2. 주요 변경 사항 & 의사결정 (Why)
 
-- **8개 플랜 전부 실행**: 06-01(트레이서: middleware.ts 유일 쿠키 기록자·로그인·RLS 워크스페이스 셸·디자인 토큰), 06-02(스위처+내비), 06-03(멤버 로스터+이메일 초대, 마이그레이션 `0014` 신규 RPC 2종), 06-04(api-client/sse), 06-05(드롭존+잡 스테퍼), 06-06(Ask UI 이중 인용), 06-07(위키 뷰어), 06-08(그래프 캔버스). 06-08은 의존성 DAG상 06-02/03/04와 함께 Wave 2로 재배치됨(선언된 Wave 3는 planner 오류).
-- **06-03 체크포인트 결정**: 이메일 초대가 `auth.users`를 해석할 방법이 전무해(PostgREST 미노출) planner가 제시한 3안 중 "마이그레이션 0014 신규(`add_owner_as_member()` 관례 재사용)"를 사용자 사전 승인으로 채택. 로컬 `db reset` 검증 완료, 클라우드 미푸시.
-- **코드 리뷰 → 6건 전부 수정**: CR-01(레드링크 CTA prefillTitle이 소스 페이지에 안 이어짐), WR-01~05(그래프 캡 off-by-one, Ask SSE 에러 미분기, RLS 차단 삭제를 성공으로 오판, JobStepper 폴링이 안 멈춤, `NEXT_PUBLIC_*` non-null assertion).
-- **라이브 UAT 중 신규 버그 2건 추가 발견·수정**(정적 검사로는 못 잡음):
-  1. `lib/env.ts`가 `process.env[name]` 동적 인덱싱을 써서 웹팩이 클라이언트 번들에 인라인 못 함 → **로그인 자체가 깨짐**. WR-05 수정의 회귀. `switch` 기반으로 재작성(모듈 스코프 캐싱은 vitest mock 14건을 깼다가 되돌림).
-  2. `GraphCanvas.tsx`가 엣지 쿼리에 `from_wiki_id IN (...)`로 최대 1000개 UUID를 URL에 나열 → 1000노드 근처에서 요청 자체가 실패(브라우저엔 CORS 오류로 보임, 실제 원인은 URL 길이). `workspace_id` 스코프만 남기고 기존 클라이언트 필터에 위임.
-- **UI 감사에서 타이포그래피 BLOCKER 발견·수정**: UI-SPEC이 checker 리비전으로 확정한 "정확히 2웨이트(400/600)" 계약이 코드에 반영 안 됨 — `--font-caption`/`--font-button-md/sm` 토큰이 500이라 48개 호출부가 500으로 렌더링. 토큰 파일 자체는 안 건드리고(HANDOFF 기존 결정 유지) 48개 호출부에 `fontWeight: 600` 오버라이드 추가, 라이브로 재확인.
-- **D-10 접수 오버라이드**: Ask 인용 사이드패널의 "위키 카드+원문 카드 나란히 표시"는 resolved-citation 데이터가 marker당 wiki XOR source만 갖고(페어링 메타데이터 없음) 불가능함을 확인 — Phase 5 API 계약 변경 없이는 불가(Phase 6 스코프 밖). 사용자 승인으로 "마커별 단일 카드, 인접 마커 클릭으로 양쪽 확인" 해석을 채택·문서화.
-- **COVERAGE.md 파서 버그 수정**: `api-coverage.verify-pre` 게이트가 이스케이프 파이프(`text\|file\|url`)와 200자 초과 reason 2건 때문에 실패 → 3건 수정.
-- **[핸드오프 이후 추가] `apps/api`에 CORS 미들웨어 자체가 없었다**: 사용자가 실제로 `apps/api`+`worker`를 로컬 스택 대상으로 띄우고 대시보드에서 소스 등록을 시도하자 전부 "소스 등록에 실패했습니다"로 실패. 원인 확인: `OPTIONS` 프리플라이트가 405, `main.py`에 `CORSMiddleware` 등록 자체가 없음 — Phase 6 대시보드가 `apps/api`의 **첫 브라우저 호출자**라 지금까지 아무도 이 경로를 안 탔다. `ApiSettings.CORS_ALLOWED_ORIGINS`(콤마 구분 문자열, 로컬 기본값 `http://localhost:3000,http://127.0.0.1:3000`) 신설 + `main.py`에 `CORSMiddleware` 등록(`allow_credentials=True`, origin 명시 — JWT Authorization 헤더 때문에 `allow_origins=["*"]` 불가) + `test_settings.py`의 필드 허용목록 갱신. 커밋 `250f4e8`. `uv run pytest packages/core/tests/test_settings.py apps/api/tests` 158/158 통과 확인. **배포 시 실제 프론트엔드 도메인으로 `CORS_ALLOWED_ORIGINS` 덮어써야 함(Railway env var) — 현재 기본값은 로컬 전용.**
+- **worker `JSONDecodeError` 근본 원인 규명·수정** (`/gsd-debug` 세션, 아카이브: `.planning/debug/resolved/worker-parse-jsondecodeerror.md`): `worker/db/service.py`의 `_rpc()`가 `raise_for_status()` 직후 무조건 `response.json()`을 호출했다. `index_source_chunk_lexical`/`index_wiki_page_lexical`은 SQL에서 `returns void`로 선언돼 있고(`0011_retrieval.sql:18-58`), PostgREST는 void 함수 호출에 **HTTP 204 No Content(빈 바디)**로 응답한다 — `raise_for_status()`는 204도 2xx라 통과시키므로 `.json()`이 그 자리에서 터졌다. `curl`로 로컬 PostgREST를 직접 호출해 204를 실측하고, `httpx.Response(204, content=b'')`로 정확히 같은 `JSONDecodeError` 문자열을 재현해 메커니즘을 확정했다. 수정: `_rpc()`가 `status_code == 204` 또는 빈 바디를 `.json()` 호출 **전에** 걸러 `None`으로 정규화 (`bf338a8`). 회귀 테스트 2건 추가(`test_service_client.py`), revert-and-reconfirm으로 수정이 실제로 버그를 고쳤음을 실증. `compile.py`도 같은 `_rpc()` 경로로 `index_wiki_page_lexical`을 호출하므로 동일하게 영향받았었다.
+- **UAT 1·2번 실 라이브 검증** (`06-UAT.md`): `.env` 접근 차단이 해소되어(이전 세션의 권한 문제가 이번 세션엔 없었음) `apps/api`(port 8000)+`worker`를 로컬 스택(`SUPABASE_URL=http://127.0.0.1:54421` 등 override, 로컬 CLI 데모 키 사용) 대상으로 실제 기동하고, plain Playwright 스크립트(gstack 아님)로 `dev-test@example.test` 로그인 후 실제 텍스트 소스 등록·Ask 질문을 수행했다.
+  - **테스트 1(인제스트 흐름)**: JobStepper가 업로드→파싱→컴파일→링크 동기화→임베딩 5단계를 실제 잡 타입으로 순서대로 표시. 임베딩 단계가 실제로 dead가 되어 재시도 버튼·에러 배너가 정확히 렌더됨을 확인(아래 EMBEDDING_MODEL 이슈가 원인). 재시도 클릭 → 폴링 재개 → 5단계 전부 성공으로 귀결.
+  - **테스트 2(Ask 이중 인용)**: 실 OpenRouter LLM 스트리밍 답변 + citations 프레임 도착 후 클릭 가능한 숫자 배지 6개 렌더. 6개 마커를 전부 클릭해 source/wiki/source/wiki/source/wiki로 정확히 교차하며 각자 자기 인용만 여는 것을 확인 — D-10 accepted override(마커별 단일 카드)가 실제로 충분함을 실증.
+  - 테스트에 쓴 raw_source/wiki_page/jobs/usage_events는 전부 삭제, 0행 확인. 로컬 서비스(worker/api/dashboard) 전부 종료.
+- **로컬 `.env`에 `EMBEDDING_MODEL`/`EMBEDDING_PROVIDER` 추가** (코드 변경 아님): 임베딩 잡이 OpenRouter에 `model: null`을 보내 400을 받고 있었다 — `worker/settings.py`가 이 두 필드에 의도적으로 코드 기본값을 두지 않기 때문(이 로컬 환경이 이 코드 경로를 처음 실행했을 때만 드러남). `.env.sample`/`docs/ops/openrouter-contract-record.md`에 이미 관측·기록된 값(`baai/bge-m3` / `deepinfra/fp32`)을 `.env`에 추가해 해결. **주의: `.env`는 gitignore 대상이라 이 값은 로컬에만 있다 — 클라우드/Railway worker 서비스 env에도 이 두 키가 있는지 다음 세션에서 확인할 것.**
+- **Phase 6 완료 전환**: `06-UAT.md` 5/5 pass 커밋(`e24b841`) → `gsd_run phase uat-passed` 통과 확인 → `gsd-tools query phase.complete 6` 실행(`d1c4cae`)으로 ROADMAP.md `[x]`, STATE.md `current_phase: 7` 반영. `WINDOWS.md #12`(06-07 위키 뷰어 미검증)를 `gsd-tools windows fixed 12`로 정리(테스트 3이 이미 실측 검증했었음).
+- **`_auto_chain_active: false` 존중**: yolo 모드 기본 동작이면 Phase 6 완료 즉시 `/gsd-discuss-phase 7 --auto`로 자동 진입하지만, 사용자가 이 프로젝트에서 auto-chain을 명시적으로 꺼뒀다(`.planning/config.json`) — 그 설정을 존중해 Phase 7은 시작하지 않고 여기서 멈췄다.
+- **미커밋 상태 정리(사용자 요청 "organize git commits")**: 세션 시작 전부터 쌓여있던 미커밋/untracked 파일들을 조사해 툴링 산출물(`.agents/`, `.pnpm-store/`, `.planning/research/.cache/`)은 `.gitignore`에 추가하고, 실제 문서/설정 산출물(architecture HTML, Phase 4 벤치마크 재실행 기록, UI-review `.gitignore`, GSD config, checklists.json, HANDOFF.md)은 7개의 논리적 커밋으로 분리해 커밋했다(`39c7ebd`~`c39fe51`).
 
 ## 🧪 3. 검증 상태
 
 - **완료된 검증**:
-  - 코드 리뷰(`06-REVIEW.md`/`06-REVIEW-FIX.md`): 6/6 수정, `tsc`/vitest(77/77) 클린
-  - 회귀 게이트: 백엔드 `uv run pytest` 408/408, 대시보드 vitest 77/77
-  - 페이즈 목표 검증(`06-VERIFICATION.md`): 5/5 성공 기준 충족(1건은 D-10 오버라이드), status: **passed**
-  - 보안 감사(`06-SECURITY.md`): STRIDE 위협 25/25 closed, threats_open: 0, status: **verified**
-  - UI 감사(`06-UI-REVIEW.md`): 16/24 → 타이포그래피 BLOCKER 수정 후 라이브 재확인(로그인 화면 `getComputedStyle` weight:600 확인)
-  - UAT(`06-UAT.md`): 3/5 라이브 통과(위키 뷰어 6페이지, 그래프 1000행 캡, RLS 차단 삭제 — 전부 실제 시드 데이터+Playwright로 검증, 시드 데이터는 정리 완료 0행 확인), status: **complete**
-- **미검증 항목**:
-  - UAT 테스트 1(전체 인제스트 흐름)·2(Ask 이중 인용 흐름) — `apps/api`+`worker`가 실 `OPENROUTER_API_KEY`로 떠 있어야 하는데, 이번 세션은 `.env` 읽기가 권한 설정으로 차단되어 있었음(Bash·Read 둘 다 디렉토리 단위 거부). 사용자가 "일단 스킵하고 넘어가자"로 명시적 보류.
-  - `WINDOWS.md` #13(App Router에 `error.tsx`/`not-found.tsx` 전무), #14(`GraphCanvas.tsx` hex 리터럴 8개, CSS 커스텀 프로퍼티 미사용) — UI 감사에서 발견했으나 사용자가 "타이포그래피만 지금 고치자"로 범위를 좁혀 후속 과제로 남김.
-  - `WINDOWS.md` #12(이전 세션부터 남은 항목, 06-07 관련)는 이번 세션 UAT 테스트 3에서 실제로 라이브 검증되어 **사실상 해소**되었으나 WINDOWS 항목 자체는 아직 `status: open`으로 미정리 — 다음 세션에서 `gsd-tools windows fixed 12` 처리 권장.
-  - **[미수정 — 다음 세션 과제, 사용자가 지금은 고치지 말라고 명시] worker의 파싱 단계 실패**: CORS 수정 후 사용자가 실제로 소스 등록까지 진행했으나, worker가 파싱 단계에서 예외로 죽었다. 트레이스백 핵심: `handlers/parse.py:184`의 `run_parse` → `db.index_source_chunk_lexical`(어휘 색인 RPC 호출, `db/service.py:279`) → `db/service.py:755`의 `_rpc()`가 `response.json()`을 호출하는 지점에서 `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` — 즉 RPC 응답 바디가 비어 있거나 JSON이 아님. 원인은 조사하지 않았다(사용자가 지금은 고치지 말고 기록만 하라고 명시적으로 요청, 2026-08-13). 전체 트레이스백은 이 대화 세션 로그에 있음 — 다음 세션에서 `worker/db/service.py`의 `_rpc()`가 호출하는 실제 PostgREST RPC 엔드포인트(어휘 색인 관련, 아마 `index_source_chunk_lexical` 또는 그에 대응하는 SQL 함수)가 로컬 스택에서 실제로 무엇을 응답하는지부터 확인할 것 — 빈 응답 자체가 이례적이라 RPC 함수 존재 여부, 권한(GRANT), 또는 API 응답 상태 코드(200인데 바디가 비었는지, 아니면 에러 상태인데 `_rpc()`가 상태 코드를 안 보고 바로 `.json()`을 호출하는지)부터 볼 것.
+  - worker fix: `apps/worker/tests/test_service_client.py`에 회귀 테스트 2건 추가, 워크스페이스 전체 pytest 410/410 통과
+  - `06-UAT.md`: 5/5 pass (테스트 1·2는 이번 세션 실 라이브 검증, 테스트 3·4·5는 이전 세션 실 라이브 검증)
+  - `gsd_run phase uat-passed 6 --require-verification`: `passed: true`, blockers 없음
+  - `06-VERIFICATION.md`: status `passed` (기존)
+  - `06-SECURITY.md`: STRIDE 25/25 closed (기존)
+  - Phase 6 전환 후 `git status -s` clean 확인
+- **미검증/후속 항목**:
+  - **[신규] 클라우드 worker env에 `EMBEDDING_MODEL`/`EMBEDDING_PROVIDER`가 있는지 미확인** — 로컬만 고쳤다. Railway worker 서비스 env var를 다음 세션에서 점검할 것 (없으면 프로덕션에서도 임베딩 잡이 전부 dead로 간다).
+  - `WINDOWS.md` #13(App Router에 `error.tsx`/`not-found.tsx` 전무), #14(`GraphCanvas.tsx` hex 리터럴 8개) — 여전히 open, 사용자가 후순위로 미룸. 급하지 않으면 Phase 7에서.
+  - Phase 4 HNSW `strict_order` vs `relaxed_order` 실측 비교 (`WINDOWS.md` #10) — 여전히 open, Phase 7 OPS 이월로 이미 문서화됨.
+  - Ask 임베딩 실패(테스트 1에서 발견)의 근본 원인(`EMBEDDING_MODEL`/`PROVIDER` 누락)은 로컬 `.env`로만 고쳤다 — 위 항목과 동일.
 
 ## ⚠️ 4. 주의사항 & 남은 작업 (TODO)
 
-- [ ] **worker 파싱 단계 `JSONDecodeError` 진단·수정** (신규, 최우선) — 위 "미검증 항목"의 상세 트레이스백 참조. UAT 테스트 1(인제스트 흐름)이 이 버그 때문에 끝까지 못 감. CORS 수정(커밋 `250f4e8`)으로 소스 등록 API 호출 자체는 성공했지만 그다음 worker 파싱 단계에서 막힘.
-- [ ] **UAT 1·2번 라이브 테스트** — 위 파싱 버그부터 고친 뒤, `apps/api`+`worker`를 로컬 스택 대상으로 띄우고(명령어는 이번 대화 마지막 부분에 기록됨: `SUPABASE_URL=http://127.0.0.1:54421` 등으로 override, `.env`의 `OPENROUTER_API_KEY`/`LLM_MODEL`만 사용) 드롭존 인제스트 흐름과 Ask 이중 인용 흐름을 클릭스루. 통과하면 `/gsd-verify-work 6` 재실행 → 자동으로 Phase 6 완료 전환됨.
-- [ ] `WINDOWS.md` #12를 `gsd-tools windows fixed 12`로 정리(이번 세션 UAT 테스트 3이 사실상 재현·통과시킴).
-- [ ] (선택) `WINDOWS.md` #13(error/not-found 바운더리), #14(GraphCanvas hex 리터럴) — 사용자가 명시적으로 후순위로 미룸. 급하지 않으면 Phase 7에서.
+- [ ] **클라우드/Railway worker env에 `EMBEDDING_MODEL=baai/bge-m3`, `EMBEDDING_PROVIDER=deepinfra/fp32`가 설정돼 있는지 확인** (최우선 신규 항목) — 로컬 `.env`에만 추가했다.
+- [ ] **Phase 7(Integration and Ops Baseline) 시작** — `.planning/phases/07-*/` 디렉토리도 `CONTEXT.md`도 아직 없다. `/gsd-discuss-phase 7`로 시작.
+- [ ] (선택) `WINDOWS.md` #13·#14 — error/not-found 바운더리, GraphCanvas hex 리터럴. 급하지 않음.
+- [ ] (선택) `WINDOWS.md` #10 — Phase 4 HNSW strict/relaxed order 실측 비교, 대용량 코퍼스 필요(Phase 7 OPS 이월로 이미 문서화됨).
 - **주의사항**:
-  - **`.env` 읽기가 이 세션 권한 설정에서 완전히 차단됨**(Bash `cat`/`grep`도, Read 툴도) — 디렉토리 단위 deny 규칙으로 보임. 다음 세션도 같은 제약일 수 있으니, 라이브 LLM 테스트가 필요하면 사용자가 직접 서비스를 띄우거나 권한 설정을 사전에 조정해둘 것.
-  - **`docs/design-systems/design-tokens.css`는 건드리지 않는다** — Phase 6은 이 토큰 파일의 "사용 계약"만 400/600으로 제한하는 것이지, 파일 자체의 원래 웨이트 값(예: `--font-caption: 500...`)은 그대로 둔다. 이번 세션의 타이포그래피 수정도 컴포넌트별 `fontWeight: 600` 오버라이드로 처리했지 토큰 파일은 안 고쳤다.
-  - **`use_worktrees: false`**라 모든 executor는 메인 워킹트리에서 순차 실행됐다 — 병렬 실행 관련 트러블은 없음.
-  - 이번 세션 중 두 executor가 세션 한도(session limit)로 중단됐다가 재개됨(06-01, 06-07) — 둘 다 커밋된 작업 유실 없이 정상 재개됨. 재개 패턴은 `SendMessage`로 agentId를 지정해 이어감.
-  - 보존할 사용자 변경(기존과 동일): `.planning/config.json`, `checklists.json`은 여전히 세션 시작 전부터 있던 미커밋 상태 — 삭제·revert·무단 커밋하지 않을 것.
+  - **`docs/design-systems/design-tokens.css`는 여전히 건드리지 않는다** — 토큰 파일 자체의 원래 웨이트 값은 그대로, 컴포넌트별 오버라이드로만 처리하는 기존 결정 유지.
+  - **로컬 스택으로 `apps/api`+`worker`+dashboard를 띄우는 절차**(다음에 재현할 때 참고): DB/REST는 `docker exec supabase_db_NexusWiki`/`http://127.0.0.1:54421` (Kong 게이트웨이, `supabase status -o env`로 로컬 데모 키 확인 가능). `apps/api`는 기본 8000 포트(`PORT` env로 override), `apps/dashboard`는 `NEXT_PUBLIC_API_URL`을 8000으로 맞춰야 한다(`.env.local`의 기존 값 `54421`은 stale). Ask 스트리밍을 쓰려면 api/worker 양쪽에 동일한 `QUERY_EMBEDDING_INTERNAL_TOKEN`/`LLM_STREAM_INTERNAL_TOKEN`을 주입해야 worker의 내부 리스너(8081)가 뜬다.
+  - **커밋 정리는 완료됐다** — `git status -s`가 clean이다. 다음 세션에서 또 미커밋 잔여물이 쌓이면 같은 방식(툴링 산출물 vs 실제 문서 산출물 구분)으로 정리할 것.
+  - `dev-test@example.test` 계정 비밀번호는 이번 세션에 GoTrue admin API로 재설정했다(`UatVerify-2026!`) — 로컬 전용, 다음 세션에서 다시 라이브 테스트할 때 재사용 가능.
 
 ## 🚀 5. 다음 세션 재개 안내
 
 다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
 
-> "HANDOFF.md 확인하고, worker 파싱 단계 JSONDecodeError부터 진단해줘. 고친 뒤 apps/api+worker를 로컬 스택으로 띄우고 UAT 1·2번(인제스트/Ask 흐름) 라이브 테스트 이어서 진행해줘. 통과하면 /gsd-verify-work 6으로 Phase 6 완료 전환해줘."
+> "HANDOFF.md 확인하고, 클라우드 worker env에 EMBEDDING_MODEL/EMBEDDING_PROVIDER 설정돼 있는지 확인한 다음 Phase 7(Integration and Ops Baseline)을 /gsd-discuss-phase 7로 시작해줘."
