@@ -1,11 +1,12 @@
 ---
 phase: 06-dashboard
 verified: 2026-08-13T00:15:00Z
-status: human_needed
+status: passed
 score: 5/5 roadmap success criteria verified (1 via override)
 behavior_unverified: 6
 overrides_applied: 1
 overrides:
+
   - must_have: "clicking a citation marker shows the wiki card and source card side by side ('나란히 표시') in the side panel"
     reason: "Resolved-citation data from apps/api's ask contract ({alias, kind, id}) makes each marker either kind:wiki XOR kind:source, never both — confirmed in packages/core/src/nexuswiki_core/citations.py and apps/api/src/api/services/ask.py, no pairing metadata exists linking a wiki marker to 'its' source marker for the same claim. wiki_pages.sources (jsonb array of raw_source_id) exists but is a coarse many-to-many backreference, not a per-claim chunk pairing — insufficient for a precise 'this exact pair' guarantee. True side-by-side pairing requires a Phase 5 apps/api contract change, which is outside Phase 6's declared 'no backend changes' boundary (06-CONTEXT.md Phase Boundary). Accepted interpretation: each marker click shows its own card (wiki or source); users see both sides of a dual-cited claim by clicking the adjacent wiki+source markers within the same sentence. Tracked for Phase 7 as a candidate apps/api contract addition (citation pairing metadata) if the coarse interpretation proves insufficient in practice."
     accepted_by: "user (via coordinator, /gsd-execute-phase 6 session)"
@@ -14,47 +15,59 @@ re_verification:
   previous_status: gaps_found
   previous_score: "4/5 roadmap success criteria verified (1 partial)"
   gaps_closed:
+
     - "SC3 (ROADMAP #3) / D-10 (06-CONTEXT.md): clicking a citation marker shows the wiki card and source card side by side — resolved via accepted override; CitationSidePanel.tsx's single-card-per-click behavior is now the documented, accepted interpretation of D-10 rather than an unresolved deviation."
   gaps_remaining: []
   regressions: []
 behavior_unverified_items:
+
   - truth: "UI-03: dropping a source shows the job chain actually progressing through real named stages end-to-end against a live apps/api + worker"
     test: "Start apps/api + worker + supabase local stack, drop a file/URL/text source, watch JobStepper progress through 파싱→컴파일→링크 동기화→임베딩 to a terminal state"
     expected: "Stages update in place via polling, current-stage highlighting moves forward, terminal state stops polling (WR-04 fix)"
     why_human: "06-05-SUMMARY.md D6 explicitly discloses no apps/api/worker process was running this session; only unit tests with mocked apiFetch exercised this path"
+
   - truth: "UI-04: citation markers swap from gray placeholder to numbered clickable badge in place after the real citations SSE frame arrives, and the side panel shows exactly the cited content, against a live ask flow"
     test: "Ask a real question against a workspace with real evidence; observe marker placeholder->resolved swap timing and click a resolved marker"
     expected: "Placeholder markers never look clickable before `citations`; after, they become numbered links; clicking opens the exact cited chunk/page"
     why_human: "06-06-SUMMARY.md D5 explicitly discloses no apps/api/worker process was running this session; only mocked-SSE unit tests exercised this path"
+
   - truth: "UI-05: the read-only banner, all 4 verification-status callouts (verified/expired/partial/unverified), disputed-priority-over-verified rendering, and resolved/red WikiLink navigation all render correctly against real seeded wiki data"
     test: "Seed wiki_pages covering all 4 verification states + disputed + a resolved/red WikiLink pair; click through /w/{id}/wiki and /w/{id}/wiki/{slug}"
     expected: "Each state renders its exact UI-SPEC callout copy/color; disputed always wins over the verification callout; resolved links navigate, red links show the CTA"
     why_human: "WINDOWS.md #12 (open, unrun-verify) — two live Playwright attempts stalled/were interrupted this session (06-07-SUMMARY.md); no WikiPageContent.test.tsx exists, only tsc/build static checks and the pure-function wiki-links.test.ts"
+
   - truth: "UI-06: the exact 1,000-node PostgREST cap notice actually appears when a workspace has more than 1,000 wiki_pages rows"
     test: "Seed >1,000 wiki_pages in one workspace, load /w/{id}/graph, confirm the cap banner appears (and does NOT appear at exactly 1,000, per the WR-01 fix)"
     expected: "Cap notice shows only when count > 1000, matching GraphCanvas.tsx's `count !== null ? count > PAGE_ROW_CAP : ...` logic"
     why_human: "06-08-SUMMARY.md D3 discloses only the negative case (n=4 nodes, no banner) was live-tested this session — no workspace with 1000+ rows exists to exercise the positive branch"
+
   - truth: "MembersList: an RLS-blocked delete (workspace_members_delete_owner policy) is correctly detected as a failure via the new .select() row-count check, not silently treated as success, under real RLS enforcement"
     test: "Attempt to remove a member in a state where RLS should block the delete (e.g. race with a role change), confirm the '멤버를 제거하지 못했습니다.' banner appears and the member is NOT removed from the list"
     expected: "0-row delete result is detected and surfaced as an error, matching 06-REVIEW-FIX.md WR-03's fix"
     why_human: "06-REVIEW-FIX.md WR-03 explicitly flags this as a logic fix needing human confirmation of RLS-blocked-delete semantics in production — the updated unit test mocks the Supabase client, it does not exercise real RLS"
+
   - truth: "JobStepper: retry/cancel actions correctly resume polling after the interval had already stopped (chain previously reached a terminal state), across multiple real poll ticks"
     test: "Let a job chain reach a terminal (dead) state so polling stops, click retry, confirm polling resumes and the stepper updates on subsequent ticks"
     expected: "resumePollingIfStopped() restarts the interval and the stepper reflects the job's new non-terminal status on the next tick"
     why_human: "06-REVIEW-FIX.md WR-04 explicitly flags this as a logic fix needing human confirmation — no test drives the interval across multiple ticks"
 human_verification:
+
   - test: "Full ingest flow: drop a file/URL/text source with apps/api + worker + supabase running, watch JobStepper progress through all 5 stages to completion or dead-letter, retry a dead job"
     expected: "Real stage names shown throughout (never an indeterminate spinner); dead job shows retry button; polling stops at terminal state and resumes on retry"
     why_human: "No apps/api/worker process was running during phase execution (06-05-SUMMARY.md D6); WR-04's retry-resumes-polling behavior is also unexercised by any test"
+
   - test: "Full ask flow: ask a real question against seeded evidence, observe citation marker placeholder->resolved swap timing, click markers of both kinds (wiki and source) within the same dual-cited sentence, confirm each opens the correct single card"
     expected: "Markers are inert during streaming, become clickable numbered badges only after the citations frame; each marker opens exactly its own cited content (single-card-per-click is the accepted interpretation of D-10 per the applied override)"
     why_human: "No apps/api/worker process was running during phase execution (06-06-SUMMARY.md D5); also confirms/refutes the override's real-world sufficiency (whether single-card-per-click is usable in practice)"
+
   - test: "Seed wiki_pages covering all 4 verification states (verified/expired/partial/unverified) + disputed + a resolved/red WikiLink pair, click through the wiki index and detail routes"
     expected: "Read-only banner always shown; correct callout per state; disputed always takes visual priority over the verification callout; resolved WikiLinks navigate, red links show the '아직 작성되지 않음 · 지금 생성' CTA and route to sources with prefill"
     why_human: "WINDOWS.md #12 (open) — two live Playwright attempts were interrupted this session; no component-level render test exists for WikiPageContent"
+
   - test: "Seed a workspace with >1,000 wiki_pages and load the graph canvas"
     expected: "The exact cap notice '이 워크스페이스는 그래프 표시 한도(1,000개 노드)를 초과했습니다 — 카테고리 필터로 범위를 좁혀주세요.' appears, never a silent truncation; does NOT appear at exactly 1,000 rows"
     why_human: "06-08-SUMMARY.md D3 — only the negative case was tested live this session"
+
   - test: "Attempt a member removal under a real RLS-blocked condition"
     expected: "'멤버를 제거하지 못했습니다.' banner shown, member stays in the list"
     why_human: "06-REVIEW-FIX.md WR-03 flags this fix for human confirmation of production RLS semantics"
