@@ -116,6 +116,7 @@ Not yet defined — run `/gsd-new-milestone` to scope v1.1. Candidate starting p
 - Decide whether `/gsd-spec-phase` (SDD) should be used consistently, given it was only used for Phase 1-2 of v1.0.
 - Evaluate real usage data on the Cytoscape knowledge canvas (kept in v1.0 against research recommendation) before investing further in it.
 - Pricing/billing model — the cost cap and observation infrastructure (OPS-01, OPS-06) exist, but no actual pricing model is defined yet.
+- DOCX ingestion — `ALLOWED_UPLOAD_MIME_TYPES` (`apps/api/src/api/settings.py:60-62`) only accepts `application/pdf`, `text/plain`, `text/markdown`. A real user hit this on first post-deploy test (2026-08-13, `.docx` upload → generic "소스 등록에 실패했습니다" until MIME-rejection UX and CORS were disambiguated). Needs a `.docx` text extractor in `nexuswiki_core.extract` plus the new MIME type added to the allowlist — no migration required, per the `0005:44-45` design note that MIME validation is deliberately application-layer, not schema-layer.
 
 ## Evolution
 
