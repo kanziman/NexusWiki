@@ -1,6 +1,7 @@
 """Real-local-stack ingest-to-retrieval tracer (OPS-02)."""
 
 import pytest
+
 from tests.fixtures.pipeline import PipelineHarness
 
 
