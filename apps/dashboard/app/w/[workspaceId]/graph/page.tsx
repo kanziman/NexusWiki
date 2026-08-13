@@ -1,4 +1,5 @@
 import { GraphCanvas } from "@/components/GraphCanvas";
+import { PageHeader } from "@/components/DashboardPrimitives";
 import { GraphLensFilter } from "@/components/GraphLensFilter";
 
 type GraphPageProps = {
@@ -19,12 +20,29 @@ export default async function GraphPage({
   const activeCategory = category ?? null;
 
   return (
-    <div className="flex flex-col gap-base">
-      <GraphLensFilter
-        workspaceId={workspaceId}
-        activeCategory={activeCategory}
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-xl">
+      <PageHeader
+        title="그래프"
+        description="위키 문서와 개념 사이의 연결을 탐색하세요."
       />
-      <GraphCanvas workspaceId={workspaceId} category={activeCategory} />
+      <section
+        aria-label="그래프 필터"
+        className="rounded-sm border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-base"
+      >
+        <p className="mb-sm text-sm font-medium text-[var(--nw-muted)]">
+          표시할 문서 범위
+        </p>
+        <GraphLensFilter
+          workspaceId={workspaceId}
+          activeCategory={activeCategory}
+        />
+      </section>
+      <section
+        aria-label="지식 그래프"
+        className="border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-base sm:p-lg"
+      >
+        <GraphCanvas workspaceId={workspaceId} category={activeCategory} />
+      </section>
     </div>
   );
 }

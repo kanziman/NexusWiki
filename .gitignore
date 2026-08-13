@@ -34,6 +34,8 @@ dist/
 
 # --- 로컬 툴링 (GSD 런타임, 패키지 매니저 캐시) ---
 .agents/
+.codex/
+.mcp.json
 .worktrees/
 .superpowers/
 .pnpm-store/

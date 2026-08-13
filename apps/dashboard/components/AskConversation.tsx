@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { CitationMarker } from "@/components/CitationMarker";
 import { CitationSidePanel } from "@/components/CitationSidePanel";
+import { PageHeader } from "@/components/DashboardPrimitives";
 import {
   splitTextWithAnchors,
   type AnchorPart,
@@ -254,7 +255,11 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }
 
   return (
-    <div className="flex flex-col gap-lg">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-xl">
+      <PageHeader
+        title="질문하기"
+        description="등록된 원문과 위키에서 근거를 찾아 답합니다."
+      />
       {turns.length === 0 ? (
         <div className="flex flex-col items-center gap-xs py-section text-center">
           <p className="text-ink" style={{ font: "var(--font-display-xl)" }}>

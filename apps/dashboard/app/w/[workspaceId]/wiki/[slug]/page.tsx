@@ -23,15 +23,21 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
  */
 export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
   const { workspaceId, slug } = await params;
+  const normalizedSlug = normalizeRouteSlug(slug);
+
+  if (!normalizedSlug) {
+    return <WikiPageNotFound />;
+  }
+
   const supabase = await createClient();
 
   const { data: page, error } = await supabase
     .from("wiki_pages")
     .select(
-      "id,title,content,verification_status,verified_by,verified_at,expires_at,disputed",
+      "id,title,content,category,verification_status,verified_by,verified_at,expires_at,disputed",
     )
     .eq("workspace_id", workspaceId)
-    .eq("slug", slug)
+    .eq("slug", normalizedSlug)
     .single();
 
   if (error || !page) {
@@ -39,11 +45,7 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
     // 스코프된 조회다 — 남의 워크스페이스 존재 여부를 흘리는 D-12
     // no-enumeration 케이스가 아니라, 그냥 "이 슬러그는 없다"는 같은
     // 테넌트 내부 사실이다. 원문 오류를 노출하지 않고 고정 문구만 보여준다.
-    return (
-      <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
-        {PAGE_NOT_FOUND_HEADING}
-      </p>
-    );
+    return <WikiPageNotFound />;
   }
 
   const { data: links } = await supabase
@@ -60,6 +62,22 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
       workspaceId={workspaceId}
       canVerify={canVerify}
     />
+  );
+}
+
+function normalizeRouteSlug(slug: string): string | null {
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return null;
+  }
+}
+
+function WikiPageNotFound() {
+  return (
+    <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
+      {PAGE_NOT_FOUND_HEADING}
+    </p>
   );
 }
 

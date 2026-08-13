@@ -19,10 +19,7 @@ const CATEGORY_OPTIONS: { value: string; label: string }[] = [
 
 // "전체" 상태는 별도 칩이 아니라 activeCategory === null인 암묵 상태다 —
 // 이미 활성인 칩을 다시 누르면 이 상태로 되돌아간다 (Task 2 <action>).
-export function GraphLensFilter({
-  workspaceId: _workspaceId,
-  activeCategory,
-}: GraphLensFilterProps) {
+export function GraphLensFilter({ activeCategory }: GraphLensFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

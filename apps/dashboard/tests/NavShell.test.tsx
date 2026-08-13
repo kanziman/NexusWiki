@@ -10,6 +10,11 @@ vi.mock("@/components/WorkspaceSwitcher", () => ({
     <button type="button">{workspaces[0]?.name}</button>
   ),
 }));
+vi.mock("@/components/AccountMenu", () => ({
+  AccountMenu: ({ email }: { email: string }) => (
+    <button type="button">{email}</button>
+  ),
+}));
 
 import { NavShell } from "@/components/NavShell";
 
@@ -19,6 +24,7 @@ describe("NavShell", () => {
       <NavShell
         currentWorkspaceId="ws-1"
         workspaces={[{ id: "ws-1", name: "내 워크스페이스" }]}
+        accountEmail="member@example.com"
       />,
     );
 
@@ -37,5 +43,8 @@ describe("NavShell", () => {
     expect(screen.getByRole("link", { name: "설정" })).not.toHaveAttribute(
       "aria-current",
     );
+    expect(
+      screen.getByRole("button", { name: "member@example.com" }),
+    ).toBeInTheDocument();
   });
 });

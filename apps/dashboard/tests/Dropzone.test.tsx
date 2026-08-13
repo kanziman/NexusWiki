@@ -31,15 +31,54 @@ describe("Dropzone", () => {
     expect(screen.getByRole("button", { name: "소스 등록" })).toBeDisabled();
   });
 
-  it("파일 탭 제출은 raw File을 body로 apiFetch를 호출하고 FormData/multipart를 쓰지 않는다", async () => {
+  it("opens the file picker when the visible dropzone is clicked", async () => {
+    const user = userEvent.setup();
+    render(<Dropzone workspaceId="ws-1" />);
+    const input = screen.getByLabelText("파일 선택");
+    const click = vi.spyOn(input, "click");
+
+    await user.click(
+      screen.getByText("파일을 드래그하거나 클릭해서 선택하세요"),
+    );
+
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["Enter", " "])("opens the file picker with %s", (key) => {
+    render(<Dropzone workspaceId="ws-1" />);
+    const input = screen.getByLabelText("파일 선택");
+    const click = vi.spyOn(input, "click");
+    const target = screen.getByText("파일을 드래그하거나 클릭해서 선택하세요");
+
+    fireEvent.keyDown(target, { key });
+
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it("여러 파일을 선택하면 파일명 기반 제목과 대기 상태를 각각 표시한다", () => {
+    render(<Dropzone workspaceId="ws-1" />);
+    const files = [
+      makeFile("IVI 대시보드 요구사항.pdf"),
+      makeFile("notes.txt", "text/plain"),
+    ];
+
+    fireEvent.change(screen.getByLabelText("파일 선택"), {
+      target: { files },
+    });
+
+    expect(screen.getByText("IVI 대시보드 요구사항.pdf")).toBeInTheDocument();
+    expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    expect(screen.getAllByText("대기 중")).toHaveLength(2);
+    expect(screen.queryByLabelText("제목")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "소스 등록" })).toBeEnabled();
+  });
+
+  it("파일 탭 제출은 각 raw File을 body로 apiFetch를 호출하고 FormData/multipart를 쓰지 않는다", async () => {
     apiFetch.mockResolvedValue({ job_id: "job-1", raw_source_id: "src-1" });
     const onIngested = vi.fn();
     render(<Dropzone workspaceId="ws-1" onIngested={onIngested} />);
 
-    fireEvent.change(screen.getByLabelText("제목"), {
-      target: { value: "노트" },
-    });
-    const file = makeFile();
+    const file = makeFile("노트.pdf");
     fireEvent.change(screen.getByLabelText("파일 선택"), {
       target: { files: [file] },
     });
@@ -116,57 +155,34 @@ describe("Dropzone", () => {
     expect(screen.getByRole("button", { name: "소스 등록" })).toBeDisabled();
   });
 
-  it("409 already_ingested면 정확한 배너 문구를 렌더링한다", async () => {
-    apiFetch.mockRejectedValue(
-      new ApiError(409, "already_ingested", { raw_source_id: "src-9" }),
-    );
+  it("혼합 성공·중복·실패 결과를 파일별로 분리해 표시한다", async () => {
+    apiFetch
+      .mockResolvedValueOnce({ job_id: "job-1", raw_source_id: "src-1" })
+      .mockRejectedValueOnce(
+        new ApiError(409, "already_ingested", { raw_source_id: "src-9" }),
+      )
+      .mockRejectedValueOnce(
+        new ApiError(422, "invalid_source", { reason: "unsupported_mime" }),
+      );
     render(<Dropzone workspaceId="ws-1" />);
 
-    fireEvent.change(screen.getByLabelText("제목"), {
-      target: { value: "노트" },
-    });
     fireEvent.change(screen.getByLabelText("파일 선택"), {
-      target: { files: [makeFile()] },
+      target: {
+        files: [
+          makeFile("success.pdf"),
+          makeFile("duplicate.pdf"),
+          makeFile("weird.exe", "application/x-msdownload"),
+        ],
+      },
     });
     fireEvent.click(screen.getByRole("button", { name: "소스 등록" }));
 
-    await screen.findByText("이미 수집됨 — 건너뜀");
-  });
-
-  it("402 budget_exceeded면 정확한 배너 문구를 렌더링한다", async () => {
-    apiFetch.mockRejectedValue(new ApiError(402, "budget_exceeded"));
-    render(<Dropzone workspaceId="ws-1" />);
-
-    fireEvent.change(screen.getByLabelText("제목"), {
-      target: { value: "노트" },
-    });
-    fireEvent.change(screen.getByLabelText("파일 선택"), {
-      target: { files: [makeFile()] },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "소스 등록" }));
-
-    await screen.findByText(
-      "이번 달 워크스페이스 사용량 한도를 초과했습니다. 관리자에게 문의하거나 다음 달까지 기다려주세요.",
-    );
-  });
-
-  it("422 invalid_source(unsupported_mime)면 원본 MIME을 노출하지 않는 일반 안내를 렌더링한다", async () => {
-    apiFetch.mockRejectedValue(
-      new ApiError(422, "invalid_source", { reason: "unsupported_mime" }),
-    );
-    render(<Dropzone workspaceId="ws-1" />);
-
-    fireEvent.change(screen.getByLabelText("제목"), {
-      target: { value: "노트" },
-    });
-    fireEvent.change(screen.getByLabelText("파일 선택"), {
-      target: { files: [makeFile("weird.exe", "application/x-msdownload")] },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "소스 등록" }));
-
-    const message = await screen.findByText(
+    await screen.findByText("등록 완료");
+    expect(screen.getByText("이미 수집됨 — 건너뜀")).toBeInTheDocument();
+    const message = screen.getByText(
       "지원하지 않는 파일 형식입니다. 다른 파일로 다시 시도해주세요.",
     );
     expect(message.textContent).not.toContain("application/x-msdownload");
+    expect(apiFetch).toHaveBeenCalledTimes(3);
   });
 });

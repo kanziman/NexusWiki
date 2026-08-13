@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { RedLinkCta } from "@/components/RedLinkCta";
+import { DetailHeader } from "@/components/DashboardPrimitives";
 import { apiFetch } from "@/lib/api-client";
 import { workspacePath } from "@/lib/workspace-path";
 import { resolveWikiLinks } from "@/lib/wiki-links";
@@ -20,6 +21,7 @@ type WikiPage = {
   id: string;
   title: string;
   content: string;
+  category: string;
   verification_status: string;
   verified_by: string | null;
   verified_at: string | null;
@@ -109,10 +111,25 @@ export function WikiPageContent({
   const isExpired =
     expiresAt !== null && new Date(expiresAt).getTime() < Date.now();
 
-  const wikiLinkParts = resolveWikiLinks(page.content, links);
+  const headings = extractHeadings(page.content);
+  const relatedLinks = [
+    ...new Map(
+      links
+        .filter((link) => link.resolved)
+        .map((link) => [link.target_slug, link]),
+    ).values(),
+  ];
 
   return (
-    <div className="flex flex-col gap-base">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-xl">
+      <DetailHeader
+        libraryHref={`${workspacePath(workspaceId)}/wiki`}
+        libraryLabel="위키 목록"
+        navigationLabel="위키 탐색 경로"
+        breadcrumb={`위키 / ${page.category}`}
+        kind={page.category}
+        title={page.title}
+      />
       {/* 1. 읽기전용 배너 */}
       <p
         className="rounded-md bg-surface-soft px-base py-sm text-ink"
@@ -141,13 +158,6 @@ export function WikiPageContent({
       )}
 
       {/* 4. 페이지 제목 — Display(28px/600), UI-SPEC 2-weight cap 개정 반영 */}
-      <h1
-        className="text-ink"
-        style={{ font: "600 28px/1.43 var(--font-family-base)" }}
-      >
-        {page.title}
-      </h1>
-
       {/* 5. 검증 액션 — editor 이상만(canVerify는 page.tsx가 서버에서 계산해
           내려준다; 이 버튼의 노출 여부는 UX 편의일 뿐, 실제 권한 경계는
           wiki.py의 RLS 기반 UPDATE 정책이다, T-06-21). */}
@@ -174,18 +184,102 @@ export function WikiPageContent({
         </div>
       ) : null}
 
+      {headings.length ? (
+        <nav
+          aria-label="이 문서에서"
+          className="rounded-sm bg-surface-soft p-base"
+        >
+          <p className="text-ink" style={{ font: "var(--font-caption)" }}>
+            이 문서에서
+          </p>
+          <ul className="mt-xs flex flex-wrap gap-x-base gap-y-xs">
+            {headings.map((heading) => (
+              <li key={heading.id}>
+                <a
+                  className="nw-focus-ring text-primary underline"
+                  href={`#${heading.id}`}
+                >
+                  {heading.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+
       {/* 6. 본문 — 전체 컴파일 문서를 자르지 않고 그대로 자연스럽게 흘려보낸다
           ("read the whole page" 표면, UI-SPEC overflow/wiki-page-content). */}
       <div
         className="text-body"
-        style={{ font: "var(--font-body-md)", whiteSpace: "pre-wrap" }}
+        style={{
+          font: "var(--font-body-md)",
+          whiteSpace: "pre-wrap",
+          maxWidth: "72ch",
+        }}
       >
-        {wikiLinkParts.map((part, index) =>
+        <DocumentBody
+          content={page.content}
+          links={links}
+          workspaceId={workspaceId}
+        />
+      </div>
+      {relatedLinks.length ? (
+        <section
+          className="border-t border-hairline pt-lg"
+          aria-labelledby="related-wiki-heading"
+        >
+          <h2
+            id="related-wiki-heading"
+            className="text-ink"
+            style={{ font: "var(--font-title-md)" }}
+          >
+            관련 문서
+          </h2>
+          <ul className="mt-sm flex flex-wrap gap-sm">
+            {relatedLinks.map((link) => (
+              <li key={link.target_slug}>
+                <Link
+                  className="nw-focus-ring text-primary underline"
+                  href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
+                >
+                  {link.target_slug.replace(/-/g, " ")}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function extractHeadings(content: string) {
+  return content.split("\n").flatMap((line, index) => {
+    const match = /^(#{1,3})\s+(.+?)\s*$/.exec(line);
+    return match ? [{ id: `section-${index}`, title: match[2] }] : [];
+  });
+}
+
+function DocumentBody({
+  content,
+  links,
+  workspaceId,
+}: {
+  content: string;
+  links: { target_slug: string; resolved: boolean }[];
+  workspaceId: string;
+}) {
+  return (
+    <>
+      {content.split("\n").map((line, index) => {
+        const heading = /^(#{1,3})\s+(.+?)\s*$/.exec(line);
+        const parts = resolveWikiLinks(heading ? heading[2] : line, links);
+        const children = parts.map((part, partIndex) =>
           part.type === "text" ? (
-            <span key={index}>{part.value}</span>
+            <Fragment key={partIndex}>{part.value}</Fragment>
           ) : part.resolved ? (
             <Link
-              key={index}
+              key={partIndex}
               href={`${workspacePath(workspaceId)}/wiki/${part.slug}`}
               className="text-primary underline"
             >
@@ -193,15 +287,39 @@ export function WikiPageContent({
             </Link>
           ) : (
             <RedLinkCta
-              key={index}
+              key={partIndex}
               title={part.title}
               slug={part.slug}
               workspaceId={workspaceId}
             />
           ),
-        )}
-      </div>
-    </div>
+        );
+        if (heading) {
+          const Tag =
+            heading[1].length === 1
+              ? "h2"
+              : heading[1].length === 2
+                ? "h3"
+                : "h4";
+          return (
+            <Tag
+              key={index}
+              id={`section-${index}`}
+              className="scroll-mt-xl pt-base text-ink"
+              style={{ font: "var(--font-title-md)" }}
+            >
+              {children}
+            </Tag>
+          );
+        }
+        return (
+          <Fragment key={index}>
+            {children}
+            {index < content.split("\n").length - 1 ? "\n" : null}
+          </Fragment>
+        );
+      })}
+    </>
   );
 }
 

@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { AccountMenu } from "@/components/AccountMenu";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type NavShellProps = {
   workspaces: { id: string; name: string }[];
   currentWorkspaceId: string;
+  accountEmail: string;
 };
 
 const ROUTES: { segment: string; label: string }[] = [
@@ -23,7 +25,11 @@ const ROUTES: { segment: string; label: string }[] = [
 // 드롭다운(D-03, WorkspaceSwitcher 재사용) + Phase 6 나머지 표면(소스/질문하기/
 // 위키/그래프/설정)으로의 실제 내비게이션. 활성 라우트는 usePathname()으로
 // 판정한다 — currentWorkspaceId prop과 마찬가지로 URL이 유일한 진실 소스다.
-export function NavShell({ workspaces, currentWorkspaceId }: NavShellProps) {
+export function NavShell({
+  workspaces,
+  currentWorkspaceId,
+  accountEmail,
+}: NavShellProps) {
   const pathname = usePathname();
   const base = workspacePath(currentWorkspaceId);
 
@@ -62,6 +68,7 @@ export function NavShell({ workspaces, currentWorkspaceId }: NavShellProps) {
             );
           })}
         </nav>
+        <AccountMenu email={accountEmail} />
       </div>
     </header>
   );

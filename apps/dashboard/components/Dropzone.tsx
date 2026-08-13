@@ -2,7 +2,7 @@
 
 import * as Tabs from "@radix-ui/react-tabs";
 import { Upload } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api-client";
 
@@ -20,6 +20,16 @@ export type DropzoneProps = {
 type IngestResponse = { job_id: string; raw_source_id: string };
 
 type TabValue = "file" | "url" | "text";
+type FileUploadStatus =
+  "queued" | "uploading" | "duplicate" | "processing" | "completed" | "failed";
+
+type FileUploadItem = {
+  id: string;
+  file: File;
+  title: string;
+  status: FileUploadStatus;
+  errorMessage?: string;
+};
 
 // UI-SPEC Copywriting Contract(Dropzone(UI-03)) + D-07 — 문구를 한 글자도 바꾸지 않는다.
 const ALREADY_INGESTED_MESSAGE = "이미 수집됨 — 건너뜀";
@@ -38,6 +48,34 @@ const GENERIC_ERROR_MESSAGE =
 // 이 사전 검사는 요청을 아예 보내지 않기 위한 UX 편의일 뿐이다 (T-03-* SSRF는
 // 워커 접속 시점 판정, 여기서는 재현하지 않는다).
 const FETCHABLE_SCHEMES = new Set(["http:", "https:"]);
+const FILE_UPLOAD_CONCURRENCY = 3;
+
+const FILE_STATUS_LABEL: Record<FileUploadStatus, string> = {
+  queued: "대기 중",
+  uploading: "업로드 중",
+  duplicate: "이미 수집됨 — 건너뜀",
+  processing: "처리 중",
+  completed: "등록 완료",
+  failed: "등록 실패",
+};
+
+function deriveFileTitle(filename: string): string {
+  const extensionStart = filename.lastIndexOf(".");
+  if (extensionStart <= 0) return filename;
+  return filename.slice(0, extensionStart);
+}
+
+function createFileUploadItems(
+  files: FileList | File[],
+  nextId: () => number,
+): FileUploadItem[] {
+  return Array.from(files).map((file) => ({
+    id: `${file.name}-${file.size}-${file.lastModified}-${nextId()}`,
+    file,
+    title: deriveFileTitle(file.name),
+    status: "queued",
+  }));
+}
 
 function mapIngestError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -81,15 +119,15 @@ export function Dropzone({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const fileTitleId = useId();
   const fileInputId = useId();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const nextFileId = useRef(0);
   const urlInputId = useId();
   const urlTitleId = useId();
   const textTitleId = useId();
   const textInputId = useId();
 
-  const [fileTitle, setFileTitle] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileUploadItems, setFileUploadItems] = useState<FileUploadItem[]>([]);
 
   const [url, setUrl] = useState("");
   const [urlTitle, setUrlTitle] = useState("");
@@ -102,28 +140,77 @@ export function Dropzone({
     setErrorMessage(null);
   }
 
+  function addFiles(files: FileList | File[]) {
+    setFileUploadItems((items) => [
+      ...items,
+      ...createFileUploadItems(files, () => nextFileId.current++),
+    ]);
+    setErrorMessage(null);
+  }
+
+  function updateFileUploadItem(
+    id: string,
+    update: Partial<Omit<FileUploadItem, "id" | "file">>,
+  ) {
+    setFileUploadItems((items) =>
+      items.map((item) => (item.id === id ? { ...item, ...update } : item)),
+    );
+  }
+
+  async function registerFile(item: FileUploadItem) {
+    updateFileUploadItem(item.id, {
+      status: "uploading",
+      errorMessage: undefined,
+    });
+
+    try {
+      const params = new URLSearchParams({
+        filename: item.file.name,
+        title: item.title,
+      });
+      const result = await apiFetch<IngestResponse>(
+        `/workspaces/${workspaceId}/sources/file?${params.toString()}`,
+        { method: "POST", body: item.file, contentType: item.file.type },
+      );
+      updateFileUploadItem(item.id, { status: "processing" });
+      onIngested?.(result.job_id, result.raw_source_id);
+      updateFileUploadItem(item.id, { status: "completed" });
+    } catch (error) {
+      const errorMessage = mapIngestError(error);
+      updateFileUploadItem(item.id, {
+        status:
+          error instanceof ApiError &&
+          error.status === 409 &&
+          error.detail === "already_ingested"
+            ? "duplicate"
+            : "failed",
+        errorMessage,
+      });
+    }
+  }
+
   async function handleFileSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedFile || fileTitle.trim().length === 0 || submitting) return;
+    const queuedItems = fileUploadItems.filter(
+      (item) => item.status === "queued",
+    );
+    if (queuedItems.length === 0 || submitting) return;
 
     setSubmitting(true);
     setErrorMessage(null);
 
     try {
-      // 파일 자신의 바이트를 그대로 본문으로 보낸다 — FormData로 감싸지 않는다.
-      const params = new URLSearchParams({
-        filename: selectedFile.name,
-        title: fileTitle,
-      });
-      const result = await apiFetch<IngestResponse>(
-        `/workspaces/${workspaceId}/sources/file?${params.toString()}`,
-        { method: "POST", body: selectedFile, contentType: selectedFile.type },
-      );
-      onIngested?.(result.job_id, result.raw_source_id);
-      setSelectedFile(null);
-      setFileTitle("");
-    } catch (error) {
-      setErrorMessage(mapIngestError(error));
+      for (
+        let index = 0;
+        index < queuedItems.length;
+        index += FILE_UPLOAD_CONCURRENCY
+      ) {
+        await Promise.all(
+          queuedItems
+            .slice(index, index + FILE_UPLOAD_CONCURRENCY)
+            .map((item) => registerFile(item)),
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +290,9 @@ export function Dropzone({
     }
   }
 
-  const canSubmitFile = selectedFile !== null && fileTitle.trim().length > 0;
+  const canSubmitFile = fileUploadItems.some(
+    (item) => item.status === "queued",
+  );
   const canSubmitUrl = url.trim().length > 0 && !submitting;
   const canSubmitText =
     textTitle.trim().length > 0 && text.trim().length > 0 && !submitting;
@@ -240,31 +329,27 @@ export function Dropzone({
 
         <Tabs.Content value="file" className="flex flex-col gap-base pt-base">
           <form onSubmit={handleFileSubmit} className="flex flex-col gap-base">
-            <div className="flex flex-col gap-xs">
-              <label
-                htmlFor={fileTitleId}
-                className="text-ink"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
-              >
-                제목
-              </label>
-              <input
-                id={fileTitleId}
-                value={fileTitle}
-                onChange={(event) => setFileTitle(event.target.value)}
-                className="nw-input h-12 px-base text-[var(--nw-ink)]"
-                style={{ font: "var(--font-body-md)" }}
-              />
-            </div>
-
-            <div
+            <label
+              htmlFor={fileInputId}
+              tabIndex={0}
+              onClick={(event) => {
+                if (event.target === fileInputRef.current) return;
+                event.preventDefault();
+                fileInputRef.current?.click();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                fileInputRef.current?.click();
+              }}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
-                const file = event.dataTransfer.files?.[0];
-                if (file) setSelectedFile(file);
+                if (event.dataTransfer.files.length > 0) {
+                  addFiles(event.dataTransfer.files);
+                }
               }}
-              className="flex flex-col items-center gap-xs border border-dashed border-[var(--nw-rule-strong)] bg-[var(--nw-canvas)] p-xl text-center"
+              className="nw-focus-ring flex cursor-pointer flex-col items-center gap-xs border border-dashed border-[var(--nw-rule-strong)] bg-[var(--nw-canvas)] p-xl text-center"
             >
               <Upload
                 size={24}
@@ -275,22 +360,48 @@ export function Dropzone({
                 className="text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               >
-                {selectedFile
-                  ? selectedFile.name
-                  : "파일을 드래그하거나 클릭해서 선택하세요"}
+                파일을 드래그하거나 클릭해서 선택하세요
               </span>
-              <label htmlFor={fileInputId} className="sr-only">
-                파일 선택
-              </label>
               <input
                 id={fileInputId}
+                ref={fileInputRef}
                 type="file"
-                onChange={(event) =>
-                  setSelectedFile(event.target.files?.[0] ?? null)
-                }
+                multiple
+                aria-label="파일 선택"
+                onChange={(event) => {
+                  if (event.target.files) addFiles(event.target.files);
+                  event.target.value = "";
+                }}
                 className="sr-only"
               />
-            </div>
+            </label>
+
+            {fileUploadItems.length > 0 ? (
+              <ul
+                aria-label="선택한 파일"
+                className="flex flex-col border-y border-[var(--nw-rule)]"
+              >
+                {fileUploadItems.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-base border-b border-[var(--nw-rule)] py-sm last:border-b-0"
+                  >
+                    <span
+                      className="min-w-0 truncate text-[var(--nw-ink)]"
+                      style={{ font: "var(--font-body-md)" }}
+                    >
+                      {item.file.name}
+                    </span>
+                    <span
+                      className="shrink-0 text-[var(--nw-muted)]"
+                      style={{ font: "var(--font-caption)", fontWeight: 600 }}
+                    >
+                      {item.errorMessage ?? FILE_STATUS_LABEL[item.status]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
 
             {/* UI-SPEC Primary Visual Anchor(Dropzone, pre-submit): 이 버튼만
                 accent(--color-primary)를 쓴다. */}

@@ -4,6 +4,12 @@ import { File, FileText, Link2 } from "lucide-react";
 import { useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
+import {
+  DetailHeader,
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+} from "@/components/DashboardPrimitives";
 import { JobStepper } from "@/components/JobStepper";
 import { createClient } from "@/lib/supabase/client";
 
@@ -68,6 +74,7 @@ export function SourcesList({
   initialTab,
 }: SourcesListProps) {
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Dropzone.onIngested는 (jobId, rawSourceId) 두 인자만 준다(Task 1의 고정된
   // 시그니처) — title/source_type/created_at은 여기서 다시 조회해야 한다.
@@ -90,17 +97,10 @@ export function SourcesList({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-xxl">
-      <section className="max-w-2xl">
-        <p className="mb-sm text-xs font-semibold tracking-[0.12em] text-[var(--nw-muted)]">
-          KNOWLEDGE LIBRARY
-        </p>
-        <h1 className="text-4xl font-semibold tracking-[-0.055em] text-[var(--nw-ink)] sm:text-5xl">
-          Sources
-        </h1>
-        <p className="mt-sm text-base leading-7 text-[var(--nw-body)]">
-          생각의 근거가 되는 자료를 모으고, 연결하고, 다시 찾으세요.
-        </p>
-      </section>
+      <PageHeader
+        title="Sources"
+        description="생각의 근거가 되는 자료를 모으고, 연결하고, 다시 찾으세요."
+      />
 
       <Dropzone
         workspaceId={workspaceId}
@@ -110,22 +110,12 @@ export function SourcesList({
       />
 
       {sources.length === 0 ? (
-        <div className="flex flex-col items-center gap-xs border-y border-[var(--nw-rule)] py-section text-center">
-          <p
-            className="text-[var(--nw-ink)]"
-            style={{ font: "var(--font-title-md)" }}
-          >
-            {EMPTY_HEADING}
-          </p>
-          <p
-            className="text-[var(--nw-muted)]"
-            style={{ font: "var(--font-body-md)" }}
-          >
-            {EMPTY_BODY}
-          </p>
-        </div>
+        <EmptyState title={EMPTY_HEADING} detail={EMPTY_BODY} />
       ) : (
-        <ul className="flex flex-col border-y border-[var(--nw-rule)]">
+        <ul
+          id="sources-library"
+          className="flex flex-col border-y border-[var(--nw-rule)]"
+        >
           {sources.map((source) => {
             const Icon = SOURCE_ICONS[source.source_type] ?? File;
             return (
@@ -148,14 +138,56 @@ export function SourcesList({
                       {source.title}
                     </span>
                   </div>
-                  <span
-                    className="shrink-0 text-[var(--nw-muted)]"
-                    style={{ font: "var(--font-caption)", fontWeight: 600 }}
-                  >
-                    {formatDate(source.created_at)}
-                  </span>
+                  <div className="flex items-center gap-sm">
+                    <StatusBadge>{formatDate(source.created_at)}</StatusBadge>
+                    <button
+                      type="button"
+                      className="nw-focus-ring rounded-sm border border-[var(--nw-rule-strong)] px-sm py-xs text-sm text-[var(--nw-ink)]"
+                      aria-expanded={selectedId === source.id}
+                      aria-controls={`source-detail-${source.id}`}
+                      onClick={() =>
+                        setSelectedId((current) =>
+                          current === source.id ? null : source.id,
+                        )
+                      }
+                    >
+                      {selectedId === source.id ? "접기" : "상세 보기"}
+                    </button>
+                  </div>
                 </div>
                 <JobStepper workspaceId={workspaceId} rawSourceId={source.id} />
+                {selectedId === source.id ? (
+                  <section
+                    id={`source-detail-${source.id}`}
+                    className="border-t border-[var(--nw-rule)] pt-lg"
+                  >
+                    <DetailHeader
+                      libraryHref="#sources-library"
+                      libraryLabel="자료 목록"
+                      kind={source.source_type}
+                      title={source.title}
+                      meta={
+                        <StatusBadge>
+                          {formatDate(source.created_at)}
+                        </StatusBadge>
+                      }
+                    />
+                    <dl className="mt-lg grid gap-sm text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="text-[var(--nw-muted)]">유형</dt>
+                        <dd className="mt-xs text-[var(--nw-ink)]">
+                          {source.source_type}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[var(--nw-muted)]">등록일</dt>
+                        <dd className="mt-xs text-[var(--nw-ink)]">
+                          {formatDate(source.created_at)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+                ) : null}
               </li>
             );
           })}
