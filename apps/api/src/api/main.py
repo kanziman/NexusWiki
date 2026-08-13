@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api import errors
 from api.routers.ask import router as ask_router
@@ -50,6 +51,18 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.settings = settings
     app.state.git_sha = resolve_git_sha() if git_sha is None else git_sha
+    # ⚠️ Authorization 헤더(요청자 JWT)를 브라우저가 보내려면 allow_credentials=True와
+    # 명시적 origin 목록이 둘 다 필요하다 — allow_origins=["*"]는 credentials와
+    # 동시에 쓸 수 없다(브라우저가 거부). CORS_ALLOWED_ORIGINS 참조.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            origin.strip() for origin in settings.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     errors.register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workspaces_router)

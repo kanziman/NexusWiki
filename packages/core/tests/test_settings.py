@@ -50,6 +50,11 @@ NON_SECRET_API_FIELDS = frozenset(
         "LLM_STREAM_INTERNAL_URL",
         "LLM_STREAM_INTERNAL_TOKEN",
         "LLM_STREAM_TIMEOUT_SECONDS",
+        # (2026-08-13, UAT 06: CORS_ALLOWED_ORIGINS — 콤마 구분 허용 origin 문자열.
+        #  Phase 6 대시보드가 apps/api의 첫 브라우저 호출자가 되면서 CORS 미들웨어
+        #  자체가 없었음이 라이브 테스트로 드러났다. 자격증명이 아니라 배포별 도메인
+        #  목록이라는 운영 토글이다.)
+        "CORS_ALLOWED_ORIGINS",
     }
 )
 
