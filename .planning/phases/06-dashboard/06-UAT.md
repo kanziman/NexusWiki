@@ -3,7 +3,7 @@ status: complete
 phase: 06-dashboard
 source: [06-VERIFICATION.md]
 started: 2026-08-13T00:20:00+09:00
-updated: 2026-08-13T01:10:00+09:00
+updated: 2026-08-13T10:35:00+09:00
 ---
 
 ## Current Test
@@ -14,8 +14,26 @@ updated: 2026-08-13T01:10:00+09:00
 
 ### 1. Full ingest flow — dropzone to job-chain completion
 expected: 실제 단계 이름으로 진행 표시, dead job 재시도 버튼, 종료 상태에서 폴링 정지·재시도 시 재개
-result: skipped
-reason: "User chose to skip for now (2026-08-13). apps/api + worker require OPENROUTER_API_KEY from .env; this session's permission settings denied reading it (Bash and Read tool both refused at the directory level), and the mid-session settings-adjustment attempt didn't take effect before the user opted to move on. Not a code defect — a live-environment prerequisite deferred by user choice."
+result: pass
+source: automated
+evidence: |
+  이전 세션의 .env 접근 차단이 해소되어(worker-parse-jsondecodeerror 디버그 세션에서 확인)
+  apps/api(port 8000)+worker를 로컬 스택 대상으로 실제 기동하고, plain Playwright 스크립트로
+  dev-test@example.test 로그인 후 dev-test-workspace에서 텍스트 소스를 실제로 등록했다.
+  JobStepper가 업로드→파싱→컴파일→링크 동기화→임베딩 5단계를 실제 잡 타입으로 순서대로
+  표시했고(스크린샷으로 진행 중 "컴파일" 단계가 강조 표시됨을 확인), 임베딩 단계가 실제로
+  dead 상태가 되어 "임베딩 단계에서 실패했습니다 — ... 재시도를 눌러 다시 시도하세요." 배너와
+  재시도 버튼이 렌더됨을 확인했다(폴링은 4단계 모두 종결 상태에 도달하자 자동 정지 — WR-04).
+  재시도 버튼을 클릭하자 폴링이 재개되고 임베딩 단계가 성공으로 전환, 5단계 전부 초록 체크로
+  귀결되는 것을 확인했다. 테스트에 쓴 raw_source/wiki_page/jobs/usage_events는 전부 삭제,
+  0행 확인.
+  ⚠️ 실제 발견된 문제(코드 결함 아님): 임베딩 단계가 처음에 dead로 간 원인은
+  `.env`에 `EMBEDDING_MODEL`/`EMBEDDING_PROVIDER`가 없어 OpenRouter에 `model: null`을
+  보내 400을 받은 것 — `worker/settings.py`가 의도적으로 코드 기본값을 두지 않는 필드라
+  이 프로젝트의 로컬 개발 환경이 이 코드 경로를 처음 실행했을 때만 드러나는 설정 누락이었다.
+  `.env.sample`에 이미 관측·기록된 값(`docs/ops/openrouter-contract-record.md`)을
+  `.env`에 추가해(EMBEDDING_MODEL=baai/bge-m3, EMBEDDING_PROVIDER=deepinfra/fp32) 해결.
+  코드는 변경하지 않았다.
 
 ### 2. Full ask flow — dual-citation markers
 expected: |
@@ -25,8 +43,20 @@ expected: |
   exactly its own cited content (single-card-per-click is the accepted interpretation of
   D-10 per the applied override — this test also confirms/refutes whether that's sufficient
   in practice).
-result: skipped
-reason: "Same .env blocker as test 1 (deferred by user choice, 2026-08-13) — apps/api's /ask endpoint needs OPENROUTER_API_KEY. Also would have been the real-world sufficiency check for the D-10 accepted override."
+result: pass
+source: automated
+evidence: |
+  Test 1이 만든 위키 페이지("NexusWiki 인제스트 흐름 UAT 검증")를 근거로, 실 로그인 세션에서
+  Ask UI에 실제 질문("...무엇을 확인하기 위해 등록되었나요?")을 제출했다. apps/api의 /ask
+  SSE 스트림이 실제 OpenRouter LLM 호출(LLM_STREAM_INTERNAL_URL/TOKEN 경유 worker 내부
+  리스너)로 답변을 스트리밍했고, citations 프레임 도착 후 답변 본문에 클릭 가능한 숫자
+  배지 6개가 렌더됐다. 6개 마커를 전부 순서대로 클릭해 CitationSidePanel이 매번 실제
+  콘텐츠로 열리는 것을 확인: source/wiki/source/wiki/source/wiki로 정확히 교차하며, 각각
+  "원문 인용"/"위키 인용" 헤더와 실제 청크·위키 본문이 표시됨(위키 카드에는 "위키
+  페이지에서 전체 보기" 링크까지 확인). D-10 accepted override(마커별 단일 카드, 인접
+  마커 클릭으로 양쪽 확인)가 실제로 충분히 작동함을 확인 — 같은 문장의 wiki/source 마커가
+  각자 정확히 자신의 인용만 보여주고 섞이지 않았다. 테스트 데이터는 test 1과 함께 정리,
+  0행 확인.
 
 ### 3. Wiki viewer — all verification states + red links
 expected: |
@@ -95,10 +125,10 @@ evidence: |
 ## Summary
 
 total: 5
-passed: 3
+passed: 5
 issues: 0
 pending: 0
-skipped: 2
+skipped: 0
 blocked: 0
 
 ## Gaps
@@ -109,6 +139,15 @@ blocked: 0
   Fixed in commit `1a11a1d`.
 - **GraphCanvas.tsx edge-query URL-length failure** (test 4): broke the graph canvas entirely
   near the 1000-node cap. Fixed in commit `613e5bc`.
+- **worker `_rpc()` didn't handle PostgREST 204 No Content** (test 1, found in the preceding
+  `/gsd-debug` session): `returns void` lexical-index RPCs crashed the parse handler with
+  `JSONDecodeError`. Fixed in commit `bf338a8` (separate debug session, resolved at
+  `.planning/debug/resolved/worker-parse-jsondecodeerror.md`).
+- **Local `.env` missing `EMBEDDING_MODEL`/`EMBEDDING_PROVIDER`** (test 1): not a code defect —
+  worker/settings.py intentionally has no code default for these two fields, and this local
+  dev environment had never exercised the embed job's live path before. Added the values
+  already verified and recorded in `.env.sample` / `docs/ops/openrouter-contract-record.md`.
 
-Both fixes verified: `tsc --noEmit` clean, 77/77 vitest passing, and live Playwright re-run
-confirming the fix in the browser.
+All fixes verified: `tsc --noEmit` clean, 77/77 vitest passing (dashboard fixes), 410/410
+pytest passing (worker fix), and live Playwright re-runs confirming each fix in the browser
+against the real local stack.
