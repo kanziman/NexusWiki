@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusWiki 데이터베이스 및 5-Way 검색 아키텍처 심층 해설서</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-card: #111827;
+      --bg-card-hover: #1f2937;
+      --bg-code: #030712;
+      --border-color: #1f2937;
+      --border-accent: #374151;
+      
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      
+      --accent-cyan: #38bdf8;
+      --accent-purple: #c084fc;
+      --accent-green: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+
+      --font-sans: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.7;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar Table of Contents */
+    nav.toc-sidebar {
+      width: 300px;
+      background-color: #060911;
+      border-right: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 2rem 1.25rem;
+      flex-shrink: 0;
+    }
+
+    nav.toc-sidebar h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-cyan);
+      margin-bottom: 1.25rem;
+      font-weight: 700;
+    }
+
+    nav.toc-sidebar ul {
+      list-style: none;
+    }
+
+    nav.toc-sidebar li {
+      margin-bottom: 0.6rem;
+    }
+
+    nav.toc-sidebar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 400;
+      display: block;
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    nav.toc-sidebar a:hover {
+      color: var(--text-main);
+      background-color: rgba(56, 189, 248, 0.1);
+      transform: translateX(4px);
+    }
+
+    nav.toc-sidebar a.active {
+      color: var(--accent-cyan);
+      background-color: rgba(56, 189, 248, 0.15);
+      font-weight: 600;
+    }
+
+    /* Main Container */
+    main.content {
+      flex: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 3rem 2.5rem;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      background: rgba(192, 132, 252, 0.12);
+      border: 1px solid rgba(192, 132, 252, 0.3);
+      color: var(--accent-purple);
+      border-radius: 9999px;
+      font-size: 0.825rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+
+    h1.doc-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.025em;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .doc-meta {
+      display: flex;
+      gap: 1.5rem;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    /* Typography */
+    h2.section-heading {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 3.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      letter-spacing: -0.015em;
+    }
+
+    h2.section-heading::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 1.5rem;
+      background: var(--accent-cyan);
+      border-radius: 2px;
+    }
+
+    h3.sub-heading {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    p {
+      margin-bottom: 1.25rem;
+      color: #d1d5db;
+    }
+
+    strong {
+      color: var(--text-main);
+    }
+
+    /* Callout Box */
+    .callout {
+      background-color: var(--bg-card);
+      border-left: 4px solid var(--accent-cyan);
+      border-radius: 0 12px 12px 0;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+      position: relative;
+    }
+
+    .callout.warning {
+      border-left-color: var(--accent-amber);
+      background-color: rgba(251, 191, 36, 0.05);
+    }
+
+    .callout.important {
+      border-left-color: var(--accent-purple);
+      background-color: rgba(192, 132, 252, 0.05);
+    }
+
+    .callout-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .callout.warning .callout-title { color: var(--accent-amber); }
+    .callout.important .callout-title { color: var(--accent-purple); }
+    .callout.default .callout-title { color: var(--accent-cyan); }
+
+    /* Code Blocks */
+    pre, code {
+      font-family: var(--font-mono);
+    }
+
+    pre {
+      background-color: var(--bg-code);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      color: #e5e7eb;
+    }
+
+    code:not(pre code) {
+      background-color: rgba(55, 65, 81, 0.5);
+      color: var(--accent-cyan);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.875em;
+    }
+
+    /* HTML/CSS Diagrams */
+    .diagram-container {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 2rem;
+      margin: 2rem 0;
+    }
+
+    .diagram-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    /* 5-Way Channels Flow Grid */
+    .channels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .channel-card {
+      background: var(--bg-main);
+      border: 1px solid var(--border-accent);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: all 0.3s ease;
+    }
+
+    .channel-card:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+    }
+
+    .channel-num {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: var(--accent-cyan);
+      color: var(--bg-main);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      font-weight: 800;
+      font-size: 0.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .channel-name {
+      font-weight: 700;
+      color: var(--text-main);
+      font-size: 1rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .channel-tech {
+      font-size: 0.8rem;
+      color: var(--accent-purple);
+      font-family: var(--font-mono);
+      margin-bottom: 0.6rem;
+    }
+
+    .channel-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Bigram Flow Graphic */
+    .flow-step-box {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: center;
+      margin: 1.5rem 0;
+    }
+
+    .flow-node {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 0.85rem 1.5rem;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    .flow-node strong {
+      color: var(--accent-cyan);
+    }
+
+    .flow-arrow {
+      color: var(--accent-purple);
+      font-weight: 900;
+      font-size: 1.2rem;
+    }
+
+    /* Quiz Section */
+    .quiz-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.75rem;
+      margin-bottom: 2rem;
+    }
+
+    .quiz-question {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 1.25rem;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .quiz-option {
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-accent);
+      border-radius: 8px;
+      padding: 0.85rem 1.15rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+
+    .quiz-option:hover {
+      border-color: var(--accent-cyan);
+      color: var(--text-main);
+      background-color: rgba(56, 189, 248, 0.05);
+    }
+
+    .quiz-option.correct {
+      background-color: rgba(52, 211, 153, 0.15) !important;
+      border-color: var(--accent-green) !important;
+      color: var(--accent-green) !important;
+      font-weight: 600;
+    }
+
+    .quiz-option.incorrect {
+      background-color: rgba(251, 113, 133, 0.15) !important;
+      border-color: var(--accent-rose) !important;
+      color: var(--accent-rose) !important;
+    }
+
+    .quiz-feedback {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      line-height: 1.6;
+    }
+
+    .quiz-feedback.show {
+      display: block;
+    }
+
+    .quiz-feedback.correct-bg {
+      background-color: rgba(52, 211, 153, 0.08);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      color: #a7f3d0;
+    }
+
+    .quiz-feedback.incorrect-bg {
+      background-color: rgba(251, 113, 133, 0.08);
+      border: 1px solid rgba(251, 113, 133, 0.3);
+      color: #fecdd3;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+      nav.toc-sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+      }
+      main.content {
+        padding: 2rem 1.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOC Sidebar -->
+  <nav class="toc-sidebar">
+    <h2>목차 (Table of Contents)</h2>
+    <ul>
+      <li><a href="#background">1. Background (배경 지식)</a></li>
+      <li><a href="#background-deep">&nbsp;&nbsp;• 초심자를 위한 기초 아키텍처</a></li>
+      <li><a href="#background-narrow">&nbsp;&nbsp;• NexusWiki의 핵심 과제</a></li>
+      <li><a href="#intuition">2. Intuition (직관적 이해)</a></li>
+      <li><a href="#intuition-5way">&nbsp;&nbsp;• 5-Way 검색 시스템이란?</a></li>
+      <li><a href="#intuition-bigram">&nbsp;&nbsp;• Bigram 어휘 검색의 원리</a></li>
+      <li><a href="#intuition-rls">&nbsp;&nbsp;• RLS 재귀 차단 매커니즘</a></li>
+      <li><a href="#code">3. Code Walkthrough (스키마 코드 분석)</a></li>
+      <li><a href="#code-0001">&nbsp;&nbsp;• 0001: 코어 스키마 & RLS 기초</a></li>
+      <li><a href="#code-0002">&nbsp;&nbsp;• 0002: 검색 스키마 & pgvector</a></li>
+      <li><a href="#code-0003">&nbsp;&nbsp;• 0003: 백엔드 잡 큐 (Skip Locked)</a></li>
+      <li><a href="#code-0004">&nbsp;&nbsp;• 0004: 테넌트 격리 RLS 정책</a></li>
+      <li><a href="#quiz">4. Quiz (검증 퀴즈)</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="content">
+    
+    <div class="header-badge">⚡ Martin Kleppmann Style Technical Guide</div>
+    <h1 class="doc-title">NexusWiki 데이터베이스 & 5-Way 하이브리드 검색 아키텍처 해설서</h1>
+    
+    <div class="doc-meta">
+      <span>작성일: 2026-08-01</span>
+      <span>대상: 백엔드 & 엔지니어링 팀</span>
+      <span>범위: Postgres, RLS, pgvector, Bigram FTS</span>
+    </div>
+
+    <!-- 1. Background -->
+    <section id="background">
+      <h2 class="section-heading">1. Background (배경 지식)</h2>
+      
+      <div id="background-deep">
+        <h3 class="sub-heading">초심자를 위한 시스템 개요: Living Wiki SaaS란?</h3>
+        <p>
+          <strong>NexusWiki</strong>는 단순한 문서 저장소가 아닙니다. 사용자가 업로드한 수많은 PDF, 텍스트, 아티클 등의 원문 소스(Raw Sources)를 수집하여, AI(LLM)가 이를 지속적으로 요약·정리·연결하는 <strong>'살아있는 지식 위키(Living Wiki)'</strong> SaaS입니다.
+        </p>
+        <p>
+          이러한 지식 위키 시스템을 구축할 때 가장 중요한 엔지니어링 과제는 두 가지입니다:
+        </p>
+        <ol style="margin-left: 1.5rem; margin-bottom: 1.25rem; color: #d1d5db;">
+          <li><strong>이중 인용(Dual Citation)</strong>: AI가 답변을 생성할 때, 자신이 만든 "위키 문서"뿐만 아니라 사용자가 처음 올렸던 "원문 청크"의 위치(문단, 문자 좌표)까지 정확히 가리켜야 합니다.</li>
+          <li><strong>멀티테넌시(Multi-tenancy) 격리</strong>: 여러 팀이 하나의 데이터베이스를 공유하므로, 팀 A의 직원이 절대로 팀 B의 지식이나 원문 청크를 조회하지 못하도록 DB 수준에서 강력히 차단해야 합니다.</li>
+        </ol>
+      </div>
+
+      <div id="background-narrow">
+        <h3 class="sub-heading">NexusWiki가 직면한 3가지 핵심 기술 한계와 해결책</h3>
+        
+        <p><strong>① Neo4j 그래프 DB의 배제와 Postgres `wiki_links` 선택</strong></p>
+        <p>
+          위키 문서 간의 백링크(Backlink) 구조를 표현하기 위해 당초 Graph DB(Neo4j) 도입이 검토되었습니다. 하지만 분석 결과 Neo4j 기본 티어에는 GDS 그래프 알고리즘이 포함되어 있지 않고, 위키 문서 수가 $10^3 \sim 10^4$ 규모일 때는 그래프 순회 이점이 크지 않았습니다. 무엇보다 팀 모드에서 Neo4j는 **행 단위 보안(RLS)을 지원하지 않아** 애플리케이션 코드가 테넌트 격리를 전담해야 하는 보안 위험이 있었습니다.
+          따라서 Postgres 테이블(`wiki_links`)과 **재귀적 공통 테이블 식(Recursive CTE)**을 활용하여 Graph DB 없이 완벽한 N-hop 문서 순회를 구현했습니다.
+        </p>
+
+        <p><strong>② 한국어 전문 검색(FTS)과 Bigram 앱 레이어 토크나이저</strong></p>
+        <p>
+          PostgreSQL의 기본 FTS 함수(`to_tsvector`)는 공백 및 띄어쓰기를 기준으로 텍스트를 나눕니다. 영어에서는 잘 동작하지만, 조사와 접미사가 결합하는 교착어인 한국어에서는 `"검색기능을"`이라는 단어를 통째로 인덱싱하여 사용자가 `"검색"`으로 찾았을 때 검색에 실패합니다.
+          Supabase 클라우드는 커스텀 형태소 분석기(pg_bigm, pgroonga)를 제공하지 않으므로, 백엔드 앱에서 문자열을 **2글자씩 슬라이딩 윈도우로 쪼개는 Bigram 토크나이저**를 거쳐 `tsvector`에 저장하는 방식을 채택했습니다.
+        </p>
+      </div>
+
+      <div class="callout default">
+        <div class="callout-title">📌 설계 근거: 왜 Bigram을 DB 생성 컬럼이 아닌 앱에서 채우는가?</div>
+        Postgres의 생성 컬럼(`GENERATED ALWAYS AS ... STORED`)은 DB 내부 SQL 함수만 호출할 수 있습니다. DB 내부 파서는 한국어를 공백 단위로만 쪼개므로, 백엔드(FastAPI)에서 미리 2글자 음절 단위로 잘라낸 Bigram 문자열을 생성한 후 `search_tsv` 일반 컬럼에 저장해야만 한글 키워드 부분 일치 검색이 보장됩니다.
+      </div>
+    </section>
+
+    <!-- 2. Intuition -->
+    <section id="intuition">
+      <h2 class="section-heading">2. Intuition (직관적 이해와 핵심 설계)</h2>
+      
+      <div id="intuition-5way">
+        <h3 class="sub-heading">5-Way 하이브리드 검색 채널</h3>
+        <p>
+          NexusWiki는 사용자의 질문에 대해 단 한 가지 검색 방식만 사용하지 않습니다. 오탐을 줄이고 환각(Hallucination) 없는 인용을 제공하기 위해 **5가지 서로 다른 채널**의 결과를 결합합니다.
+        </p>
+
+        <div class="diagram-container">
+          <div class="diagram-title">NexusWiki 5-Way Hybrid Search Architecture</div>
+          <div class="channels-grid">
+            
+            <div class="channel-card">
+              <div class="channel-num">1</div>
+              <div class="channel-name">위키 벡터 유사도</div>
+              <div class="channel-tech">wiki_embeddings (HNSW)</div>
+              <div class="channel-desc">의미 기반 검색. 질문과 가장 유사한 맥락의 위키 요약 청크를 탐색합니다.</div>
+            </div>
+
+            <div class="channel-card">
+              <div class="channel-num">2</div>
+              <div class="channel-name">원문 청크 벡터 유사도</div>
+              <div class="channel-tech">source_chunks (HNSW)</div>
+              <div class="channel-desc">원문 세부 인용용. 사용자가 업로드한 원본 문서 문단 검색.</div>
+            </div>
+
+            <div class="channel-card">
+              <div class="channel-num">3</div>
+              <div class="channel-name">위키 Bigram 어휘 검색</div>
+              <div class="channel-tech">wiki_pages (GIN tsvector)</div>
+              <div class="channel-desc">고유명사, 프로젝트명, 고유 신조어 정확 매칭.</div>
+            </div>
+
+            <div class="channel-card">
+              <div class="channel-num">4</div>
+              <div class="channel-name">원문 Bigram 어휘 검색</div>
+              <div class="channel-tech">source_chunks (GIN tsvector)</div>
+              <div class="channel-desc">원문에 포함된 전문 용어 키워드 직치 검색.</div>
+            </div>
+
+            <div class="channel-card" style="grid-column: 1 / -1;">
+              <div class="channel-num">5</div>
+              <div class="channel-name">N-Hop 그래프 연관 문서 탐색</div>
+              <div class="channel-tech">wiki_links (Recursive CTE)</div>
+              <div class="channel-desc">매칭된 위키 문서에서 출발하여 [[wiki:target_slug]] 링크로 연결된 주변 지식 노드를 순회 확장합니다.</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div id="intuition-bigram">
+        <h3 class="sub-heading">Bigram 2글자 음절 분할 작동 방식</h3>
+        <p>
+          "한국어 검색기능"이라는 원문이 입력되었을 때 백엔드 앱과 DB가 이를 가공하는 흐름입니다:
+        </p>
+
+        <div class="diagram-container">
+          <div class="flow-step-box">
+            <div class="flow-node">원문 입력: <strong>"한국어 검색기능"</strong></div>
+            <div class="flow-arrow">↓ 백엔드 파이썬 토크나이저 (2글자 슬라이딩)</div>
+            <div class="flow-node">Bigram 토큰 추출: <code>"한국 국어 어검 검색 색기 기능"</code></div>
+            <div class="flow-arrow">↓ DB INSERT (`to_tsvector('simple', ...)` 적용)</div>
+            <div class="flow-node"><code>search_tsv</code> 컬럼에 GIN 인덱스 색인 완료</div>
+            <div class="flow-arrow">↓ 검색 실행 (`phraseto_tsquery('simple', '검색')`)</div>
+            <div class="flow-node">키워드 <strong>'검색'</strong> 토큰이 정확하게 매칭되어 결과 반환!</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="intuition-rls">
+        <h3 class="sub-heading">RLS 무한 재귀(Infinite Recursion) 차단 매커니즘</h3>
+        <p>
+          Supabase에서 멀티테넌트 권한을 검증할 때, `workspace_members` 테이블에 대한 RLS 정책 안에서 "이 사용자가 멤버인가?" 확인하기 위해 `workspace_members`를 다시 `SELECT`하면 Postgres는 **무한 재귀 에러(`42P17`)**로 쿼리를 중단시킵니다.
+        </p>
+
+        <div class="callout warning">
+          <div class="callout-title">⚠️ SECURITY DEFINER 헬퍼 함수의 역할</div>
+          NexusWiki는 <code>is_workspace_member(ws_id)</code> 함수를 <code>SECURITY DEFINER</code>로 생성하여, 쿼리가 실행될 때 소유자(postgres) 권한으로 전환되도록 합니다. 이를 통해 RLS 평가 고리를 끊어내고 $O(1)$ 속도로 테넌트 권한을 검증합니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Code Walkthrough -->
+    <section id="code">
+      <h2 class="section-heading">3. Code Walkthrough (마이그레이션 스키마 분석)</h2>
+
+      <div id="code-0001">
+        <h3 class="sub-heading">0001: 코어 스키마 & RLS 선행 차단 (0001_core_schema.sql)</h3>
+        <p>
+          테이블을 만들자마자 정책(Policy)이 없는 상태로 RLS를 먼저 활성화합니다. 정책이 0개인 RLS는 <strong>'전면 거부(Deny-by-default)'</strong>이므로, 스키마가 마이그레이션되는 중간 과정에 데이터가 외부로 노출되는 보완 창을 완전히 제거합니다.
+        </p>
+
+<pre><code>-- 1. 워크스페이스 테이블 (owner_id 포함)
+create table public.workspaces (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null check (char_length(btrim(name)) between 1 and 100),
+  kind       text not null default 'team' check (kind in ('personal', 'team')),
+  owner_id   uuid not null references auth.users (id) on delete restrict,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- 2. 워크스페이스 생성 시 소유자를 자동으로 owner 멤버에 등록하는 트리거
+create or replace function public.add_owner_as_member()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.workspace_members (workspace_id, user_id, role)
+  values (new.id, new.owner_id, 'owner')
+  on conflict (workspace_id, user_id) do update set role = 'owner';
+  return new;
+end;
+$$;</code></pre>
+      </div>
+
+      <div id="code-0002">
+        <h3 class="sub-heading">0002: 검색 스키마 & pgvector HNSW 인덱스 (0002_search_schema.sql)</h3>
+        <p>
+          원문 청크(`source_chunks`), 위키 임베딩(`wiki_embeddings`), 백링크 그래프(`wiki_links`) 스키마를 정의합니다.
+        </p>
+
+<pre><code>-- pgvector 확장 켜기
+create extension if not exists vector with schema extensions;
+
+-- 원문 청크 테이블 (원문 + 위키 이중 인용의 근거)
+create table public.source_chunks (
+  id            uuid primary key default gen_random_uuid(),
+  raw_source_id uuid not null,
+  workspace_id  uuid not null,
+  chunk_index   int not null check (chunk_index >= 0),
+  content       text not null,
+  char_start    int not null check (char_start >= 0),
+  char_end      int not null,
+  embedding     extensions.vector(1536), -- OpenAI text-embedding-3-small
+  search_tsv    tsvector,                -- 앱이 입력하는 Bigram tsvector
+  tsv_tokenizer_version smallint,
+  created_at    timestamptz not null default now(),
+  
+  constraint source_chunks_char_range_check check (char_end > char_start),
+  constraint source_chunks_raw_source_fkey
+    foreign key (raw_source_id, workspace_id)
+    references public.raw_sources (id, workspace_id) on delete cascade
+);
+
+-- pgvector HNSW 코사인 유사도 인덱스 생성
+create index source_chunks_embedding_idx
+  on public.source_chunks using hnsw (embedding extensions.vector_cosine_ops);
+
+-- Bigram 어휘 검색 GIN 인덱스 생성
+create index source_chunks_search_tsv_idx
+  on public.source_chunks using gin (search_tsv);</code></pre>
+      </div>
+
+      <div id="code-0003">
+        <h3 class="sub-heading">0003: 비동기 작업 큐 (0003_jobs.sql)</h3>
+        <p>
+          외부 인프라(Redis/RabbitMQ) 없이 Postgres 단일 DB 안에서 안전한 워커 폴링 큐를 구축합니다.
+        </p>
+
+<pre><code>-- FOR UPDATE SKIP LOCKED 기반 분산 작업 획득 함수
+create or replace function public.dequeue_job(worker_id text)
+returns setof public.jobs language plpgsql as $$
+begin
+  return query
+  update public.jobs
+  set status = 'running',
+      locked_at = now(),
+      locked_by = worker_id,
+      attempts = attempts + 1,
+      updated_at = now()
+  where id = (
+    select id from public.jobs
+    where status = 'queued'
+    order by created_at asc
+    for update skip locked
+    limit 1
+  )
+  returning *;
+end;
+$$;</code></pre>
+      </div>
+
+      <div id="code-0004">
+        <h3 class="sub-heading">0004: 테넌트 격리 RLS 정책 (0004_rls_policies.sql)</h3>
+        <p>
+          `SECURITY DEFINER` 헬퍼 함수를 사용하여 재귀 없이 사용자의 워크스페이스 역할(`owner` > `editor` > `viewer`)에 맞게 조회를 제한합니다.
+        </p>
+
+<pre><code>-- SECURITY DEFINER로 무한 재귀를 막는 헬퍼 함수
+create or replace function public.is_workspace_member(ws_id uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from public.workspace_members m
+    where m.workspace_id = ws_id
+      and m.user_id = (select auth.uid())
+  );
+$$;
+
+-- source_chunks 테이블 RLS 정책: 워크스페이스 멤버만 SELECT 가능
+create policy source_chunks_select_policy on public.source_chunks
+  for select to authenticated
+  using (public.is_workspace_member(workspace_id));</code></pre>
+      </div>
+    </section>
+
+    <!-- 4. Quiz -->
+    <section id="quiz">
+      <h2 class="section-heading">4. Quiz (아키텍처 자가 검증 퀴즈)</h2>
+      <p>아래 5가지 퀴즈를 풀어보며 NexusWiki의 핵심 설계 원리를 정확히 이해했는지 점검해 보세요.</p>
+
+      <!-- Quiz 1 -->
+      <div class="quiz-card" id="q1">
+        <div class="quiz-question">Q1. NexusWiki에서 `search_tsv` 컬럼을 DB 생성 컬럼(`GENERATED ALWAYS AS`)이 아니라 앱이 채우는 일반 컬럼으로 만든 이유는 무엇인가요?</div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="checkAnswer('q1', 0, false)">A) 생성 컬럼으로 지정하면 GIN 인덱스를 걸 수 없기 때문에</button>
+          <button class="quiz-option" onclick="checkAnswer('q1', 1, true)">B) DB 내부 기본 to_tsvector는 한국어를 공백 단위로만 쪼개어 조사/복합어 검색이 무용해지기 때문에</button>
+          <button class="quiz-option" onclick="checkAnswer('q1', 2, false)">C) pgvector 확장과 tsvector 생성 컬럼 간에 충돌이 발생하기 때문에</button>
+          <button class="quiz-option" onclick="checkAnswer('q1', 3, false)">D) 생성 컬럼을 사용하면 RLS 정책이 동작하지 않기 때문에</button>
+        </div>
+        <div class="quiz-feedback" id="q1-fb"></div>
+      </div>
+
+      <!-- Quiz 2 -->
+      <div class="quiz-card" id="q2">
+        <div class="quiz-question">Q2. Supabase RLS 정책에서 `is_workspace_member()` 함수에 `SECURITY DEFINER`를 반드시 붙여야 하는 이유는?</div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="checkAnswer('q2', 0, false)">A) 쿼리 실행 속도를 10배 이상 빠르고 쾌적하게 만들기 위해</button>
+          <button class="quiz-option" onclick="checkAnswer('q2', 1, false)">B) anon(비로그인) 사용자에게도 데이터를 공개하기 위해</button>
+          <button class="quiz-option" onclick="checkAnswer('q2', 2, true)">C) workspace_members 테이블 조회 중 자기 자신의 RLS 정책을 다시 호출해 발생하는 무한 재귀(42P17)를 끊기 위해</button>
+          <button class="quiz-option" onclick="checkAnswer('q2', 3, false)">D) 워크스페이스 소유자만 삭제 권한을 갖도록 강제하기 위해</button>
+        </div>
+        <div class="quiz-feedback" id="q2-fb"></div>
+      </div>
+
+      <!-- Quiz 3 -->
+      <div class="quiz-card" id="q3">
+        <div class="quiz-question">Q3. Neo4j 대신 PostgreSQL `wiki_links` + Recursive CTE 구조를 선택한 배경으로 맞지 않는 것은?</div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="checkAnswer('q3', 0, false)">A) 위키 10^3~10^4 규모에서는 Postgres 조인/CTE 순회 성능으로도 충분하기 때문</button>
+          <button class="quiz-option" onclick="checkAnswer('q3', 1, false)">B) Neo4j는 RLS가 없어 팀 격리를 앱 코드가 전담해야 하는 보안 부담이 크기 때문</button>
+          <button class="quiz-option" onclick="checkAnswer('q3', 2, false)">C) Neo4j Aura 기본 티어에는 GDS 그래프 알고리즘이 제공되지 않기 때문</button>
+          <button class="quiz-option" onclick="checkAnswer('q3', 3, true)">D) PostgreSQL에서는 그래프 백링크 구조를 저장하는 것이 기술적으로 불가능하기 때문</button>
+        </div>
+        <div class="quiz-feedback" id="q3-fb"></div>
+      </div>
+
+      <!-- Quiz 4 -->
+      <div class="quiz-card" id="q4">
+        <div class="quiz-question">Q4. 백엔드 워커(Worker)가 `service_role` 키로 DB에 접근할 때 발생할 수 있는 가장 위험한 보안 문제는?</div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="checkAnswer('q4', 0, true)">A) service_role은 RLS를 우회하므로, 워커 코드에서 workspace_id 필터를 빠뜨리면 다른 테넌트 데이터가 유출된다</button>
+          <button class="quiz-option" onclick="checkAnswer('q4', 1, false)">B) service_role 키로는 HNSW 벡터 인덱스를 검색할 수 없다</button>
+          <button class="quiz-option" onclick="checkAnswer('q4', 2, false)">C) service_role을 사용하면 잡 큐의 SKIP LOCKED가 동작하지 않는다</button>
+          <button class="quiz-option" onclick="checkAnswer('q4', 3, false)">D) service_role은 INSERT 쿼리를 실행할 권한이 없다</button>
+        </div>
+        <div class="quiz-feedback" id="q4-fb"></div>
+      </div>
+
+      <!-- Quiz 5 -->
+      <div class="quiz-card" id="q5">
+        <div class="quiz-question">Q5. `wiki_links` 테이블에서 링크 대상 위키(`to_wiki_id`)가 삭제되었을 때 DB가 처리하는 방식은?</div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="checkAnswer('q5', 0, false)">A) CASCADE 설정에 의해 해당 wiki_links 행도 즉시 완전 삭제된다</button>
+          <button class="quiz-option" onclick="checkAnswer('q5', 1, true)">B) ON DELETE SET NULL에 의해 to_wiki_id가 NULL이 되며 생성 컬럼(resolved=false)에 의해 자동으로 미해결(red link) 상태로 바뀐다</button>
+          <button class="quiz-option" onclick="checkAnswer('q5', 2, false)">C) 외래키 제약조건에 의해 위키 문서 삭제 명령 자체가 거부(RESTRICT)된다</button>
+          <button class="quiz-option" onclick="checkAnswer('q5', 3, false)">D) target_slug가 자동으로 빈 문자열("")로 초기화된다</button>
+        </div>
+        <div class="quiz-feedback" id="q5-fb"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script>
+    const feedbackData = {
+      q1: {
+        correct: "정답입니다! PostgreSQL 기본 to_tsvector는 한국어를 단순 공백으로 잘라내므로 조사나 복합어 매칭이 불가능합니다. 백엔드에서 2글자 음절(Bigram) 토크나이징을 거친 텍스트를 일반 컬럼에 저장해야 키워드 검색이 정확하게 작동합니다.",
+        incorrect: "오답입니다. 정답은 B입니다. Postgres 기본 파서는 한국어를 공백으로만 구분하므로, 백엔드 앱에서 Bigram으로 가공하여 일반 컬럼에 넣어주어야 제대로 된 어휘 검색이 가능해집니다."
+      },
+      q2: {
+        correct: "정답입니다! workspace_members 테이블 정책에서 자기 자신을 다시 SELECT 하면 무한 루프(42P17)가 발생합니다. SECURITY DEFINER는 소유자 권한으로 RLS를 우회하여 재귀 고리를 끊어줍니다.",
+        incorrect: "오답입니다. 정답은 C입니다. RLS 정책이 정책 대상 테이블을 다시 조회할 때 발생하는 무한 재귀 에러를 막기 위해 SECURITY DEFINER 헬퍼 함수가 필수적입니다."
+      },
+      q3: {
+        correct: "정답입니다! D는 거짓입니다. Postgres에서도 복합 외래키, wiki_links 테이블, 그리고 Recursive CTE를 활용하면 완벽하게 N-hop 그래프 탐색을 수행할 수 있습니다.",
+        incorrect: "오답입니다. 정답은 D입니다. Postgres는 Recursive CTE 구문을 통해 그래프 순회를 아주 훌륭하게 처리할 수 있습니다."
+      },
+      q4: {
+        correct: "정답입니다! service_role 키는 RLS(Row Level Security)를 완전히 우회(BYPASSRLS)하므로, 워커 코드 개발 시 명시적으로 workspace_id = $1 조건절을 넣어주는 것이 필수적입니다.",
+        incorrect: "오답입니다. 정답은 A입니다. service_role은 RLS를 무력화하므로 워커 코드에서 테넌트 ID 필터링을 누락하지 않도록 주의해야 합니다."
+      },
+      q5: {
+        correct: "정답입니다! target_slug는 보존된 채 to_wiki_id만 NULL로 변경되어 red link(미해결 상태)로 돌아가며, 추후 동일한 slug의 위키가 다시 생성되면 연결을 재해소할 수 있습니다.",
+        incorrect: "오답입니다. 정답은 B입니다. 도착 문서가 삭제되어도 링크 기록(target_slug)은 유실되지 않고 red link로 전환되도록 복합 FK와 ON DELETE SET NULL이 설계되어 있습니다."
+      }
+    };
+
+    function checkAnswer(questionId, optionIndex, isCorrect) {
+      const card = document.getElementById(questionId);
+      const options = card.querySelectorAll('.quiz-option');
+      const feedback = document.getElementById(questionId + '-fb');
+
+      options.forEach((opt, idx) => {
+        opt.disabled = true;
+        if (idx === optionIndex) {
+          opt.classList.add(isCorrect ? 'correct' : 'incorrect');
+        }
+      });
+
+      feedback.classList.add('show');
+      if (isCorrect) {
+        feedback.classList.add('correct-bg');
+        feedback.textContent = '🎉 ' + feedbackData[questionId].correct;
+      } else {
+        feedback.classList.add('incorrect-bg');
+        feedback.textContent = '❌ ' + feedbackData[questionId].incorrect;
+      }
+    }
+
+    // TOC Active State Scrolling
+    window.addEventListener('scroll', () => {
+      const sections = document.querySelectorAll('section');
+      const navLinks = document.querySelectorAll('nav.toc-sidebar a');
+      
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop - 100;
+        if (pageYOffset >= sectionTop) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href').includes(current)) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

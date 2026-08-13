@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusWiki — DB 접근 구조</title>
+<style>
+  :root {
+    --bg: #1a1a1a;
+    --card: #242424;
+    --border: #333;
+    --text: #e0e0e0;
+    --muted: #9a9a9a;
+    --accent: #cc785c;
+    --green: #7fb069;
+    --red: #d16666;
+    --blue: #6c9bd1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Noto Sans KR", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 32px 20px 80px;
+    line-height: 1.75;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .wrap { width: 100%; max-width: 1100px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 32px; }
+  h1 { color: var(--accent); font-weight: 300; font-size: 2rem; margin: 0 0 8px; }
+  .sub { color: var(--muted); font-size: .95rem; }
+  h2 {
+    color: var(--accent); font-weight: 400; font-size: 1.35rem;
+    margin: 48px 0 4px; padding-top: 24px; border-top: 1px solid var(--border);
+  }
+  h2 .num { color: var(--muted); font-size: .95rem; margin-right: 10px; }
+  h3 { font-size: 1.05rem; font-weight: 600; margin: 28px 0 8px; color: #f0f0f0; }
+  p { margin: 12px 0; }
+  .lead { color: var(--muted); margin-top: 4px; margin-bottom: 20px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px; margin: 20px 0; box-shadow: 0 4px 6px rgba(0,0,0,.3);
+    overflow-x: auto;
+  }
+  .mermaid { width: 100%; display: flex; justify-content: center; }
+  code {
+    background: #2e2e2e; padding: 2px 6px; border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .87em;
+    color: #e8b89b;
+  }
+  pre {
+    background: #1e1e1e; border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto; font-size: .85rem; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: var(--text); }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; }
+  th { background: #2a2a2a; color: var(--accent); font-weight: 500; }
+  td.yes { color: var(--green); }
+  td.no  { color: var(--red); }
+  .badge {
+    display: inline-block; font-size: .72rem; padding: 2px 9px; border-radius: 999px;
+    margin-left: 8px; vertical-align: middle; font-weight: 600; letter-spacing: .02em;
+  }
+  .built   { background: rgba(127,176,105,.15); color: var(--green); border: 1px solid rgba(127,176,105,.4); }
+  .planned { background: rgba(108,155,209,.13); color: var(--blue);  border: 1px solid rgba(108,155,209,.35); }
+  .warn {
+    border-left: 3px solid var(--accent); background: rgba(204,120,92,.07);
+    padding: 14px 18px; margin: 20px 0; border-radius: 0 6px 6px 0;
+  }
+  .warn strong { color: var(--accent); }
+  .danger { border-left-color: var(--red); background: rgba(209,102,102,.07); }
+  .danger strong { color: var(--red); }
+  ul { padding-left: 22px; }
+  li { margin: 7px 0; }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: "■"; margin-right: 6px; }
+  .k-anon   { color: var(--red); }
+  .k-auth   { color: var(--green); }
+  .k-svc    { color: var(--accent); }
+  footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+           color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>NexusWiki — DB 접근 구조</h1>
+  <div class="sub">
+    누가 어떤 자격으로 DB에 접근하고, 질문 하나가 어떤 경로로 답변이 되는가.
+    <br>기준: 마이그레이션 <code>0001</code>~<code>0006</code> (2026-08-01)
+  </div>
+  <div class="legend">
+    <span class="k-auth">구현 완료 — DB 레이어</span>
+    <span class="k-svc">설계 확정 — 앱 레이어(Phase 2) 미구현</span>
+  </div>
+</header>
+
+<p class="lead">
+  이 프로젝트의 핵심은 <strong>"원문 + 위키 이중 출처"</strong>입니다.
+  답변 한 줄마다 컴파일된 위키 근거와 원본 문서의 해당 위치를 함께 제시합니다.
+  그걸 가능하게 하려고 DB가 <strong>5개 검색 채널</strong>을 갖고 있고,
+  팀 단위 격리를 코드가 아니라 <strong>DB가 강제</strong>합니다.
+</p>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">01</span>세 개의 역할 — 누가 어떤 자격으로 붙는가</h2>
+<p class="lead">
+  DB에 접근하는 주체는 셋뿐입니다. 이 구분이 보안의 전부라서 가장 먼저 봐야 합니다.
+</p>
+
+<div class="card">
+<pre class="mermaid">
+graph LR
+    subgraph CLIENT["클라이언트"]
+        WEB["웹 프론트엔드"]
+        GUEST["로그인 안 한 방문자"]
+    end
+
+    subgraph SERVER["서버"]
+        API["FastAPI<br/>사용자 요청 처리"]
+        WORKER["Worker<br/>파싱·임베딩·LLM 컴파일"]
+    end
+
+    subgraph PG["Postgres (Supabase)"]
+        RLS{"RLS 정책<br/>검사"}
+        DATA[("9개 테이블")]
+    end
+
+    GUEST -->|"anon 키"| RLS
+    WEB -->|"로그인 JWT"| API
+    API -->|"요청자 JWT 그대로 전달<br/>authenticated"| RLS
+    WORKER -->|"service_role 키"| DATA
+
+    RLS -->|"정책 통과분만"| DATA
+    RLS -.->|"anon: 정책 0개 = 전면 거부"| X["결과 없음"]
+
+    style GUEST fill:#3a2020,stroke:#d16666
+    style X fill:#3a2020,stroke:#d16666
+    style WORKER fill:#3a2b20,stroke:#cc785c
+    style RLS fill:#203a26,stroke:#7fb069
+    style DATA fill:#242424,stroke:#666
+</pre>
+</div>
+
+<table>
+  <thead>
+    <tr><th style="width:130px">역할</th><th>쓰는 주체</th><th>RLS</th><th>볼 수 있는 것</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="k-anon">anon</code></td>
+      <td>로그인하지 않은 요청</td>
+      <td class="no">적용 (정책 0개)</td>
+      <td class="no">아무것도 없음. 모든 정책이 <code>to authenticated</code>라 anon에는 매칭되는 정책이 하나도 없고, 정책 없는 RLS는 전면 거부입니다</td>
+    </tr>
+    <tr>
+      <td><code class="k-auth">authenticated</code></td>
+      <td>사용자 요청 경로 전부<br>(FastAPI가 요청자 JWT를 그대로 사용)</td>
+      <td class="yes">적용</td>
+      <td>자기가 멤버인 워크스페이스의 데이터 + 전역 프롬프트 템플릿</td>
+    </tr>
+    <tr>
+      <td><code class="k-svc">service_role</code></td>
+      <td>워커, 마이그레이션</td>
+      <td class="no">BYPASSRLS — 우회</td>
+      <td class="no">전부. DB가 막아주지 않습니다</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="warn danger">
+  <strong>이 구조의 유일한 약점.</strong>
+  <code>service_role</code>은 RLS를 완전히 우회합니다. 워커 코드가 <code>workspace_id</code> 필터를
+  빠뜨리면 남의 워크스페이스 데이터를 읽고 씁니다.
+  그래서 <code>0002</code>에서 <code>(id, workspace_id)</code> 복합 FK를 걸어
+  <em>적어도 쓰기</em>는 부모와 다른 워크스페이스면 DB가 거부하게 만들어 뒀습니다.
+  읽기는 여전히 코드의 책임입니다 → <code>P4-SEC-01</code>에서 검증.
+</div>
+
+<div class="warn">
+  <strong>앱 코드에서 가장 중요한 한 가지.</strong>
+  Supabase 클라이언트를 <code>user_client(jwt)</code> / <code>service_client()</code>
+  <strong>두 개로 분리</strong>하고, 사용자 요청 경로에서는 절대 후자를 쓰지 마세요.
+  한 번이라도 섞이면 이 격리 전체가 무의미해집니다. (<code>P0-INIT-02</code>)
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">02</span>읽기 경로 — 질문 하나가 답변이 되기까지</h2>
+<p class="lead">
+  이 프로젝트의 심장입니다. 하나의 질문이 <strong>5개 채널</strong>로 동시에 DB를 때리고,
+  그 결과가 합쳐져 LLM에 들어가고, 답변에는 위키와 원문 양쪽 인용이 달려 나옵니다.
+</p>
+
+<div class="card">
+<pre class="mermaid">
+graph TD
+    Q["사용자 질문<br/>'배포 절차가 어떻게 되나요?'"]
+
+    Q --> PREP["질의 전처리"]
+    PREP --> BG["bigram 토크나이즈<br/>'배포절차' → 배포 포절 절차"]
+    PREP --> EMB["질문 임베딩<br/>text-embedding-3-small (1536)"]
+
+    EMB --> C1["채널 1 · 위키 의미검색<br/>wiki_embeddings<br/>HNSW cosine"]
+    EMB --> C2["채널 2 · 원문 의미검색<br/>source_chunks<br/>HNSW cosine"]
+    BG  --> C3["채널 3 · 위키 어휘검색<br/>wiki_pages.search_tsv<br/>GIN"]
+    BG  --> C4["채널 4 · 원문 어휘검색<br/>source_chunks.search_tsv<br/>GIN"]
+
+    C1 --> SEED["1차 히트 위키 집합"]
+    C3 --> SEED
+    SEED --> C5["채널 5 · 그래프 확장<br/>wiki_links N-hop<br/>recursive CTE"]
+
+    C1 --> MERGE["병합 · 중복 제거 · 랭킹"]
+    C2 --> MERGE
+    C3 --> MERGE
+    C4 --> MERGE
+    C5 --> MERGE
+
+    MERGE --> CTX["컨텍스트 조립<br/>각 청크 앞에 인용 앵커 부착"]
+    CTX --> TPL["프롬프트 템플릿 적용<br/>prompt_templates"]
+    TPL --> LLM["LLM 호출<br/>OpenRouter"]
+    LLM --> ANS["답변 + 이중 Citation<br/>위키 근거 · 원문 근거"]
+
+    style Q fill:#3a2b20,stroke:#cc785c
+    style ANS fill:#203a26,stroke:#7fb069
+    style C1 fill:#242424,stroke:#6c9bd1
+    style C2 fill:#242424,stroke:#6c9bd1
+    style C3 fill:#242424,stroke:#7fb069
+    style C4 fill:#242424,stroke:#7fb069
+    style C5 fill:#242424,stroke:#cc785c
+    style CTX fill:#3a2b20,stroke:#cc785c
+</pre>
+</div>
+
+<h3>왜 5개인가</h3>
+<p>
+  원래 계획에는 Neo4j로 그래프 채널을 만들 예정이었지만,
+  Aura 기본 티어에 GDS가 없고 이 규모에선 순회 성능 이점도 없으며
+  팀 모드에서는 Neo4j에 RLS가 없어 보안 부담만 늘어서 <strong>제외</strong>했습니다.
+  대신 <code>wiki_links</code> 테이블 + recursive CTE로 5번 채널을 Postgres 안에서 해결합니다.
+</p>
+
+<table>
+  <thead><tr><th style="width:60px">채널</th><th>대상</th><th>방식</th><th>인덱스</th><th>답변에서의 역할</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>wiki_embeddings</code></td><td>벡터 유사도</td><td>HNSW</td><td>정리된 설명을 의미로 찾음</td></tr>
+    <tr><td>2</td><td><code>source_chunks</code></td><td>벡터 유사도</td><td>HNSW</td><td><strong>원문 인용의 출처</strong></td></tr>
+    <tr><td>3</td><td><code>wiki_pages</code></td><td>bigram 어휘</td><td>GIN</td><td>사내 약어·제품명 정확 매칭</td></tr>
+    <tr><td>4</td><td><code>source_chunks</code></td><td>bigram 어휘</td><td>GIN</td><td>원문의 정확한 표현 매칭</td></tr>
+    <tr><td>5</td><td><code>wiki_links</code></td><td>N-hop 순회</td><td>B-tree</td><td>연관 문서까지 끌어옴</td></tr>
+  </tbody>
+</table>
+
+<h3>한국어 검색이 bigram인 이유</h3>
+<p>
+  Postgres 기본 FTS에는 한국어 형태소 분석기가 없어서 공백 단위로만 쪼갭니다.
+  <code>pg_bigm</code>/<code>pgroonga</code>는 호스팅 Supabase가 제공하지 않습니다.
+  그래서 <strong>애플리케이션이</strong> 문자열을 2글자씩 잘라
+  <code>to_tsvector('simple', ...)</code>에 넣습니다. 의존성이 0이고
+  사내 약어·신조어를 놓치지 않습니다.
+</p>
+
+<div class="warn danger">
+  <strong>절대 하면 안 되는 것.</strong>
+  <code>search_tsv</code>를 generated column으로 만들면 DB가 직접
+  <code>to_tsvector</code>를 돌려 한국어가 공백 단위로만 쪼개지고 검색이 사실상 무용해집니다.
+  <strong>반드시 앱이 채우는 일반 컬럼</strong>이어야 합니다.
+  또 색인할 때와 질의할 때 <strong>같은 토크나이저</strong>를 써야 합니다 —
+  어긋나면 에러 없이 조용히 안 맞습니다.
+  (그래서 <code>tsv_tokenizer_version</code> 컬럼을 뒀습니다)
+</div>
+
+<div class="warn">
+  <strong>질의 측 함정 — 실제로 밟았습니다.</strong>
+  bigram 문자열을 <code>to_tsquery</code>에 그대로 넣으면
+  <code>"한국 국어"</code>처럼 공백으로 이어져 <strong>syntax error</strong>가 납니다.
+  <code>phraseto_tsquery('simple', bigram(q))</code>를 쓰세요.
+  bigram들이 <code>&lt;-&gt;</code>로 묶여 인접성까지 검사하므로 부분 문자열 의미가 보존됩니다.
+  <code>plainto_tsquery</code>는 <code>&amp;</code>로 묶여 순서 뒤바뀐 오탐이 섞입니다.
+</div>
+
+<h3>이중 Citation이 성립하는 조건</h3>
+<p>
+  컨텍스트를 조립하는 쪽이 <strong>각 청크 앞에 인용 앵커를 붙여야</strong> 합니다.
+  위키 청크는 <code>wiki:slug</code>, 원문 청크는 <code>src:청크id</code> 형태입니다.
+  앵커가 없으면 모델이 인용 표기를 만들어낼 근거 자체가 없어서
+  <strong>이중 Citation이 에러 없이 조용히 무너집니다.</strong>
+  <code>0006</code>의 프롬프트 4종이 이 표기를 강제하고 있습니다.
+</p>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">03</span>RLS가 실제로 판정하는 순서</h2>
+<p class="lead">
+  위의 어떤 조회든 <code>authenticated</code>로 들어오면 행 하나하나가 이 관문을 지납니다.
+</p>
+
+<div class="card">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant API as FastAPI
+    participant PG as Postgres
+    participant POL as RLS 정책
+    participant FN as is_workspace_member()<br/>SECURITY DEFINER
+    participant WM as workspace_members
+
+    API->>PG: SELECT * FROM wiki_pages<br/>(요청자 JWT)
+    PG->>POL: 각 행마다 정책 평가
+    POL->>FN: is_workspace_member(행의 workspace_id)
+    Note over FN: SECURITY DEFINER =<br/>소유자 권한으로 실행<br/>→ RLS 우회 → 재귀 차단
+    FN->>WM: 내 user_id로 멤버십 조회
+    WM-->>FN: 있음 / 없음
+    FN-->>POL: true / false
+    POL-->>PG: true인 행만 통과
+    PG-->>API: 내 워크스페이스 행만 반환<br/>(에러 아님, 그냥 없음)
+</pre>
+</div>
+
+<div class="warn danger">
+  <strong>SECURITY DEFINER가 없으면 무한 재귀로 죽습니다.</strong>
+  <code>workspace_members</code>의 정책이 "내가 이 워크스페이스 멤버인가"를 확인하려고
+  <code>workspace_members</code>를 다시 조회하면
+  <code>42P17 infinite recursion detected in policy</code>가 납니다.
+  <code>SECURITY DEFINER</code> 함수로 감싸서 그 고리를 끊습니다.
+  <code>STABLE</code>을 빠뜨리면 행마다 재평가되어 성능이 무너지고,
+  <code>SET search_path</code>를 빠뜨리면 호출자가 가짜 테이블을 심을 수 있어 권한 상승이 됩니다.
+</div>
+
+<h3>위반이 항상 에러는 아닙니다 — API가 반드시 알아야 할 것</h3>
+<div class="card">
+<pre class="mermaid">
+graph LR
+    REQ["viewer가 위키 수정 시도<br/>UPDATE wiki_pages"] --> U{"USING<br/>이 행을 볼 자격?"}
+    U -->|"실패"| ZERO["영향 행 0<br/>에러 없음 · 조용히 아무 일도 안 일어남"]
+    U -->|"통과"| W{"WITH CHECK<br/>바꾼 결과가 유효?"}
+    W -->|"실패"| ERR["42501<br/>정책 위반 예외"]
+    W -->|"통과"| OK["반영"]
+
+    style ZERO fill:#3a2b20,stroke:#cc785c
+    style ERR fill:#3a2020,stroke:#d16666
+    style OK fill:#203a26,stroke:#7fb069
+</pre>
+</div>
+<p>
+  즉 권한 없는 UPDATE/DELETE는 <strong>"성공했는데 아무것도 안 바뀜"</strong>으로 돌아옵니다.
+  API는 <strong>영향 행 0 = 403</strong>으로 매핑해야 합니다.
+  남의 워크스페이스로 쓰려는 시도(<code>WITH CHECK</code> 위반)만 <code>42501</code> 예외로 옵니다.
+</p>
+
+<div class="warn">
+  <strong>RLS가 벡터 검색의 사후 필터로 동작합니다.</strong> 실제 실행 계획에서 확인했습니다:
+  <code>Index Scan using source_chunks_embedding_idx → Filter: is_workspace_member(workspace_id) → Rows Removed by Filter: 5</code>.
+  HNSW가 뽑은 후보가 여기서 걸러지므로 <strong>결과가 요청한 k개보다 적게 나올 수 있습니다.</strong>
+  검색 쿼리는 ① <code>where workspace_id = $1</code>을 명시하고
+  ② <code>set local hnsw.iterative_scan = strict_order</code>를 켜야 합니다.
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">04</span>쓰기 경로 — 자료 하나가 위키가 되기까지</h2>
+<p class="lead">
+  읽기와 달리 쓰기는 <strong>역할이 중간에 바뀝니다.</strong>
+  사용자 JWT로 시작해서, 잡을 거쳐, <code>service_role</code> 워커로 넘어갑니다.
+</p>
+
+<div class="card">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as 사용자
+    participant API as FastAPI<br/>(요청자 JWT)
+    participant ST as Storage
+    participant DB as Postgres
+    participant W as Worker<br/>(service_role)
+    participant AI as OpenRouter / OpenAI
+
+    U->>API: PDF·URL·텍스트 업로드
+    API->>ST: 원본 파일 보관 (불변)
+    API->>DB: raw_sources INSERT (RLS 적용 · editor 이상)
+    Note over DB: content_hash 중복이면<br/>기존 id 반환 (멱등)
+    API->>DB: compile 잡 enqueue (service_role)
+    API-->>U: 202 + job_id
+
+    loop 폴링
+        W->>DB: claim_job(worker_id)
+        Note over DB: FOR UPDATE SKIP LOCKED<br/>동시 워커가 같은 잡을 못 집음
+    end
+
+    DB-->>W: 잡 1건 (status=running, attempts+1)
+
+    W->>W: 파싱 · 청킹 (char_start/char_end 보존)
+    W->>DB: source_chunks UPSERT
+    W->>AI: 임베딩 배치 호출
+    W->>DB: embedding UPDATE
+    W->>AI: 위키 컴파일 (프롬프트 + JSON 스키마)
+    W->>W: Pydantic 검증 (실패 시 3회 재시도)
+    W->>DB: wiki_pages UPSERT (workspace_id, slug)
+    W->>DB: wiki_links UPSERT (미해결 링크 포함)
+    W->>DB: complete_job(job_id)
+
+    U->>API: GET /api/jobs/{id} 진행률 폴링
+    API-->>U: succeeded
+</pre>
+</div>
+
+<h3>잡 상태 기계</h3>
+<div class="card">
+<pre class="mermaid">
+stateDiagram-v2
+    [*] --> queued
+    queued --> running: claim_job()<br/>attempts + 1
+    running --> succeeded: complete_job()
+    running --> failed: fail_job()<br/>재시도 여지 있음
+    running --> dead: fail_job()<br/>attempts >= max_attempts
+    failed --> running: run_after 경과 후 재점유
+    running --> queued: reap_stale_jobs()<br/>워커가 죽어 락이 유실됨
+    succeeded --> [*]
+    dead --> [*]
+</pre>
+</div>
+<p>
+  <code>failed</code>는 종착점이 아니라 <strong>"직전 시도 실패, 백오프 후 재시도 예정"</strong>입니다.
+  사람이 손대야 하는 종착점은 <code>dead</code> 하나뿐입니다.
+  둘을 나눠 두면 프론트가 <em>"3번 중 2번째 실패, 4분 후 재시도"</em>를 그대로 보여줄 수 있습니다.
+</p>
+
+<div class="warn">
+  <strong>잡은 at-least-once입니다.</strong>
+  워커가 죽으면 락 타임아웃(기본 15분) 후 회수되어 다시 실행됩니다.
+  타임아웃이 정상 잡의 최장 실행 시간보다 짧으면 <strong>살아 있는 워커의 잡을 뺏어 이중 처리</strong>됩니다.
+  그래서 모든 핸들러가 멱등해야 하고, 그걸 받쳐주는 게 스키마의 유니크 키 3개입니다 —
+  <code>(workspace_id, slug)</code> · <code>(raw_source_id, chunk_index)</code> ·
+  <code>(wiki_id, chunk_index)</code>.
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">05</span>테이블 관계</h2>
+<p class="lead">
+  9개 테이블. 모든 데이터 테이블이 <code>workspace_id</code>를 직접 들고 있어
+  RLS 정책이 조인 없이 판정합니다.
+</p>
+
+<div class="card">
+<pre class="mermaid">
+erDiagram
+    workspaces ||--o{ workspace_members : "멤버십"
+    workspaces ||--o{ raw_sources : ""
+    workspaces ||--o{ wiki_pages : ""
+    workspaces ||--o{ jobs : ""
+    workspaces ||--o{ prompt_templates : "NULL이면 전역"
+
+    raw_sources ||--o{ source_chunks : "파싱·청킹"
+    wiki_pages ||--o{ wiki_embeddings : "임베딩"
+    wiki_pages ||--o{ wiki_links : "from 출발"
+    wiki_pages |o--o{ wiki_links : "to 도착 (NULL이면 red link)"
+
+    workspaces {
+        uuid id PK
+        text name
+        uuid owner_id FK "RLS 기준점"
+    }
+    workspace_members {
+        uuid workspace_id PK
+        uuid user_id PK
+        text role "owner editor viewer"
+    }
+    raw_sources {
+        uuid id PK
+        text content "불변 원문"
+        text content_hash "멱등성 키"
+        text storage_path "원본 파일"
+    }
+    source_chunks {
+        uuid id PK
+        int char_start "원문 좌표"
+        int char_end
+        vector embedding "채널 2"
+        tsvector search_tsv "채널 4"
+    }
+    wiki_pages {
+        uuid id PK
+        text slug "upsert 키"
+        text category "렌즈 필터"
+        bool disputed "지식 충돌"
+        tsvector search_tsv "채널 3"
+    }
+    wiki_embeddings {
+        uuid id PK
+        vector embedding "채널 1"
+    }
+    wiki_links {
+        uuid id PK
+        text target_slug
+        uuid to_wiki_id "NULL = red link"
+        bool resolved "파생 컬럼"
+    }
+    jobs {
+        uuid id PK
+        text status
+        int attempts
+        timestamptz run_after "백오프"
+    }
+    prompt_templates {
+        uuid id PK
+        text target_type "ask compile"
+        bool is_default
+    }
+</pre>
+</div>
+
+<h3>두 개의 레이어</h3>
+<ul>
+  <li><strong>Layer 1 · 원문</strong> — <code>raw_sources</code> + <code>source_chunks</code>.
+      불변입니다. 사용자 UPDATE 정책이 아예 없습니다.
+      <code>char_start/char_end</code>로 원문의 정확한 위치를 가리켜
+      <strong>인용이 "어디에 그렇게 쓰여 있는지"</strong>를 증명합니다.</li>
+  <li><strong>Layer 2 · 위키</strong> — <code>wiki_pages</code> + <code>wiki_embeddings</code> + <code>wiki_links</code>.
+      LLM 컴파일 산출물입니다. 언제든 다시 만들 수 있습니다.</li>
+</ul>
+<p>
+  <code>wiki_links.to_wiki_id</code>가 <code>NULL</code>이면 <strong>red link</strong>(아직 없는 문서를 가리키는 링크)입니다.
+  그 자체가 "다음에 만들 위키" 목록이 됩니다. 나중에 같은 slug의 위키가 생기면 자동으로 이어지고,
+  대상이 삭제되면 다시 red link로 돌아갑니다.
+</p>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">06</span>권한 매트릭스</h2>
+<p class="lead">
+  기본 규칙은 <strong>멤버=조회 / editor=생성·수정 / owner=삭제</strong>.
+  굵게 표시한 곳이 기본 규칙에서 의도적으로 벗어난 지점입니다.
+</p>
+
+<table>
+  <thead><tr><th>테이블</th><th>SELECT</th><th>INSERT</th><th>UPDATE</th><th>DELETE</th></tr></thead>
+  <tbody>
+    <tr><td><code>workspaces</code></td><td>멤버</td><td>본인 소유로만</td><td><strong>owner</strong></td><td>owner</td></tr>
+    <tr><td><code>workspace_members</code></td><td>멤버</td><td><strong>owner</strong></td><td><strong>owner</strong></td><td><strong>owner</strong></td></tr>
+    <tr><td><code>raw_sources</code></td><td>멤버</td><td>editor</td><td class="no"><strong>없음 (불변)</strong></td><td>owner</td></tr>
+    <tr><td><code>wiki_pages</code></td><td>멤버</td><td>editor</td><td>editor</td><td>owner</td></tr>
+    <tr><td><code>source_chunks</code></td><td>멤버</td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td></tr>
+    <tr><td><code>wiki_embeddings</code></td><td>멤버</td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td></tr>
+    <tr><td><code>wiki_links</code></td><td>멤버</td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td></tr>
+    <tr><td><code>prompt_templates</code></td><td>멤버 + 전역</td><td>editor</td><td>editor</td><td>owner</td></tr>
+    <tr><td><code>jobs</code></td><td>멤버</td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td><td class="no"><strong>없음</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>왜 벗어났는가</h3>
+<ul>
+  <li><strong><code>workspaces</code> UPDATE = owner</strong> — 이 UPDATE가 곧 <code>owner_id</code> 이전,
+      즉 소유권 양도입니다. editor에게 열면 editor가 스스로를 소유자로 만듭니다.</li>
+  <li><strong><code>workspace_members</code> 쓰기 = owner</strong> — editor에게 INSERT를 열면
+      자신을 <code>owner</code> 역할 행으로 추가해 즉시 권한이 상승합니다.</li>
+  <li><strong>파생 3종 읽기 전용</strong> — 전부 워커가 만드는 데이터입니다.
+      특히 <code>source_chunks</code>에 INSERT를 열면 editor가 원문에 없는 청크를 심어
+      <strong>이중 Citation의 원문 측 인용을 위조</strong>할 수 있습니다.
+      제품의 신뢰 근거를 사용자 입력에 노출시킬 이유가 없습니다.
+      워커는 <code>service_role</code>이라 아무 영향도 받지 않습니다.</li>
+  <li><strong><code>jobs</code> 읽기 전용</strong> — 생성과 상태 전이는 전부 서버 경로입니다.
+      큐 조작 함수 4종도 <code>anon</code>/<code>authenticated</code>의 실행 권한을 회수해 뒀습니다.
+      (Supabase는 public 스키마 함수에 기본 실행 권한을 주므로,
+      놔두면 PostgREST의 <code>/rpc/</code>로 남의 잡을 점유·종료할 수 있습니다)</li>
+</ul>
+
+<h3>소유자를 잠그는 두 개의 트리거</h3>
+<pre><code>workspaces INSERT  →  소유자를 멤버로 자동 등록      (0001)
+workspace_members UPDATE/DELETE  →  소유자 행 보호   (0004)</code></pre>
+<p>
+  멤버가 0명인 워크스페이스는 RLS 아래에서 아무에게도 보이지 않아 <strong>영구 복구 불가</strong>가 됩니다.
+  <code>0001</code>이 생성 시점을 막고, <code>0004</code>가 그 이후를 막습니다 —
+  소유자는 자기 멤버십을 삭제하거나 역할을 낮추거나 <code>user_id</code>를 바꿀 수 없습니다.
+  소유권 이전은 <code>workspaces.owner_id</code>를 바꾸는 경로로만 가능합니다.
+</p>
+
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<h2><span class="num">07</span>지금 어디까지 됐나</h2>
+
+<div class="card">
+<pre class="mermaid">
+graph LR
+    subgraph DONE["구현 완료 — DB 레이어"]
+        M1["0001 코어 스키마"]
+        M2["0002 검색 스키마<br/>5채널 인덱스"]
+        M3["0003 잡 큐<br/>SKIP LOCKED"]
+        M4["0004 RLS 정책<br/>9테이블"]
+        M6["0006 프롬프트 시드<br/>ask 4 + compile 1"]
+    end
+
+    subgraph NEXT["다음 — 앱 레이어"]
+        S1["0005 Storage 버킷"]
+        A1["FastAPI 스캐폴딩<br/>클라이언트 2종 분리"]
+        A2["수집 API · 파서 · 청킹"]
+        A3["워커 프로세스"]
+        A4["검색 · 질의응답"]
+        A5["프론트엔드"]
+    end
+
+    M1 --> M2 --> M3 --> M4 --> M6
+    M6 --> S1 --> A1 --> A2 --> A3 --> A4 --> A5
+
+    style M1 fill:#203a26,stroke:#7fb069
+    style M2 fill:#203a26,stroke:#7fb069
+    style M3 fill:#203a26,stroke:#7fb069
+    style M4 fill:#203a26,stroke:#7fb069
+    style M6 fill:#203a26,stroke:#7fb069
+</pre>
+</div>
+
+<p>
+  DB 레이어는 전부 검증까지 끝났습니다 —
+  5채널이 각각 의도한 인덱스를 타는 것을 <code>EXPLAIN</code>으로,
+  잡 큐를 8워커 400잡 동시 실행으로(모든 잡이 정확히 1회씩 점유),
+  RLS를 38개 격리 케이스로 확인했습니다.
+  남은 스키마 작업은 Storage 버킷 하나이고, 그 다음부터는 전부 애플리케이션 코드입니다.
+</p>
+
+<footer>
+  근거 문서 — <code>HANDOFF.md</code> (세션 핸드오프) ·
+  <code>checklists.json</code> (32개 태스크 · 확정 결정 · 각 태스크의 원안 대비 변경 사유) ·
+  <code>supabase/migrations/</code> (실제 DDL과 주석)
+</footer>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    securityLevel: 'loose',
+    themeVariables: {
+      background: '#242424',
+      primaryColor: '#cc785c',
+      primaryTextColor: '#e0e0e0',
+      lineColor: '#cc785c',
+      fontFamily: '-apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
+    },
+    flowchart: { curve: 'basis', padding: 16 },
+    er: { useMaxWidth: true }
+  });
+</script>
+</body>
+</html>
