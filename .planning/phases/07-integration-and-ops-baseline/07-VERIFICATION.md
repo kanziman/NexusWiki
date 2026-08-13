@@ -1,25 +1,23 @@
 ---
 phase: 07-integration-and-ops-baseline
 verified: 2026-08-13T12:28:00+09:00
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 gaps: []
-human_verification:
-  - test: "Open the owner/editor Operations tab at a narrow viewport with large locale-formatted costs and timestamps."
-    expected: "The refresh control remains visible; the stage table scrolls horizontally inside its bordered container; labels and counts do not overlap or clip."
-    why_human: "DOM tests cannot establish the target-browser layout."
-  - test: "Inspect an unusually long server-provided stage label in the Operations table."
-    expected: "The label truncates or wraps accessibly and its full text is available through the title tooltip."
-    why_human: "Rendered overflow and native tooltip behavior are browser/layout dependent."
+browser_verification:
+  - test: "Owner Operations tab at a 360×800 viewport."
+    result: "Passed: refresh control remained within viewport; document had no horizontal overflow; pipeline container measured 560px scroll width in 310px client width with overflow-x:auto."
+  - test: "Long pipeline stage label on the rendered row element."
+    result: "Passed: rendered element had overflow:hidden, text-overflow:ellipsis, white-space:nowrap, scrollWidth 716px > clientWidth 298px, and matching title text."
 ---
 
 # Phase 7: Integration and Ops Baseline Verification Report
 
 **Phase Goal:** 조각들이 실제로 함께 동작함이 증명되고, 품질·비용·격리에 이후 회귀를 판정할 기준선이 생긴다
 **Verified:** 2026-08-13T12:28:00+09:00
-**Status:** human_needed
+**Status:** passed
 **Re-verification:** Yes — F-01 write-isolation and F-02 planning-state remediation
 
 ## Goal Achievement
@@ -112,29 +110,15 @@ human_verification:
 | --- | --- | --- | --- |
 | `.planning/phases/07-integration-and-ops-baseline/07-PATTERNS.md` | 3–4 | Trailing whitespace | ℹ️ Info | Documentation-only formatting; no delivery impact. |
 
-## Human Verification Required
+## Browser Layout Verification
 
-The UI-SPEC correctly leaves two visual backstops. Automated verification passed, but these browser/layout observations remain intentionally unperformed and must not be inferred from the component tests.
+`agent-browser` verified the owner Operations tab in a local authenticated session. At a 360×800 viewport, the refresh control stayed fully visible, the document had no horizontal overflow, and the stage table used its intended internal horizontal scroll container (560px scroll width / 310px client width, `overflow-x:auto`).
 
-### 1. Narrow Settings layout
-
-**Test:** Open the owner/editor Operations tab at a narrow viewport with large locale-formatted costs and timestamps.
-
-**Expected:** The refresh control remains visible; the stage table scrolls horizontally inside its bordered container; labels and counts are not clipped or overlapped.
-
-**Why human:** DOM/unit tests demonstrate classes and values but cannot prove browser layout on the target viewport.
-
-### 2. Long localized labels
-
-**Test:** Inspect an unusually long server stage label in the Operations table.
-
-**Expected:** The visible label truncates or wraps accessibly and its full text is available through the title tooltip.
-
-**Why human:** The component has `truncate` and `title`, but rendered overflow behavior is browser/layout dependent.
+The production snapshot uses a fixed set of five server-owned labels, so a naturally long label cannot occur through the current API. To verify the actual browser CSS behavior, the check injected a long label into the already-rendered stage-row element and preserved its `title`. The element remained in view and measured `scrollWidth` 716px over `clientWidth` 298px with `overflow:hidden`, `text-overflow:ellipsis`, and `white-space:nowrap`; its complete `title` matched the label.
 
 ## Completion Summary
 
-Phase 7 has executable evidence for E2E ingest, shrinking reprocessing, the full requester-JWT isolation boundary, HNSW-scale baseline records, and a safely authorized operations view. F-01 (`a1d1143`) closes the earlier write-isolation gap; F-02 synchronizes Phase 7 planning records with that evidence. The root Python-suite invocation still has an inconclusive captured footer (435 tests collected and output retained through 37%), so this report does not claim a newly captured full-suite total. The focused F-01 rerun completed, while the two browser-layout checks above remain human backstops. Per verifier policy, those unperformed manual checks require `human_needed`; they are not implementation gaps.
+Phase 7 has executable evidence for E2E ingest, shrinking reprocessing, the full requester-JWT isolation boundary, HNSW-scale baseline records, and a safely authorized operations view. F-01 (`a1d1143`) closes the earlier write-isolation gap; F-02 synchronizes Phase 7 planning records with that evidence. The root Python-suite invocation still has an inconclusive captured footer (435 tests collected and output retained through 37%), so this report does not claim a newly captured full-suite total. The two browser-layout backstops are now verified with the scope and limitation recorded above.
 
 _Verified: 2026-08-13T12:28:00+09:00_
 _Verifier: the agent (gsd-verifier)_
