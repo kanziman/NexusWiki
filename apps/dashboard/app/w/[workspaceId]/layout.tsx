@@ -45,12 +45,14 @@ export default async function WorkspaceLayout({
     .order("name");
 
   return (
-    <div style={{ minHeight: "100vh" }}>
+    <div className="min-h-screen bg-[var(--nw-canvas)] text-[var(--nw-ink)]">
       <NavShell
         workspaces={workspaces ?? []}
         currentWorkspaceId={workspaceId}
       />
-      <main style={{ padding: "var(--spacing-lg)" }}>{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-base py-xl sm:px-xl sm:py-xxl">
+        {children}
+      </main>
     </div>
   );
 }

@@ -28,34 +28,41 @@ export function NavShell({ workspaces, currentWorkspaceId }: NavShellProps) {
   const base = workspacePath(currentWorkspaceId);
 
   return (
-    <header className="flex h-16 items-center gap-lg border-b border-hairline bg-surface-soft px-lg">
-      <WorkspaceSwitcher
-        workspaces={workspaces}
-        currentWorkspaceId={currentWorkspaceId}
-      />
+    <header className="border-b border-[var(--nw-rule)] bg-[var(--nw-canvas)]">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-xl gap-y-sm px-base py-base sm:px-xl">
+        <Link
+          href={base}
+          className="nw-focus-ring shrink-0 text-[15px] font-semibold tracking-[-0.04em] text-[var(--nw-ink)]"
+        >
+          Nexus
+        </Link>
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          currentWorkspaceId={currentWorkspaceId}
+        />
+        <nav
+          aria-label="워크스페이스 탐색"
+          className="order-3 flex w-full overflow-x-auto sm:order-none sm:w-auto sm:flex-1"
+        >
+          {ROUTES.map((route) => {
+            const href = `${base}${route.segment}`;
+            const isActive =
+              pathname === href || pathname?.startsWith(`${href}/`);
 
-      <nav className="flex items-center gap-base">
-        {ROUTES.map((route) => {
-          const href = `${base}${route.segment}`;
-          const isActive =
-            pathname === href || pathname?.startsWith(`${href}/`);
-
-          return (
-            <Link
-              key={route.segment}
-              href={href}
-              aria-current={isActive ? "page" : undefined}
-              className={isActive ? "text-primary" : "text-ink"}
-              // UI-SPEC Typography Label 행: --font-caption(500 14px/1.29)의
-              // 크기/행간은 그대로 쓰되, weight만 06-UI-SPEC.md의 2-weight cap
-              // 개정(600)으로 덮어쓴다.
-              style={{ font: "600 14px/1.29 var(--font-family-base)" }}
-            >
-              {route.label}
-            </Link>
-          );
-        })}
-      </nav>
+            return (
+              <Link
+                key={route.segment}
+                href={href}
+                aria-current={isActive ? "page" : undefined}
+                data-active={isActive ? "true" : undefined}
+                className="nw-focus-ring shrink-0 border-b-2 border-transparent px-sm py-sm text-sm font-semibold text-[var(--nw-muted)] data-[active=true]:border-[var(--nw-ink)] data-[active=true]:text-[var(--nw-ink)]"
+              >
+                {route.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
     </header>
   );
 }

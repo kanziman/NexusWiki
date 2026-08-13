@@ -54,7 +54,7 @@ export function WorkspaceSwitcher({
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="flex h-11 max-w-64 min-w-0 items-center gap-xs rounded-sm border border-border-strong bg-canvas px-base text-ink"
+            className="nw-focus-ring flex h-9 max-w-64 min-w-0 items-center gap-xs border-0 bg-transparent px-0 text-[var(--nw-ink)]"
           >
             <span
               className="min-w-0 truncate"
@@ -78,7 +78,7 @@ export function WorkspaceSwitcher({
             sideOffset={4}
             // overflow backstop: 워크스페이스가 8개를 넘으면 Content 자체가
             // 무한정 자라는 대신 스크롤한다.
-            className="max-h-64 overflow-y-auto rounded-md border border-hairline bg-canvas py-xs shadow-[var(--shadow-dropdown)]"
+            className="max-h-64 overflow-y-auto rounded-md border border-[var(--nw-rule)] bg-[var(--nw-surface)] py-xs shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
           >
             {workspaces.map((workspace) => {
               const isActive = workspace.id === currentWorkspaceId;
@@ -94,8 +94,10 @@ export function WorkspaceSwitcher({
                         event.preventDefault();
                         handleSelect(workspace.id);
                       }}
-                      className={`flex cursor-pointer items-center justify-between gap-xs px-base py-sm outline-none data-[highlighted]:bg-surface-soft data-[disabled]:cursor-default data-[disabled]:opacity-60 ${
-                        isActive ? "text-primary" : "text-ink"
+                      className={`nw-focus-ring flex cursor-pointer items-center justify-between gap-xs px-base py-sm outline-none data-[highlighted]:bg-[var(--nw-canvas)] data-[disabled]:cursor-default data-[disabled]:opacity-60 ${
+                        isActive
+                          ? "text-[var(--nw-ink)]"
+                          : "text-[var(--nw-body)]"
                       }`}
                       style={{ font: "var(--font-caption)", fontWeight: 600 }}
                     >
