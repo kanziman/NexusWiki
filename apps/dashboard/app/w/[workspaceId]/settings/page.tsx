@@ -27,7 +27,20 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     redirect("/login");
   }
 
+  // 운영 현황 탭의 노출은 UX 방어선이다. API가 별도로 editor 이상을 강제하므로
+  // 여기의 실패/미가입은 보수적으로 viewer처럼 처리해 요청을 시작하지 않는다.
+  const { data: membership } = await supabase
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   return (
-    <SettingsMembersPanel workspaceId={workspaceId} currentUserId={user.id} />
+    <SettingsMembersPanel
+      workspaceId={workspaceId}
+      currentUserId={user.id}
+      currentRole={membership?.role ?? "viewer"}
+    />
   );
 }
