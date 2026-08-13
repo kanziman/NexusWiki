@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 7
-current_phase_name: Integration and Ops Baseline
-status: complete
+status: Awaiting next milestone
 stopped_at: Phase 7 complete — all evidence including browser-layout backstops verified
-last_updated: "2026-08-13T05:15:49.656Z"
+last_updated: "2026-08-13T05:21:34.012Z"
 last_activity: 2026-08-13
-last_activity_desc: Phase 7 verification passed after the F-01 requester-JWT write-isolation matrix
+last_activity_desc: Milestone v1.0 completed and archived
 progress:
   total_phases: 7
   completed_phases: 7
   total_plans: 55
   completed_plans: 55
+current_phase: 7
+current_phase_name: Integration and Ops Baseline
 ---
 
 # Project State
@@ -27,12 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-11)
 
 ## Current Position
 
-Phase: 7 — Integration and Ops Baseline
-Plan: 04 complete
-Status: Complete (automated evidence)
-Last activity: 2026-08-13 — Phase 7 verification passed after the F-01 requester-JWT write-isolation matrix
-
-Progress: [████████████████████] 55/55 plans — Phase 7 complete
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-13 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -229,7 +227,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| *(none)* | | | |
+| debug (audit false-positive) | `.planning/debug/knowledge-base.md` flagged as an "open debug session" (slug `knowledge-base`) by `audit-open` — it is the persistent resolved-sessions knowledge-base index file, not an in-progress session. No open debug work exists; the one entry it lists (`worker-parse-jsondecodeerror`) is already archived at `.planning/debug/resolved/worker-parse-jsondecodeerror.md`. | Acknowledged — not real deferred work | v1.0 milestone close (2026-08-13) |
 
 ## Session Continuity
 
@@ -242,3 +240,7 @@ Resume file: .planning/phases/07-integration-and-ops-baseline/07-CONTEXT.md
 ⚠️ **보존할 워킹 트리 변경이 있다** — `.planning/config.json`, `checklists.json`, `.agents/`,
 `.pnpm-store/`, `docs/architecture/`, `docs/design-systems/`, `docs/ops/benchmark-records/phase-04-rerun-{,v2-,v3-}*.json`는
 이전 세션들이 남긴 것으로 이번 작업과 무관하다. 정리 명령으로 삭제하지 않는다.
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
