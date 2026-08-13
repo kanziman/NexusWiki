@@ -175,7 +175,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       <div
         aria-busy="true"
         data-testid="job-stepper-skeleton"
-        className="h-8 animate-pulse rounded-sm bg-surface-soft"
+        className="h-8 animate-pulse rounded-none bg-[var(--nw-rule)]"
       />
     );
   }
@@ -190,8 +190,8 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
   );
 
   return (
-    <div className="flex flex-col gap-xs">
-      <ol className="flex flex-col gap-sm">
+    <div className="flex flex-col gap-sm border-l border-[var(--nw-rule)] pl-base sm:pl-lg">
+      <ol className="flex flex-col gap-xs">
         {/* 업로드 — 이 컴포넌트가 렌더된다는 것 자체가 raw_source 행의 존재를
             증명하므로 항상 완료 상태다 (implicit stage, 대응하는 잡 없음). */}
         <li className="flex items-center gap-sm">
@@ -218,7 +218,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
             job !== undefined && !TERMINAL_STATUSES.has(job.status);
 
           const labelClassName = isCurrent
-            ? "text-primary"
+            ? "text-[var(--nw-ink)] font-semibold"
             : isDead
               ? "text-primary-error-text"
               : isDone
@@ -245,8 +245,8 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                     aria-hidden="true"
                     className={`h-4 w-4 rounded-full border-2 ${
                       isCurrent
-                        ? "border-primary bg-primary"
-                        : "border-hairline"
+                        ? "border-[var(--nw-ink)] bg-[var(--nw-ink)]"
+                        : "border-[var(--nw-rule-strong)]"
                     }`}
                   />
                 )}
@@ -264,7 +264,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                     aria-label="재시도"
                     onClick={() => handleRetry(job.id)}
                     disabled={retryingId === job.id}
-                    className="flex h-11 w-11 items-center justify-center rounded-sm text-primary-error-text disabled:opacity-60"
+                    className="nw-focus-ring flex h-11 w-11 items-center justify-center rounded-sm text-primary-error-text disabled:opacity-60"
                   >
                     <RefreshCw size={18} aria-hidden="true" />
                   </button>
@@ -275,7 +275,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                     type="button"
                     aria-label="취소"
                     onClick={() => setCancelTarget(job)}
-                    className="flex h-11 w-11 items-center justify-center rounded-sm text-muted"
+                    className="nw-focus-ring flex h-11 w-11 items-center justify-center rounded-sm text-[var(--nw-muted)]"
                   >
                     <X size={18} aria-hidden="true" />
                   </button>
@@ -288,7 +288,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                 // 200자에서 잘라 원문 예외를 그대로 노출하지 않는다.
                 <p
                   role="alert"
-                  className="text-primary-error-text"
+                  className="text-[var(--nw-danger)]"
                   style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   {`${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
@@ -309,15 +309,15 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-md bg-canvas p-lg shadow-[var(--shadow-modal)]">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-lg shadow-[var(--shadow-modal)]">
             <Dialog.Title
-              className="text-ink"
+              className="text-[var(--nw-ink)]"
               style={{ font: "var(--font-title-md)" }}
             >
               작업 취소
             </Dialog.Title>
             <Dialog.Description
-              className="text-body"
+              className="text-[var(--nw-body)]"
               style={{ font: "var(--font-body-md)" }}
             >
               {CANCEL_CONFIRM_COPY}
@@ -327,7 +327,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-sm border border-border-strong px-base py-sm text-ink"
+                  className="nw-focus-ring rounded-sm border border-[var(--nw-rule-strong)] px-base py-sm text-[var(--nw-ink)]"
                 >
                   계속 진행
                 </button>
@@ -336,7 +336,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                 type="button"
                 onClick={handleConfirmCancel}
                 disabled={canceling}
-                className="rounded-sm bg-primary-error-text px-base py-sm text-on-primary disabled:opacity-60"
+                className="nw-focus-ring rounded-sm bg-[var(--nw-danger)] px-base py-sm text-on-primary disabled:opacity-60"
               >
                 취소하기
               </button>

@@ -24,6 +24,13 @@ describe("Dropzone", () => {
     apiFetch.mockReset();
   });
 
+  it("keeps the file chooser and submit action accessible", () => {
+    render(<Dropzone workspaceId="ws-1" />);
+
+    expect(screen.getByLabelText("파일 선택")).toHaveAttribute("type", "file");
+    expect(screen.getByRole("button", { name: "소스 등록" })).toBeDisabled();
+  });
+
   it("파일 탭 제출은 raw File을 body로 apiFetch를 호출하고 FormData/multipart를 쓰지 않는다", async () => {
     apiFetch.mockResolvedValue({ job_id: "job-1", raw_source_id: "src-1" });
     const onIngested = vi.fn();

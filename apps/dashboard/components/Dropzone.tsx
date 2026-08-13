@@ -209,29 +209,29 @@ export function Dropzone({
     textTitle.trim().length > 0 && text.trim().length > 0 && !submitting;
 
   return (
-    <div className="flex flex-col gap-base rounded-md bg-surface-soft p-lg">
+    <div className="flex flex-col gap-base border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-base sm:p-xl">
       <Tabs.Root value={tab} onValueChange={switchTab}>
         <Tabs.List
-          className="flex gap-sm border-b border-hairline"
+          className="flex gap-lg border-b border-[var(--nw-rule)]"
           aria-label="소스 등록 방식"
         >
           <Tabs.Trigger
             value="file"
-            className="px-base py-sm text-ink data-[state=active]:text-primary"
+            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--nw-muted)] data-[state=active]:border-[var(--nw-ink)] data-[state=active]:text-[var(--nw-ink)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             파일
           </Tabs.Trigger>
           <Tabs.Trigger
             value="url"
-            className="px-base py-sm text-ink data-[state=active]:text-primary"
+            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--nw-muted)] data-[state=active]:border-[var(--nw-ink)] data-[state=active]:text-[var(--nw-ink)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             URL
           </Tabs.Trigger>
           <Tabs.Trigger
             value="text"
-            className="px-base py-sm text-ink data-[state=active]:text-primary"
+            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--nw-muted)] data-[state=active]:border-[var(--nw-ink)] data-[state=active]:text-[var(--nw-ink)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             텍스트
@@ -252,7 +252,7 @@ export function Dropzone({
                 id={fileTitleId}
                 value={fileTitle}
                 onChange={(event) => setFileTitle(event.target.value)}
-                className="h-12 rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-2 focus:border-ink"
+                className="nw-input h-12 px-base text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -264,11 +264,15 @@ export function Dropzone({
                 const file = event.dataTransfer.files?.[0];
                 if (file) setSelectedFile(file);
               }}
-              className="flex flex-col items-center gap-xs rounded-sm border border-dashed border-border-strong p-lg text-center"
+              className="flex flex-col items-center gap-xs border border-dashed border-[var(--nw-rule-strong)] bg-[var(--nw-canvas)] p-xl text-center"
             >
-              <Upload size={24} aria-hidden="true" className="text-muted" />
+              <Upload
+                size={24}
+                aria-hidden="true"
+                className="text-[var(--nw-muted)]"
+              />
               <span
-                className="text-ink"
+                className="text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               >
                 {selectedFile
@@ -293,7 +297,7 @@ export function Dropzone({
             <button
               type="submit"
               disabled={!canSubmitFile || submitting}
-              className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
+              className="nw-action nw-focus-ring h-12 self-start px-lg"
               style={{ font: "var(--font-button-md)", fontWeight: 600 }}
             >
               소스 등록
@@ -318,7 +322,7 @@ export function Dropzone({
                   setUrl(event.target.value);
                   setErrorMessage(null);
                 }}
-                className="h-12 rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-2 focus:border-ink"
+                className="nw-input h-12 px-base text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -334,14 +338,14 @@ export function Dropzone({
                 id={urlTitleId}
                 value={urlTitle}
                 onChange={(event) => setUrlTitle(event.target.value)}
-                className="h-12 rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-2 focus:border-ink"
+                className="nw-input h-12 px-base text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
             <button
               type="submit"
               disabled={!canSubmitUrl}
-              className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
+              className="nw-action nw-focus-ring h-12 self-start px-lg"
               style={{ font: "var(--font-button-md)", fontWeight: 600 }}
             >
               소스 등록
@@ -363,7 +367,7 @@ export function Dropzone({
                 id={textTitleId}
                 value={textTitle}
                 onChange={(event) => setTextTitle(event.target.value)}
-                className="h-12 rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-2 focus:border-ink"
+                className="nw-input h-12 px-base text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -380,14 +384,14 @@ export function Dropzone({
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 rows={6}
-                className="rounded-sm border border-border-strong bg-canvas p-base text-ink outline-none focus:border-2 focus:border-ink"
+                className="nw-input p-base text-[var(--nw-ink)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
             <button
               type="submit"
               disabled={!canSubmitText}
-              className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
+              className="nw-action nw-focus-ring h-12 self-start px-lg"
               style={{ font: "var(--font-button-md)", fontWeight: 600 }}
             >
               소스 등록
@@ -402,7 +406,7 @@ export function Dropzone({
         <p
           role="alert"
           data-testid="dropzone-error-banner"
-          className="rounded-sm border border-primary-error-text bg-canvas px-base py-sm text-primary-error-text"
+          className="border border-[var(--nw-danger)] bg-[#fff8f6] px-base py-sm text-[var(--nw-danger)]"
           style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {errorMessage}

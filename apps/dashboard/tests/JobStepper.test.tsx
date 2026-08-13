@@ -83,7 +83,9 @@ describe("JobStepper", () => {
     for (const label of ["업로드", "파싱", "컴파일", "링크 동기화", "임베딩"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
-    expect(screen.getByText("컴파일")).toHaveClass("text-primary");
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    expect(screen.getByText("컴파일")).toHaveClass("text-[var(--nw-ink)]");
   });
 
   it("dead 상태 행에는 aria-label='재시도' 버튼이 있고, 클릭하면 재시도 엔드포인트를 호출한다", async () => {
