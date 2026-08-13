@@ -100,7 +100,12 @@ class WorkerSettings(BaseAppSettings):
     #    임베딩 잡의 런타임 실패로만 드러난다.
     EMBEDDING_MODEL: str | None = None
     EMBEDDING_PROVIDER: str | None = None
-    EMBED_BATCH_SIZE: int = 32
+    # ⚠️ 32는 이 provider pin(`deepinfra/fp32`, `allow_fallbacks: false`)에서 실측 400
+    # (2026-08-13, 배포 후 첫 실 문서). 32개 청크(~37KB 요청 본문)는
+    # "No endpoints found for baai/bge-m3." 404로 죽고, 24개(~27KB)는 통과한다 —
+    # fallback이 꺼져 있어 OpenRouter가 조용히 다른 provider로 우회하지 못하고 그대로
+    # 실패한다. 8은 실측 경계(24~28)에 여유를 둔 값이다.
+    EMBED_BATCH_SIZE: int = 8
 
     REAP_TIMEOUT_SECONDS: int = 900
     REAP_ENABLED: bool = True
