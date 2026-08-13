@@ -131,6 +131,91 @@ class PipelineHarness:
         assert rows[0]["storage_path"].startswith(f"{workspace}/")
         return self.created
 
+    async def create_text(self, title: str, text: str) -> dict[str, str]:
+        async with self._authed_client(self.owner) as client:
+            response = await client.post(
+                f"/workspaces/{self.owner.workspace_id}/sources/text",
+                json={"title": title, "text": text},
+            )
+        assert response.status_code == 202, response.text
+        created = response.json()
+        self.created.append(created)
+        return created
+
+    async def create_duplicate_text(self, title: str, text: str) -> int:
+        async with self._authed_client(self.owner) as client:
+            response = await client.post(
+                f"/workspaces/{self.owner.workspace_id}/sources/text",
+                json={"title": title, "text": text},
+            )
+        return response.status_code
+
+    async def row_counts(self) -> dict[str, int]:
+        tables = ("raw_sources", "source_chunks", "wiki_pages", "wiki_embeddings")
+        headers = {
+            "apikey": LOCAL_STACK["admin_key"],
+            "Authorization": f"Bearer {LOCAL_STACK['admin_key']}",
+            "Prefer": "count=exact",
+        }
+        result: dict[str, int] = {}
+        for table in tables:
+            response = self._local_stack.get(
+                f"/rest/v1/{table}",
+                params={"workspace_id": f"eq.{self.owner.workspace_id}", "select": "id"},
+                headers=headers,
+            )
+            response.raise_for_status()
+            result[table] = int(response.headers["content-range"].rsplit("/", 1)[1])
+        return result
+
+    async def source_chunk_count(self, raw_source_id: str) -> int:
+        assert self._db is not None
+        return len(
+            await self._db.list_source_chunks(
+                workspace_id=self.owner.workspace_id, raw_source_id=raw_source_id
+            )
+        )
+
+    async def reprocess_text(self, raw_source_id: str, content: str) -> None:
+        assert self._db is not None
+        updated = await self._db.update_raw_source_content(
+            raw_source_id, workspace_id=self.owner.workspace_id, content=content
+        )
+        assert updated is not None
+        job = await self._db.enqueue_job(
+            workspace_id=self.owner.workspace_id,
+            job_type="parse",
+            payload={"target_id": raw_source_id, "raw_source_id": raw_source_id},
+        )
+        assert job is not None
+
+    async def assert_shrunk(self, raw_source_id: str, old_count: int) -> None:
+        assert self._db is not None
+        chunks = await self._db.list_source_chunks(
+            workspace_id=self.owner.workspace_id, raw_source_id=raw_source_id
+        )
+        assert 0 < len(chunks) < old_count
+        assert [chunk["chunk_index"] for chunk in chunks] == list(range(len(chunks)))
+        pages = await self._db.list_wiki_pages_for_source(
+            workspace_id=self.owner.workspace_id, raw_source_id=raw_source_id
+        )
+        for page in pages:
+            embeddings = self._local_stack.get(
+                "/rest/v1/wiki_embeddings",
+                params={
+                    "workspace_id": f"eq.{self.owner.workspace_id}",
+                    "wiki_id": f"eq.{page['id']}",
+                    "select": "chunk_index",
+                    "order": "chunk_index.asc",
+                },
+                headers={
+                    "apikey": LOCAL_STACK["admin_key"],
+                    "Authorization": f"Bearer {LOCAL_STACK['admin_key']}",
+                },
+            )
+            embeddings.raise_for_status()
+            assert all(row["chunk_index"] < len(chunks) for row in embeddings.json())
+
     async def drain(self) -> None:
         assert self._db is not None
         async with httpx.AsyncClient(
