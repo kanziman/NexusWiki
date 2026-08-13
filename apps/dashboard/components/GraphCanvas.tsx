@@ -9,6 +9,12 @@ import { createClient } from "@/lib/supabase/client";
 export type GraphCanvasProps = {
   workspaceId: string;
   category: string | null;
+  // 마인드맵 탭(ContentViewer)이 같은 wiki_links 데이터를 현재 위키 페이지
+  // 중심의 breadthfirst 레이아웃으로 재사용하기 위한 옵션 — 기본은 기존
+  // cose(힘-방향) 레이아웃 그대로. openspec/changes/archive/
+  // 2026-08-14-add-unified-workspace-viewer 참고.
+  layoutName?: "cose" | "breadthfirst";
+  rootSlug?: string;
 };
 
 type WikiNode = {
@@ -60,7 +66,12 @@ type LoadState =
 // 재요청 없이 재조회하기 위해서다. Phase 6의 다른 표면은 전부 서버 사이드
 // 1차 fetch를 쓰지만, 이 화면만 그 규칙에서 벗어난다(Task 3 <action> 마지막
 // 문단 참조).
-export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
+export function GraphCanvas({
+  workspaceId,
+  category,
+  layoutName = "cose",
+  rootSlug,
+}: GraphCanvasProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -212,9 +223,20 @@ export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
       ],
       // wiki_links는 계층이 아니라 임의의 상호 링크(레드 링크 포함 가능한
       // 위키 전반 그래프)라 뿌리 노드를 가정하는 breadthfirst보다 힘-방향
-      // cose가 이 데이터 형태에 더 맞는다 — 순환/역방향 링크가 있어도 특정
-      // 루트에 종속되지 않는다.
-      layout: { name: "cose" },
+      // cose가 이 데이터 형태에 기본적으로 더 맞는다 — 순환/역방향 링크가
+      // 있어도 특정 루트에 종속되지 않는다. 마인드맵 탭만 명시적으로
+      // breadthfirst + rootSlug를 넘겨 현재 위키 페이지 중심 트리로 본다.
+      layout:
+        layoutName === "breadthfirst"
+          ? {
+              name: "breadthfirst",
+              roots: rootSlug
+                ? state.nodes
+                    .filter((node) => node.slug === rootSlug)
+                    .map((node) => node.id)
+                : undefined,
+            }
+          : { name: "cose" },
     });
 
     cy.on("tap", "node", (event) => {
@@ -225,7 +247,7 @@ export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
     return () => {
       cy.destroy();
     };
-  }, [state, workspaceId, router]);
+  }, [state, workspaceId, router, layoutName, rootSlug]);
 
   if (state.status === "loading") {
     return (

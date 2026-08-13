@@ -1,4 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// GraphLensFilter.test.tsx와 같은 패턴 — redirect()는 실제로는 특수 에러를
+// 던져 프레임워크가 가로채는 방식이라, 여기서는 호출 인자(리다이렉트 대상
+// URL)만 직접 관찰한다.
+const redirectMock = vi.fn();
+vi.mock("next/navigation", () => ({
+  redirect: (url: string) => redirectMock(url),
+}));
 
 const fixturePage = {
   id: "wiki-1",
@@ -45,22 +53,26 @@ vi.mock("@/lib/supabase/server", () => ({
 import WikiPageRoute from "@/app/w/[workspaceId]/wiki/[slug]/page";
 
 describe("WikiPageRoute", () => {
+  beforeEach(() => {
+    redirectMock.mockReset();
+  });
+
   it.each([
     ["ASCII slug", "meeting-notes", "meeting-notes"],
     ["percent-encoded Hangul slug", "%ED%9A%8C%EC%9D%98%EB%A1%9D", "회의록"],
     ["already-decoded mixed slug", "meeting-회의록", "meeting-회의록"],
   ])(
-    "looks up a %s using its decoded slug",
+    "looks up a %s using its decoded slug and redirects into the unified viewer",
     async (_name, slug, expectedSlug) => {
       state.requestedSlugs.length = 0;
 
-      const result = await WikiPageRoute({
+      await WikiPageRoute({
         params: Promise.resolve({ workspaceId: "workspace-1", slug }),
       });
 
       expect(state.requestedSlugs).toContain(expectedSlug);
-      expect((result as { props: { page: unknown } }).props.page).toEqual(
-        fixturePage,
+      expect(redirectMock).toHaveBeenCalledWith(
+        `/w/workspace-1/ask?slug=${encodeURIComponent(expectedSlug)}&tab=wiki`,
       );
     },
   );
@@ -73,6 +85,23 @@ describe("WikiPageRoute", () => {
     });
 
     expect(state.requestedSlugs).toEqual([]);
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(
+      (result.type as () => { props: { children: string } })().props.children,
+    ).toBe("페이지를 찾을 수 없습니다");
+  });
+
+  it("does not redirect when the workspace-scoped lookup finds no matching page", async () => {
+    state.requestedSlugs.length = 0;
+
+    const result = await WikiPageRoute({
+      params: Promise.resolve({
+        workspaceId: "workspace-1",
+        slug: "no-such-page",
+      }),
+    });
+
+    expect(redirectMock).not.toHaveBeenCalled();
     expect(
       (result.type as () => { props: { children: string } })().props.children,
     ).toBe("페이지를 찾을 수 없습니다");

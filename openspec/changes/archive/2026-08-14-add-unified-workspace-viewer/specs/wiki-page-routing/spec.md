@@ -1,10 +1,4 @@
-# wiki-page-routing Specification
-
-## Purpose
-
-워크스페이스 멤버가 URL 인코딩 방식과 관계없이 권한 있는 위키 상세 페이지를 안전하고 일관되게 열 수 있도록 한다.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Canonical wiki slug lookup
 The system SHALL resolve a wiki detail route's slug to its decoded Unicode value before looking up the page within the active workspace, regardless of whether the request arrives directly or is redirected into the unified workspace viewer. It MUST preserve the existing requester session and workspace-scoped access boundary for the lookup.

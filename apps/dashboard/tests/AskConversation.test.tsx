@@ -9,21 +9,12 @@ vi.mock("@/lib/sse", () => ({
   parseSseStream: (...args: unknown[]) => sseFrames(...args),
 }));
 
-// CitationSidePanel은 Task 3의 책임(직접 PostgREST 조회)이라 여기서는 얇은
-// 스텁으로 대체하고, AskConversation이 정확한 {kind,id}로 열었는지만 확인한다.
-vi.mock("@/components/CitationSidePanel", () => ({
-  CitationSidePanel: ({
-    part,
-    onClose,
-  }: {
-    part: { kind: string; id?: string } | null;
-    onClose: () => void;
-  }) =>
-    part ? (
-      <div data-testid="side-panel" onClick={onClose}>
-        {part.kind}:{part.id}
-      </div>
-    ) : null,
+// D-03/GraphLensFilter.test.tsx와 같은 패턴 — 인용 마커 클릭이 이제
+// CitationSidePanel 대신 router.push로 ContentViewer 쿼리 파라미터를
+// 바꾸므로, push 호출 인자를 직접 관찰한다.
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
 }));
 
 function makeQueryBuilder(result: { data: unknown; error?: unknown }) {
@@ -65,6 +56,7 @@ describe("AskConversation", () => {
 
   beforeEach(() => {
     sseFrames.mockReset();
+    push.mockReset();
     // 06-REVIEW.md WR-02 fix: AskConversation이 SSE 루프에 들어가기 전에
     // response.ok를 확인하므로, 기존 성공 경로 테스트들이 계속 통과하려면
     // 목 fetch도 ok:true를 흉내내야 한다.
@@ -185,7 +177,7 @@ describe("AskConversation", () => {
     );
   });
 
-  it("citations 이벤트 도착 후에만 마커가 번호 붙은 클릭 가능 링크로 바뀌고, 클릭하면 정확한 {kind,id}로 사이드 패널을 연다", async () => {
+  it("citations 이벤트 도착 후에만 마커가 번호 붙은 클릭 가능 링크로 바뀌고, 클릭하면 ContentViewer의 source 탭으로 전환한다", async () => {
     sseFrames.mockReturnValue(
       toAsyncGenerator([
         { event: "meta", data: { template_id: "t1", evidence_count: 1 } },
@@ -209,7 +201,10 @@ describe("AskConversation", () => {
     const marker = await screen.findByRole("button", { name: "1" });
     fireEvent.click(marker);
 
-    const panel = await screen.findByTestId("side-panel");
-    expect(panel).toHaveTextContent("source:chunk-uuid-1");
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/w/ws-1/ask?chunkId=chunk-uuid-1&tab=source",
+      ),
+    );
   });
 });

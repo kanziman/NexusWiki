@@ -1,9 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { CitationMarker } from "@/components/CitationMarker";
-import { CitationSidePanel } from "@/components/CitationSidePanel";
 import { PageHeader } from "@/components/DashboardPrimitives";
 import {
   splitTextWithAnchors,
@@ -14,6 +14,7 @@ import {
 import { requireEnv } from "@/lib/env";
 import { parseSseStream } from "@/lib/sse";
 import { createClient } from "@/lib/supabase/client";
+import { workspacePath } from "@/lib/workspace-path";
 
 export type AskConversationProps = { workspaceId: string };
 
@@ -81,12 +82,12 @@ async function readAskErrorToken(response: Response): Promise<string> {
  * 발급된 앵커만 클릭 가능한 마커로 승격한다.
  */
 export function AskConversation({ workspaceId }: AskConversationProps) {
+  const router = useRouter();
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [panelPart, setPanelPart] = useState<AnchorPart | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -250,8 +251,31 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     void submitQuestion(text);
   }
 
-  function handleMarkerClick(part: AnchorPart) {
-    setPanelPart(part);
+  // 인용 마커 클릭 시 우측 ContentViewer의 탭을 전환한다 — 예전에는
+  // CitationSidePanel 오버레이를 열었지만, 통합 뷰에서는 우측 패널 자체가
+  // 항상 떠 있으므로 그 패널의 대상만 바꾸는 편이 자연스럽다.
+  // openspec/changes/archive/2026-08-14-add-unified-workspace-viewer 참고.
+  async function handleMarkerClick(part: AnchorPart) {
+    if (!part.id) return;
+    const base = `${workspacePath(workspaceId)}/ask`;
+
+    if (part.kind === "wiki") {
+      // 마커는 wiki_pages.id(UUID)만 들고 있다 — ContentViewer는 slug 기반
+      // 라우팅(wiki-page-routing 스펙과 동일한 계약)이라 여기서 한 번
+      // slug로 변환한다.
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("wiki_pages")
+        .select("slug")
+        .eq("id", part.id)
+        .single();
+      if (data?.slug) {
+        router.push(`${base}?slug=${encodeURIComponent(data.slug)}&tab=wiki`);
+      }
+      return;
+    }
+
+    router.push(`${base}?chunkId=${encodeURIComponent(part.id)}&tab=source`);
   }
 
   return (
@@ -413,12 +437,6 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           질문하기
         </button>
       </form>
-
-      <CitationSidePanel
-        part={panelPart}
-        onClose={() => setPanelPart(null)}
-        workspaceId={workspaceId}
-      />
     </div>
   );
 }
