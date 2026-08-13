@@ -20,10 +20,10 @@ current_phase_name: Integration and Ops Baseline
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-11)
+See: .planning/PROJECT.md (updated 2026-08-13)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** v1.0 milestone complete; Phase 7 manual browser-layout backstops remain available for follow-up
+**Current focus:** Planning next milestone — run `/gsd-new-milestone` to scope v1.1
 
 ## Current Position
 
@@ -105,8 +105,10 @@ Last activity: 2026-08-13 — Milestone v1.0 completed and archived
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Decisions are logged in PROJECT.md Key Decisions table (updated at v1.0 milestone close). The full per-phase decision log below is v1.0 history — the phase docs it references are archived at `.planning/milestones/v1.0-phases/`.
+
+<details>
+<summary>v1.0 decision history (archived — click to expand)</summary>
 
 - [Roadmap]: DB 레이어(`0001`~`0004`, `0006`)는 Validated — 로드맵이 재구현하지 않음. v1에 남은 스키마는 `0005`(Phase 1)와 `0007`(Phase 2)뿐
 - [Roadmap]: 리전은 싱가포르 양쪽 확정 (Railway에 서울·도쿄 없음). Supabase 프로젝트 생성 후 변경 불가 → Phase 1 P0
@@ -191,35 +193,15 @@ Recent decisions affecting current work:
 - [Phase ?]: worker/db/service.py의 _rpc()가 PostgREST의 204 No Content(returns void RPC)를 처리하지 않아 lexical 색인 호출에서 JSONDecodeError로 죽었다 — status_code==204 또는 빈 바디를 응답 판정에서 먼저 걸러 None으로 정규화하도록 수정 (`.planning/debug/resolved/worker-parse-jsondecodeerror.md`, 커밋 `bf338a8`)
 - [Phase ?]: 로컬 `.env`에 EMBEDDING_MODEL/EMBEDDING_PROVIDER가 없으면 embed 잡이 OpenRouter에 model:null을 보내 400으로 죽는다 — 코드 결함이 아니라 worker/settings.py가 의도적으로 코드 기본값을 안 두는 필드다. `.env.sample`의 관측값(baai/bge-m3, deepinfra/fp32)을 그대로 채우면 해결
 
+</details>
+
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- [Phase 1] `0005`(Storage)는 첫 클라우드 `db push` **이전에** 적용해야 함 — 이미 적용된 `0006`보다 번호가 낮아 이후에 넣으면 로컬/클라우드 순서가 어긋남
-- [Phase 1] 2025-11 이후 생성 프로젝트에는 legacy 키가 발급되지 않음 — `sb_publishable_`/`sb_secret_` 체계로 시작해야 함
-- [해소 2026-08-06] [Phase 2] DB 트랜스포트 — `create function ... SET hnsw.iterative_scan`이 Supabase RPC로 **실제 적용됨**을 실측 확인(강제 HNSW 계획에서 GUC 3종 · HNSW Index Scan · k=20 전부 충족). RPC 채택으로 잠금 — `checklists.json > decisions.db_transport`, `docs/ops/db-transport-spike.md`
-- [Phase 2] `0003`의 `jobs`에 하트비트 가능 컬럼이 있는지 미확인 — 없으면 컴파일을 더 작은 잡으로 분할 (워커 루프 작성 전 확인)
-- [Phase 3] 한국어 청킹 파라미터는 문헌 없음 — 실측 튜닝 대상. PDF 품질 게이트 임계값은 실제 픽스처(스캔본·다단·표 위주) 필요
-- [Phase 2] authenticated·service_role이 public 9개 테이블에 arwd(SELECT/INSERT/UPDATE/DELETE) 권한을 하나도 갖고 있지 않음 — pg_default_acl이 Dxtm만 부여. RLS는 이미 가진 권한을 좁힐 뿐이므로 0004의 정책 20여 개가 현재 무력하고 요청자 JWT 경로·service_role 워커 경로 모두 42501로 떨어진다. 영구 조치를 0007(02-06-PLAN)에 반영할 것
-- [Phase 2] WorkerSettings의 secret 4종 + LLM_MODEL이 필수 필드가 되어, Railway worker 서비스 env에 다섯 키가 모두 없으면 다음 배포에서 crash-loop으로 처음 드러난다 (api 서비스 env에는 secret 4종이 없어야 정상 — SEC-01)
-- [Phase 2] 0007이 원격에 올라가 0007 이하 번호의 마이그레이션은 영구히 추가 불가 — 내용 변경은 0008 보정으로만. 섹션 7의 타입 변경은 다음에 되돌릴 때 실제 데이터가 있으므로 사실상 편도 (docs/ops/migration-0007-record.md §한계와 되돌리기)
-- [Phase 2] 0007 섹션 8의 권한 매트릭스가 실제 경로에 대해 넓지도 좁지도 않은지는 미확인 — 라우터가 서는 02-04와 워커가 도는 Phase 3에서 처음 드러난다. 좁게 틀리면 42501로 소란스럽고 넓게 틀리면 조용하다
-- [Phase 2] 새로 만드는 테이블은 pg_default_acl에서 다시 Dxtm(TRUNCATE 포함)을 물려받는다 — 테이블 추가 마이그레이션마다 0007 섹션 8의 revoke/grant 쌍을 반복할 것
-- [Phase 2] 격리 왕복 증명은 workspaces 한 테이블·로컬 스택에 한정 — 나머지 8개 테이블과 Storage, 클라우드 왕복은 미확인. 전수 스위트는 Phase 7 OPS-04 (docs/ops/tenant-isolation-proof.md §한계)
-- [해소 2026-08-07] [Phase 2] 02-08 Railway 실측 — 전 단계 완료. 측정값 p50 84.49 / p95 107.92 / p99 127.05ms (N=219, git_sha 60c1e80). 프로브 토글 2종은 `railway variable delete`로 제거하고 로그 부재로 확인(위협 T-02-47 종결), 프로브 워크스페이스는 삭제하고 `select count(*) from public.jobs` = 0 관측(위협 T-02-48 종결). 근거: `docs/ops/reap-timeout-baseline.md` §한계 4·5
-- [Phase 3] 프로브성 잡을 다시 만들 일이 있으면 **처분 가능한 워크스페이스에 가두는 방식**을 다시 써야 한다 — `0007` 섹션 8이 `jobs`에 어느 롤에도 DELETE를 주지 않으므로(잡 이력이 곧 감사 기록) "각 왕복이 자기 잡을 지운다"는 권한 매트릭스가 바뀌지 않는 한 앞으로도 불가능하다
-- [Phase 2] 02-09 Task 3(게이트)이 체크포인트로 중단됨 — 스크립트 2종과 워크플로우 4잡은 커밋됐고 로컬에서 위반 4종 red·clean tree exit 0까지 실측했으나, 원격 Actions 관측이 남았다. 필요한 것: (a) `ci-violation/service-import` 브랜치 — `apps/api/src/api/` 모듈에 `from worker.db.service import service_client` 한 줄 → PR에서 `service-usage` 잡 red와 위반 파일 경로 확인 (b) `ci-violation/bundle-secret` 브랜치 — dashboard 클라이언트 컴포넌트에 리터럴 한 줄(환경변수 참조는 번들에 안 남음) → PR에서 `bundle-secrets` 잡 red와 **파일 경로는 나오되 값은 안 나오는지** 확인 (c) 두 브랜치 삭제 후 정상 PR에서 4잡 green. 관측을 지어내지 않기 위해 docs/ops/ci-security-gate.md와 02-09-SUMMARY.md는 미작성 상태다
-- [Phase 2] 미등록 job type의 즉시 dead 전이는 현재 SQL 표면으로 불가 — dead는 fail_job/reap_stale_jobs 양쪽에서 attempts >= max_attempts로만 도달하고 그 게이트를 건너뛰려면 jobs 직접 UPDATE가 필요하다(금지 경로). 02-07은 fail_job(backoff='0 seconds')로 대기 없이 수렴시켰다. 0008의 dead_letter_job()이 이 자리를 닫을 것
-- 클라우드에서 service_role이 public.search_chunks EXECUTE를 갖는다 (pg_default_acl 로컬/클라우드 차이) — 0009의 revoke 한 줄로 정정 필요
-- [Phase 3] chunk_text의 오버랩이 최소 조각 1개 단위라 청크가 조각 하나뿐일 때는 인접 청크가 겹치지 않고 맞닿는다 (실측 오버랩 min=0) — 인용 단위로서 문제가 되는지는 Phase 4 골든 세트가 판정한다
-- [해소 2026-08-10] [Phase 3] 비용 상한 거부는 사용자 승인 A에 따라 `0010`의 프로젝트 전용 `NW402`와 `api.errors` 단일 HTTP 매핑으로 402가 된다. Postgres가 만들 수 없는 코드라 실제 DB 자원 오류를 예산 초과로 오인하지 않는다 (`03-05-SUMMARY.md`).
-- [Phase 3] 03-07 예산 조회는 표시용(`authoritative: false`)이며, UTC 월 경계의 제한된 `usage_events` 합계는 인큐 가능 여부를 판정하지 않는다. 권위 있는 판정은 `enqueue_source_job` SQL 하나에 남는다 (D-P18).
-- [Phase 4] 04-04 Task 3 수용기준 #1 미충족 — strict_order 대 relaxed_order 비교 실행 기록이 없다. 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 아예 고르지 않으므로(Phase 2 관측 btree+sort 233 대 HNSW 349,657) 그 규모의 비교는 T-04-12(오도하는 튜닝)가 된다. 두 기본값(strict_order · graph off)은 `.claude/CLAUDE.md:21`·`0011:76,147`과 RTV-07 안전 기본값으로 **유지**했을 뿐 측정되지 않았다. 그래프 off/on도 `scripts/benchmark_retrieval.py`에 토글이 없어 비교 불가. 필요한 것: 10^4~10^5 청크 규모 + 동일 corpus/golden/policy/model 해시 양팔 + 프로덕션 유사 하드웨어. 언더필·플랜 형태는 합성 1024차원 벡터로 로컬에서 무료 선행 가능. Phase 7 OPS 이월 (`docs/ops/hnsw-order-benchmark.md` §한계, WINDOWS #10)
-- [Phase 6] middleware.ts 리다이렉트 동작과 /w/[workspaceId]의 RLS 스코프 읽기에 대한 자동 회귀 테스트가 없다 (06-01 SUMMARY coverage: D1/D3 human_judgment=true) — 이번 세션엔 로컬 supabase start에 대한 curl 왕복으로만 검증했다
-- [해소 2026-08-13] [Phase 6] 06-07 위키 뷰어 라이브 검증 — 06-UAT.md 테스트 3이 plain Playwright로 4종 verification 콜아웃·disputed 우선순위·WikiLink 해소/red 내비게이션을 실측 확인. WINDOWS.md #12 fixed 처리 완료
-- [해소 2026-08-13] [Phase 6] UAT 테스트 1(인제스트 흐름)·2(Ask 이중 인용)이 로컬 스택 대상 실 라이브 검증으로 5/5 전부 통과. 과정에서 worker `_rpc()`의 PostgREST 204 처리 누락(JSONDecodeError, 별도 `/gsd-debug` 세션에서 수정, `bf338a8`)과 로컬 `.env`의 EMBEDDING_MODEL/EMBEDDING_PROVIDER 누락(코드 결함 아님, `.env.sample` 기록값 반영)을 발견·해소
+None open. All v1.0 blockers were either resolved during the milestone or are now closed as historical context — see `.planning/RETROSPECTIVE.md` for what shipped and what to watch for, and `.planning/PROJECT.md` §Next Milestone Goals for open questions carried into v1.1 scoping. Full blocker history for v1.0 is preserved in the archived phase docs at `.planning/milestones/v1.0-phases/`.
 
 ## Deferred Items
 
@@ -231,15 +213,11 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-13T05:15:49.627Z
-Stopped at: Phase 7 complete — all evidence including browser-layout backstops verified
-Resume file: .planning/phases/07-integration-and-ops-baseline/07-CONTEXT.md
+Last session: 2026-08-13 (v1.0 milestone completion and archival)
+Stopped at: v1.0 milestone shipped, archived, and tagged
+Resume file: None — no active phase. Next entry point is `/gsd-new-milestone`.
 
-**재개 시 첫 행동:** Phase 7 — Integration and Ops Baseline을 `/gsd-discuss-phase 7`로 시작한다 (CONTEXT.md 아직 없음).
-
-⚠️ **보존할 워킹 트리 변경이 있다** — `.planning/config.json`, `checklists.json`, `.agents/`,
-`.pnpm-store/`, `docs/architecture/`, `docs/design-systems/`, `docs/ops/benchmark-records/phase-04-rerun-{,v2-,v3-}*.json`는
-이전 세션들이 남긴 것으로 이번 작업과 무관하다. 정리 명령으로 삭제하지 않는다.
+**재개 시 첫 행동:** v1.0은 완전히 마감됐다. 다음 세션은 `/gsd-new-milestone`으로 v1.1 스코프를 잡는 것부터 시작한다.
 
 ## Operator Next Steps
 
