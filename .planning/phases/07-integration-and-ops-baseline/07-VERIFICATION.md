@@ -1,18 +1,25 @@
 ---
 phase: 07-integration-and-ops-baseline
-verified: 2026-08-13T12:22:00+09:00
-status: passed
+verified: 2026-08-13T12:28:00+09:00
+status: human_needed
 score: 5/5 must-haves verified
-behavior_unverified: 2
+behavior_unverified: 0
 overrides_applied: 0
 gaps: []
+human_verification:
+  - test: "Open the owner/editor Operations tab at a narrow viewport with large locale-formatted costs and timestamps."
+    expected: "The refresh control remains visible; the stage table scrolls horizontally inside its bordered container; labels and counts do not overlap or clip."
+    why_human: "DOM tests cannot establish the target-browser layout."
+  - test: "Inspect an unusually long server-provided stage label in the Operations table."
+    expected: "The label truncates or wraps accessibly and its full text is available through the title tooltip."
+    why_human: "Rendered overflow and native tooltip behavior are browser/layout dependent."
 ---
 
 # Phase 7: Integration and Ops Baseline Verification Report
 
 **Phase Goal:** 조각들이 실제로 함께 동작함이 증명되고, 품질·비용·격리에 이후 회귀를 판정할 기준선이 생긴다
-**Verified:** 2026-08-13T12:22:00+09:00
-**Status:** passed
+**Verified:** 2026-08-13T12:28:00+09:00
+**Status:** human_needed
 **Re-verification:** Yes — F-01 write-isolation and F-02 planning-state remediation
 
 ## Goal Achievement
@@ -82,8 +89,8 @@ gaps: []
 
 | Behavior | Command | Result | Status |
 | --- | --- | --- | --- |
-| F-01 isolation write matrix | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q apps/api/tests/test_tenant_isolation_full_path.py` | Exited successfully after the `a1d1143` matrix change (the execution harness retained progress dots but not the pytest footer). | ✓ PASS |
-| OPS focused pipeline/idempotency/isolation/operations contracts | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q apps/api/tests/test_pipeline_e2e.py apps/api/tests/test_reingestion_idempotency.py apps/api/tests/test_tenant_isolation_full_path.py apps/api/tests/test_jobs_router.py` | 25 passed before the F-01 change; the isolation component was then rerun successfully as recorded above. | ✓ PASS |
+| F-01 isolation write matrix | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q apps/api/tests/test_tenant_isolation_full_path.py` | Fresh F-01 rerun completed after exercising the 32 collected isolation cases; the execution harness retained progress dots but not the pytest footer. | ✓ PASS |
+| OPS focused pipeline/idempotency/isolation/operations contracts | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q apps/api/tests/test_pipeline_e2e.py apps/api/tests/test_reingestion_idempotency.py apps/api/tests/test_tenant_isolation_full_path.py apps/api/tests/test_jobs_router.py` | Fresh run completed; `--collect-only` independently confirms 51 selected tests (3 pipeline/idempotency, 32 isolation, 16 jobs). The execution harness retained progress dots but not the terminal footer. | ✓ PASS |
 | Retrieval record schema | `UV_CACHE_DIR=/tmp/nexuswiki-uv-cache uv run pytest -q packages/core/tests/test_retrieval_golden.py` | 18 passed | ✓ PASS |
 | Record comparator | `uv run python scripts/benchmark_retrieval.py compare-order-records ...` | `{"status":"ok","quality_delta":-0.2222222222222222}` | ✓ PASS |
 | Dashboard operations/UI type safety | `pnpm --dir apps/dashboard test && pnpm --dir apps/dashboard typecheck` | 17 files / 82 tests passed; typecheck passed | ✓ PASS |
@@ -127,7 +134,7 @@ The UI-SPEC correctly leaves two visual backstops. Automated verification passed
 
 ## Completion Summary
 
-Phase 7 has executable evidence for E2E ingest, shrinking reprocessing, the full requester-JWT isolation boundary, HNSW-scale baseline records, and a safely authorized operations view. F-01 (`a1d1143`) closes the earlier write-isolation gap; F-02 synchronizes Phase 7 planning records with that evidence. The root Python-suite invocation still has an inconclusive captured footer (435 tests collected and output retained through 37%), so this report does not claim a newly captured full-suite total. The focused F-01 rerun exited successfully, while the two browser-layout checks above remain human backstops.
+Phase 7 has executable evidence for E2E ingest, shrinking reprocessing, the full requester-JWT isolation boundary, HNSW-scale baseline records, and a safely authorized operations view. F-01 (`a1d1143`) closes the earlier write-isolation gap; F-02 synchronizes Phase 7 planning records with that evidence. The root Python-suite invocation still has an inconclusive captured footer (435 tests collected and output retained through 37%), so this report does not claim a newly captured full-suite total. The focused F-01 rerun completed, while the two browser-layout checks above remain human backstops. Per verifier policy, those unperformed manual checks require `human_needed`; they are not implementation gaps.
 
-_Verified: 2026-08-13T12:22:00+09:00_
+_Verified: 2026-08-13T12:28:00+09:00_
 _Verifier: the agent (gsd-verifier)_
