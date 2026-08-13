@@ -11,13 +11,14 @@ import pytest
 from fastapi import status
 
 from api.errors import FORBIDDEN_BODY
-from api.routers.jobs import _job_response
+from api.routers.jobs import CHAIN_ORDER, STEP_LABELS, _job_response, _pipeline_snapshot
 
 TEXT_PATH = "/workspaces/{workspace_id}/sources/text"
 JOBS_PATH = "/workspaces/{workspace_id}/sources/{raw_source_id}/jobs"
 RETRY_PATH = "/workspaces/{workspace_id}/jobs/{job_id}/retry"
 CANCEL_PATH = "/workspaces/{workspace_id}/jobs/{job_id}/cancel"
 BUDGET_PATH = "/workspaces/{workspace_id}/budget"
+OPERATIONS_PATH = "/workspaces/{workspace_id}/operations"
 
 
 def _body() -> dict[str, str]:
@@ -38,6 +39,7 @@ async def _enqueue(client: httpx.AsyncClient, workspace_id: str) -> dict[str, st
         ("POST", RETRY_PATH),
         ("POST", CANCEL_PATH),
         ("GET", BUDGET_PATH),
+        ("GET", OPERATIONS_PATH),
     ],
 )
 async def test_all_job_routes_require_credentials(
@@ -194,3 +196,59 @@ async def test_budget_is_display_only_and_empty_usage_costs_zero(
     )
     assert body["spent_micros"] == 0
     assert body["authoritative"] is False
+
+
+def test_operations_pipeline_is_fixed_order_and_safe_allowlist() -> None:
+    pipeline = _pipeline_snapshot(
+        [
+            {"type": "embed", "status": "dead", "payload": {"secret": "no"}},
+            {"type": "parse", "status": "queued", "last_error": "no"},
+            {"type": "parse", "status": "queued"},
+            {"type": "compile", "status": "running", "provider": "no"},
+            {"type": "unknown", "status": "dead"},
+        ]
+    )
+
+    assert [row["type"] for row in pipeline] == list(CHAIN_ORDER)
+    assert [row["step_label"] for row in pipeline] == [STEP_LABELS[step] for step in CHAIN_ORDER]
+    assert pipeline[0] == {
+        "type": "parse",
+        "step_label": "원문 파싱",
+        "queued": 2,
+        "running": 0,
+        "dead": 0,
+    }
+    assert pipeline[1]["running"] == 1
+    assert pipeline[3]["dead"] == 1
+    assert all(set(row) == {"type", "step_label", "queued", "running", "dead"} for row in pipeline)
+
+
+@pytest.mark.asyncio
+async def test_operations_owner_and_editor_receive_safe_empty_snapshot(
+    isolation_principals: tuple[Any, ...], authed_client: Callable[..., Any]
+) -> None:
+    owner, editor, _, _, _ = isolation_principals
+    for actor in (owner, editor):
+        async with authed_client(actor) as client:
+            response = await client.get(OPERATIONS_PATH.format(workspace_id=owner.workspace_id))
+        assert response.status_code == status.HTTP_200_OK
+        snapshot = response.json()
+        assert snapshot["budget"]["authoritative"] is False
+        assert snapshot["budget"]["spent_micros"] == 0
+        assert [row["type"] for row in snapshot["pipeline"]] == list(CHAIN_ORDER)
+        assert all(
+            sensitive not in str(snapshot)
+            for sensitive in ("payload", "last_error", "metadata", "provider", "model")
+        )
+
+
+@pytest.mark.asyncio
+async def test_operations_rejects_viewer_foreign_and_non_member_on_server(
+    isolation_principals: tuple[Any, ...], authed_client: Callable[..., Any]
+) -> None:
+    owner, _, viewer, foreign, non_member = isolation_principals
+    for actor in (viewer, foreign, non_member):
+        async with authed_client(actor) as client:
+            response = await client.get(OPERATIONS_PATH.format(workspace_id=owner.workspace_id))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json() == FORBIDDEN_BODY

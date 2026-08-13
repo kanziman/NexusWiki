@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from api.db.user import UserDb
-from api.errors import JobNotCancellable, JobNotRetryable
+from api.errors import JobNotCancellable, JobNotRetryable, WorkspaceForbidden
 from api.settings import ApiSettings
 
 router = APIRouter(prefix="/workspaces", tags=["jobs"])
@@ -110,6 +110,31 @@ def _month_start() -> datetime:
     return datetime(now.year, now.month, 1, tzinfo=UTC)
 
 
+async def _require_operations_role(db: UserDb, *, workspace_id: UUID) -> None:
+    """운영 스냅샷은 editor 이상에게만 보여준다.
+
+    기존 RLS 헬퍼를 요청자 JWT로 호출한다. 이 검사를 대시보드 역할 판정에 맡기면
+    직접 API 호출로 비용/잡 집계가 새는 경로가 생긴다.
+    """
+    result = await db.rpc(
+        "has_workspace_role",
+        params={"ws_id": str(workspace_id), "min_role": "editor"},
+    )
+    if not result or result[0] is not True:
+        raise WorkspaceForbidden(table="workspace_members", affected=0)
+
+
+def _pipeline_snapshot(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """허용된 상태만 고정 순서의 안전한 표시 DTO로 축소한다."""
+    counts = {step: {"queued": 0, "running": 0, "dead": 0} for step in CHAIN_ORDER}
+    for row in rows:
+        job_type = str(row.get("type", ""))
+        job_status = str(row.get("status", ""))
+        if job_type in counts and job_status in counts[job_type]:
+            counts[job_type][job_status] += 1
+    return [{"type": step, "step_label": STEP_LABELS[step], **counts[step]} for step in CHAIN_ORDER]
+
+
 @router.get("/{workspace_id}/sources/{raw_source_id}/jobs")
 async def list_source_jobs(
     workspace_id: UUID,
@@ -197,4 +222,45 @@ async def workspace_budget(
         "truncated": len(usage) == _BUDGET_USAGE_LIMIT,
         # 이 값은 표시용이다. 권위 있는 상한 판정은 enqueue_source_job SQL이 한다 (D-P18).
         "authoritative": False,
+    }
+
+
+@router.get("/{workspace_id}/operations")
+async def workspace_operations(
+    workspace_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """owner/editor 전용 비용·파이프라인 표시 스냅샷 (OPS-06).
+
+    이 엔드포인트는 원문, 공급자 정보, usage metadata와 잡 오류를 읽거나 반환하지
+    않는다. 반환 스키마는 아래 allowlist로만 조립한다.
+    """
+    db = _user_db(request, credentials)
+    await _require_operations_role(db, workspace_id=workspace_id)
+
+    month_start = _month_start()
+    cap_rows = await db.select(
+        "workspaces", match={"id": str(workspace_id)}, columns="monthly_budget_micros", limit=1
+    )
+    usage = await _usage_rows_since(db, workspace_id=workspace_id, month_start=month_start)
+    # RLS를 태운 요청자 JWT 직접 읽기다. 집계는 서버에서만 수행하며 원 행은 응답에 없다.
+    job_rows = await db.select(
+        _JOBS_TABLE,
+        match={"workspace_id": str(workspace_id)},
+        columns="type,status",
+    )
+    cap_micros = int(cap_rows[0]["monthly_budget_micros"]) if cap_rows else 0
+    spent_micros = sum(int(item["cost_micros"]) for item in usage)
+    return {
+        "budget": {
+            "cap_micros": cap_micros,
+            "spent_micros": spent_micros,
+            "remaining_micros": cap_micros - spent_micros,
+            "month_start": month_start.isoformat(),
+            "truncated": len(usage) == _BUDGET_USAGE_LIMIT,
+            "authoritative": False,
+        },
+        "pipeline": _pipeline_snapshot(job_rows),
+        "observed_at": datetime.now(UTC).isoformat(),
     }
