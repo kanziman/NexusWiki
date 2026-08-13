@@ -63,6 +63,7 @@
 - **Tech stack**: Supabase(Postgres 17 + Auth + Storage) · FastAPI · Next.js 15 App Router · pgvector — 데이터 계층이 이미 이 전제로 구현·검증 완료됨
 - **Tech stack**: LLM은 OpenRouter 경유, 모델은 env `LLM_MODEL`(기본 `claude-sonnet-4-6`) — 모델 교체 자유도 확보. 대신 Anthropic 네이티브 프롬프트 캐싱과 네이티브 `output_config.format`을 포기. (OpenRouter 자체의 `response_format: {type:"json_schema"}`는 엔드포인트별로 지원되므로 `require_parameters: true`와 능력 탐지를 전제로 선택적 최적화로 쓸 수 있음 — 프롬프트+Pydantic+3회 재시도는 그와 무관하게 필수 백스톱)
 - **Deployment**: Supabase 리전 `ap-southeast-1`(싱가포르) + Railway `asia-southeast1` — Railway에 서울·도쿄 리전이 없어 교차 리전 왕복이 5채널마다 곱해짐. **리전은 프로젝트 생성 후 변경 불가**
+- **Deployment**: `apps/dashboard`(Next.js)는 Vercel Production에 배포됨(2026-08-13). **재배포는 반드시 저장소 루트에서 `vercel --prod`를 실행** — `apps/dashboard` 안에서 실행하면 `docs/design-systems/design-tokens.css` 참조가 깨진다(모노레포 업로드 스코프 함정, 상세: `docs/ops/vercel-deploy-record.md`)
 - **Security**: Next.js는 15.2.3 이상 필수 — CVE-2025-29927은 `x-middleware-subrequest` 헤더 위조로 미들웨어를 건너뛰는데, 이 앱의 테넌트 게이트가 미들웨어임
 - **Security**: 사용자 요청 경로는 요청자 JWT(`user_client`), `service_role`은 워커와 마이그레이션 전용 — `service_role`은 BYPASSRLS라 사용자 경로에 쓰는 순간 38개 격리 정책이 전부 장식이 됨
 - **Compatibility**: 마이그레이션 `0005`(Storage)는 클라우드 첫 `db push` **이전에** 반드시 적용 — 이후에 넣으면 로컬/클라우드 순서가 어긋남
