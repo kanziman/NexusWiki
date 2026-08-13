@@ -11,7 +11,7 @@ Multiple-file upload remains a separate future change.
 
 ## Dropzone Design
 
-The visible file drop target becomes a `<label>` associated with the existing hidden file input. This preserves the current upload API, drag-and-drop behavior, selected-file state, and title flow. Native label activation opens the file picker for pointer interaction and keyboard `Enter`/`Space`, without a custom button/ref path that could open it twice.
+The visible file drop target becomes a `<label>` associated with the existing hidden file input. This preserves the current upload API, drag-and-drop behavior, selected-file state, and title flow. Native label activation opens the file picker for pointer interaction. Because labels are not keyboard-focusable by default, the target also receives `tabIndex={0}` and an `onKeyDown` handler that opens the input only for `Enter` and `Space`, preventing the browser default for Space to avoid duplicate activation.
 
 The input stays the single source for file selection. Tests will verify pointer activation, keyboard activation, and that the existing raw-file submission behavior remains unchanged.
 
