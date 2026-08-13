@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 13
+open_count: 12
 waived_count: 0
-fixed_count: 1
+fixed_count: 2
 total_count: 14
-last_updated: 2026-08-13T00:21:08.579Z
+last_updated: 2026-08-13T01:28:50.820Z
 ---
 
 # Broken Windows Ledger
@@ -26,7 +26,7 @@ last_updated: 2026-08-13T00:21:08.579Z
 | 9 | 03 | unrun-verify | apps/worker/src/worker/llm.py |  | 오류 되먹임 재시도가 실제 모델에서 복구로 이어지는지 미관측 — 1회차가 스키마를 만족해 재시도 경로가 실호출에서 타지 않았다 | open |  | 2026-08-08T08:16:14.169Z |  |
 | 10 | 04 | unrun-verify | docs/ops/hnsw-order-benchmark.md |  | strict_order 대 relaxed_order 비교 실행이 없다 — 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 고르지 않는다(Phase 2 관측 btree+sort 233 대 HNSW 349,657). 그 규모의 수치는 다른 플랜을 재는 것이라 T-04-12(오도하는 튜닝)에 해당한다. 두 기본값은 제약·안전 기본값으로 유지했을 뿐 측정되지 않았다. 그래프 off/on 비교도 러너에 토글이 없어 불가. Phase 7 OPS 이월 (04-04 Task 3 수용기준 #1 미충족) | open |  | 2026-08-11T09:06:03.966Z |  |
 | 11 | 06 | deviation | apps/dashboard/app/globals.css |  | Tailwind max-w-*/w-*/h-* 유틸리티가 이 프로젝트의 커스텀 --spacing-{xs,sm,base,lg,xl,xxl,section} @theme 오버라이드와 이름이 겹치면 --container-*(Tailwind 기본) 대신 --spacing-*로 잘못 해석된다 (실측: max-w-xl -> 32px, 06-03 SettingsMembersPanel에서 발견/수정). max-w-md는 안전(--spacing-md 미정의). 이후 Phase 6 플랜은 xs/sm/base/lg/xl/xxl/section과 겹치는 크기 유틸리티 사용 전 getComputedStyle로 실측 확인할 것. | open |  | 2026-08-12T09:19:45.765Z |  |
-| 12 | 06 | unrun-verify | apps/dashboard/components/WikiPageContent.tsx |  | WikiLink 네비게이션(해소/red)과 4종 verification 콜아웃, disputed 우선순위를 로컬 스택 대상 실제 클릭스루로 검증하지 못했다 — Playwright 라이브 검증 시도가 반복 중단되어(watchdog) 정적 검증(vitest/tsc/next build)만으로 대체했다. 시딩한 테스트 데이터/계정은 정리 완료(0행 확인) | open |  | 2026-08-12T14:32:01.260Z |  |
+| 12 | 06 | unrun-verify | apps/dashboard/components/WikiPageContent.tsx |  | WikiLink 네비게이션(해소/red)과 4종 verification 콜아웃, disputed 우선순위를 로컬 스택 대상 실제 클릭스루로 검증하지 못했다 — Playwright 라이브 검증 시도가 반복 중단되어(watchdog) 정적 검증(vitest/tsc/next build)만으로 대체했다. 시딩한 테스트 데이터/계정은 정리 완료(0행 확인) | fixed |  | 2026-08-12T14:32:01.260Z | 2026-08-13T01:28:50.820Z |
 | 13 | 06 | deviation | apps/dashboard/app/ |  | App Router에 error.tsx/not-found.tsx가 전혀 없다 — 처리되지 않은 예외나 잘못된 라우트가 Next의 기본(브랜드 없는) 에러 화면으로 떨어진다. 06-UI-REVIEW.md Pillar 6. | open |  | 2026-08-13T00:21:08.459Z |  |
 | 14 | 06 | deviation | apps/dashboard/components/GraphCanvas.tsx |  | 카테고리별 노드 색상 8개가 CSS 커스텀 프로퍼티 대신 리터럴 hex로 하드코딩돼 있다 (Cytoscape 스타일시트 API가 CSS var를 직접 못 받아서) — 각 줄에 // --color-x 주석은 있지만 실제 값은 안 읽는다. 06-UI-REVIEW.md Pillar 3. | open |  | 2026-08-13T00:21:08.579Z |  |
 
@@ -171,10 +171,10 @@ last_updated: 2026-08-13T00:21:08.579Z
     "file": "apps/dashboard/components/WikiPageContent.tsx",
     "line": null,
     "description": "WikiLink 네비게이션(해소/red)과 4종 verification 콜아웃, disputed 우선순위를 로컬 스택 대상 실제 클릭스루로 검증하지 못했다 — Playwright 라이브 검증 시도가 반복 중단되어(watchdog) 정적 검증(vitest/tsc/next build)만으로 대체했다. 시딩한 테스트 데이터/계정은 정리 완료(0행 확인)",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-08-12T14:32:01.260Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-13T01:28:50.820Z"
   },
   {
     "id": 13,

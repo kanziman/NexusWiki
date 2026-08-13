@@ -27,7 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Ingest and Compile Pipeline** - 투입한 소스가 링크·임베딩된 위키 페이지가 되는 쓰기 경로 (completed 2026-08-10)
 - [x] **Phase 4: Hybrid Retrieval and Fusion** - 5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다 (completed 2026-08-11)
 - [x] **Phase 5: Citation Integrity and Answer APIs** - 실제로 인용한 근거만 이중 Citation으로 돌려주는 답변 계층 (completed 2026-08-12)
-- [ ] **Phase 6: Dashboard** - 브라우저만으로 워크스페이스를 운영하는 프론트엔드
+- [x] **Phase 6: Dashboard** - 브라우저만으로 워크스페이스를 운영하는 프론트엔드 (completed 2026-08-13)
 - [ ] **Phase 7: Integration and Ops Baseline** - E2E·멱등성·격리·품질·비용 기준선
 
 ## Phase Details
@@ -304,7 +304,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Ingest and Compile Pipeline | 9/9 | Complete    | 2026-08-10 |
 | 4. Hybrid Retrieval and Fusion | 9/9 | Complete    | 2026-08-11 |
 | 5. Citation Integrity and Answer APIs | 7/7 | Complete    | 2026-08-12 |
-| 6. Dashboard | 8/8 | In Progress|  |
+| 6. Dashboard | 8/8 | Complete    | 2026-08-13 |
 | 7. Integration and Ops Baseline | 0/TBD | Not started | - |
 
 ## Coverage

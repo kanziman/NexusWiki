@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06
-current_phase_name: dashboard
-status: verifying
+current_phase: 7
+current_phase_name: Integration and Ops Baseline
+status: planning
 stopped_at: Completed 06-07-PLAN.md (UI-05, wiki viewer) — Phase 6 (dashboard) complete, all 6 requirements delivered
-last_updated: "2026-08-12T14:34:32.310Z"
-last_activity: 2026-08-12
-last_activity_desc: Phase 06 execution started
+last_updated: "2026-08-13T01:27:38.388Z"
+last_activity: 2026-08-13
+last_activity_desc: Phase 6 complete, transitioned to Phase 7
 progress:
   total_phases: 6
   completed_phases: 6
@@ -23,22 +23,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-11)
 
 **Core value:** 질문에 대한 답이 원문 청크와 컴파일된 위키 페이지 양쪽으로 추적 가능해야 한다
-**Current focus:** Phase 06 — dashboard
+**Current focus:** Phase 07 — Integration and Ops Baseline
 
 ## Current Position
 
-Phase: 06 (dashboard) — EXECUTING
-Plan: 8 of 8
-Status: Phase complete — ready for verification
-Last activity: 2026-08-12 — Phase 06 execution started
+Phase: 7 — Integration and Ops Baseline
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-13 — Phase 6 complete, transitioned to Phase 7
 
-Progress: [██████████] 100% (execution; verification pending)
+Progress: [████████████████████] 51/51 plans (100%) — Phase 6 UAT 5/5 passed, verified
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 43
+- Total plans completed: 51
 - Average duration: —
 - Total execution time: —
 
@@ -51,6 +51,7 @@ Progress: [██████████] 100% (execution; verification pending
 | 03 | 9 | - | - |
 | 04 | 9 | - | - |
 | 05 | 7 | - | - |
+| 6 | 8 | - | - |
 
 **Recent Trend:**
 
@@ -188,6 +189,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 6] 위키 뷰어의 disputed 콜아웃은 verification_status와 무관하게 항상 본문보다 먼저 렌더링된다 — 파일/DOM 순서 구조적 보장 (T-06-22, 06-07)
 - [Phase ?]: [Phase 6] canVerify는 has_workspace_role RPC 우선, workspace_members 직접 읽기로 폴백해 서버에서 판정한다 — 실제 쓰기 경계는 wiki.py RLS다 (T-06-21, 06-07)
 - [Phase ?]: [Phase 6] 06-07 라이브 Playwright 검증은 두 차례 중단되어 정적 검증(vitest/tsc/next build)만으로 대체 — WINDOWS.md #12로 추적, Phase 6 6개 요구사항(UI-01~06) 전부 완료
+- [Phase ?]: worker/db/service.py의 _rpc()가 PostgREST의 204 No Content(returns void RPC)를 처리하지 않아 lexical 색인 호출에서 JSONDecodeError로 죽었다 — status_code==204 또는 빈 바디를 응답 판정에서 먼저 걸러 None으로 정규화하도록 수정 (`.planning/debug/resolved/worker-parse-jsondecodeerror.md`, 커밋 `bf338a8`)
+- [Phase ?]: 로컬 `.env`에 EMBEDDING_MODEL/EMBEDDING_PROVIDER가 없으면 embed 잡이 OpenRouter에 model:null을 보내 400으로 죽는다 — 코드 결함이 아니라 worker/settings.py가 의도적으로 코드 기본값을 안 두는 필드다. `.env.sample`의 관측값(baai/bge-m3, deepinfra/fp32)을 그대로 채우면 해결
 
 ### Pending Todos
 
@@ -216,7 +219,8 @@ None yet.
 - [Phase 3] 03-07 예산 조회는 표시용(`authoritative: false`)이며, UTC 월 경계의 제한된 `usage_events` 합계는 인큐 가능 여부를 판정하지 않는다. 권위 있는 판정은 `enqueue_source_job` SQL 하나에 남는다 (D-P18).
 - [Phase 4] 04-04 Task 3 수용기준 #1 미충족 — strict_order 대 relaxed_order 비교 실행 기록이 없다. 고정 코퍼스가 12/12/8행이라 플래너가 HNSW를 아예 고르지 않으므로(Phase 2 관측 btree+sort 233 대 HNSW 349,657) 그 규모의 비교는 T-04-12(오도하는 튜닝)가 된다. 두 기본값(strict_order · graph off)은 `.claude/CLAUDE.md:21`·`0011:76,147`과 RTV-07 안전 기본값으로 **유지**했을 뿐 측정되지 않았다. 그래프 off/on도 `scripts/benchmark_retrieval.py`에 토글이 없어 비교 불가. 필요한 것: 10^4~10^5 청크 규모 + 동일 corpus/golden/policy/model 해시 양팔 + 프로덕션 유사 하드웨어. 언더필·플랜 형태는 합성 1024차원 벡터로 로컬에서 무료 선행 가능. Phase 7 OPS 이월 (`docs/ops/hnsw-order-benchmark.md` §한계, WINDOWS #10)
 - [Phase 6] middleware.ts 리다이렉트 동작과 /w/[workspaceId]의 RLS 스코프 읽기에 대한 자동 회귀 테스트가 없다 (06-01 SUMMARY coverage: D1/D3 human_judgment=true) — 이번 세션엔 로컬 supabase start에 대한 curl 왕복으로만 검증했다
-- [Phase 6] 06-07 위키 뷰어(읽기전용 배너, 4종 verification 콜아웃, disputed 우선순위, WikiLink 해소/red 내비게이션, canVerify RPC 판정)가 실제 로컬 스택에서 라이브 검증되지 않았다 — 두 차례 Playwright 시도가 중단됨. .planning/WINDOWS.md #12 (unrun-verify)로 추적
+- [해소 2026-08-13] [Phase 6] 06-07 위키 뷰어 라이브 검증 — 06-UAT.md 테스트 3이 plain Playwright로 4종 verification 콜아웃·disputed 우선순위·WikiLink 해소/red 내비게이션을 실측 확인. WINDOWS.md #12 fixed 처리 완료
+- [해소 2026-08-13] [Phase 6] UAT 테스트 1(인제스트 흐름)·2(Ask 이중 인용)이 로컬 스택 대상 실 라이브 검증으로 5/5 전부 통과. 과정에서 worker `_rpc()`의 PostgREST 204 처리 누락(JSONDecodeError, 별도 `/gsd-debug` 세션에서 수정, `bf338a8`)과 로컬 `.env`의 EMBEDDING_MODEL/EMBEDDING_PROVIDER 누락(코드 결함 아님, `.env.sample` 기록값 반영)을 발견·해소
 
 ## Deferred Items
 
@@ -228,11 +232,11 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-12T14:34:32.296Z
-Stopped at: Completed 06-07-PLAN.md (UI-05, wiki viewer) — Phase 6 (dashboard) complete, all 6 requirements delivered
+Last session: 2026-08-13T01:29:00Z
+Stopped at: Phase 6 (dashboard) fully complete — UAT 5/5 passed (live verification), ROADMAP/STATE transitioned to Phase 7. worker JSONDecodeError bug fixed in a separate /gsd-debug session (resolved, archived). Phase 7 not yet started — no CONTEXT.md exists yet, auto-chain is disabled (`_auto_chain_active: false`) so this was deliberately left for the user to kick off.
 Resume file: None
 
-**재개 시 첫 행동:** Phase 5 — Citation Integrity and Answer APIs를 `/gsd-discuss-phase 5`로 시작한다 (CONTEXT.md 아직 없음).
+**재개 시 첫 행동:** Phase 7 — Integration and Ops Baseline을 `/gsd-discuss-phase 7`로 시작한다 (CONTEXT.md 아직 없음).
 
 ⚠️ **보존할 워킹 트리 변경이 있다** — `.planning/config.json`, `checklists.json`, `.agents/`,
 `.pnpm-store/`, `docs/architecture/`, `docs/design-systems/`, `docs/ops/benchmark-records/phase-04-rerun-{,v2-,v3-}*.json`는
