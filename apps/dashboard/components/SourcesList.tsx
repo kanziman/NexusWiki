@@ -89,7 +89,19 @@ export function SourcesList({
   }
 
   return (
-    <div className="flex flex-col gap-lg">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-xxl">
+      <section className="max-w-2xl">
+        <p className="mb-sm text-xs font-semibold tracking-[0.12em] text-[var(--nw-muted)]">
+          KNOWLEDGE LIBRARY
+        </p>
+        <h1 className="text-4xl font-semibold tracking-[-0.055em] text-[var(--nw-ink)] sm:text-5xl">
+          Sources
+        </h1>
+        <p className="mt-sm text-base leading-7 text-[var(--nw-body)]">
+          생각의 근거가 되는 자료를 모으고, 연결하고, 다시 찾으세요.
+        </p>
+      </section>
+
       <Dropzone
         workspaceId={workspaceId}
         onIngested={handleIngested}
@@ -98,33 +110,46 @@ export function SourcesList({
       />
 
       {sources.length === 0 ? (
-        <div className="flex flex-col items-center gap-xs py-section text-center">
-          <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
+        <div className="flex flex-col items-center gap-xs border-y border-[var(--nw-rule)] py-section text-center">
+          <p
+            className="text-[var(--nw-ink)]"
+            style={{ font: "var(--font-title-md)" }}
+          >
             {EMPTY_HEADING}
           </p>
-          <p className="text-muted" style={{ font: "var(--font-body-md)" }}>
+          <p
+            className="text-[var(--nw-muted)]"
+            style={{ font: "var(--font-body-md)" }}
+          >
             {EMPTY_BODY}
           </p>
         </div>
       ) : (
-        <ul className="flex flex-col gap-base">
+        <ul className="flex flex-col border-y border-[var(--nw-rule)]">
           {sources.map((source) => {
             const Icon = SOURCE_ICONS[source.source_type] ?? File;
             return (
               <li
                 key={source.id}
-                className="flex flex-col gap-sm rounded-md border border-hairline bg-canvas p-base"
+                className="flex flex-col gap-base border-b border-[var(--nw-rule)] py-lg last:border-b-0"
               >
-                <div className="flex items-center gap-sm">
-                  <Icon size={18} aria-hidden="true" className="text-muted" />
+                <div className="flex flex-col gap-sm sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-sm">
+                    <Icon
+                      size={18}
+                      aria-hidden="true"
+                      className="shrink-0 text-[var(--nw-muted)]"
+                    />
+                    <span
+                      title={source.title}
+                      aria-label={source.title}
+                      className="min-w-0 flex-1 truncate text-base font-semibold tracking-[-0.02em] text-[var(--nw-ink)]"
+                    >
+                      {source.title}
+                    </span>
+                  </div>
                   <span
-                    className="text-ink"
-                    style={{ font: "var(--font-title-md)" }}
-                  >
-                    {source.title}
-                  </span>
-                  <span
-                    className="text-muted"
+                    className="shrink-0 text-[var(--nw-muted)]"
                     style={{ font: "var(--font-caption)", fontWeight: 600 }}
                   >
                     {formatDate(source.created_at)}
