@@ -1,357 +1,56 @@
-# NexusWiki — 세션 핸드오프
-
-**최종 갱신:** 2026-08-01
-**단계:** Phase 1 (데이터 계층) 사실상 완료 · 32개 태스크 중 5개 완료
-**다음 작업:** `P0-INIT-01` monorepo 구조 → `P0-INIT-02` FastAPI 스캐폴딩 — **여기서부터 코드**
-
----
-
-## 0. 30초 요약
-
-Cairni 스타일 Living Wiki SaaS를 그린필드로 짓는 중입니다. 원시 소스(PDF/URL/텍스트)를 넣으면 LLM이 위키로 컴파일하고, 하이브리드 검색으로 **원문 + 위키 이중 출처**를 단 답변을 제공합니다.
-
-이전 세션에서 한 일은 두 가지입니다. **(1)** 원래 계획서 기반 체크리스트를 리뷰해 핵심 기능 3개가 데이터 모델에 대응물이 없다는 걸 찾아내고, 인터뷰로 9개 결정을 확정한 뒤 체크리스트를 전면 재작성(19 → 32 태스크). **(2)** 로컬 Supabase 스택을 띄우고 코어 스키마(`0001`)를 적용·검증.
-
-이번 세션에서는 `git init` + 최초 커밋을 하고, 검색 스키마(`0002`) · 잡 큐(`0003`) · RLS 정책(`0004`) · 프롬프트 시드(`0006`)를 작성·적용·검증했습니다. **DB 레이어가 끝났습니다.** 9개 테이블 + 정책 + 큐 함수 + 전역 템플릿 5종이 전부 올라가 있고, 남은 스키마 작업은 Storage 버킷(`P1-STO-01`, `0005`) 하나뿐입니다. 이제 애플리케이션 코드 차례입니다.
-
----
-
-## 1. 확정된 결정 (재논의 불필요)
-
-전부 사용자 인터뷰로 확정했고, 근거는 `checklists.json`의 `decisions` 블록에 있습니다.
-
-| 항목 | 결정 | 핵심 이유 |
-|---|---|---|
-| 테넌시 | **팀 우선** | `workspace_members` + 역할 기반 RLS 필수, `disputed` 기능이 의미를 가짐 |
-| 그래프 DB | **Neo4j 제외** | 고유 가치인 GDS는 Aura 기본 티어에 없음. 이 규모에선 순회 성능 이점 없음. 팀 모드에선 Neo4j에 RLS가 없어 보안 부담까지 추가. `wiki_links` + recursive CTE로 대체 |
-| 한국어 검색 | **앱 레이어 bigram + tsvector** | Postgres 기본 FTS는 한국어 형태소 분석기 없음. pg_bigm/pgroonga는 Supabase 미제공. bigram은 의존성 0이고 사내 약어·신조어 누락 없음 |
-| 렌즈 필터 | **`wiki_pages.category` 재사용** | 렌즈 라벨을 `[전체]/[개념]/[엔티티]/[가이드]/[맵]`으로. 스키마 변경 0 |
-| 원본 파일 | **Supabase Storage 보관** | "불변 원본 보존" 약속 이행 + 파서 개선 시 재처리 경로 |
-| LLM | **OpenRouter 경유, 모델은 env `LLM_MODEL`** (기본 `claude-sonnet-4-6`) | 모델 교체 자유도 |
-| 구조화 출력 | **프롬프트 + Pydantic 검증 + 재시도(3회)** | OpenRouter로는 Anthropic 네이티브 `output_config.format`을 못 씀 |
-| 잡 큐 | **Postgres `jobs` 테이블 + `FOR UPDATE SKIP LOCKED` 워커 폴링** | 새 인프라 0, 잡 상태를 그대로 프론트에 노출 |
-| DB 접근 | **하이브리드** — 사용자 요청은 요청자 JWT, 워커/마이그레이션만 `service_role` | `service_role`은 RLS를 완전 우회. 사용자 경로에 JWT를 쓰면 DB가 격리를 강제해 코드 실수를 막아줌 |
-| 배포 | **Railway** (api + worker 두 서비스) | Hobby $5/월은 **워크스페이스 단위** 구독(서비스 단위 아님). CPU 실사용분 과금이 LLM 대기 워커에 유리 |
-
-### "5-Way" 검색 채널의 정의
-
-계획서에 정의가 없던 항목입니다. Neo4j 없이도 5개가 성립합니다.
-
-1. `wiki_embeddings` 벡터 유사도 (pgvector HNSW)
-2. `source_chunks` 벡터 유사도 (pgvector HNSW)
-3. `wiki_pages` bigram tsvector 어휘 검색
-4. `source_chunks` bigram tsvector 어휘 검색
-5. `wiki_links` N-hop 그래프 확장 (recursive CTE)
-
----
-
-## 2. 현재 진척
-
-```
-[x] P1-DB-01   코어 스키마          — 적용·검증 완료
-[x] P1-DB-02   검색 스키마          — 적용·검증 완료 (EXPLAIN 5채널 전부 인덱스 사용 확인)
-[x] P1-DB-03   jobs 테이블 + 큐 함수 — 적용·검증 완료 (8워커 400잡 동시성 통과)
-[x] P1-SEC-01  RLS 정책            — 적용·검증 완료 (38/38 격리 케이스 통과)
-[x] P1-SEED-01 프롬프트 템플릿 시드   — 적용·검증 완료 (ask 4 + compile 1, 멱등)
-[~] P0-INIT-00 Supabase 셋업        — 로컬만 완료, 클라우드 미생성
-[ ] P1-STO-01  Storage 버킷 (0005)  — 번호가 0006보다 앞이라 클라우드 push 전에 끝낼 것
-[ ] P0-INIT-01 monorepo 구조        ← 다음. 여기서부터 코드
-[ ] P0-INIT-02 FastAPI 스캐폴딩
-```
-
-**DB 레이어는 끝났습니다.** 남은 스키마 작업은 Storage 버킷 하나이고, 이후는 전부 애플리케이션 코드입니다.
-
-### 디스크상의 파일
-
-```
-checklists.json                        32개 태스크 + decisions + open_questions
-supabase/config.toml                   포트를 544xx로 수정함 (§4 참조)
-supabase/migrations/0001_core_schema.sql
-supabase/migrations/0002_search_schema.sql
-supabase/migrations/0003_jobs.sql
-supabase/migrations/0004_rls_policies.sql
-supabase/migrations/0006_seed_prompts.sql    ← 0005는 P1-STO-01 자리로 비어 있음
-HANDOFF.md                             이 문서
-```
-
-### `0001`에서 원안 DDL을 바꾼 것 (근거는 `checklists.json` → `P1-DB-01.deviations_from_plan`)
-
-- `text` PK → **`uuid` PK + `gen_random_uuid()`**
-- `wiki_pages.related_wikis jsonb` **제거** → `0002`의 `wiki_links`로 정규화 (jsonb 배열은 인덱스/조인 불가 → 5번 채널에 못 씀)
-- `workspaces.owner_id` **추가** (원안에 소유자 개념 부재 → RLS 기준점 없었음)
-- **소유자 자동 멤버 등록 트리거** 추가 — 멤버 0명 워크스페이스는 RLS 하에서 영구 접근 불가가 되므로 DB가 보장
-- **RLS를 `0001`에서 선행 활성화** (정책 없음 = 전면 거부) — 정책 붙이기 전 노출 창 제거
-- `source_type`에 `'url'` 추가, `prompt_templates.is_default` 유일성을 partial unique index로 강제
-
----
-
-## 3. 방금 끝난 것 (1): `P1-DB-02` 검색 스키마
-
-`supabase/migrations/0002_search_schema.sql`. 2000행을 시드해 `EXPLAIN ANALYZE` 13종으로 검증했습니다. 5-Way 채널 5개가 전부 인덱스를 탑니다.
-
-| 채널 | 확인된 플랜 |
-|---|---|
-| 1 `wiki_embeddings` 벡터 | `Index Scan using wiki_embeddings_embedding_idx` (HNSW) |
-| 2 `source_chunks` 벡터 | `Index Scan using source_chunks_embedding_idx` (HNSW) |
-| 3 `wiki_pages` 어휘 | `Bitmap Index Scan on wiki_pages_search_tsv_idx` (GIN) |
-| 4 `source_chunks` 어휘 | `Bitmap Index Scan on source_chunks_search_tsv_idx` (GIN) |
-| 5 `wiki_links` 3-hop CTE | `Index Scan using wiki_links_from_idx` |
-
-red link 삽입/해소/복귀, 교차 테넌트 차단, 슬라이스 정합성 2000/2000, 제약 6종 거부, 신규 3테이블 RLS 전면 거부까지 전부 통과.
-
-### 원안에서 바꾼 것 (근거는 `checklists.json` → `P1-DB-02.deviations_from_plan`)
-
-- **`wiki_pages.search_tsv` 추가** — 채널 3의 물리 컬럼이 `0001` 어디에도 없었습니다. 채널이 아예 성립 불가였음
-- **`raw_sources`/`wiki_pages`에 `(id, workspace_id)` 복합 UNIQUE 추가** → 자식 테이블이 복합 FK를 겁니다. 워커는 `service_role`이라 RLS를 우회하므로(§5) 테넌트 경계를 지켜줄 장치가 이것뿐입니다. 잘못된 `workspace_id` 삽입이 FK 위반으로 거부되는 것까지 확인
-- **`wiki_embeddings.chunk_index` 추가** — 순번이 없으면 재임베딩 시 멱등 upsert 키가 없어 중복 행이 쌓입니다
-- **`wiki_links.resolved`를 generated column으로** — `to_wiki_id`와 따로 관리하면 어긋납니다. (한국어 토크나이징과 무관하므로 generated가 안전한 자리)
-- **`to_wiki_id` FK를 `on delete set null (to_wiki_id)`** (PG15+ 컬럼 지정) — 대상 삭제 시 red link로 복귀. 컬럼을 지정하지 않으면 `workspace_id`까지 NULL이 되어 NOT NULL 위반
-- **`tsv_tokenizer_version smallint`** 를 `source_chunks`/`wiki_pages`에 — 토크나이저 교체 시 재색인 대상을 전수 재처리 없이 골라내기 위함 (§5의 함정)
-- **pgvector는 `extensions` 스키마**, 마이그레이션 내에서는 `extensions.vector` / `extensions.vector_cosine_ops`로 수식 — 실행 롤의 `search_path`에 의존하지 않기 위함
-
----
-
-## 3b. 방금 끝난 것 (2): `P1-DB-03` 잡 큐
-
-`supabase/migrations/0003_jobs.sql`. 테이블 + 큐 조작 함수 4종.
-
-### 상태 전이
-
-```text
-  queued ──claim──> running ──complete──> succeeded
-    ^                  │
-    │                  ├──fail (attempts < max)──> failed ──run_after 경과──┐
-    │                  └──fail (attempts >= max)──> dead                    │
-    └────────────────────────── reap (락 타임아웃) ───────────────────────────┘
-```
-
-`failed`는 종착점이 아니라 **"직전 시도 실패, 백오프 후 재시도 예정"** 입니다. 사람이 손대야 하는 종착점은 `dead` 하나뿐. 둘을 나눠 두면 프론트가 "3번 중 2번째 실패, 4분 후 재시도"를 그대로 보여줄 수 있습니다.
-
-### 워커(`P2-JOB-01`)가 쓸 인터페이스
-
-```sql
-claim_job(worker_id, types[])                  -- 점유. SKIP LOCKED. 없으면 0행
-complete_job(job_id)                           -- succeeded
-fail_job(job_id, error, backoff, max_backoff)  -- 재시도 여지 있으면 failed+백오프, 없으면 dead
-reap_stale_jobs(timeout)                       -- 락 타임아웃 잡을 queued로 회수
-```
-
-⚠️ **`jobs`를 직접 UPDATE하지 마세요.** 락 일관성 CHECK와 `attempts` 회계가 함수 안에 있습니다. 네 함수 모두 `service_role` 전용이며 `anon`/`authenticated`의 EXECUTE는 회수해 뒀습니다.
-
-### 검증
-
-5000행 시드 후 폴링 쿼리가 `jobs_poll_idx` 부분 인덱스를 타는 것 확인. 기능 10종(백오프 재예약, `max_attempts` 소진 → dead, 락 회수, 제약 4종, 권한) 통과.
-
-동시성 — 이게 이 태스크의 핵심 합격 기준이었습니다.
-
-- 잡 2개 / 워커 2개 → 서로 다른 잡 점유
-- 잡 1개 / 워커 2개 → 두 번째 워커가 **172ms 만에 빈손 반환** (첫 워커의 5초 락에 블로킹되지 않음)
-- **8워커 × 400잡 → `sum(attempts) = 400`.** 모든 잡이 정확히 1회씩 점유됨. 잔여 락 0행, 중복 처리 0건
-
-### 원안에서 바꾼 것 (근거는 `checklists.json` → `P1-DB-03.deviations_from_plan`)
-
-- **`run_after` 추가** — 백오프 없이 재시도하면 워커가 LLM/임베딩 API를 타이트 루프로 때립니다. 기본값이 `now()`라 신규 잡은 즉시 대상이자 FIFO
-- **`attempts`를 fail이 아니라 claim 시점에 증가** — 워커를 죽이는 독약 잡이 무한 루프를 돌지 않습니다 (죽어도 reap 후 재시도에서 소진)
-- **`jobs_lock_consistency` CHECK** — `running`이면 락 필수, 아니면 NULL 필수. 완료/회수가 락을 안 지우고 빠져나가는 버그를 DB가 막습니다
-- **`type`에 CHECK 열거를 걸지 않음** — `0001`/`0002`의 하우스 스타일과 유일하게 다른 지점입니다. 계획서가 명시하는 잡 종류는 `compile` 하나뿐이고 Phase 2에서 계속 바뀝니다. 대신 워커가 미등록 type을 즉시 `dead` + `last_error`로 보내야 합니다
-- **큐 함수의 `anon`/`authenticated` EXECUTE 회수** — Supabase는 public 스키마 함수에 기본 실행 권한을 줍니다. 놔두면 PostgREST `/rpc/`로 남의 잡을 점유·종료할 수 있습니다
-
----
-
-## 3c. 방금 끝난 것 (3): `P1-SEC-01` RLS 정책
-
-`supabase/migrations/0004_rls_policies.sql`. **9개 테이블 전부에 정책이 붙었습니다.** 워크스페이스 A(owner/editor/viewer) + B(owner) + 외부인/비멤버 픽스처로 **38개 케이스 전부 통과**.
-
-### 권한 모델
-
-| | SELECT | INSERT | UPDATE | DELETE |
-|---|---|---|---|---|
-| `workspaces` | 멤버 | 본인 소유로만 | **owner** | owner |
-| `workspace_members` | 멤버 | **owner** | **owner** | **owner** |
-| `raw_sources` | 멤버 | editor | **없음(불변)** | owner |
-| `wiki_pages` | 멤버 | editor | editor | owner |
-| `source_chunks` / `wiki_embeddings` / `wiki_links` | 멤버 | **없음** | **없음** | **없음** |
-| `prompt_templates` | 멤버 + 전역 | editor | editor | owner |
-| `jobs` | 멤버 | **없음** | **없음** | **없음** |
-
-굵은 칸이 "멤버=SELECT / editor=INSERT·UPDATE / owner=DELETE" 기본 규칙에서 벗어난 곳이고, 이유는 각각 마이그레이션 주석과 `checklists.json` → `P1-SEC-01.deviations_from_plan`에 있습니다. 요약하면:
-
-- **`workspaces` UPDATE = owner** — 이 UPDATE는 곧 `owner_id` 이전(소유권 양도)입니다. editor에게 열면 editor가 스스로를 소유자로 만듭니다
-- **`workspace_members` 쓰기 = owner** — editor에게 INSERT를 열면 자신을 `owner` 역할 행으로 추가해 즉시 권한 상승이 됩니다
-- **파생 3종 읽기 전용** — 워커가 만드는 데이터입니다. 특히 `source_chunks` INSERT를 열면 editor가 원문에 없는 청크를 심어 **이중 Citation의 원문 측 인용을 위조**할 수 있습니다. 워커는 `service_role`(BYPASSRLS)이라 무영향
-- **`raw_sources` UPDATE 정책 없음** — "불변 원본 보존" 약속을 DB가 강제. 재처리는 워커 경로
-
-### 별도로 추가한 것
-
-- **`protect_owner_membership` 트리거** — 소유자가 자기 멤버십 행을 지우거나 역할을 낮추거나 `user_id`를 바꾸는 걸 차단합니다. `0001`이 "멤버 0명 워크스페이스"를 자동 등록 트리거로 막았는데, **등록된 뒤 지우면 같은 상태로 되돌아갑니다** (`owner_id`는 그대로인데 정작 그 사람이 관리 불가)
-- **`workspaces` SELECT에 `owner_id = auth.uid()` 조건** — `insert ... returning *`의 RETURNING은 SELECT 정책을 통과해야 하는데, 소유자를 멤버로 넣는 `0001`의 트리거는 **AFTER 트리거라 그 시점엔 멤버십 행이 없습니다.** 멤버십만으로 판정하면 워크스페이스 생성 자체가 실패합니다
-
-### API 계층이 알아야 할 것
-
-**`USING`에 걸리면 에러가 아니라 조용히 0행입니다.** viewer가 `update wiki_pages`를 하면 예외가 아니라 `rows=0`이 돌아옵니다(검증 12·13·23·27·37번). API는 **영향 행 0 = 403**으로 매핑해야 합니다. 반대로 `WITH CHECK` 위반은 `42501` 예외로 옵니다.
-
----
-
-## 3d. 방금 끝난 것 (4): `P1-SEED-01` 프롬프트 템플릿 시드
-
-`supabase/migrations/0006_seed_prompts.sql`. 전역 기본 템플릿 5종 (`workspace_id IS NULL`).
-
-| | 이름 | 기본값 |
-|---|---|---|
-| `compile` | 🧱 위키 컴파일러 | ✔ |
-| `ask` | 🔬 기술 심층 분석 | ✔ |
-| `ask` | 📋 경영진 요약 | |
-| `ask` | ✅ 실행 항목 추출 | |
-| `ask` | 📖 FAQ·가이드 생성 | |
-
-### 플레이스홀더 규약 — `P2-LLM-01`/`P2-BE-01`이 바인딩할 것
-
-`{{변수}}` 이중 중괄호입니다. **`str.format`을 쓰지 마세요.** 프롬프트와 주입될 본문에 마크다운·코드·JSON의 단일 중괄호가 그대로 들어오므로 `KeyError`로 터지거나 내용이 망가집니다. 단순 문자열 치환을 쓰세요.
-
-```text
-ask      {{question}}  {{wiki_context}}  {{source_context}}
-compile  {{source_title}}  {{source_type}}  {{existing_slugs}}  {{source_content}}
-```
-
-⚠️ **컨텍스트를 조립하는 쪽이 각 청크 앞에 인용 앵커를 붙여야 합니다.** 위키 청크는 `[[wiki:slug]]`, 원문 청크는 `[[src:청크id]]`. 앵커가 없으면 모델이 인용 표기를 만들어낼 근거 자체가 없어서, 이중 Citation이 조용히 무너집니다.
-
-### 프롬프트에 박아 넣은 제품 규칙
-
-- **이중 Citation 표기를 `ask` 4종 전부에 동일하게 강제** — 프론트가 파싱할 형식이 하나여야 하므로 템플릿마다 다르면 안 됩니다
-- **"원문과 위키가 어긋나면 원문 우선 + 그 사실을 답변에 명시"** — 이게 `P2-QC-01`의 지식 충돌 감지(`disputed`)로 넘어갈 입력이 됩니다
-- **`compile`의 slug 안정성 규칙 + `{{existing_slugs}}` 주입** — 같은 개념이면 항상 같은 slug여야 `(workspace_id, slug)` upsert가 성립합니다. 기존 slug를 재사용하지 않으면 멱등성이 무력해지고 중복 문서가 쌓입니다
-- **`compile` 출력 스키마의 열거값을 `0001`의 CHECK 문자열과 일치시킴** — 어긋나면 Pydantic 검증은 통과하고 INSERT에서 터집니다
-- **"자료에 없으면 지어내지 말고 빈칸을 드러내라"** — 특히 실행 항목 추출은 그럴듯한 다음 단계를 지어내는 게 가장 흔한 실패 모드라 별도로 경고해 뒀습니다
-
-### 검증 (9종 전부 통과)
-
-`ask` 4행 / `compile` 1행, `is_default`가 `target_type`당 정확히 1개, 플레이스홀더가 문서화한 집합과 정확히 일치(초과·누락 0), 두 번째 전역 기본값은 `unique_violation`으로 거부, **`0006` 전체를 재실행해도 행수 불변**(시드 멱등), 비멤버도 전역 템플릿 5개 조회 가능 / `anon`은 0행.
-
----
-
-## 3e. 다음 작업: `P0-INIT-01` → `P0-INIT-02` (여기서부터 코드)
-
-DB 레이어가 끝났으므로 다음은 애플리케이션 스캐폴딩입니다. 상세는 `checklists.json`.
-
-`P0-INIT-02`에서 특히 중요한 것 — Supabase 클라이언트 팩토리를 `decisions.db_access`(hybrid)에 따라 **두 종류로 분리**해야 합니다.
-
-```text
-user_client(access_token)  요청자 JWT. RLS가 격리를 강제 → 사용자 요청 경로 전부
-service_client()           service_role. BYPASSRLS → 워커와 마이그레이션 전용
-```
-
-`service_client()`를 사용자 요청 경로에서 쓰는 순간 이번 세션에 만든 격리가 통째로 무의미해집니다. 두 팩토리를 파일 단위로 분리하고, 워커 코드에는 `workspace_id` 필터를 항상 명시하세요 (§5).
-
-### 남은 스키마 작업 하나: `P1-STO-01` (`0005_storage.sql`)
-
-Storage 버킷과 정책. **번호가 `0006`보다 앞입니다.** 로컬은 항상 `db reset`이라 파일명 순서대로 적용돼 문제가 없지만, 클라우드 프로젝트를 만든 뒤에 `0005`를 추가하면 순서가 어긋납니다. **`P0-INIT-04`(배포) 전에 끝내세요.**
-
----
-
-## 4. 로컬 환경 — 반드시 읽을 것
-
-### 포트가 기본값이 아닙니다
-
-같은 머신에 **`zettlink` 프로젝트의 Supabase 스택이 상시 실행 중**이고 기본 포트(54321~54324, 54327)를 점유합니다. 충돌을 피하려고 NexusWiki를 544xx 대역으로 옮겼습니다. 두 스택이 동시에 돌아갑니다.
-
-```
-API      http://127.0.0.1:54421
-Studio   http://127.0.0.1:54423
-DB       postgresql://postgres:postgres@127.0.0.1:54422/postgres
-Inbucket http://127.0.0.1:54424      Analytics 54427   Pooler 54429   Shadow DB 54420
-```
-
-문서나 튜토리얼의 `54321`/`54322`를 그대로 쓰면 **엉뚱하게 `zettlink` DB에 연결됩니다.** 주의하세요.
-
-### 자주 쓸 명령
-
-```bash
-supabase start                    # 스택 기동
-supabase db reset                 # 마이그레이션 전체 재적용 — RLS 개발 중 계속 반복
-supabase stop                     # 내리기 (zettlink는 영향 없음)
-
-# psql이 로컬에 없으므로 컨테이너로 접속
-docker exec -it supabase_db_NexusWiki psql -U postgres -d postgres
-```
-
-### 환경 이슈 이력
-
-- **Docker 엔진이 한 번 죽었습니다.** 앱과 VM은 살아 있는데 VM 안의 `dockerd`만 죽어서 모든 API 호출이 500을 반환했습니다(`apiproxy: connection refused`). Docker Desktop 재시작으로 해결. 또 발생하면 같은 방법으로.
-- **디스크 94% (여유 26GB).** `Docker.raw` 61GB. `docker system df` 기준 빌드 캐시 2.57GB가 100% 회수 가능합니다. `docker builder prune`은 이미지·볼륨을 건드리지 않지만 **다른 프로젝트의 캐시도 지우므로** 사용자 확인 후 실행하세요.
-- **Supabase CLI 2.33.2** (최신 2.111.0). 업그레이드하면 `config.toml` 스키마가 바뀔 수 있으니 **Phase 1 완료 후**에 하세요.
-- **클라우드 Supabase 프로젝트 미생성.** Phase 1 전체를 로컬만으로 끝낼 수 있어 미뤘습니다. 배포(`P0-INIT-04`) 전까지 필요 없습니다. 만들 때 리전은 **Northeast Asia (Seoul)** 권장.
-
----
-
-## 5. 나중에 반드시 물릴 함정들
-
-**RLS 무한 재귀 (`P1-SEC-01`)** — ✅ `0004`에서 해결했습니다. 아래는 왜 그렇게 했는지의 기록입니다.
-`workspace_members`의 RLS 정책이 "내가 이 워크스페이스 멤버인가"를 확인하려고 `workspace_members`를 다시 조회하면 무한 재귀 에러가 납니다. `SECURITY DEFINER` 함수로 감싸서 끊어야 합니다. `stable`과 `set search_path = public`을 빠뜨리면 각각 성능 문제와 보안 취약점이 됩니다.
-
-```sql
-create function public.is_workspace_member(ws_id uuid)
-returns boolean language sql
-security definer stable set search_path = public
-as $$ select exists (select 1 from workspace_members
-                     where workspace_id = ws_id and user_id = auth.uid()); $$;
-```
-
-**bigram 토크나이저 버전 불일치 (`P2-BE-02`)**
-색인 시와 질의 시 **반드시 동일한 토크나이저 함수**를 타야 합니다. 어긋나면 검색이 에러 없이 조용히 안 맞습니다 — 디버깅이 가장 고약한 종류입니다. 버전 상수를 두고(`0002`가 `tsv_tokenizer_version` 컬럼을 준비해 뒀습니다), 토크나이저를 바꾸면 재색인이 필요하다는 걸 명시하세요.
-
-**질의 측 tsquery 생성 (`P2-BE-02`)** — `0002` 검증 중 실제로 밟은 지뢰입니다.
-bigram 문자열을 `to_tsquery`에 그대로 넣으면 `"한국 국어"`처럼 공백으로 이어져 **syntax error**가 납니다. `phraseto_tsquery('simple', bigram(q))`를 쓰세요. bigram들이 `<->`로 묶여 인접성까지 검사하므로 부분 문자열 매칭 의미가 정확히 보존됩니다. `plainto_tsquery`는 `&`로 묶여 순서가 뒤바뀐 오탐이 섞입니다.
-
-**벡터 검색의 사후 필터링 (`P2-BE-01`)** — `0004` 검증에서 플랜으로 확인했습니다.
-`where workspace_id = $1 order by embedding <=> $2 limit k`는 HNSW가 먼저 k개를 뽑고 그다음 워크스페이스를 거르므로 **결과가 k개보다 적게 나올 수 있습니다.**
-
-더 고약한 건 **RLS 정책 자체가 같은 사후 필터로 동작한다**는 점입니다. 앱이 `workspace_id` 조건을 빼먹어도 격리는 되지만, 플랜은 이렇게 됩니다.
-
-```text
-Index Scan using source_chunks_embedding_idx
-  Order By: (embedding <=> ...)
-  Filter: is_workspace_member(workspace_id)
-  Rows Removed by Filter: 5      ← HNSW가 뽑은 후보의 절반이 여기서 증발
-```
-
-검색 쿼리는 **(1)** `where workspace_id = $1`을 명시하고 **(2)** `set local hnsw.iterative_scan = strict_order`를 켜세요 (로컬 pgvector 0.8.0 확인됨).
-
-**정책 위반이 에러가 아닐 때가 있습니다 (`P2-API-01`, `P2-QC-01`)**
-`USING`에 걸린 UPDATE/DELETE는 예외가 아니라 **조용히 0행**을 반환합니다. viewer가 위키를 수정하려 하면 에러 없이 "성공했는데 아무것도 안 바뀜"이 됩니다. API는 **영향 행 0 = 403**으로 매핑해야 합니다. `WITH CHECK` 위반(남의 워크스페이스로 쓰기)만 `42501` 예외로 옵니다.
-
-**잡은 at-least-once입니다 (`P2-JOB-01`, `P2-LLM-01`)**
-`reap_stale_jobs`의 타임아웃(기본 15분)이 정상 잡의 최장 실행 시간보다 짧으면, 살아 있는 워커의 잡을 뺏어 **같은 잡이 두 번 처리됩니다.** LLM 컴파일은 수 분이 걸릴 수 있습니다. 타임아웃을 넉넉히 두되, 그와 별개로 **모든 핸들러는 멱등해야 합니다** — 위키는 `(workspace_id, slug)` upsert, 청크는 `(raw_source_id, chunk_index)` upsert, 임베딩은 `(wiki_id, chunk_index)` upsert. 이 세 유니크 키가 `0002`에 있는 이유입니다.
-
-**워커의 `service_role` 우회 (`P1-SEC-01`, `P4-SEC-01`)**
-사용자 요청 경로는 JWT라 RLS가 지켜주지만, **워커는 `service_role`이라 RLS를 우회합니다.** 워커 코드에는 `workspace_id` 필터를 반드시 명시해야 합니다.
-
-**OpenRouter 비용 (`P2-LLM-01`, `P4-OPS-01`)**
-Anthropic 프롬프트 캐싱을 못 씁니다. 컴파일러 시스템 프롬프트는 길고 매 소스마다 반복되므로 소스가 늘면 비용이 선형으로 붙습니다. `P4-OPS-01`에서 실측 후 Anthropic 직결 전환을 재검토하세요.
-
-**멱등성의 정의**
-"LLM 출력 텍스트가 같다"가 아니라 **"동일 `content_hash` 재수집 시 행이 늘지 않고, `(workspace_id, slug)` upsert로 중복 위키가 없다"** 입니다. LLM은 비결정적이라 전자는 애초에 달성 불가능합니다.
-
----
-
-## 6. 미결 사항
-
-`checklists.json`의 `open_questions`에도 있습니다. 넷 다 착수를 막지는 않습니다.
-
-1. **OpenRouter 모델 슬러그 실제 값** — `P2-LLM-01` 착수 전 확인 (`anthropic/claude-sonnet-4.6` 형태로 추정하나 미검증)
-2. **Supabase 리전 / Railway 리전 조합**의 왕복 지연 측정
-3. **청킹 파라미터**(토큰 수·오버랩) 초기값 — `P2-ING-02`에서 실측 후 확정
-4. **워크스페이스별 월 LLM 비용 상한** — `P4-OPS-01`에서 확정
-
----
-
-## 7. 다음 세션 시작 시 체크리스트
-
-```bash
-cd /Users/zorba/projects/NexusWiki
-git log --oneline | head -3                   # 저장소는 이미 초기화됨
-docker ps --filter name=NexusWiki | head -3   # 스택 살아있나
-supabase start                                 # 없으면 기동
-supabase db reset                              # 0001~0006 재적용 확인
-```
-
-그다음 `checklists.json`의 `decisions` 블록을 읽고 `P0-INIT-01`부터 이어가면 됩니다. 결정 사항은 근거와 함께 기록돼 있으니 재논의하지 마세요.
+# 🤝 Handoff Document
+
+- **작성 일시**: 2026-08-13 09:35 KST
+- **작업 브랜치**: `main`
+
+## 🎯 1. 작업 목표 & 현재 상태
+
+- **목표**: `/gsd-execute-phase 6` — Phase 6(Dashboard) 8개 플랜 전체 실행, 코드 리뷰·회귀·페이즈 검증·보안·UI 감사 게이트 통과, `/gsd-verify-work 6`로 UAT 마무리.
+- **진행률**: **코드·품질 게이트는 100% 완료.** 페이즈 완료 체크박스(ROADMAP.md `[ ]`)만 미완 — UAT 5개 중 2개(라이브 LLM 필요)가 사용자 선택으로 `skipped` 상태라 자동 전환 게이트(`gsd_run phase uat-passed`)가 막혀 있다. 나머지는 전부 그린.
+
+## ✏️ 2. 주요 변경 사항 & 의사결정 (Why)
+
+- **8개 플랜 전부 실행**: 06-01(트레이서: middleware.ts 유일 쿠키 기록자·로그인·RLS 워크스페이스 셸·디자인 토큰), 06-02(스위처+내비), 06-03(멤버 로스터+이메일 초대, 마이그레이션 `0014` 신규 RPC 2종), 06-04(api-client/sse), 06-05(드롭존+잡 스테퍼), 06-06(Ask UI 이중 인용), 06-07(위키 뷰어), 06-08(그래프 캔버스). 06-08은 의존성 DAG상 06-02/03/04와 함께 Wave 2로 재배치됨(선언된 Wave 3는 planner 오류).
+- **06-03 체크포인트 결정**: 이메일 초대가 `auth.users`를 해석할 방법이 전무해(PostgREST 미노출) planner가 제시한 3안 중 "마이그레이션 0014 신규(`add_owner_as_member()` 관례 재사용)"를 사용자 사전 승인으로 채택. 로컬 `db reset` 검증 완료, 클라우드 미푸시.
+- **코드 리뷰 → 6건 전부 수정**: CR-01(레드링크 CTA prefillTitle이 소스 페이지에 안 이어짐), WR-01~05(그래프 캡 off-by-one, Ask SSE 에러 미분기, RLS 차단 삭제를 성공으로 오판, JobStepper 폴링이 안 멈춤, `NEXT_PUBLIC_*` non-null assertion).
+- **라이브 UAT 중 신규 버그 2건 추가 발견·수정**(정적 검사로는 못 잡음):
+  1. `lib/env.ts`가 `process.env[name]` 동적 인덱싱을 써서 웹팩이 클라이언트 번들에 인라인 못 함 → **로그인 자체가 깨짐**. WR-05 수정의 회귀. `switch` 기반으로 재작성(모듈 스코프 캐싱은 vitest mock 14건을 깼다가 되돌림).
+  2. `GraphCanvas.tsx`가 엣지 쿼리에 `from_wiki_id IN (...)`로 최대 1000개 UUID를 URL에 나열 → 1000노드 근처에서 요청 자체가 실패(브라우저엔 CORS 오류로 보임, 실제 원인은 URL 길이). `workspace_id` 스코프만 남기고 기존 클라이언트 필터에 위임.
+- **UI 감사에서 타이포그래피 BLOCKER 발견·수정**: UI-SPEC이 checker 리비전으로 확정한 "정확히 2웨이트(400/600)" 계약이 코드에 반영 안 됨 — `--font-caption`/`--font-button-md/sm` 토큰이 500이라 48개 호출부가 500으로 렌더링. 토큰 파일 자체는 안 건드리고(HANDOFF 기존 결정 유지) 48개 호출부에 `fontWeight: 600` 오버라이드 추가, 라이브로 재확인.
+- **D-10 접수 오버라이드**: Ask 인용 사이드패널의 "위키 카드+원문 카드 나란히 표시"는 resolved-citation 데이터가 marker당 wiki XOR source만 갖고(페어링 메타데이터 없음) 불가능함을 확인 — Phase 5 API 계약 변경 없이는 불가(Phase 6 스코프 밖). 사용자 승인으로 "마커별 단일 카드, 인접 마커 클릭으로 양쪽 확인" 해석을 채택·문서화.
+- **COVERAGE.md 파서 버그 수정**: `api-coverage.verify-pre` 게이트가 이스케이프 파이프(`text\|file\|url`)와 200자 초과 reason 2건 때문에 실패 → 3건 수정.
+- **[핸드오프 이후 추가] `apps/api`에 CORS 미들웨어 자체가 없었다**: 사용자가 실제로 `apps/api`+`worker`를 로컬 스택 대상으로 띄우고 대시보드에서 소스 등록을 시도하자 전부 "소스 등록에 실패했습니다"로 실패. 원인 확인: `OPTIONS` 프리플라이트가 405, `main.py`에 `CORSMiddleware` 등록 자체가 없음 — Phase 6 대시보드가 `apps/api`의 **첫 브라우저 호출자**라 지금까지 아무도 이 경로를 안 탔다. `ApiSettings.CORS_ALLOWED_ORIGINS`(콤마 구분 문자열, 로컬 기본값 `http://localhost:3000,http://127.0.0.1:3000`) 신설 + `main.py`에 `CORSMiddleware` 등록(`allow_credentials=True`, origin 명시 — JWT Authorization 헤더 때문에 `allow_origins=["*"]` 불가) + `test_settings.py`의 필드 허용목록 갱신. 커밋 `250f4e8`. `uv run pytest packages/core/tests/test_settings.py apps/api/tests` 158/158 통과 확인. **배포 시 실제 프론트엔드 도메인으로 `CORS_ALLOWED_ORIGINS` 덮어써야 함(Railway env var) — 현재 기본값은 로컬 전용.**
+
+## 🧪 3. 검증 상태
+
+- **완료된 검증**:
+  - 코드 리뷰(`06-REVIEW.md`/`06-REVIEW-FIX.md`): 6/6 수정, `tsc`/vitest(77/77) 클린
+  - 회귀 게이트: 백엔드 `uv run pytest` 408/408, 대시보드 vitest 77/77
+  - 페이즈 목표 검증(`06-VERIFICATION.md`): 5/5 성공 기준 충족(1건은 D-10 오버라이드), status: **passed**
+  - 보안 감사(`06-SECURITY.md`): STRIDE 위협 25/25 closed, threats_open: 0, status: **verified**
+  - UI 감사(`06-UI-REVIEW.md`): 16/24 → 타이포그래피 BLOCKER 수정 후 라이브 재확인(로그인 화면 `getComputedStyle` weight:600 확인)
+  - UAT(`06-UAT.md`): 3/5 라이브 통과(위키 뷰어 6페이지, 그래프 1000행 캡, RLS 차단 삭제 — 전부 실제 시드 데이터+Playwright로 검증, 시드 데이터는 정리 완료 0행 확인), status: **complete**
+- **미검증 항목**:
+  - UAT 테스트 1(전체 인제스트 흐름)·2(Ask 이중 인용 흐름) — `apps/api`+`worker`가 실 `OPENROUTER_API_KEY`로 떠 있어야 하는데, 이번 세션은 `.env` 읽기가 권한 설정으로 차단되어 있었음(Bash·Read 둘 다 디렉토리 단위 거부). 사용자가 "일단 스킵하고 넘어가자"로 명시적 보류.
+  - `WINDOWS.md` #13(App Router에 `error.tsx`/`not-found.tsx` 전무), #14(`GraphCanvas.tsx` hex 리터럴 8개, CSS 커스텀 프로퍼티 미사용) — UI 감사에서 발견했으나 사용자가 "타이포그래피만 지금 고치자"로 범위를 좁혀 후속 과제로 남김.
+  - `WINDOWS.md` #12(이전 세션부터 남은 항목, 06-07 관련)는 이번 세션 UAT 테스트 3에서 실제로 라이브 검증되어 **사실상 해소**되었으나 WINDOWS 항목 자체는 아직 `status: open`으로 미정리 — 다음 세션에서 `gsd-tools windows fixed 12` 처리 권장.
+  - **[미수정 — 다음 세션 과제, 사용자가 지금은 고치지 말라고 명시] worker의 파싱 단계 실패**: CORS 수정 후 사용자가 실제로 소스 등록까지 진행했으나, worker가 파싱 단계에서 예외로 죽었다. 트레이스백 핵심: `handlers/parse.py:184`의 `run_parse` → `db.index_source_chunk_lexical`(어휘 색인 RPC 호출, `db/service.py:279`) → `db/service.py:755`의 `_rpc()`가 `response.json()`을 호출하는 지점에서 `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` — 즉 RPC 응답 바디가 비어 있거나 JSON이 아님. 원인은 조사하지 않았다(사용자가 지금은 고치지 말고 기록만 하라고 명시적으로 요청, 2026-08-13). 전체 트레이스백은 이 대화 세션 로그에 있음 — 다음 세션에서 `worker/db/service.py`의 `_rpc()`가 호출하는 실제 PostgREST RPC 엔드포인트(어휘 색인 관련, 아마 `index_source_chunk_lexical` 또는 그에 대응하는 SQL 함수)가 로컬 스택에서 실제로 무엇을 응답하는지부터 확인할 것 — 빈 응답 자체가 이례적이라 RPC 함수 존재 여부, 권한(GRANT), 또는 API 응답 상태 코드(200인데 바디가 비었는지, 아니면 에러 상태인데 `_rpc()`가 상태 코드를 안 보고 바로 `.json()`을 호출하는지)부터 볼 것.
+
+## ⚠️ 4. 주의사항 & 남은 작업 (TODO)
+
+- [ ] **worker 파싱 단계 `JSONDecodeError` 진단·수정** (신규, 최우선) — 위 "미검증 항목"의 상세 트레이스백 참조. UAT 테스트 1(인제스트 흐름)이 이 버그 때문에 끝까지 못 감. CORS 수정(커밋 `250f4e8`)으로 소스 등록 API 호출 자체는 성공했지만 그다음 worker 파싱 단계에서 막힘.
+- [ ] **UAT 1·2번 라이브 테스트** — 위 파싱 버그부터 고친 뒤, `apps/api`+`worker`를 로컬 스택 대상으로 띄우고(명령어는 이번 대화 마지막 부분에 기록됨: `SUPABASE_URL=http://127.0.0.1:54421` 등으로 override, `.env`의 `OPENROUTER_API_KEY`/`LLM_MODEL`만 사용) 드롭존 인제스트 흐름과 Ask 이중 인용 흐름을 클릭스루. 통과하면 `/gsd-verify-work 6` 재실행 → 자동으로 Phase 6 완료 전환됨.
+- [ ] `WINDOWS.md` #12를 `gsd-tools windows fixed 12`로 정리(이번 세션 UAT 테스트 3이 사실상 재현·통과시킴).
+- [ ] (선택) `WINDOWS.md` #13(error/not-found 바운더리), #14(GraphCanvas hex 리터럴) — 사용자가 명시적으로 후순위로 미룸. 급하지 않으면 Phase 7에서.
+- **주의사항**:
+  - **`.env` 읽기가 이 세션 권한 설정에서 완전히 차단됨**(Bash `cat`/`grep`도, Read 툴도) — 디렉토리 단위 deny 규칙으로 보임. 다음 세션도 같은 제약일 수 있으니, 라이브 LLM 테스트가 필요하면 사용자가 직접 서비스를 띄우거나 권한 설정을 사전에 조정해둘 것.
+  - **`docs/design-systems/design-tokens.css`는 건드리지 않는다** — Phase 6은 이 토큰 파일의 "사용 계약"만 400/600으로 제한하는 것이지, 파일 자체의 원래 웨이트 값(예: `--font-caption: 500...`)은 그대로 둔다. 이번 세션의 타이포그래피 수정도 컴포넌트별 `fontWeight: 600` 오버라이드로 처리했지 토큰 파일은 안 고쳤다.
+  - **`use_worktrees: false`**라 모든 executor는 메인 워킹트리에서 순차 실행됐다 — 병렬 실행 관련 트러블은 없음.
+  - 이번 세션 중 두 executor가 세션 한도(session limit)로 중단됐다가 재개됨(06-01, 06-07) — 둘 다 커밋된 작업 유실 없이 정상 재개됨. 재개 패턴은 `SendMessage`로 agentId를 지정해 이어감.
+  - 보존할 사용자 변경(기존과 동일): `.planning/config.json`, `checklists.json`은 여전히 세션 시작 전부터 있던 미커밋 상태 — 삭제·revert·무단 커밋하지 않을 것.
+
+## 🚀 5. 다음 세션 재개 안내
+
+다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
+
+> "HANDOFF.md 확인하고, worker 파싱 단계 JSONDecodeError부터 진단해줘. 고친 뒤 apps/api+worker를 로컬 스택으로 띄우고 UAT 1·2번(인제스트/Ask 흐름) 라이브 테스트 이어서 진행해줘. 통과하면 /gsd-verify-work 6으로 Phase 6 완료 전환해줘."
