@@ -58,8 +58,58 @@
   --font-family-base:
     var(--font-inter), -apple-system, BlinkMacSystemFont, Roboto,
     "Helvetica Neue", sans-serif;
+  --nw-canvas: #fcfcfa;
+  --nw-surface: #ffffff;
+  --nw-ink: #171717;
+  --nw-body: #4d4d49;
+  --nw-muted: #7a7a74;
+  --nw-rule: #e7e7e1;
+  --nw-rule-strong: #c9c9c1;
+  --nw-focus: #171717;
+  --nw-action: #171717;
+  --nw-action-hover: #363632;
+  --nw-danger: #a33b2b;
 }
 
 body {
   margin: 0;
+  background: var(--nw-canvas);
+  color: var(--nw-ink);
+}
+
+.nw-focus-ring:focus-visible {
+  outline: 2px solid var(--nw-focus);
+  outline-offset: 3px;
+}
+
+.nw-action {
+  border: 1px solid var(--nw-action);
+  border-radius: 6px;
+  background: var(--nw-action);
+  color: #fff;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.nw-action:hover:not(:disabled) {
+  border-color: var(--nw-action-hover);
+  background: var(--nw-action-hover);
+}
+
+.nw-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.nw-input {
+  border: 1px solid var(--nw-rule-strong);
+  border-radius: 6px;
+  background: var(--nw-surface);
+}
+
+.nw-input:focus {
+  border-color: var(--nw-ink);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nw-ink) 12%, transparent);
 }
