@@ -472,3 +472,60 @@ async def test_failed_response_raises_instead_of_returning_an_empty_result() -> 
 
         with pytest.raises(httpx.HTTPStatusError):
             await db.list_jobs(workspace_id=WORKSPACE_ID)
+
+
+# -----------------------------------------------------------------------------
+# 3. `returns void` RPC — PostgREST가 204 No Content(빈 바디)로 답하는 경우
+#
+# 회귀 테스트: .planning/debug/resolved/worker-parse-jsondecodeerror.md.
+# index_source_chunk_lexical / index_wiki_page_lexical은 SQL에서 `returns void`이고
+# (0011_retrieval.sql:18-58), 로컬 PostgREST(curl로 직접 확인)는 그런 함수 호출에
+# 본문 없는 204로 응답한다. 이전 _rpc()는 상태 코드/본문 유무를 확인하지 않고
+# response.json()을 무조건 호출해 빈 바디에서 JSONDecodeError를 던졌다.
+# -----------------------------------------------------------------------------
+
+
+def _client_returning_no_content(*, status: int = 204) -> httpx.AsyncClient:
+    # PostgREST의 실제 204 응답을 그대로 흉내낸다 — client_returning()처럼 json=payload를
+    # 강제로 붙이면 이 케이스(빈 바디)를 검증할 수 없다.
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, content=b"")
+
+    return httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://example.invalid/rest/v1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_lexical_rpc_helpers_treat_204_no_content_as_none() -> None:
+    async with _client_returning_no_content(status=204) as client:
+        db = service.ServiceDb(client)
+
+        chunk_result = await db.index_source_chunk_lexical(
+            workspace_id=WORKSPACE_ID,
+            source_chunk_id="chunk-1",
+            bigrams="테스트",
+            tokenizer_version="v1",
+        )
+        wiki_result = await db.index_wiki_page_lexical(
+            workspace_id=WORKSPACE_ID,
+            wiki_id="wiki-1",
+            bigrams="테스트",
+            tokenizer_version="v1",
+        )
+
+    assert chunk_result is None
+    assert wiki_result is None
+
+
+@pytest.mark.asyncio
+async def test_rpc_treats_any_empty_body_as_none_even_with_200_status() -> None:
+    # 경계 이웃: 상태 코드가 204가 아니라 200이어도 본문이 비어 있으면 같은 결함이
+    # 재현된다 — 가드는 status_code 하나가 아니라 본문 유무도 봐야 한다.
+    async with _client_returning_no_content(status=200) as client:
+        db = service.ServiceDb(client)
+
+        result = await db._rpc("index_source_chunk_lexical", {"p_workspace_id": WORKSPACE_ID})
+
+    assert result is None

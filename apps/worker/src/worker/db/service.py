@@ -752,6 +752,13 @@ class ServiceDb:
     async def _rpc(self, function: str, payload: dict[str, Any]) -> Any:
         response = await self._client.post(f"/rpc/{function}", json=payload)
         response.raise_for_status()
+        # ⚠️ `returns void` 함수(index_source_chunk_lexical · index_wiki_page_lexical)는
+        #    PostgREST가 본문 없는 204 No Content로 응답한다. raise_for_status()는 204도
+        #    2xx라 통과시키므로, 여기서 걸러내지 않으면 response.json()이 빈 바디에
+        #    json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)를
+        #    던진다. 근거: .planning/debug/resolved/worker-parse-jsondecodeerror.md.
+        if response.status_code == 204 or not response.content:
+            return None
         result = response.json()
         if isinstance(result, list):
             result = result[0] if result else None
