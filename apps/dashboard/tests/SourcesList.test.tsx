@@ -50,4 +50,24 @@ describe("SourcesList", () => {
     expect(sourceTitle).toHaveAttribute("aria-label", title);
     expect(screen.getByText("2026년 8월 12일")).toBeInTheDocument();
   });
+
+  it("links '상세 보기' to the source detail route instead of expanding inline", () => {
+    render(
+      <SourcesList
+        workspaceId="ws-1"
+        initialSources={[
+          {
+            id: "source-1",
+            title: "회의록",
+            source_type: "text",
+            created_at: "2026-08-12T00:00:00Z",
+            content_hash: "hash-1",
+          },
+        ]}
+      />,
+    );
+
+    const detailLink = screen.getByRole("link", { name: "상세 보기" });
+    expect(detailLink).toHaveAttribute("href", "/w/ws-1/sources/source-1");
+  });
 });

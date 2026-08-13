@@ -1,17 +1,18 @@
 "use client";
 
 import { File, FileText, Link2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
 import {
-  DetailHeader,
   EmptyState,
   PageHeader,
   StatusBadge,
 } from "@/components/DashboardPrimitives";
 import { JobStepper } from "@/components/JobStepper";
 import { createClient } from "@/lib/supabase/client";
+import { workspacePath } from "@/lib/workspace-path";
 
 export type SourceRow = {
   id: string;
@@ -74,7 +75,6 @@ export function SourcesList({
   initialTab,
 }: SourcesListProps) {
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Dropzone.onIngested는 (jobId, rawSourceId) 두 인자만 준다(Task 1의 고정된
   // 시그니처) — title/source_type/created_at은 여기서 다시 조회해야 한다.
@@ -140,54 +140,15 @@ export function SourcesList({
                   </div>
                   <div className="flex items-center gap-sm">
                     <StatusBadge>{formatDate(source.created_at)}</StatusBadge>
-                    <button
-                      type="button"
+                    <Link
+                      href={`${workspacePath(workspaceId)}/sources/${source.id}`}
                       className="nw-focus-ring rounded-sm border border-[var(--nw-rule-strong)] px-sm py-xs text-sm text-[var(--nw-ink)]"
-                      aria-expanded={selectedId === source.id}
-                      aria-controls={`source-detail-${source.id}`}
-                      onClick={() =>
-                        setSelectedId((current) =>
-                          current === source.id ? null : source.id,
-                        )
-                      }
                     >
-                      {selectedId === source.id ? "접기" : "상세 보기"}
-                    </button>
+                      상세 보기
+                    </Link>
                   </div>
                 </div>
                 <JobStepper workspaceId={workspaceId} rawSourceId={source.id} />
-                {selectedId === source.id ? (
-                  <section
-                    id={`source-detail-${source.id}`}
-                    className="border-t border-[var(--nw-rule)] pt-lg"
-                  >
-                    <DetailHeader
-                      libraryHref="#sources-library"
-                      libraryLabel="자료 목록"
-                      kind={source.source_type}
-                      title={source.title}
-                      meta={
-                        <StatusBadge>
-                          {formatDate(source.created_at)}
-                        </StatusBadge>
-                      }
-                    />
-                    <dl className="mt-lg grid gap-sm text-sm sm:grid-cols-2">
-                      <div>
-                        <dt className="text-[var(--nw-muted)]">유형</dt>
-                        <dd className="mt-xs text-[var(--nw-ink)]">
-                          {source.source_type}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-[var(--nw-muted)]">등록일</dt>
-                        <dd className="mt-xs text-[var(--nw-ink)]">
-                          {formatDate(source.created_at)}
-                        </dd>
-                      </div>
-                    </dl>
-                  </section>
-                ) : null}
               </li>
             );
           })}
