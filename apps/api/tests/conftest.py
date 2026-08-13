@@ -284,6 +284,29 @@ def workspace_member_with_role(
 
 
 @pytest.fixture
+def isolation_principals(
+    local_stack: httpx.Client,
+    two_workspaces_two_users: tuple[TenantActor, TenantActor],
+    workspace_member_with_role: Callable[[TenantActor, str], TenantActor],
+) -> Iterator[tuple[TenantActor, TenantActor, TenantActor, TenantActor, TenantActor]]:
+    """D-09's function-scoped requester set, with service role used only by setup fixtures.
+
+    The returned tuple is A owner/editor/viewer, B owner, and an authenticated
+    non-member.  Assertion requests must always use one of these requester JWTs
+    (or no JWT for anonymous cases); the admin key never leaves fixture setup.
+    """
+
+    owner_a, owner_b = two_workspaces_two_users
+    editor_a = workspace_member_with_role(owner_a, "editor")
+    viewer_a = workspace_member_with_role(owner_a, "viewer")
+    non_member = _create_actor(local_stack)
+    try:
+        yield owner_a, editor_a, viewer_a, owner_b, non_member
+    finally:
+        _destroy_actor(local_stack, non_member)
+
+
+@pytest.fixture
 def seed_wiki_link(local_stack: httpx.Client) -> Callable[[str, str, str, str], None]:
     """사용자 경로가 쓰기 금지인 그래프 간선을 로컬 테스트 데이터로만 심는다."""
 
