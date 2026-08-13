@@ -94,7 +94,7 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
         <label
           htmlFor={emailId}
           className="text-ink"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           이메일
         </label>
@@ -116,7 +116,10 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
       </div>
 
       <div className="flex flex-col gap-xs">
-        <span className="text-ink" style={{ font: "var(--font-caption)" }}>
+        <span
+          className="text-ink"
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
+        >
           역할
         </span>
         <Select.Root
@@ -158,7 +161,7 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
           role="alert"
           data-state="error"
           className="text-primary-error-text"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {error}
         </p>
@@ -168,7 +171,7 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
         <p
           role="status"
           className="text-success-text"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           초대를 보냈습니다.
         </p>
@@ -180,7 +183,7 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
         type="submit"
         disabled={!canSubmit}
         className="h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-        style={{ font: "var(--font-button-md)" }}
+        style={{ font: "var(--font-button-md)", fontWeight: 600 }}
       >
         초대 보내기
       </button>

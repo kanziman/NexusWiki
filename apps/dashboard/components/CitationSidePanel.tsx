@@ -150,7 +150,7 @@ export function CitationSidePanel({
               <Link
                 href={`/w/${workspaceId}/wiki/${wiki.slug}`}
                 className="text-primary"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 위키 페이지에서 전체 보기
               </Link>
@@ -162,7 +162,10 @@ export function CitationSidePanel({
           className="overflow-y-auto rounded-md border border-hairline p-base"
           style={{ maxHeight: EXCERPT_MAX_HEIGHT }}
         >
-          <p className="text-muted" style={{ font: "var(--font-caption)" }}>
+          <p
+            className="text-muted"
+            style={{ font: "var(--font-caption)", fontWeight: 600 }}
+          >
             {`청크 #${source.chunk_index} · 원문 좌표 ${source.char_start}–${source.char_end}`}
           </p>
           <mark

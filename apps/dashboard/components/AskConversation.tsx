@@ -282,7 +282,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                 role="status"
                 data-testid="missing-channels-notice"
                 className="text-muted"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 {MISSING_CHANNELS_NOTICE}
               </p>
@@ -321,7 +321,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                   type="button"
                   onClick={() => void submitQuestion(turn.question)}
                   className="self-start rounded-sm border border-primary-error-text px-base py-sm text-primary-error-text"
-                  style={{ font: "var(--font-caption)" }}
+                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   재시도
                 </button>
@@ -343,7 +343,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                   type="button"
                   onClick={() => void submitQuestion(turn.question)}
                   className="self-start rounded-sm border border-primary-error-text px-base py-sm text-primary-error-text"
-                  style={{ font: "var(--font-caption)" }}
+                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   재시도
                 </button>
@@ -378,7 +378,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                   ? "border-primary text-primary"
                   : "border-hairline text-muted"
               }`}
-              style={{ font: "var(--font-caption)" }}
+              style={{ font: "var(--font-caption)", fontWeight: 600 }}
             >
               {template.name}
             </button>
@@ -403,7 +403,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           type="submit"
           disabled={question.trim().length === 0 || submitting}
           className="h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-          style={{ font: "var(--font-button-md)" }}
+          style={{ font: "var(--font-button-md)", fontWeight: 600 }}
         >
           질문하기
         </button>

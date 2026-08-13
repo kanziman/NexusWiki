@@ -55,7 +55,7 @@ export function GraphLensFilter({
                 ? "border-primary bg-primary text-on-primary"
                 : "border-border-strong bg-canvas text-ink"
             }`}
-            style={{ font: "var(--font-caption)" }}
+            style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             {option.label}
           </button>

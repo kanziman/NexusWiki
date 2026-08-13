@@ -68,7 +68,10 @@ export function RedLinkCta({ title, slug, workspaceId }: RedLinkCtaProps) {
       >
         <Plus size={20} aria-hidden="true" />
       </button>
-      <span className="text-primary" style={{ font: "var(--font-caption)" }}>
+      <span
+        className="text-primary"
+        style={{ font: "var(--font-caption)", fontWeight: 600 }}
+      >
         {RED_LINK_LABEL}
       </span>
     </span>

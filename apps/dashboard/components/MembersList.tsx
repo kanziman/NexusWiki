@@ -137,7 +137,7 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
       <p
         role="alert"
         className="text-primary-error-text"
-        style={{ font: "var(--font-caption)" }}
+        style={{ font: "var(--font-caption)", fontWeight: 600 }}
       >
         {loadError}
       </p>
@@ -165,7 +165,7 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
                 <span
                   data-role={member.role}
                   className="rounded-full bg-surface-soft px-sm py-xs text-ink"
-                  style={{ font: "var(--font-caption)" }}
+                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   {ROLE_LABELS[member.role] ?? member.role}
                 </span>
@@ -217,7 +217,7 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
               <p
                 role="alert"
                 className="text-primary-error-text"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 {removeError}
               </p>

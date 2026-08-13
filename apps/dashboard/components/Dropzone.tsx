@@ -218,21 +218,21 @@ export function Dropzone({
           <Tabs.Trigger
             value="file"
             className="px-base py-sm text-ink data-[state=active]:text-primary"
-            style={{ font: "var(--font-caption)" }}
+            style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             파일
           </Tabs.Trigger>
           <Tabs.Trigger
             value="url"
             className="px-base py-sm text-ink data-[state=active]:text-primary"
-            style={{ font: "var(--font-caption)" }}
+            style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             URL
           </Tabs.Trigger>
           <Tabs.Trigger
             value="text"
             className="px-base py-sm text-ink data-[state=active]:text-primary"
-            style={{ font: "var(--font-caption)" }}
+            style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             텍스트
           </Tabs.Trigger>
@@ -244,7 +244,7 @@ export function Dropzone({
               <label
                 htmlFor={fileTitleId}
                 className="text-ink"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 제목
               </label>
@@ -294,7 +294,7 @@ export function Dropzone({
               type="submit"
               disabled={!canSubmitFile || submitting}
               className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-              style={{ font: "var(--font-button-md)" }}
+              style={{ font: "var(--font-button-md)", fontWeight: 600 }}
             >
               소스 등록
             </button>
@@ -307,7 +307,7 @@ export function Dropzone({
               <label
                 htmlFor={urlInputId}
                 className="text-ink"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 URL 주소
               </label>
@@ -326,7 +326,7 @@ export function Dropzone({
               <label
                 htmlFor={urlTitleId}
                 className="text-ink"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 제목 (선택)
               </label>
@@ -342,7 +342,7 @@ export function Dropzone({
               type="submit"
               disabled={!canSubmitUrl}
               className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-              style={{ font: "var(--font-button-md)" }}
+              style={{ font: "var(--font-button-md)", fontWeight: 600 }}
             >
               소스 등록
             </button>
@@ -355,7 +355,7 @@ export function Dropzone({
               <label
                 htmlFor={textTitleId}
                 className="text-ink"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 제목
               </label>
@@ -371,7 +371,7 @@ export function Dropzone({
               <label
                 htmlFor={textInputId}
                 className="text-ink"
-                style={{ font: "var(--font-caption)" }}
+                style={{ font: "var(--font-caption)", fontWeight: 600 }}
               >
                 내용
               </label>
@@ -388,7 +388,7 @@ export function Dropzone({
               type="submit"
               disabled={!canSubmitText}
               className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-              style={{ font: "var(--font-button-md)" }}
+              style={{ font: "var(--font-button-md)", fontWeight: 600 }}
             >
               소스 등록
             </button>
@@ -403,7 +403,7 @@ export function Dropzone({
           role="alert"
           data-testid="dropzone-error-banner"
           className="rounded-sm border border-primary-error-text bg-canvas px-base py-sm text-primary-error-text"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {errorMessage}
         </p>

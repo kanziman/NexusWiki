@@ -200,7 +200,10 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
             aria-hidden="true"
             className="text-success-text"
           />
-          <span className="text-ink" style={{ font: "var(--font-caption)" }}>
+          <span
+            className="text-ink"
+            style={{ font: "var(--font-caption)", fontWeight: 600 }}
+          >
             업로드
           </span>
         </li>
@@ -249,7 +252,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                 )}
                 <span
                   className={labelClassName}
-                  style={{ font: "var(--font-caption)" }}
+                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   {caption}
                 </span>
@@ -286,7 +289,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                 <p
                   role="alert"
                   className="text-primary-error-text"
-                  style={{ font: "var(--font-caption)" }}
+                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   {`${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
                     job.last_error,

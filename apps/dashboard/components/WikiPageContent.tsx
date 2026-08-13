@@ -126,7 +126,7 @@ export function WikiPageContent({
       {disputed ? (
         <p
           className="text-primary-error-text"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {DISPUTED_CALLOUT}
         </p>
@@ -158,7 +158,7 @@ export function WikiPageContent({
             onClick={handleVerify}
             disabled={submitting}
             className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-            style={{ font: "var(--font-button-sm)" }}
+            style={{ font: "var(--font-button-sm)", fontWeight: 600 }}
           >
             {VERIFY_ACTION_LABEL}
           </button>
@@ -166,7 +166,7 @@ export function WikiPageContent({
             <p
               role="alert"
               className="text-primary-error-text"
-              style={{ font: "var(--font-caption)" }}
+              style={{ font: "var(--font-caption)", fontWeight: 600 }}
             >
               {verifyError}
             </p>
@@ -227,7 +227,10 @@ function VerificationCallout({
     const verifierLabel = verifiedBy ?? "알 수 없음";
     const dateLabel = verifiedAt !== null ? formatDate(verifiedAt) : "";
     return (
-      <p className="text-success-text" style={{ font: "var(--font-caption)" }}>
+      <p
+        className="text-success-text"
+        style={{ font: "var(--font-caption)", fontWeight: 600 }}
+      >
         {`검증됨 · ${verifierLabel}${dateLabel ? ` · ${dateLabel}` : ""}`}
       </p>
     );
@@ -239,7 +242,10 @@ function VerificationCallout({
     // prop 시그니처가 string | null이라 렌더 시점에 한 번 더 널가드한다.
     const dateLabel = expiresAt !== null ? formatDate(expiresAt) : "";
     return (
-      <p className="text-warning-text" style={{ font: "var(--font-caption)" }}>
+      <p
+        className="text-warning-text"
+        style={{ font: "var(--font-caption)", fontWeight: 600 }}
+      >
         {`검증 만료됨${dateLabel ? ` · ${dateLabel} 이후 재검증 필요` : " · 재검증 필요"}`}
       </p>
     );
@@ -249,7 +255,10 @@ function VerificationCallout({
     // UI-SPEC에 partial 전용 문구가 없다 — expired-style(warning-text) 처리를
     // 이 컴포넌트의 합리적 확장으로 채택한다(06-07-PLAN.md Task 2 <action>).
     return (
-      <p className="text-warning-text" style={{ font: "var(--font-caption)" }}>
+      <p
+        className="text-warning-text"
+        style={{ font: "var(--font-caption)", fontWeight: 600 }}
+      >
         부분 검증됨 · 재검증이 필요합니다
       </p>
     );

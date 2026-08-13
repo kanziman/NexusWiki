@@ -283,7 +283,7 @@ export function GraphCanvas({ workspaceId, category }: GraphCanvasProps) {
           role="status"
           data-testid="graph-cap-notice"
           className="text-primary-error-text"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {CAP_NOTICE}
         </p>

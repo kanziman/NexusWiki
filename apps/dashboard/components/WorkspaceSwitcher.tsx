@@ -58,7 +58,7 @@ export function WorkspaceSwitcher({
           >
             <span
               className="min-w-0 truncate"
-              style={{ font: "var(--font-caption)" }}
+              style={{ font: "var(--font-caption)", fontWeight: 600 }}
             >
               {current?.name ?? "워크스페이스 선택"}
             </span>
@@ -97,7 +97,7 @@ export function WorkspaceSwitcher({
                       className={`flex cursor-pointer items-center justify-between gap-xs px-base py-sm outline-none data-[highlighted]:bg-surface-soft data-[disabled]:cursor-default data-[disabled]:opacity-60 ${
                         isActive ? "text-primary" : "text-ink"
                       }`}
-                      style={{ font: "var(--font-caption)" }}
+                      style={{ font: "var(--font-caption)", fontWeight: 600 }}
                     >
                       <span className="min-w-0 truncate">{workspace.name}</span>
                       {isNavigating ? (

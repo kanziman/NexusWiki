@@ -65,7 +65,7 @@ export function LoginForm() {
         <label
           htmlFor={emailId}
           className="text-ink"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           이메일
         </label>
@@ -86,7 +86,7 @@ export function LoginForm() {
         <label
           htmlFor={passwordId}
           className="text-ink"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           비밀번호
         </label>
@@ -111,7 +111,7 @@ export function LoginForm() {
           data-state="error"
           role="alert"
           className="text-primary-error-text"
-          style={{ font: "var(--font-caption)" }}
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {error}
         </p>
@@ -121,7 +121,7 @@ export function LoginForm() {
         type="submit"
         disabled={!canSubmit || submitting}
         className="h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:bg-primary-disabled disabled:cursor-not-allowed"
-        style={{ font: "var(--font-button-md)" }}
+        style={{ font: "var(--font-button-md)", fontWeight: 600 }}
       >
         로그인
       </button>

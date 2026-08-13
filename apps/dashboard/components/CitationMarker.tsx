@@ -35,7 +35,11 @@ export function CitationMarker({
         aria-hidden="true"
         data-testid="citation-marker-placeholder"
         className="mx-xs inline-flex h-4 w-4 items-center justify-center rounded-full bg-hairline align-super text-muted"
-        style={{ font: "var(--font-caption)", fontSize: "10px" }}
+        style={{
+          font: "var(--font-caption)",
+          fontSize: "10px",
+          fontWeight: 600,
+        }}
       >
         {" "}
       </span>
@@ -49,7 +53,7 @@ export function CitationMarker({
       data-kind={part.kind}
       onClick={() => onClick?.(part)}
       className="mx-xs inline-flex h-4 w-4 items-center justify-center rounded-full bg-hairline align-super text-primary transition-colors hover:bg-primary hover:text-on-primary"
-      style={{ font: "var(--font-caption)", fontSize: "10px" }}
+      style={{ font: "var(--font-caption)", fontSize: "10px", fontWeight: 600 }}
     >
       {index + 1}
     </button>

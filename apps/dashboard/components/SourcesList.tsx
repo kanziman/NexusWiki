@@ -125,7 +125,7 @@ export function SourcesList({
                   </span>
                   <span
                     className="text-muted"
-                    style={{ font: "var(--font-caption)" }}
+                    style={{ font: "var(--font-caption)", fontWeight: 600 }}
                   >
                     {formatDate(source.created_at)}
                   </span>
