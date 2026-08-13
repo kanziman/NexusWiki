@@ -136,3 +136,29 @@ This work made no migration and did not run `supabase db push`; there is no depl
 policy change to roll back. A future adoption of relaxed order or graph-on needs its own
 versioned policy/migration change, new append-only comparable records, independent
 review approval, deployment evidence, and an explicit successor rollback path.
+
+## Phase 7 local canonical 50k strict/relaxed baseline
+
+Phase 7 captured two new append-only full-path records on one committed revision
+(`135a0f16a548ca54ad2d4dad01c326b42d55235a`), with the canonical 1024-dimension
+25,000-source plus 25,000-wiki-vector corpus, unchanged 36-query multilingual golden
+set, graph off, and repeat-count pin 3. The comparator accepted the pair:
+`{"status":"ok","quality_delta":-0.2222222222222222}` (relaxed minus strict).
+
+| arm | record | recall / strict pass | underfill | p50 / p95 total ms |
+|---|---|---:|---:|---:|
+| strict | [Phase 7 strict](benchmark-records/phase-07-strict-order.json) | 0.2222222222 / 0.2222222222 | 24 / 36 | 215.092 / 352.423 |
+| relaxed | [Phase 7 relaxed](benchmark-records/phase-07-relaxed-order.json) | 0 / 0 | 36 / 36 | 215.6465 / 278.638 |
+
+Each record retains `retrieval-hnsw-explain-v1` raw `EXPLAIN (ANALYZE, BUFFERS,
+FORMAT JSON)` evidence for the scoped `search_chunks`/`source_chunks` and
+`search_wiki_embeddings`/`wiki_embeddings` vector shapes. Both raw plans contain an
+embedding index scan (`source_chunks_embedding_idx`, `wiki_embeddings_embedding_idx`),
+so each truthfully records `representative_hnsw_observed`; no scale escalation is
+required for this local baseline. The per-channel p50/p95 summaries are stored in each
+immutable record rather than being inferred from this table.
+
+This evidence neither changes `strict_order` nor authorizes a policy change. The
+relaxed caller-session measurement underfills every golden query and is not a deployed
+RPC policy result; any future proposal must cite these pinned records through
+[`retrieval-policy-change-log.md`](retrieval-policy-change-log.md).

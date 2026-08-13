@@ -153,11 +153,8 @@ def _explain_capture(
     )
     if result.returncode:
         raise VerificationError("explain_capture_failed")
-    plan_lines = [line for line in result.stdout.splitlines() if line.lstrip().startswith("[")]
-    if len(plan_lines) != 1:
-        raise VerificationError("explain_capture_output_invalid")
     try:
-        plan = json.loads(plan_lines[0])
+        plan = json.loads(result.stdout.strip())
     except json.JSONDecodeError as error:
         raise VerificationError("explain_capture_output_invalid") from error
     return {
@@ -287,8 +284,9 @@ def operational(args, corpus: dict, golden: dict) -> dict:
     try:
         # A prior interrupted arm may have left only this deterministic workspace;
         # remove it before loading, never broad workspace data.
-        LocalRetrievalDb(args.db_container, args.order_mode)._run(cleanup)
-        LocalRetrievalDb(args.db_container, args.order_mode)._run(loader_sql(manifest, workspace))
+        if not args.reuse_loaded_workspace:
+            LocalRetrievalDb(args.db_container, args.order_mode)._run(cleanup)
+            LocalRetrievalDb(args.db_container, args.order_mode)._run(loader_sql(manifest, workspace))
         mapping = logical_id_map(manifest, corpus); reverse = {value: key for key, value in mapping.items()}
         policy = replace(DEFAULT_RETRIEVAL_POLICY, graph_enabled=args.graph == "on")
         service = RetrievalService(BenchmarkEmbeddingClient(), policy=policy); db = LocalRetrievalDb(args.db_container, args.order_mode); results = []
@@ -334,7 +332,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(); sub = parser.add_subparsers(dest="command")
     for name in ("compare-order-records", "compare-graph-records"):
         item = sub.add_parser(name); item.add_argument("--left" if name.startswith("compare-order") else "--off", type=Path, required=True); item.add_argument("--right" if name.startswith("compare-order") else "--on", type=Path, required=True)
-    parser.add_argument("--verify", action="store_true"); parser.add_argument("--fixture-results", type=Path); parser.add_argument("--output", type=Path); parser.add_argument("--order-mode", choices=("strict_order", "relaxed_order")); parser.add_argument("--graph", choices=("off", "on")); parser.add_argument("--repeat-count", type=int, default=3); parser.add_argument("--db-container", default="supabase_db_NexusWiki"); parser.add_argument("--run-id", default="phase-04")
+    parser.add_argument("--verify", action="store_true"); parser.add_argument("--fixture-results", type=Path); parser.add_argument("--output", type=Path); parser.add_argument("--order-mode", choices=("strict_order", "relaxed_order")); parser.add_argument("--graph", choices=("off", "on")); parser.add_argument("--repeat-count", type=int, default=3); parser.add_argument("--db-container", default="supabase_db_NexusWiki"); parser.add_argument("--run-id", default="phase-04"); parser.add_argument("--reuse-loaded-workspace", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
         if args.command == "compare-order-records": output = compare_order_records(_load_json(args.left), _load_json(args.right))

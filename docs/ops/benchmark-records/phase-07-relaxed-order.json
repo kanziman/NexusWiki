@@ -1,0 +1,3339 @@
+{
+  "record_schema": "retrieval-benchmark-v4",
+  "run_kind": "full_path_retrieval_measurement",
+  "timestamp": "2026-08-13T02:59:52.033121+00:00",
+  "run_id": "phase-07-relaxed",
+  "git_sha": "135a0f16a548ca54ad2d4dad01c326b42d55235a",
+  "policy_version": "hybrid-rrf-v1",
+  "policy_content": {
+    "version": "hybrid-rrf-v1",
+    "rrf_k": 60,
+    "channel_weights": {
+      "wiki_vector": 1.0,
+      "source_vector": 1.0,
+      "wiki_lexical": 1.0,
+      "source_lexical": 1.0
+    },
+    "channel_overfetch": {
+      "wiki_vector": 20,
+      "source_vector": 20,
+      "wiki_lexical": 20,
+      "source_lexical": 20
+    },
+    "requested_k": 8,
+    "vector_sql_max_candidates": 100,
+    "lexical_sql_max_candidates": 100,
+    "graph_enabled": false,
+    "graph_weight": 1.0,
+    "graph_seed_limit": 10,
+    "graph_depth": 2,
+    "graph_fanout": 5,
+    "graph_total_limit": 50
+  },
+  "policy_content_sha256": "936bc543e950961902e965492a5668f3b63bf567a3a95e7662626d161b5f1817",
+  "corpus_version": "representative-corpus-v1",
+  "corpus_sha256": "0f9fcc000c878656c9f0ca304afc0934e19c88e2dac983bf4d2117755ac690c4",
+  "golden_version": "golden-queries-v1",
+  "golden_sha256": "82fee1629674b797082d8068a47c25e022b415f491aae7cb6517d453143e2e3b",
+  "benchmark_manifest_sha256": "5f961eeb2ced94bef56134072244b6f5cb8392a4afffe86d5215be3e4005252b",
+  "generator_seed": "nexuswiki-phase-04-hnsw-v1",
+  "benchmark_corpus": {
+    "dimension": 1024,
+    "source_vector_rows": 25000,
+    "wiki_vector_rows": 25000
+  },
+  "raw_workspace_uuid": "ca4d1e07-2a51-5701-94d5-41c9a6081c6b",
+  "logical_id_to_uuid": {
+    "source:src-onboarding": "5774a7a6-8eb0-56a7-bcae-28c0d72ecc37",
+    "source:src-vpn": "2a4cf7b1-3e85-5061-8c9e-18f4829d540e",
+    "source:src-billing": "88d3d193-028a-5f5b-968b-3c4e692f4b88",
+    "source:src-incident": "8f65fb1c-8232-5f1b-832c-fb8ea30f88a9",
+    "source:src-retention": "f50c2b31-a9c0-5e6f-a2aa-e8ec7e3e87a6",
+    "source:src-korean-nfc": "91ab898f-6b08-5663-8e0c-e3c5ce926555",
+    "source:src-korean-fullwidth": "fc6afd53-0bb6-53e1-90ed-65aea1ce6885",
+    "source:src-hybrid": "1893381c-4e0f-5b36-b74e-b8c1afb9c17c",
+    "source:src-legal-hold": "7dae6796-0e18-56ec-8e8d-678854491df9",
+    "source:src-translation": "6dff76d3-7478-5869-a5e1-70ac922a5370",
+    "source:src-release": "55808ff1-3e52-5bb7-bfbd-9b32c50aa717",
+    "source:src-security": "45a6c072-c486-5636-b4eb-6d50da921a9a",
+    "wiki:wiki-sso": "0e10c4ac-a030-5773-98ef-fb23e70ca94e",
+    "wiki:wiki-vpn": "e4d07ba0-3211-5f23-aabc-606371f790a8",
+    "wiki:wiki-billing": "33c501a6-3553-5d6a-8ce2-127210d6e3d6",
+    "wiki:wiki-incident": "96f55e66-ff08-506b-87f9-65dde133d505",
+    "wiki:wiki-retention": "e7f76c99-df61-5043-a5c6-16b627154f84",
+    "wiki:wiki-search": "ef8e857e-2fd7-5123-83e0-61bf99b75915",
+    "wiki:wiki-glossary": "2dcfa814-1194-55b9-80c9-881b2b68171f",
+    "wiki:wiki-retrieval": "5dbb7a65-561e-530a-9322-33bdb7c8f139",
+    "wiki:wiki-legal": "fa18f1ea-7e26-53a9-af39-e064728ec025",
+    "wiki:wiki-release": "e42a7650-4507-58e1-954d-9721fd1c61d6",
+    "wiki:wiki-security": "1d6e7838-2413-51bb-b4a1-f8623cc72977",
+    "wiki:wiki-graph": "a46a3560-16ab-5b9e-9eef-021fc882e3e5"
+  },
+  "embedding_model_version": "fixture-token-hash-l2-v1",
+  "database_identity": "supabase_db_NexusWiki",
+  "repeat_count": 3,
+  "order_mode": "relaxed_order",
+  "graph_enabled": false,
+  "query_results": [
+    {
+      "query_id": "g01",
+      "query_text": "How does a new employee get SSO access?",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g01",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-onboarding",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 347.319,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 175.235,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 343.766,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 224.989,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 258.987,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g02",
+      "query_text": "administrator approval for single sign-on",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g02",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-sso",
+            "rank": null,
+            "max_rank": 2,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 228.201,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 148.94,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 226.942,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 108.737,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 207.11,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g03",
+      "query_text": "VPN profile fails after certificate expiry",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g03",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-vpn",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 250.577,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 110.282,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 190.348,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 198.83,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 249.03,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g04",
+      "query_text": "VPN 인증서 만료 후 프로필 재설정",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g04",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-vpn",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 261.452,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 185.869,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 260.055,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 167.56,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 204.18,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g05",
+      "query_text": "reconcile invoice with purchase order",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g05",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-billing",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 219.024,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 124.741,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 176.225,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 179.372,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 215.746,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g06",
+      "query_text": "invoice 구매 주문서 reconciliation",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g06",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-billing",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 239.272,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 180.204,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 238.047,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 139.119,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 109.745,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g07",
+      "query_text": "who opens an incident timeline",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g07",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-incident",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 203.506,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 165.048,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 127.897,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 127.742,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 200.693,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g08",
+      "query_text": "장애 타임라인과 지휘관 역할",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g08",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-incident",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 192.827,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 191.853,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 160.013,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 170.025,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 104.759,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g09",
+      "query_text": "when may export archives be deleted",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g09",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-retention",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 207.054,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 159.145,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 124.982,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 204.294,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 173.617,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g10",
+      "query_text": "archive 보존 기간 delete policy",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g10",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-retention",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 278.638,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 210.215,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 205.308,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 275.671,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 240.913,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g11",
+      "query_text": "한국어 검색 bigram 색인 방법",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g11",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-korean-nfc",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 220.154,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 219.228,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 212.911,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 122.91,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 156.064,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g12",
+      "query_text": "검색 NFC 정규화",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g12",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-search",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 240.666,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 188.319,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 238.946,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 142.745,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 106.985,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g13",
+      "query_text": "전각 ＡＢＣ versus ABC search",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g13",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-korean-fullwidth",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 222.013,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 139.848,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 220.296,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 165.28,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 101.186,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g14",
+      "query_text": "why use lexical retrieval for exact identifiers",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g14",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-hybrid",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 255.118,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 189.932,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 253.86,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 114.923,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 151.282,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g15",
+      "query_text": "find documents with meaning rather than exact words",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g15",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-retrieval",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 195.917,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 107.624,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 151.884,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 156.465,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 192.516,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g16",
+      "query_text": "legal hold prevents deletion",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g16",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-legal-hold",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 214.203,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 185.697,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 145.843,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 145.503,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 212.54,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g17",
+      "query_text": "법무 보류가 삭제를 중지하는 방법",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g17",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-legal",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 294.777,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 293.787,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 221.726,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 261.82,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 231.471,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g18",
+      "query_text": "Korean English product glossary 용어",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g18",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-translation",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 198.833,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 178.607,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 137.922,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 197.354,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 146.573,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g19",
+      "query_text": "제품 이름 한영 표준 용어집",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g19",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-glossary",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 250.728,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 154.421,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 249.579,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 183.672,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 124.11,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g20",
+      "query_text": "release rollback owner and approved change window",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g20",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-release",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 219.734,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 144.223,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 217.24,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 218.016,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 106.877,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g21",
+      "query_text": "production 릴리스 rollback 담당자",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g21",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-release",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 214.504,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 213.361,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 181.963,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 193.626,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 116.93,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g22",
+      "query_text": "what to do after a token leak",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g22",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-security",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 218.679,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 118.129,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 164.079,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 169.658,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 213.854,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g23",
+      "query_text": "토큰 유출 보안팀 신고",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g23",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-security",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 210.857,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 104.81,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 170.894,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 180.366,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 209.268,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g24",
+      "query_text": "related security guidance after incident command",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g24",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-security",
+            "rank": null,
+            "max_rank": 5,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 198.585,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 145.646,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 194.064,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 97.636,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 196.593,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g25",
+      "query_text": "incident timeline owner",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g25",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-incident",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 204.725,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 122.995,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 183.887,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 200.614,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 177.444,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g26",
+      "query_text": "retention legal hold 관련 페이지",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g26",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-legal",
+            "rank": null,
+            "max_rank": 5,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 214.275,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 145.325,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 134.669,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 174.701,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 208.829,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g27",
+      "query_text": "how do resolved wiki links expand related pages",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g27",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-graph",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 206.177,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 171.846,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 163.496,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 96.868,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 200.496,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g28",
+      "query_text": "위키 링크 그래프 확장 제한",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g28",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-graph",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 203.438,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 151.82,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 201.184,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 119.674,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 197.531,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g29",
+      "query_text": "phraseto_tsquery simple bigram",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g29",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-search",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 255.399,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 184.144,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 168.333,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 100.153,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 250.679,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g30",
+      "query_text": "dense vector와 lexical channel RRF",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g30",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-retrieval",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 223.704,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 116.033,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 222.279,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 143.655,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 170.752,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g31",
+      "query_text": "전각 ABC 검색 정규화",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g31",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-korean-fullwidth",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 178.854,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 160.119,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 122.84,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 128.478,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 174.657,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g32",
+      "query_text": "counsel release hold before archive deletion",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g32",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-legal",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 210.864,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 209.911,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 165.797,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 173.311,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 111.189,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g33",
+      "query_text": "new hire 첫날 SSO access",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g33",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-sso",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 194.971,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 164.865,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 157.763,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 193.372,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 101.957,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g34",
+      "query_text": "device certificate renewal instructions",
+      "language": "en",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g34",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-vpn",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 205.942,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 138.949,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 200.444,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 204.407,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 101.349,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g35",
+      "query_text": "월말 인보이스 구매주문서 대사",
+      "language": "ko",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g35",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "source:src-billing",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 188.521,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 124.846,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 124.571,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 187.051,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 154.718,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    },
+    {
+      "query_id": "g36",
+      "query_text": "security 토큰 leak credential rotation",
+      "language": "mixed",
+      "retrieval_observation": "retrieval_service_channel_envelopes_v1",
+      "ranked_uuid_evidence": [],
+      "ranked_logical_evidence": [],
+      "evaluation": {
+        "id": "g36",
+        "passed": false,
+        "checks": [
+          {
+            "required_id": "wiki:wiki-security",
+            "rank": null,
+            "max_rank": 3,
+            "passed": false
+          }
+        ]
+      },
+      "total_latency_ms": 216.789,
+      "underfill": true,
+      "channels": {
+        "wiki_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 215.715,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_vector": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 206.87,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "wiki_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 131.821,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "source_lexical": {
+          "status": "ok",
+          "requested": 20,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 98.977,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        },
+        "graph": {
+          "status": "disabled",
+          "requested": 50,
+          "returned": 0,
+          "underfill": true,
+          "elapsed_ms": 0.0,
+          "error_code": null,
+          "raw_hit_ids": [],
+          "contribution": 0,
+          "raw_uuid_ids": [],
+          "logical_ids": []
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "recall_at_k": 0.0,
+    "strict_query_pass_rate": 0.0,
+    "mrr": 0.0,
+    "mean_required_rank": null,
+    "channel_hits": {
+      "wiki_vector": 0,
+      "source_vector": 0,
+      "wiki_lexical": 0,
+      "source_lexical": 0,
+      "graph": 0
+    },
+    "channel_contribution": {
+      "wiki_vector": 0,
+      "source_vector": 0,
+      "wiki_lexical": 0,
+      "source_lexical": 0,
+      "graph": 0
+    },
+    "latency_ms": {
+      "p50_total": 215.6465,
+      "p95_total": 278.638,
+      "by_channel": {
+        "wiki_vector": {
+          "p50": 162.49200000000002,
+          "p95": 215.715
+        },
+        "source_vector": {
+          "p50": 187.1175,
+          "p95": 253.86
+        },
+        "wiki_lexical": {
+          "p50": 169.8415,
+          "p95": 224.989
+        },
+        "source_lexical": {
+          "p50": 176.0505,
+          "p95": 249.03
+        },
+        "graph": {
+          "p50": 0.0,
+          "p95": 0.0
+        }
+      }
+    },
+    "underfill": {
+      "queries": 36,
+      "rate": 1.0,
+      "by_channel": {
+        "wiki_vector": 36,
+        "source_vector": 36,
+        "wiki_lexical": 36,
+        "source_lexical": 36,
+        "graph": 36
+      }
+    }
+  },
+  "explain_evidence": {
+    "schema": "retrieval-hnsw-explain-v1",
+    "captures": [
+      {
+        "channel": "source_vector",
+        "rpc_function": "search_chunks",
+        "relation": "source_chunks",
+        "query_id": "g01",
+        "requested_k": 20,
+        "order_mode": "relaxed_order",
+        "graph_enabled": false,
+        "plan": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 2422.01,
+              "Total Cost": 2706.89,
+              "Plan Rows": 20,
+              "Plan Width": 44,
+              "Actual Startup Time": 23.437,
+              "Actual Total Time": 23.438,
+              "Actual Rows": 0,
+              "Actual Loops": 1,
+              "Shared Hit Blocks": 19089,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "source_chunks_embedding_idx",
+                  "Relation Name": "source_chunks",
+                  "Alias": "source_chunks",
+                  "Startup Cost": 2422.01,
+                  "Total Cost": 447359.8,
+                  "Plan Rows": 31237,
+                  "Plan Width": 44,
+                  "Actual Startup Time": 23.436,
+                  "Actual Total Time": 23.436,
+                  "Actual Rows": 0,
+                  "Actual Loops": 1,
+                  "Order By": "(embedding <=> ((('['::text || array_to_string('{0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.3713906763541037,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.3713906763541037,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0}'::numeric[], ','::text)) || ']'::text))::vector(1024))",
+                  "Filter": "((embedding IS NOT NULL) AND (workspace_id = 'ca4d1e07-2a51-5701-94d5-41c9a6081c6b'::uuid))",
+                  "Rows Removed by Filter": 0,
+                  "Shared Hit Blocks": 19089,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 217,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.545,
+            "Triggers": [],
+            "Execution Time": 23.519
+          }
+        ]
+      },
+      {
+        "channel": "wiki_vector",
+        "rpc_function": "search_wiki_embeddings",
+        "relation": "wiki_embeddings",
+        "query_id": "g01",
+        "requested_k": 20,
+        "order_mode": "relaxed_order",
+        "graph_enabled": false,
+        "plan": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 2602.95,
+              "Total Cost": 3025.42,
+              "Plan Rows": 20,
+              "Plan Width": 72,
+              "Actual Startup Time": 1.769,
+              "Actual Total Time": 1.769,
+              "Actual Rows": 0,
+              "Actual Loops": 1,
+              "Shared Hit Blocks": 1087,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "wiki_embeddings_embedding_idx",
+                  "Relation Name": "wiki_embeddings",
+                  "Alias": "wiki_embeddings",
+                  "Startup Cost": 2602.95,
+                  "Total Cost": 636276.94,
+                  "Plan Rows": 29998,
+                  "Plan Width": 72,
+                  "Actual Startup Time": 1.768,
+                  "Actual Total Time": 1.768,
+                  "Actual Rows": 0,
+                  "Actual Loops": 1,
+                  "Order By": "(embedding <=> ((('['::text || array_to_string('{0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.3713906763541037,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.3713906763541037,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.18569533817705186,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0}'::numeric[], ','::text)) || ']'::text))::vector(1024))",
+                  "Filter": "((embedding IS NOT NULL) AND (workspace_id = 'ca4d1e07-2a51-5701-94d5-41c9a6081c6b'::uuid))",
+                  "Rows Removed by Filter": 0,
+                  "Shared Hit Blocks": 1087,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 202,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.553,
+            "Triggers": [],
+            "Execution Time": 1.841
+          }
+        ]
+      }
+    ],
+    "hnsw_observed": true,
+    "observed_index_names": [
+      "source_chunks_embedding_idx",
+      "wiki_embeddings_embedding_idx"
+    ],
+    "decision": "representative_hnsw_observed"
+  }
+}
