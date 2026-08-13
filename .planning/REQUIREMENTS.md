@@ -112,11 +112,11 @@
 ### Cost, Verification & Ops (OPS)
 
 - [x] **OPS-01**: `usage_events` 테이블 · 인큐 시점 워크스페이스별 비용 상한 · 입력 크기 상한 · 잡 취소 경로가 동작한다
-- [ ] **OPS-02**: 수집 → 컴파일 → 임베딩 → 검색 E2E 시나리오가 통과한다
-- [ ] **OPS-03**: 재수집 멱등성이 검증된다 — 동일 `content_hash` 무증가 **및 더 적은 단위로 줄어드는 축소 케이스**
-- [ ] **OPS-04**: 워크스페이스 격리가 애플리케이션 경로 전수로 검증된다
-- [ ] **OPS-05**: 검색 품질(골든 세트 기준)과 지연 기준선이 수립된다
-- [ ] **OPS-06**: LLM/임베딩 비용과 잡 파이프라인에 대한 관측이 갖춰진다
+- [x] **OPS-02**: 수집 → 컴파일 → 임베딩 → 검색 E2E 시나리오가 통과한다
+- [x] **OPS-03**: 재수집 멱등성이 검증된다 — 동일 `content_hash` 무증가 **및 더 적은 단위로 줄어드는 축소 케이스**
+- [x] **OPS-04**: 워크스페이스 격리가 애플리케이션 경로 전수로 검증된다
+- [x] **OPS-05**: 검색 품질(골든 세트 기준)과 지연 기준선이 수립된다
+- [x] **OPS-06**: LLM/임베딩 비용과 잡 파이프라인에 대한 관측이 갖춰진다
 
 ---
 
@@ -246,11 +246,11 @@
 | UI-04 | Phase 6 | Complete |
 | UI-05 | Phase 6 | Complete |
 | UI-06 | Phase 6 | Complete |
-| OPS-02 | Phase 7 | Pending |
-| OPS-03 | Phase 7 | Pending |
-| OPS-04 | Phase 7 | Pending |
-| OPS-05 | Phase 7 | Pending |
-| OPS-06 | Phase 7 | Pending |
+| OPS-02 | Phase 7 | Complete |
+| OPS-03 | Phase 7 | Complete |
+| OPS-04 | Phase 7 | Complete |
+| OPS-05 | Phase 7 | Complete |
+| OPS-06 | Phase 7 | Complete |
 
 **Coverage:**
 
@@ -280,4 +280,4 @@
 
 ---
 *Requirements defined: 2026-08-02*
-*Last updated: 2026-08-02 after roadmap creation*
+*Last updated: 2026-08-13 after Phase 7 completion*

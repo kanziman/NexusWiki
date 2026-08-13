@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Hybrid Retrieval and Fusion** - 5채널 2웨이브 검색을 골든 세트로 측정 가능하게 만든다 (completed 2026-08-11)
 - [x] **Phase 5: Citation Integrity and Answer APIs** - 실제로 인용한 근거만 이중 Citation으로 돌려주는 답변 계층 (completed 2026-08-12)
 - [x] **Phase 6: Dashboard** - 브라우저만으로 워크스페이스를 운영하는 프론트엔드 (completed 2026-08-13)
-- [ ] **Phase 7: Integration and Ops Baseline** - E2E·멱등성·격리·품질·비용 기준선
+- [x] **Phase 7: Integration and Ops Baseline** - E2E·멱등성·격리·품질·비용 기준선 (completed 2026-08-13)
 
 ## Phase Details
 
@@ -287,7 +287,12 @@ Plans:
   4. 골든 세트 기준 검색 품질과 채널별 지연 기준선이 기록되어, 이후 변경이 회귀인지 개선인지 판정할 수 있다
   5. 워크스페이스별 LLM/임베딩 비용과 잡 파이프라인 상태가 관측 가능해, 비용이 새는 것을 청구서가 아니라 대시보드에서 먼저 본다
 
-**Plans**: TBD
+**Plans**: 4/4 plans executed
+
+- [x] 07-01-PLAN.md — Real-local ingest-to-retrieval tracer and re-ingestion regressions
+- [x] 07-02-PLAN.md — Full-path tenant isolation matrix across reads, mutations, jobs, and Storage
+- [x] 07-03-PLAN.md — Pinned retrieval quality/latency/HNSW baseline
+- [x] 07-04-PLAN.md — Settings-only, role-authorized operations snapshot
 
 ## Progress
 
@@ -305,7 +310,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Hybrid Retrieval and Fusion | 9/9 | Complete    | 2026-08-11 |
 | 5. Citation Integrity and Answer APIs | 7/7 | Complete    | 2026-08-12 |
 | 6. Dashboard | 8/8 | Complete    | 2026-08-13 |
-| 7. Integration and Ops Baseline | 0/TBD | Not started | - |
+| 7. Integration and Ops Baseline | 4/4 | Complete | 2026-08-13 |
 
 ## Coverage
 
