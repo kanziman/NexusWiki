@@ -267,6 +267,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
       const { data } = await supabase
         .from("wiki_pages")
         .select("slug")
+        .eq("workspace_id", workspaceId)
         .eq("id", part.id)
         .single();
       if (data?.slug) {

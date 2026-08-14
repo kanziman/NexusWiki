@@ -17,11 +17,30 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
 }));
 
-function makeQueryBuilder(result: { data: unknown; error?: unknown }) {
+// wiki_pages 조회(handleMarkerClick의 wiki-kind 분기)가 workspace_id로
+// 스코프됐는지 직접 관찰할 수 있도록 .eq() 호출 인자를 기록한다.
+const wikiLookupCalls = vi.fn();
+const wikiLookupResult: { current: { data: { slug: string } | null } } = {
+  current: { data: null },
+};
+
+function makeQueryBuilder(
+  table: string,
+  result: { data: unknown; error?: unknown },
+) {
   const builder: Record<string, unknown> = {
     select: () => builder,
-    eq: () => builder,
+    eq: (column: string, value: string) => {
+      if (table === "wiki_pages") wikiLookupCalls(column, value);
+      return builder;
+    },
     or: () => builder,
+    single: () =>
+      Promise.resolve(
+        table === "wiki_pages"
+          ? { data: wikiLookupResult.current.data, error: null }
+          : result,
+      ),
     then: (resolve: (value: typeof result) => void) =>
       Promise.resolve(result).then(resolve),
   };
@@ -34,7 +53,7 @@ vi.mock("@/lib/supabase/client", () => ({
       getSession: () =>
         Promise.resolve({ data: { session: { access_token: "test-token" } } }),
     },
-    from: () => makeQueryBuilder({ data: [] }),
+    from: (table: string) => makeQueryBuilder(table, { data: [] }),
   }),
 }));
 
@@ -57,6 +76,8 @@ describe("AskConversation", () => {
   beforeEach(() => {
     sseFrames.mockReset();
     push.mockReset();
+    wikiLookupCalls.mockReset();
+    wikiLookupResult.current = { data: null };
     // 06-REVIEW.md WR-02 fix: AskConversation이 SSE 루프에 들어가기 전에
     // response.ok를 확인하므로, 기존 성공 경로 테스트들이 계속 통과하려면
     // 목 fetch도 ok:true를 흉내내야 한다.
@@ -206,5 +227,37 @@ describe("AskConversation", () => {
         "/w/ws-1/ask?chunkId=chunk-uuid-1&tab=source",
       ),
     );
+  });
+
+  it("wiki 마커 클릭 시 workspace_id로 스코프된 조회로 slug를 찾아 wiki 탭으로 전환한다", async () => {
+    wikiLookupResult.current = { data: { slug: "meeting-notes" } };
+    sseFrames.mockReturnValue(
+      toAsyncGenerator([
+        { event: "meta", data: { template_id: "t1", evidence_count: 1 } },
+        { event: "delta", data: { text: "본문 [[wiki:w1]] 끝" } },
+        {
+          event: "citations",
+          data: {
+            text: "본문 [[wiki:w1]] 끝",
+            resolved: [{ alias: "w1", kind: "wiki", id: "wiki-uuid-1" }],
+          },
+        },
+        { event: "done", data: {} },
+      ]),
+    );
+
+    render(<AskConversation workspaceId="ws-1" />);
+    await askQuestion("질문입니다");
+
+    const marker = await screen.findByRole("button", { name: "1" });
+    fireEvent.click(marker);
+
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/w/ws-1/ask?slug=meeting-notes&tab=wiki",
+      ),
+    );
+    expect(wikiLookupCalls).toHaveBeenCalledWith("workspace_id", "ws-1");
+    expect(wikiLookupCalls).toHaveBeenCalledWith("id", "wiki-uuid-1");
   });
 });

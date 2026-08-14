@@ -28,9 +28,12 @@ describe("NavShell", () => {
       />,
     );
 
-    for (const label of ["소스", "질문하기", "위키", "그래프", "설정"]) {
+    for (const label of ["소스", "질문하기", "위키", "설정"]) {
       expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
     }
+    expect(
+      screen.queryByRole("link", { name: "그래프" }),
+    ).not.toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: "소스" })).toHaveAttribute(
       "aria-current",

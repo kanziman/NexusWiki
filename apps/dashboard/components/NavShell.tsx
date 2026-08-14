@@ -17,14 +17,16 @@ const ROUTES: { segment: string; label: string }[] = [
   { segment: "/sources", label: "소스" },
   { segment: "/ask", label: "질문하기" },
   { segment: "/wiki", label: "위키" },
-  { segment: "/graph", label: "그래프" },
   { segment: "/settings", label: "설정" },
 ];
 
 // UI-01: 06-01 트레이서가 남긴 bare header를 대체한다 — 워크스페이스 전환
 // 드롭다운(D-03, WorkspaceSwitcher 재사용) + Phase 6 나머지 표면(소스/질문하기/
-// 위키/그래프/설정)으로의 실제 내비게이션. 활성 라우트는 usePathname()으로
+// 위키/설정)으로의 실제 내비게이션. 활성 라우트는 usePathname()으로
 // 판정한다 — currentWorkspaceId prop과 마찬가지로 URL이 유일한 진실 소스다.
+// 그래프는 별도 목적지가 아니다 — /ask?tab=graph로만 리다이렉트되는 통합
+// 워크스페이스 뷰어의 탭이라 최상위 메뉴에 남겨두지 않는다
+// (openspec/changes/archive/2026-08-14-polish-unified-workspace-viewer).
 export function NavShell({
   workspaces,
   currentWorkspaceId,

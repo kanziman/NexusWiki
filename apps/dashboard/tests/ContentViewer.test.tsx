@@ -99,4 +99,42 @@ describe("ContentViewer", () => {
       screen.getByText("마인드맵은 특정 위키 문서를 중심으로 그려집니다."),
     ).toBeInTheDocument();
   });
+
+  it("wires each tab to its panel via aria-controls/aria-labelledby and applies roving tabIndex", () => {
+    currentParams = new URLSearchParams("tab=graph");
+    render(<ContentViewer workspaceId="ws-1" />);
+
+    const activeTab = screen.getByRole("tab", { name: "2D 지식 그래프" });
+    const inactiveTab = screen.getByRole("tab", { name: "위키 문서" });
+    const panel = screen.getByRole("tabpanel");
+
+    expect(activeTab).toHaveAttribute("tabIndex", "0");
+    expect(inactiveTab).toHaveAttribute("tabIndex", "-1");
+    expect(activeTab.getAttribute("aria-controls")).toBe(panel.id);
+    expect(panel.getAttribute("aria-labelledby")).toBe(activeTab.id);
+  });
+
+  it("ArrowRight on the active tab pushes the next tab and moves focus to it", async () => {
+    currentParams = new URLSearchParams("tab=wiki");
+    const user = userEvent.setup();
+    render(<ContentViewer workspaceId="ws-1" />);
+
+    screen.getByRole("tab", { name: "위키 문서" }).focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(push).toHaveBeenCalledWith("/w/ws-1/ask?tab=source");
+    expect(screen.getByRole("tab", { name: "원시 소스" })).toHaveFocus();
+  });
+
+  it("ArrowLeft wraps from the first tab to the last tab", async () => {
+    currentParams = new URLSearchParams("tab=wiki");
+    const user = userEvent.setup();
+    render(<ContentViewer workspaceId="ws-1" />);
+
+    screen.getByRole("tab", { name: "위키 문서" }).focus();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(push).toHaveBeenCalledWith("/w/ws-1/ask?tab=mindmap");
+    expect(screen.getByRole("tab", { name: "마인드맵" })).toHaveFocus();
+  });
 });

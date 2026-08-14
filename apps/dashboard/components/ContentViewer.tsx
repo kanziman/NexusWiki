@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { EmptyState } from "@/components/DashboardPrimitives";
 import { GraphCanvas } from "@/components/GraphCanvas";
@@ -67,11 +67,29 @@ export function ContentViewer({ workspaceId }: ContentViewerProps) {
   const slug = searchParams.get("slug");
   const category = searchParams.get("category");
   const chunkId = searchParams.get("chunkId");
+  const tabRefs = useRef<Record<ContentViewerTab, HTMLButtonElement | null>>(
+    {} as Record<ContentViewerTab, HTMLButtonElement | null>,
+  );
 
   function setTab(nextTab: ContentViewerTab) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
     router.push(`${pathname}?${params.toString()}`);
+  }
+
+  // W3C APG 탭 패턴 — roving tabIndex(활성 탭만 0) + 방향키 이동(자동 활성화:
+  // 포커스 이동과 동시에 뷰도 전환). GraphLensFilter의 칩 그룹(role="group",
+  // 다중 선택 가능한 필터)과는 의도적으로 다른 시맨틱이다 — 여기는 상호
+  // 배타적 뷰 전환이라 진짜 탭이다.
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const currentIndex = TABS.findIndex((item) => item.id === tab);
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    const nextIndex = (currentIndex + delta + TABS.length) % TABS.length;
+    const nextTab = TABS[nextIndex].id;
+    setTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
   }
 
   return (
@@ -84,10 +102,17 @@ export function ContentViewer({ workspaceId }: ContentViewerProps) {
         {TABS.map((item) => (
           <button
             key={item.id}
+            ref={(node) => {
+              tabRefs.current[item.id] = node;
+            }}
+            id={`content-viewer-tab-${item.id}`}
             type="button"
             role="tab"
             aria-selected={tab === item.id}
+            aria-controls={`content-viewer-panel-${item.id}`}
+            tabIndex={tab === item.id ? 0 : -1}
             onClick={() => setTab(item.id)}
+            onKeyDown={handleTabKeyDown}
             className={`nw-focus-ring border-b-2 px-base py-sm text-sm font-medium transition-colors ${
               tab === item.id
                 ? "border-[var(--nw-ink)] text-[var(--nw-ink)]"
@@ -98,7 +123,13 @@ export function ContentViewer({ workspaceId }: ContentViewerProps) {
           </button>
         ))}
       </div>
-      <div className="flex-1">
+      <div
+        id={`content-viewer-panel-${tab}`}
+        role="tabpanel"
+        aria-labelledby={`content-viewer-tab-${tab}`}
+        tabIndex={0}
+        className="flex-1"
+      >
         {tab === "wiki" ? (
           <WikiTab workspaceId={workspaceId} slug={slug} />
         ) : null}
