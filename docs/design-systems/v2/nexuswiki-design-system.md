@@ -105,20 +105,38 @@ NexusWiki의 인증, 워크스페이스, 소스 관리, 문서 리더 화면을 
 
 ## 적용 대상
 
-- `nexuswiki-google-auth.html`
+이 문서의 실행 가능한 형태는 [nexuswiki-design-system.css](nexuswiki-design-system.css)이며, 아래 6개 화면이 모두 이 파일을 `<link>` 로 불러온다. 각 HTML 의 `<style>` 에는 그 화면 고유 레이아웃만 남긴다.
+
+- `nexuswiki-google-auth.html` — 앱 셸이 없는 유일한 화면(토큰·리셋·버튼·폼만 사용)
 - `nexuswiki-workspace-home.html`
 - `nexuswiki-workspace-settings.html`
-- `design-systems/nexuswiki-source-management.html`
-- `design-systems/nexuswiki-wiki-document-reader.html`
-- `design-systems/nexuswiki-ask-conversation.html`
+- `nexuswiki-source-management.html`
+- `nexuswiki-wiki-document-reader.html`
+- `nexuswiki-ask-conversation.html`
+
+## 클래스 이름 규약
+
+셸 컴포넌트는 `apps/dashboard/components/` 의 React 컴포넌트로 그대로 넘어간다. 축약어를 쓰지 않는 이유가 이것이다.
+
+| 역할 | 클래스 | 대응 컴포넌트 |
+| --- | --- | --- |
+| LNB | `.sidebar` | `NavShell.tsx` |
+| 워크스페이스 스위처 | `.switcher` | `WorkspaceSwitcher.tsx` |
+| 상단바 | `.topbar` | — |
+| 내비 항목 / 하위 트리 | `.nav-item` / `.nav-tree` | — |
+| 콘텐츠 캔버스 | `.workspace` | — |
+
+`.brand` 는 제품 로고 락업(google-auth)만 뜻한다. 워크스페이스 스위처와 혼동하지 않는다.
 
 ## 정리 TODO
 
-- [ ] 각 화면의 중복 CSS를 공통 토큰과 컴포넌트 규칙으로 통합한다.
-- [ ] LNB 아이콘을 모두 단색 SVG로 통일한다.
-- [ ] 1600px, 1280px, 768px, 375px에서 공통 컴포넌트를 시각 검증한다.
-- [ ] 상태 색상과 포커스 링의 대비를 컴포넌트별로 점검한다.
+- [x] 각 화면의 중복 CSS를 공통 토큰과 컴포넌트 규칙으로 통합한다. — 인라인 합계 76,591 → 52,732 bytes, 공용 CSS 16,571 bytes
+- [x] LNB 아이콘을 모두 단색 SVG로 통일한다. — reader 의 글리프(`☆ ◷ ! ↥ □`)와 `nth-of-type` 매칭 제거
+- [x] 375px·768px·1280px·1600px 에서 공통 컴포넌트를 시각 검증한다. — 6화면 × 5구간 `scrollWidth == clientWidth` 확인
+- [ ] 상태 색상과 포커스 링의 대비를 컴포넌트별로 점검한다. — 아직 수치 측정 안 함
+- [ ] `.section-head` 가 workspace-home 과 workspace-settings 에서 서로 다르게 정의돼 있다. 같은 컴포넌트인지 판단 후 통합하거나 이름을 분리한다.
+- [ ] source-management 는 640px 이하에서 "연결된 위키 문서" 열을 `display:none` 으로 숨긴다. §표와 목록의 "열을 억지로 숨기지 않는다"와 어긋나므로 PRD 리뷰에서 결론을 낸다.
 
 ## 다음 단계
 
-이 문서를 기준으로 다음 화면부터 공통 토큰과 컴포넌트 명세를 적용한다. 팀이 합의할 항목은 LNB 아이콘 세트와 모바일 우선순위이며, 확정 후 각 기존 HTML의 중복 스타일을 순차적으로 정리한다.
+CSS 정리는 끝났다. 이제 화면별 PRD 를 하나씩 리뷰하며, 위 미해결 TODO 2건(`.section-head` 통합, 모바일 열 숨김)을 해당 화면 차례에 함께 판정한다.
