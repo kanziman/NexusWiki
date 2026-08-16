@@ -1,46 +1,61 @@
 # 🤝 Handoff Document
 
-- **작성 일시**: 2026-08-16 (직전 작업 세션 기준)
+- **작성 일시**: 2026-08-16 (이번 세션 종료 시점)
 - **작업 브랜치**: main
 
 ## 🎯 1. 작업 목표 & 현재 상태
 
-- **목표**: Cairni 레퍼런스를 참고한 대시보드 정보 밀도 개선 논의에서 출발해, HHH-18(소스/위키 선택 레이아웃 불일치)·HHH-19(그래프 칩/캔버스 구분 안 됨)·HHH-20(Ask↔Wiki 통합 뷰) 세 건과, 구현 중 새로 발견한 HHH-21(primary 색상 빨강/검정 불일치)·HHH-22(그래프 메뉴 정리·Ask 화면 재점검)까지 총 5건을 AGENTS.md의 OpenSpec 워크플로우(propose→apply→verify→archive, Linear 연동)로 처리했다.
-- **진행률**: 5건 전부 완료 — 구현·테스트·typecheck·lint·`pnpm build`·`openspec validate` 통과, archive 완료, Linear Done 갱신 완료, 커밋 5개(HHH-19/18/20/스크린샷 정리/HHH-21/HHH-22 — 정확히는 6커밋) 완료.
-- **추가로**: 사용자 요청에 따라 `docs/design-systems/wiki-document-reader-prd.md` 및 연계 design-spec.md의 내부 모순(이모지 원칙 vs 이모지 표기, Midjourney 프롬프트 자체 모순)을 수정했다. 단, 이 두 파일은 **다른 세션이 동시에 편집 중**이라 커밋하지 않고 working tree에만 남겨뒀다.
+- **목표**: "마일스톤 2" 대시보드 재설계를 위해 `docs/design-systems/`에 쌓이는 페이지별 PRD/시안을 리뷰하며 스코프를 좁히는 세션. 이번 세션에서 상세 리뷰한 문서: `source-management-prd.md`, `wiki-document-reader-prd.md`(더보기 메뉴), `backlog-management-prd.md`, `templates-management-prd.md`, `workspace-settings-prd.md`, 그리고 신규 기능으로 새로 설계한 `public-sharing-prd.md`(공개 위키 공유, 8라운드 이상 반복 설계).
+- **진행률**: 순수 리뷰/설계 논의. 코드 변경 없음. 유일한 커밋은 세션 시작 시 이전 세션 HANDOFF 갱신(`4d947ae`, docs 전용).
+- **⚠️ 중요 발견**: 세션 도중 동시 편집 중인 peer 세션(`nexuswiki-7e`)이 `docs/design-systems/PRODUCT-INVARIANTS.md`를 새로 만들었다. 이 문서가 **"재컴파일 수동 버튼 없음"**, **"공개 URL 네임스페이스 충돌 방지"** 등 이번 세션에서 반복적으로 지적했던 결정들을 정확히 담고 있다 — 즉 peer 세션이 이 대화의 결론과 수렴 중이거나 이미 같은 결론에 도달해 있다. **다음 세션은 개별 PRD를 다시 훑기 전에 `PRODUCT-INVARIANTS.md`부터 읽을 것** — 이제 이게 단일 진실 공급원 역할을 하는 것으로 보인다. `docs/design-systems/v2/`에 통합 mockup 6개(HTML, ask-conversation/google-auth/source-management/wiki-document-reader/workspace-home/workspace-settings)도 새로 생겼다 — 실제 "v2" 화면 작업이 여기서 진행 중인 것으로 보인다.
+- **🔴 저장소 상태 경고**: `.planning/` 디렉토리 하위 **227개 파일이 working tree에서 삭제된 상태**(`git status`상 `D`, 아직 스테이징 안 됨)다. 이 세션에서 내가 지운 적 없음 — peer 세션 또는 사용자가 외부에서 한 작업으로 추정. 사용자가 세션 초반에 "되돌리고 마일스톤2로 새롭게 구성할거야"라고 한 것과 시점이 맞아떨어지고, `PRODUCT-INVARIANTS.md`/`v2/` 신설과 함께 보면 **의도적인 마일스톤1 계획 문서 정리로 추정**되지만 확실친 않다. 다음 세션은 `git status`로 재확인 후, 의도된 게 맞는지 사용자에게 확인하고 나서 커밋(또는 복구)할 것 — 임의로 커밋하거나 되돌리지 말 것.
 
 ## ✏️ 2. 주요 변경 사항 & 의사결정 (Why)
 
-- **peer 세션 재작업 패턴 발견**: `366b90f` 커밋으로 archive된 `separate-graph-control-canvas`, `unify-source-wiki-selection-layout`, `unify-dashboard-design-system` change 3건이 전부 "완료"로 표시돼 있었지만, 실제 코드를 확인하니 요구사항이 충족되지 않았다(그래프 캔버스 배경 미적용, 소스/위키 선택 상호작용 모델 여전히 다름, primary 색상 빨강/검정 혼재). 기존 스펙은 재사용하고 "실제로 안 끝난 부분"만 마저 구현하는 후속 change로 처리했다(HHH-19, HHH-18, HHH-21).
-- **`apps/dashboard/components/GraphCanvas.tsx`**: 캔버스 wrapper에 `--nw-canvas` 배경 부여(HHH-19) + 마인드맵 탭용 `layoutName`/`rootSlug` prop 추가(HHH-20, `wiki_links` 데이터 재사용해 `breadthfirst` 레이아웃).
-- **`apps/dashboard/components/SourcesList.tsx` + 신규 `app/w/[workspaceId]/sources/[id]/page.tsx`**: 아코디언 인라인 펼치기를 `WikiLibrary`와 동일한 "행 → 실제 라우트" 패턴으로 통일(HHH-18).
-- **`/ask` 통합 워크스페이스 뷰어(HHH-20)**: `AskConversation` + 신규 `ContentViewer`(위키 문서/원시 소스/2D 그래프/마인드맵 4탭, `?tab=&slug=&chunkId=&category=` 쿼리 파라미터가 상태)를 좌우로 배치. `/wiki/[slug]`, `/graph`는 `redirect()`로 흡수(존재 확인 로직은 그대로 유지 후 redirect). 위키 조회 로직은 `lib/wiki-lookup.ts`로 추출해 라우트와 뷰어가 공유. 인용 마커 클릭이 `CitationSidePanel` 오버레이 대신 뷰어 탭 전환으로 이어짐(컴포넌트는 삭제 안 함).
-- **`apps/dashboard/app/globals.css`(HHH-21)**: `--color-primary` 등을 `.nw-action`(검정)으로 재배선. **중요 트러블슈팅**: 처음엔 `@theme` 블록 안에서 재배선했으나 컴파일된 CSS를 직접 확인해보니 효과가 없었다 — Tailwind v4의 `@theme`은 `@layer theme`으로 컴파일되고, CSS Cascade Layers 규칙상 레이어 없는(unlayered) 규칙이 항상 이겨서 `design-tokens.css`(Airbnb 파일)의 unlayered `:root`가 계속 이겼다. `globals.css`의 기존 plain `:root` 블록(`--font-family-base` 오버라이드가 쓰던 자리)으로 옮겨서 해결했다.
-- **NavShell/AskConversation 정리(HHH-22)**: `/graph`가 리다이렉트만 하게 되면서 죽은 링크가 된 "그래프" 메뉴 제거, `handleMarkerClick`의 위키 조회에 `workspace_id` 스코프 추가, `ContentViewer` 탭에 `aria-controls`/`role="tabpanel"`/roving tabIndex/방향키 이동 구현.
-- **또 다른 트러블슈팅(false alarm)**: HHH-22 조사 중 `ask/page.tsx`의 `h-[calc(100vh-var(--spacing-xxl)*2)]`가 이 코드베이스가 두 번 기록한 "WINDOWS #11"(커스텀 `--spacing-*` 토큰과 Tailwind 유틸리티 충돌) 위반이라 의심했으나, `.planning/STATE.md`의 원본 기록을 재확인하고 빌드된 CSS를 파싱해보니 그 버그는 **이름 있는** 유틸리티(`max-w-xl` 등)에만 해당하고 arbitrary-value 문법(`h-[...]`)은 무관함을 검증했다. 코드는 되돌렸다.
-- **openspec CLI 재설치**: 이 머신에 `openspec`이 없어 `npm install -g @fission-ai/openspec@latest`로 설치했다(peer 세션이 CLI 없이 손으로 change를 작성했던 게 "완료 표시되었지만 검증 안 됨" 문제의 근본 원인으로 추정됨).
+### 공개 위키 공유 기능 (`public-sharing-prd.md`) — 이번 세션 핵심 작업, 8라운드 이상 반복 설계로 수렴
+
+최초 제안(3단계 공개 범위 + 비로그인 권한표)부터 시작해 다음 순서로 문제를 하나씩 좁혀갔다:
+1. **anon RLS 아키텍처 자체가 빠져있음** 지적 → 이 프로젝트는 원래 `anon`이 전 정책 차단 상태라, "공개"는 UI 토글이 아니라 새 RLS 설계가 필요하다는 걸 못박음.
+2. **공개 Ask 차단** — 워크스페이스 기본 예산이 `monthly_budget_micros` 기본 $5/월임을 확인(`0009_pipeline_ops.sql`), 비로그인 Ask는 예산 남용 벡터라 전면 차단으로 확정.
+3. **이중 Citation 딜레마** — `source_chunks`를 통째로 열면 비공개 소스 유출, 막으면 공개 위키 인용이 빈 껍데기. → **"승인 인용 스냅샷" 모델**로 해결: 컴파일 시점 인용 스니펫만 별도 저장, 원본 테이블은 절대 열지 않음.
+4. **스냅샷 생명주기** — 재인덱싱/소스삭제로 원본이 바뀌어도 공개 스냅샷은 안 바뀌어야 함(그렇지 않으면 인용 드리프트가 공개된 채로 발생) → 재컴파일 시 자동 교체 안 하고 "stale 배너 + 재검토 유도"로 설계.
+5. **인간 검토 게이트** — LLM이 고른 인용 구간(호스트명/시크릿 등)이 사람 확인 없이 공개되는 걸 막기 위해, 최초 발행/재발행 모두 **스니펫 단위 [✅ 승인/❌ 제외] 모달 필수** 확정. "재발행"이 블라인드 원클릭이 되지 않도록 명시.
+6. **verification_status 오염 방지** — "공개 승인" 클릭이 내부 `verified` 배지를 자동으로 켜거나(신뢰 배지 희석) `stale`로 되돌리면(`compile.py`가 명시적으로 보호하는 불변식과 충돌) 안 됨 → `verified`는 공개 신청의 **사전 게이트로만** 쓰고, 재검토 필요 여부는 `wiki_pages.updated_at > wiki_page_publications.published_at` 비교(기존 트리거 재사용)로 판정 — 새 컬럼/enum 값 없이 해결.
+7. **테넌트 격리** — `wiki_page_publications`는 이 프로젝트의 복합 FK 관행(`FOREIGN KEY (wiki_page_id, workspace_id) REFERENCES wiki_pages(id, workspace_id)`)을 정확히 따르도록 수정.
+8. **RLS 킬스위치의 실제 작동 문제** — `EXISTS (SELECT 1 FROM workspaces ...)` 서브쿼리는 `anon`이 `workspaces`에 아무 정책도 없어서 **항상 0행을 반환**한다는 걸 실제 PostgreSQL RLS 의미론으로 짚어냄(교차 테이블 서브쿼리도 조회 주체의 RLS를 그대로 받음). SECURITY DEFINER 함수 대안 제시(EXECUTE grant 필요 지적 포함) → 사용자가 "테이블 분리는 어떤가" 역제안 → **`workspace_public_settings` 사이드카 테이블**(민감 컬럼과 물리적으로 분리, `anon`이 이 테이블 전체를 봐도 안전)로 최종 확정. 이게 `wiki_page_publications`와 같은 1:1 사이드카 패턴이라 구조적으로 일관됨.
+9. **최종 산출물**: `docs/design-systems/public-sharing-prd.md` — 위 모든 수정사항이 정확히 반영된 상태로 확인함. 남은 것: (a) 권한 매트릭스에 "재컴파일 트리거"가 여전히 4번째로 잘못 남아있음(→ `PRODUCT-INVARIANTS.md`로 이미 정정된 걸로 보임, 재확인 필요), (b) editor 레벨에서 공개 승인 가능한 게 의도된 신뢰 위임인지 미확인(owner만 킬스위치를 켤 수 있는 것과 비대칭), (c) URL 충돌(`/p/[slug]` 전역 vs 워크스페이스 스코프)과 공개 그래프 뷰어 정보 유출 문제는 이 DB 중심 문서 스코프 밖 — UX PRD 쪽에 아직 반영 안 됨(다만 `PRODUCT-INVARIANTS.md` 2절이 이미 URL 네임스페이스 충돌 방지를 다루고 있어 보임, 확인 필요).
+
+### 그 외 PRD별 결정 (자세한 내용은 대화 기록 참고, 요지만)
+
+- **source-management**: 재컴파일 버튼 삭제(기존 `JobStepper` dead-job 재시도와 중복), 재인덱싱은 `···` 메뉴로 격하, 소스 삭제 시 영향 위키에 **자동으로**(사용자 버튼 아님) compile job 재큐잉.
+- **wiki-document-reader**: 위키 삭제는 기존 `wiki_links` red-link 메커니즘이 실제로 뒷받침(안전), "아카이브/삭제" 문구 정리 필요, 버전 이력은 스코프 큼(→ 결국 공개 기능의 `wiki_page_publications`가 "발행본" 개념으로 부분적으로 흡수).
+- **backlog-management**: 소스삭제→백로그 전이는 source-management의 auto-recompile에 의존(구현 순서 있음), 커버리지 트렌드(%)는 시계열 스냅샷 없이 불가능.
+- **templates-management**: Tab1(구조 템플릿) 삭제, compile 프롬프트 편집 기능은 보류, "100% 정합" 주장이 3개 항목 전부 거짓으로 판명(템플릿 키/model·temp·max_tokens 컬럼/on-prem 주장), **화면 전체를 이번 마일스톤에서 빼는 걸 권고**함(Supabase Studio로 충분) — 이후 실제로 파일이 디렉토리에서 사라짐(확인 필요, 우연일 수도 있음).
+- **workspace-settings**: `SettingsMembersPanel.tsx`/`OperationsPanel.tsx`는 실재(이 계열 문서 중 처음으로 "100% 정합" 주장이 부분적으로 사실). RLS 정책 수는 38개 아니라 실제 27개. 예산 진행바는 API가 `authoritative: false`로 이미 표시 중. 워크스페이스 삭제 정책은 실재하나 확인 절차 언급 없음.
+- **ask 프롬프트 4종(기존 기능)**: 손 안 댐 — 이미 실서비스에 구현되어 정상 동작 중. 외부에서 온 설명(`.replace()` 체이닝)이 실제 구현(정규식 단일 스캔, 프롬프트 인젝션 방어용)과 다르다는 것만 정정함.
+
+### 반복적으로 발견된 패턴 (다음 세션이 새 PRD를 볼 때 계속 적용할 것)
+
+1. **"확정(Validated)" 라벨은 신뢰할 수 없다** — 검증 가능한 구체적 주장(스키마 컬럼, 정책 개수, 파일 경로)은 매번 실제 코드/DB와 대조해야 함. 지금까지 3개 문서(source-management, templates-management, workspace-settings)에서 구체적 수치·이름이 틀렸음.
+2. **Zero Emoji 원칙이 프로즈에서 반복적으로 깨짐** — `templates-management`, `source-management`, `wiki-document-reader`, `backlog-management`의 실제 preview.html까지 이모지 있었음. 반면 `workspace-home`, `workspace-settings`는 실제 mockup은 깨끗함(SVG 아이콘 사용, 프로즈만 이모지). 확인은 python3 정규식으로(`grep -P`는 이 머신 BSD grep에서 작동 안 함).
+3. **"재컴파일 트리거"가 사용자 액션인 것처럼 4개 문서에 좀비처럼 계속 등장** — `PRODUCT-INVARIANTS.md`가 이제 이걸 명시적으로 금지 조항으로 박아둔 걸로 보임, 다음 세션에서 실제로 다 정리됐는지 확인.
 
 ## 🧪 3. 검증 상태
 
-- **완료된 검증** (5개 change 전부 동일 절차):
-  - `apps/dashboard`: `pnpm test` — 최종 121 tests / 31 test files 전부 통과
-  - `apps/dashboard`: `pnpm typecheck`, `pnpm lint` 클린
-  - `apps/dashboard`: `pnpm build`(production build) 성공 — CSS cascade 문제(HHH-21)와 WINDOWS #11 false alarm(HHH-22)을 컴파일된 `.next/static/css/*.css`를 직접 파싱해 검증하는 데 사용
-  - `openspec validate <change> --strict` 5건 전부 통과, `openspec validate --specs` 13개 스펙 전부 통과
-  - Linear HHH-18/19/20/21/22 전부 Done 상태 갱신 확인(update_issue 응답으로 성공 확인)
-- **미검증 항목**: 이번 세션 내내 **브라우저 실사용 검증을 못 했다** — 로컬 dev 서버(3000번)가 클라우드 Supabase(`dajhhwbkfdaqnuenulsb.supabase.co`)를 바라보는데 이 세션엔 로그인 자격 증명이 없었다. 사용자가 "정적 검증만으로 진행"을 승인해 테스트/빌드로 대체했지만, 실제 화면에서 그래프 배경 분리·소스 상세 라우트·통합 뷰어 4탭·primary 색상·탭 키보드 내비게이션을 육안으로 확인한 적은 없다.
+- 이번 세션은 리뷰/설계 논의 전용 — `pnpm test`/`typecheck`/`lint`/`build` 등 실행하지 않음.
+- **미검증**: `workspace-home-preview.html`(이모지 없음만 확인, 상세 리뷰 안 함), `ask-conversation-preview.html`, `auth-google-prd.md`/`preview.html`, `public-wiki-reader-preview.html`, `docs/design-systems/v2/` 산하 6개 통합 mockup, `PRODUCT-INVARIANTS.md` 전문(2절 이후 못 읽음) — 전부 미검토.
 
 ## ⚠️ 4. 주의사항 & 남은 작업 (TODO)
 
-- [ ] **자격 증명 확보 후 브라우저 E2E 확인** — 위 "미검증 항목" 전체를 실제 화면에서 확인.
-- [ ] `docs/design-systems/wiki-document-reader-prd.md`/`wiki-document-reader-design-spec.md` 수정 사항(이모지 자리표시자 설명, Midjourney 프롬프트 이모지 제거) — **커밋 안 됨**. 동시 편집 중이던 다른 세션의 작업과 합쳐서 커밋할지 확인 필요.
-- [ ] `openspec/changes/refine-knowledge-preview-hierarchy/`(워크스페이스 홈 미리보기 재구성) — 다른 세션이 만든 propose 단계 change로 보임, 이번 세션에서 손대지 않음. apply 전이라 아직 코드 변경 없음.
-- [ ] `docs/design-systems/ask-conversation-*`, `workspace-home-*` 문서들도 wiki-document-reader와 같은 배치로 생성된 미래 비전 문서로 보이며 아직 검토 안 함.
-- **주의사항 1**: 이 저장소는 동시에 다른 Claude 세션이 작업할 수 있다(`ListAgents`로 peer 세션 존재 확인됨). archive된 OpenSpec change가 "완료" 표시라고 실제로 구현이 끝났다고 믿지 말 것 — 이번 세션에서만 3건이 거짓 완료였다. 코드를 직접 재확인하는 습관이 필요하다.
-- **주의사항 2**: `apps/dashboard/app/globals.css`에 `--color-*`(Airbnb `design-tokens.css` 유래)와 `--nw-*`(quiet editorial, 실제 소스) 두 토큰 체계가 병존한다. `--color-primary` 계열은 이번 세션에 `--nw-action`으로 재배선했지만, `--color-canvas`/`--color-ink`/`--color-muted` 등 나머지는 그대로다 — 새 UI를 짤 때 어느 쪽이 실제로 이기는지(unlayered `:root` 소스 순서) 컴파일된 CSS로 검증하는 버릇을 들일 것.
-- **주의사항 3**: 로컬 `openspec` CLI는 `npm install -g @fission-ai/openspec@latest`로 이미 설치돼 있다(이 세션에서 설치함) — 다음 세션은 재설치 불필요, `openspec --version`으로 확인만 하면 됨.
+- [ ] **`.planning/` 227개 파일 삭제가 의도된 것인지 확인** — 커밋도, 복구도 하지 말고 먼저 확인.
+- [ ] `PRODUCT-INVARIANTS.md` 전문을 읽고, 이번 세션에서 지적한 "좀비 재컴파일 참조"와 "URL 네임스페이스 충돌"이 실제로 다 커버됐는지 대조.
+- [ ] `public-sharing-prd.md`의 권한 매트릭스에서 "재컴파일 트리거" 문구 정리, editor의 공개 승인 권한이 owner 승인 없이 가능한 게 의도인지 확인.
+- [ ] 지난 세션부터 이어진 핵심 질문 2개 여전히 미해결: **HHH-20(ContentViewer 통합) 되돌리기 여부**, **primary 색상 확정**(빨강→검정→새 시안 파랑) — `v2/` mockup들이 어떤 색을 쓰는지 다음 세션에서 확인.
+- [ ] `docs/design-systems/v2/` 통합 mockup 6개, `auth-google-*`, `public-wiki-reader-preview.html` 아직 리뷰 안 함.
+- [ ] `templates-management-prd.md`/`preview.html`이 실제로 삭제됐는지, 의도적인지 확인(디렉토리에서 사라진 걸 확인했으나 이유는 미확인).
+- **주의사항**: `docs/design-systems/`는 계속 다른 세션이 동시 편집 중이다 — 이 문서에 적힌 파일 목록/내용은 스냅샷일 뿐, 다음 세션은 `ls docs/design-systems/`부터 다시 확인할 것.
 
 ## 🚀 5. 다음 세션 재개 안내
 
 다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
-> "HANDOFF.md 확인하고 남은 작업부터 이어서 진행해줘."
+> "HANDOFF.md 확인하고, `.planning/` 삭제 상태랑 `PRODUCT-INVARIANTS.md` 먼저 확인한 다음 남은 작업 이어서 진행해줘."
