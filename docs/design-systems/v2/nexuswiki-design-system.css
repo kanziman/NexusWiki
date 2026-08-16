@@ -1,0 +1,574 @@
+/* =============================================================================
+ * NexusWiki v2 공용 디자인 시스템 스타일시트
+ *
+ * 명세: nexuswiki-design-system.md (이 파일은 그 문서의 실행 가능한 형태다)
+ * 소비자: v2/nexuswiki-*.html 프로토타입 6종
+ *
+ * 이 파일은 화면 6개가 공유하는 토큰·셸·프리미티브만 담는다.
+ * 화면 고유 레이아웃(테이블, 인스펙터, 스레드, 문서 본문 등)은 각 HTML의
+ * <style> 블록에 남긴다 — 여기로 올리면 한 화면의 변경이 나머지를 깨뜨린다.
+ *
+ * ⚠️ 클래스명은 apps/dashboard/components/ 의 React 컴포넌트로 그대로 넘어간다.
+ *    축약어(.side/.top/.mark) 대신 서술적 이름을 쓰는 이유가 이것이다.
+ *
+ * 명세와 프로토타입이 어긋났을 때의 판정 3건 (2026-08-16):
+ *   - LNB 활성 상태는 명세 "--soft 배경 + --accent 전경"을 따른다.
+ *     workspace-home 원본의 청록 채움(background:var(--accent);color:#fff)은 폐기.
+ *   - .brand 는 제품 로고 락업 전용(google-auth). 워크스페이스 스위처는 .switcher.
+ *   - .button 기본값은 명세 "8px 모서리, 12px·800". 조밀 화면은 .button.compact.
+ * =============================================================================
+ */
+
+/* -----------------------------------------------------------------------------
+ * 1. 토큰
+ * -------------------------------------------------------------------------- */
+:root {
+  --bg: oklch(1 0 0);                     /* 문서·폼·모달의 기본 배경 */
+  --surface: oklch(.982 .004 247);        /* LNB, 테이블 헤더, 비활성 보조 영역 */
+  --fg: oklch(.208 .033 264);             /* 본문·제목 */
+  --muted: oklch(.554 .033 258);          /* 보조 정보·메타데이터 */
+  --border: oklch(.928 .012 255);         /* 1px 헤어라인 */
+  --border-strong: oklch(.80 .015 255);   /* 호버 시 테두리 강조 */
+  --accent: oklch(.58 .11 190);           /* 활성 내비게이션, 선택, 화면당 핵심 CTA 1개 */
+  --accent-active: oklch(.49 .11 190);    /* primary 버튼 호버/프레스 */
+  --soft: oklch(.965 .025 190);           /* accent 계열 은은한 채움 (배지, 활성 LNB) */
+  --soft-strong: oklch(.94 .025 190);     /* 선택 행·활성 청크처럼 더 또렷해야 하는 채움 */
+  --good: oklch(.63 .14 155);             /* 검증 완료·정상 */
+  --danger: oklch(.57 .205 20);           /* 삭제·실패 */
+  --danger-active: oklch(.49 .205 20);    /* danger 버튼 호버 */
+  --avatar-bg: oklch(.88 .02 255);        /* 프로필 이니셜 원형 배경 */
+  --shadow: 0 18px 46px oklch(.208 .033 264/.10);   /* 플로팅 메뉴·강조 카드 */
+  --shadow-modal: 0 30px 70px oklch(.208 .033 264/.24);
+  --scrim: oklch(.208 .033 264/.28);      /* 모달 뒤 배경 */
+  --focus-ring: oklch(.58 .11 190/.30);   /* 키보드 포커스 링 */
+
+  --font-display: "Plus Jakarta Sans", Pretendard, system-ui, sans-serif;
+  --font-body: Pretendard, "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* -----------------------------------------------------------------------------
+ * 2. 리셋과 기본 타이포그래피
+ * -------------------------------------------------------------------------- */
+* { box-sizing: border-box }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.45 var(--font-body);
+}
+
+button, input, select, textarea { font: inherit }
+button { cursor: pointer }
+
+/* 포커스는 항상 보인다. outline-offset 은 화면별로 덮지 않는다. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.mono { font-family: var(--font-mono) }
+
+/* -----------------------------------------------------------------------------
+ * 3. 앱 셸 — LNB + 콘텐츠 캔버스
+ *
+ * .app 의 grid-template-columns 는 화면마다 다르다(리더는 우측 목차, ask 는
+ * 우측 인용 패널을 더 붙인다). 열 정의는 각 화면이 소유하고 여기서는 안 정한다.
+ * -------------------------------------------------------------------------- */
+.app {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+/* 워크스페이스 스위처 — WorkspaceSwitcher.tsx 대응.
+   제품 로고 락업(.brand)과 다른 물건이다. */
+.switcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.switcher-mark {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--fg);
+  color: #fff;
+  font: 800 13px var(--font-display);
+}
+
+.switcher-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 13px var(--font-display);
+  letter-spacing: -.3px;
+}
+
+.chev {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--muted);
+}
+
+/* -----------------------------------------------------------------------------
+ * 4. 내비게이션
+ * -------------------------------------------------------------------------- */
+.nav-stack { display: grid; gap: 2px }
+
+.nav-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 8px 4px;
+  color: var(--muted);
+  font: 600 10px var(--font-mono);
+  letter-spacing: .08em;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.nav-item:hover { background: var(--bg) }
+
+/* 명세 §내비게이션: 활성 LNB 는 --soft 배경 + --accent 전경.
+   채움형(accent 배경 + 흰 글자)은 화면당 CTA 1개 원칙과 경쟁하므로 쓰지 않는다. */
+.nav-item.active {
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.nav-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.count {
+  margin-left: auto;
+  font: 600 10px var(--font-mono);
+  opacity: .7;
+}
+
+/* 프로젝트 트리 — 접이식 하위 내비 */
+.nav-tree {
+  display: grid;
+  gap: 2px;
+  margin-left: 15px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.nav-tree .nav-item {
+  padding: 6px 7px;
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nav-tree .nav-item:hover { color: var(--fg) }
+
+.nav-tree .nav-item.active {
+  background: var(--soft-strong);
+  color: var(--accent);
+  font-weight: 800;
+}
+
+/* 캐럿은 클래스로 직접 잡는다. span:first-child 로 잡으면 버튼 안에
+   아이콘이 하나 추가되는 순간 조용히 엉뚱한 요소가 회전한다. */
+.nav-caret {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  transition: transform .16s ease;
+}
+
+.nav-toggle.collapsed .nav-caret { transform: rotate(-90deg) }
+.nav-tree.collapsed { display: none }
+
+/* -----------------------------------------------------------------------------
+ * 5. 프로필 블록
+ * -------------------------------------------------------------------------- */
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.profile-text { display: grid; gap: 1px; flex: 1; min-width: 0 }
+.profile-text strong, .profile b { display: block; font-size: 12px }
+.profile-text span, .profile span { display: block; color: var(--muted); font-size: 11px }
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-btn:hover { background: var(--bg); color: var(--fg) }
+
+/* -----------------------------------------------------------------------------
+ * 6. 상단바
+ * -------------------------------------------------------------------------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 66px;
+  padding: 0 42px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.crumb strong { color: var(--fg); font-family: var(--font-display) }
+.crumb b { font-weight: 400; color: var(--border) }
+
+.top-actions { display: flex; align-items: center; gap: 8px }
+
+/* -----------------------------------------------------------------------------
+ * 7. 버튼
+ *
+ * 명세 §버튼: 기본은 흰 배경 + --border 테두리 + 8px 모서리 + 12px·800.
+ * primary 는 화면당 1개. .compact 는 ask/문서 리더처럼 조밀한 상단바 전용.
+ * -------------------------------------------------------------------------- */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.button:hover { background: var(--surface); border-color: var(--border-strong) }
+
+.button svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 5px 16px oklch(.58 .11 190/.18);
+}
+
+.button.primary:hover {
+  background: var(--accent-active);
+  border-color: var(--accent-active);
+}
+
+.button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.button.danger:hover {
+  background: var(--danger-active);
+  border-color: var(--danger-active);
+}
+
+.button.compact { padding: 8px 10px; border-radius: 7px; font-size: 11px }
+.button.compact svg { width: 14px; height: 14px }
+
+/* 텍스트만 있는 보조 동작 */
+.text-button {
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.text-button:hover { color: var(--fg); text-decoration: underline }
+
+/* 문장 안에 박혀 있어 평상시에도 눌러야 할 것으로 읽혀야 하는 텍스트 동작 */
+.text-button.strong {
+  color: var(--fg);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+/* -----------------------------------------------------------------------------
+ * 8. 상태 표시와 배지
+ * -------------------------------------------------------------------------- */
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font: 600 10px var(--font-mono);
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+/* 점 + 레이블 형태의 진행/결과 상태 */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--good) }
+.status.pending .dot { background: oklch(.57 .14 255) }
+.status.failed .dot { background: var(--danger) }
+
+/* 테두리형 검증 배지 — 문서 목록의 "검증 완료" 등 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 600 10px var(--font-mono);
+  white-space: nowrap;
+}
+
+.badge.verified {
+  background: oklch(.96 .035 155);
+  border-color: oklch(.82 .08 155);
+  color: var(--good);
+}
+
+.badge.accent {
+  background: var(--soft);
+  border-color: oklch(.58 .11 190/.35);
+  color: var(--accent);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.chip:hover { background: var(--surface); color: var(--fg) }
+
+/* -----------------------------------------------------------------------------
+ * 9. 폼
+ * -------------------------------------------------------------------------- */
+.field {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.field:focus { border-color: var(--accent); outline: 0 }
+.field::placeholder { color: oklch(.70 .02 258) }
+
+/* -----------------------------------------------------------------------------
+ * 10. 모달
+ * -------------------------------------------------------------------------- */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  padding: 20px;
+  background: var(--scrim);
+  place-items: center;
+}
+
+.modal-backdrop.open { display: grid }
+
+.modal {
+  width: min(520px, 100%);
+  padding: 22px;
+  background: var(--bg);
+  border-radius: 14px;
+  box-shadow: var(--shadow-modal);
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal h2 { margin: 0; font: 800 20px var(--font-display); letter-spacing: -.6px }
+.modal p { margin: 7px 0 18px; color: var(--muted); font-size: 13px }
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* -----------------------------------------------------------------------------
+ * 11. 반응형 셸
+ *
+ * 명세 §반응형: 641–900px 에서 LNB 를 숨긴다. 그 아래로는 서랍으로 연다.
+ * 표를 카드로 바꾸는 규칙은 화면별 CSS 소관이다(responsive-layout-rules.md).
+ * -------------------------------------------------------------------------- */
+.mobile-nav-button { display: none }
+.mobile-scrim { display: none }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr }
+  .sidebar { display: none }
+  .topbar { padding: 0 20px }
+}
+
+@media (max-width: 640px) {
+  .topbar { height: 58px; padding: 0 14px }
+  .crumb { font-size: 12px }
+  .crumb b, .crumb > span { display: none }
+
+  .mobile-nav-button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .mobile-nav-button:hover { background: var(--surface) }
+
+  /* LNB 를 좌측 서랍으로 전환 */
+  .sidebar.mobile-open {
+    display: flex;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(280px, calc(100vw - 34px));
+    overflow-y: auto;
+    box-shadow: 24px 0 48px oklch(.208 .033 264/.16);
+  }
+
+  .mobile-scrim.show {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    background: oklch(.208 .033 264/.26);
+  }
+
+  /* 명세 §버튼: 모바일 주요 조작은 최소 44px */
+  .button { min-height: 44px }
+  .button.compact { min-height: 40px }
+
+  .modal-backdrop { padding: 12px; align-items: end }
+  .modal { padding: 19px }
+}
