@@ -240,6 +240,55 @@ summary:focus-visible {
 .nav-tree.collapsed { display: none }
 
 /* -----------------------------------------------------------------------------
+ * 4b. 접힌 LNB — 아이콘 레일
+ *
+ * 명세 §내비게이션: "접힌 LNB는 아이콘만 남기고, 호버 시 레이블을 제공한다".
+ * 레이블은 aria-label 을 그대로 툴팁으로 띄우므로, 접히는 화면의 .nav-item 에는
+ * aria-label 이 반드시 있어야 한다 — 없으면 툴팁이 빈 칸으로 뜬다.
+ * 폭(72px)은 .app 의 grid-template-columns 를 함께 줄여야 실제로 좁아진다.
+ * -------------------------------------------------------------------------- */
+.sidebar.collapsed { padding: 16px 12px; align-items: center }
+.sidebar.collapsed .switcher { width: 44px; padding: 8px; justify-content: center }
+.sidebar.collapsed .switcher-name,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-tree,
+.sidebar.collapsed .profile-text { display: none }
+.sidebar.collapsed .chev { transform: rotate(-90deg) }
+.sidebar.collapsed .nav-stack { width: 44px }
+
+.sidebar.collapsed .nav-item {
+  position: relative;
+  width: 44px;
+  height: 40px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  font-size: 0;        /* 레이블 텍스트를 숨기고 아이콘만 남긴다 */
+}
+
+.sidebar.collapsed .nav-item .count { display: none }
+.sidebar.collapsed .nav-item:hover { background: var(--bg) }
+
+.sidebar.collapsed .nav-item:hover::after {
+  content: attr(aria-label);
+  position: absolute;
+  left: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--fg);
+  color: #fff;
+  box-shadow: 0 8px 20px oklch(.208 .033 264/.16);
+  font: 700 11px var(--font-body);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sidebar.collapsed .profile { width: 44px; justify-content: center }
+
+/* -----------------------------------------------------------------------------
  * 5. 프로필 블록
  * -------------------------------------------------------------------------- */
 .profile {
