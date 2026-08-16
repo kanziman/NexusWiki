@@ -86,6 +86,10 @@ summary:focus-visible {
   min-height: 100vh;
 }
 
+/* 콘텐츠 캔버스. min-width:0 이 없으면 안쪽 테이블·코드블록이 그리드 열을
+   밀어내 페이지 전체에 가로 스크롤이 생긴다. */
+.workspace { min-width: 0 }
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -453,6 +457,30 @@ summary:focus-visible {
 }
 
 .chip:hover { background: var(--surface); color: var(--fg) }
+
+/* 요약 통계 줄 — 경계선 사이에 지표를 나열한다.
+   열 수는 화면마다 다르므로 grid 로 바꿀 때는 페이지 CSS 에서 덮는다. */
+.stats {
+  display: flex;
+  margin: 30px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat {
+  display: grid;
+  gap: 2px;
+  padding: 13px 22px 13px 0;
+  margin-right: 22px;
+  border-right: 1px solid var(--border);
+}
+
+.stat:last-child { margin-right: 0; border-right: 0 }
+.stat b { font: 700 16px var(--font-mono); letter-spacing: -.6px }
+.stat span { color: var(--muted); font-size: 11px }
+
+.text-good { color: var(--good) }
+.text-danger { color: var(--danger) }
 
 /* -----------------------------------------------------------------------------
  * 9. 폼

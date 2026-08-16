@@ -1,47 +1,287 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NexusWiki — 원문 소스 관리</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nexuswiki-design-system.css">
 <style>
-:root{--bg:oklch(1 0 0);--surface:oklch(.982 .004 247);--fg:oklch(.208 .033 264);--muted:oklch(.554 .033 258);--border:oklch(.928 .012 255);--accent:oklch(.58 .11 190);--soft:oklch(.965 .025 190);--danger:oklch(.57 .205 20);--good:oklch(.63 .14 155);--shadow:0 18px 46px oklch(.208 .033 264/.1)}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 Pretendard,"Apple SD Gothic Neo",system-ui,sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid oklch(.58 .11 190/.3);outline-offset:2px}.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
-.app{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:100vh}.side{background:var(--surface);border-right:1px solid var(--border);padding:18px 12px;display:flex;flex-direction:column;gap:20px}.switcher{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--bg);font:800 13px "Plus Jakarta Sans";text-align:left}.mark{width:27px;height:27px;display:grid;place-items:center;border-radius:8px;background:var(--fg);color:white}.chev{margin-left:auto;color:var(--muted)}.nav{display:grid;gap:2px}.nav small{margin:11px 8px 4px;color:var(--muted);font:600 10px "JetBrains Mono";letter-spacing:.08em}.nav button{display:flex;align-items:center;gap:9px;width:100%;border:0;background:transparent;color:var(--fg);padding:8px;border-radius:8px;text-align:left;font-size:13px;font-weight:700}.nav button:hover{background:var(--bg)}.nav button.active{background:var(--soft);color:var(--accent)}.nav svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.count{margin-left:auto;font:600 10px "JetBrains Mono";opacity:.7}.profile{margin-top:auto;display:flex;align-items:center;gap:9px;padding:14px 7px 0;border-top:1px solid var(--border)}.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:oklch(.88 .02 255);font-weight:800;font-size:12px}.profile b{display:block;font-size:12px}.profile span{display:block;color:var(--muted);font-size:11px}
-.work{min-width:0}.top{height:66px;position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:0 42px;border-bottom:1px solid var(--border);background:var(--bg)}.crumb{color:var(--muted);font-size:13px}.crumb strong{color:var(--fg);font-family:"Plus Jakarta Sans"}.button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--bg);color:var(--fg);font-size:12px;font-weight:800}.button:hover{background:var(--surface)}.button.primary{background:var(--accent);border-color:var(--accent);color:white;box-shadow:0 5px 16px oklch(.58 .11 190/.18)}.button.primary:hover{background:oklch(.49 .11 190);border-color:oklch(.49 .11 190)}.button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.content{max-width:1320px;margin:auto;padding:42px}.eyebrow{margin:0 0 9px;color:var(--muted);font:600 10px "JetBrains Mono";letter-spacing:.11em}.hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}.hero h1{margin:0;font:800 clamp(27px,3vw,38px)/1.1 "Plus Jakarta Sans";letter-spacing:-1.4px}.hero p{margin:10px 0 0;color:var(--muted)}.stats{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));margin:30px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}.stat{padding:14px 22px 14px 0;margin-right:22px;border-right:1px solid var(--border)}.stat:last-child{border:0}.stat b{display:block;font:700 18px "JetBrains Mono";letter-spacing:-.7px}.stat span{display:block;margin-top:2px;color:var(--muted);font-size:11px}.health{color:var(--good)}
-.toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:34px}.tabs{display:flex;gap:4px;flex-wrap:wrap}.tab{border:0;border-bottom:2px solid transparent;padding:8px 10px;background:transparent;color:var(--muted);font-size:12px;font-weight:800}.tab:hover{color:var(--fg)}.tab.active{border-color:var(--accent);color:var(--accent)}.search{width:230px;border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--bg);font-size:12px}.table-wrap{margin-top:10px;border:1px solid var(--border);border-radius:12px;overflow:hidden}.table{width:100%;border-collapse:collapse;table-layout:fixed}.table th{padding:11px 14px;background:var(--surface);color:var(--muted);text-align:left;font:600 10px "JetBrains Mono";letter-spacing:.05em}.table td{padding:13px 14px;border-top:1px solid var(--border);vertical-align:middle}.table tr{cursor:pointer}.table tbody tr:hover{background:var(--surface)}.table tbody tr.selected{background:var(--soft)}.file{display:flex;align-items:center;gap:10px;min-width:0}.file .format{min-width:42px;height:26px;display:grid;place-items:center;align-self:center;margin-top:0;padding:0 7px;border:1px solid var(--border);border-radius:999px;background:var(--bg);font:700 9px/1 "JetBrains Mono";letter-spacing:.04em;text-align:center;color:var(--muted);flex:none}.format.sql{background:var(--soft);border-color:oklch(.58 .11 190/.35);color:var(--accent)}.format.pdf{background:oklch(.95 .015 255);border-color:oklch(.78 .025 255);color:oklch(.42 .06 255)}.format.md{background:var(--surface);color:var(--fg)}.format.csv{background:oklch(.95 .025 155);border-color:oklch(.76 .06 155);color:oklch(.42 .09 155)}.file b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.file span,.sub{display:block;margin-top:2px;color:var(--muted);font-size:10px}.chips{display:flex;gap:4px;flex-wrap:wrap}.chip{display:inline-flex;align-items:center;gap:6px;max-width:158px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--border);border-radius:999px;padding:5px 8px;background:var(--surface);color:var(--fg);font-size:10px;line-height:1.1}.chip::before{content:"";width:7px;height:7px;border:1.5px solid currentColor;border-radius:2px;box-shadow:3px -3px 0 -2px var(--surface),3px -3px 0 -1px currentColor;opacity:.62;transform:translateY(1.5px);flex:none}.selected .chip{background:var(--bg);border-color:oklch(.58 .11 190/.20)}.selected .chip::before{box-shadow:3px -3px 0 -2px var(--bg),3px -3px 0 -1px currentColor}.status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good)}.pending .dot{background:oklch(.57 .14 255)}.failed .dot{background:var(--danger)}.more{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-weight:900}.more:hover{background:var(--surface);color:var(--fg)}
-.inspector{display:none;position:fixed;z-index:20;top:66px;right:0;bottom:0;width:min(420px,100vw);padding:22px;background:var(--bg);border-left:1px solid var(--border);box-shadow:-18px 0 42px oklch(.208 .033 264/.12);overflow:auto}.inspector.open{display:block}.inspect-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.inspect-head h2{margin:0;font:800 18px "Plus Jakarta Sans";overflow-wrap:anywhere}.close{width:30px;height:30px;border:1px solid var(--border);border-radius:7px;background:var(--bg);font-size:18px;color:var(--muted);flex:none}.info{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:20px 0;border:1px solid var(--border);border-radius:9px;overflow:hidden}.info div{padding:10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}.info div:nth-child(even){border-right:0}.info small{display:block;color:var(--muted);font-size:10px}.info b{font:700 12px "JetBrains Mono"}.chunk-list{display:grid;gap:4px}.chunk{border:1px solid var(--border);border-radius:7px;padding:10px;background:var(--bg);text-align:left;color:var(--fg)}.chunk.active{border-color:var(--accent);background:var(--soft)}.chunk b{font-size:12px}.chunk span{display:block;margin-top:2px;color:var(--muted);font:10px "JetBrains Mono"}.code{margin-top:12px;border-radius:9px;padding:14px;background:oklch(.208 .033 264);color:oklch(.9 .02 190);font:11px/1.65 "JetBrains Mono";white-space:pre-wrap}.code em{color:oklch(.72 .15 155);font-style:normal}
-.modal-backdrop{display:none;position:fixed;z-index:50;inset:0;padding:20px;background:oklch(.208 .033 264/.28);place-items:center}.modal-backdrop.open{display:grid}.modal{width:min(520px,100%);padding:22px;background:var(--bg);border-radius:14px;box-shadow:0 30px 70px oklch(.208 .033 264/.24)}.modal h2{margin:0;font:800 20px "Plus Jakarta Sans"}.modal p{color:var(--muted);font-size:13px}.drop{display:grid;place-items:center;gap:7px;min-height:160px;border:1px dashed oklch(.65 .04 190);border-radius:10px;background:var(--surface);text-align:center}.drop b{font-size:13px}.drop span{color:var(--muted);font-size:11px}.fields{display:grid;gap:9px;margin-top:16px}.fields select{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--bg)}.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.danger{background:var(--danger);border-color:var(--danger);color:white}.danger:hover{background:oklch(.49 .205 20);border-color:oklch(.49 .205 20)}
-@media(min-width:1600px){body{display:grid;grid-template-columns:minmax(0,1fr) 420px}.app{grid-column:1}.inspector{display:block;position:sticky;top:0;width:auto;height:100vh;padding:24px;border-left:1px solid var(--border);box-shadow:none}.close{display:none}}
-@media(max-width:1599px){.app{grid-template-columns:1fr}.side{display:none}.top,.content{padding-left:28px;padding-right:28px}.content{padding-top:34px}.inspector{width:min(440px,92vw)}body.inspector-open{overflow:hidden}body.inspector-open::after{content:"";position:fixed;z-index:15;inset:0;background:oklch(.208 .033 264/.22)}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.stat{margin-right:16px;padding-right:16px}}
-@media(max-width:900px){.top,.content{padding-left:20px;padding-right:20px}.stats{grid-template-columns:1fr}.stat{margin:0;padding:12px;border-right:0;border-bottom:1px solid var(--border)}.stat:last-child{border-bottom:0}.table th:nth-child(2),.table td:nth-child(2){display:none}.toolbar{align-items:flex-start;flex-direction:column}.search{width:100%}.content{padding-top:30px}.hero{display:block}}
-@media(max-width:900px){.table col:nth-child(1){width:42%!important}.table col:nth-child(2),.table col:nth-child(5){width:0!important}.table col:nth-child(3){width:20%!important}.table col:nth-child(4){width:28%!important}.table col:nth-child(6){width:10%!important}.table td{padding:12px 10px}}@media(max-width:640px){.top{height:58px;padding:0 14px}.crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.content{padding:25px 14px}.hero h1{font-size:29px;letter-spacing:-1px}.hero p{font-size:13px}.stats{margin:24px 0}.toolbar{gap:10px}.tabs{width:100%;gap:1px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{padding:8px 8px;font-size:10px;white-space:nowrap}.table th:nth-child(3),.table td:nth-child(3){display:none}.table col:nth-child(1){width:54%!important}.table col:nth-child(3){width:0!important}.table col:nth-child(4){width:35%!important}.table col:nth-child(6){width:11%!important}.table th,.table td{padding:11px 8px}.file{gap:7px}.file b{white-space:normal;font-size:11px;line-height:1.35}.file span{font-size:9px}.format{min-width:38px;height:24px;font-size:8px}.status{font-size:10px}.status .dot{width:6px;height:6px}.more{width:28px;height:28px}.inspector{top:58px;width:100%;padding:18px}.modal-backdrop{padding:12px}#uploadOpen{width:44px;height:44px;padding:0;font-size:0}#uploadOpen svg{width:18px;height:18px}}
-@media(min-width:641px) and (max-width:900px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.stat{margin-right:12px;padding:12px 12px 12px 0;border-right:1px solid var(--border);border-bottom:0}.stat:last-child{border-right:0}}
-@media(max-width:900px){.table-wrap{overflow:visible;border:0;background:transparent}.table,.table tbody{display:block;width:100%}.table colgroup,.table thead{display:none}.table tbody{display:grid;gap:10px}.table tbody tr{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;padding:16px 52px 15px 16px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}.table tbody tr.selected{background:var(--soft);border-color:oklch(.58 .11 190/.32)}.table td,.table td:nth-child(n){display:block;width:auto;padding:0;border:0}.table td:nth-child(1),.table td:nth-child(2){grid-column:1/-1}.table td:nth-child(3){grid-column:1;grid-row:3}.table td:nth-child(4){grid-column:2;grid-row:3;align-self:center}.table td:nth-child(5){display:none}.table td:nth-child(6){position:absolute;top:12px;right:12px}.table .file b{white-space:normal;overflow:visible;text-overflow:clip;font-size:13px}.table .chips{padding-top:1px}.table .chip{max-width:min(100%,300px)}.table .sub{margin-top:1px}.table .more{width:32px;height:32px}.table .status{font-size:11px}.table tr[hidden]{display:none}}
-@media(max-width:640px){.table tbody{gap:8px}.table tbody tr{padding:14px 48px 14px 14px;gap:9px 12px}.table td:nth-child(2){display:none}.table td:nth-child(3){grid-row:2}.table td:nth-child(4){grid-row:2}.table .file b{font-size:12px}.table .file span{font-size:10px}.table .chip{max-width:100%}}
-</style></head>
-<body><div class="app" data-od-id="source-management-app">
-<aside class="side" data-od-id="primary-navigation"><button class="switcher" data-od-id="workspace-switcher"><span class="mark">N</span>넥서스 SaaS 팀 <span class="chev">⌄</span></button><nav class="nav"><button><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기 <span class="count">03</span></button><button><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button><button><svg viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">18</span></button><small>팀 프로젝트</small><button>⌄　엔지니어링 코어</button><button class="active" data-od-id="source-management-nav">　데이터베이스 &amp; RLS <span class="count">18</span></button><small>팀 관리</small><button>○　팀원 &amp; 역할 관리 <span class="count">08</span></button></nav><div class="profile"><span class="avatar">김</span><div><b>김개발</b><span>엔지니어링</span></div></div></aside>
-<main class="work" data-od-id="source-management-screen"><header class="top" data-od-id="source-management-topbar"><div class="crumb">엔지니어링 코어　/　<strong>원문 소스 관리</strong></div><button class="button primary" id="uploadOpen" data-od-id="source-upload-button"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M5 20h14"/></svg>소스 업로드</button></header>
-<div class="content"><section class="hero" data-od-id="source-management-header"><div><p class="eyebrow">SOURCE PIPELINE · DATABASE &amp; RLS</p><h1>원문 소스 관리 &amp;<br>임베딩 파이프라인</h1><p>등록된 원본의 청킹, 5채널 인덱싱 상태와 위키 인용 관계를 관리합니다.</p></div></section>
-<section class="stats" data-od-id="pipeline-stats"><div class="stat"><b>18</b><span>총 등록 소스</span></div><div class="stat"><b>42</b><span>생성된 청크</span></div><div class="stat"><b class="health">100%</b><span>5채널 인덱싱 · 정상 가동</span></div></section>
-<section data-od-id="source-table-section"><div class="toolbar"><nav class="tabs" aria-label="파일 형식 필터"><button class="tab active" data-filter="all">전체 18</button><button class="tab" data-filter="sql">SQL 스크립트 8</button><button class="tab" data-filter="pdf">PDF 문서 5</button><button class="tab" data-filter="md">마크다운 3</button><button class="tab" data-filter="data">CSV/JSON 2</button></nav><input class="search" id="search" placeholder="파일명으로 검색"></div>
-<div class="table-wrap"><table class="table"><colgroup><col style="width:26%"><col style="width:27%"><col style="width:14%"><col style="width:15%"><col style="width:12%"><col style="width:6%"></colgroup><thead><tr><th>소스 파일</th><th>연결된 위키 문서</th><th>청크 및 좌표</th><th>파이프라인 상태</th><th>업로드</th><th></th></tr></thead><tbody id="sourceRows">
-<tr class="selected" data-kind="sql" data-source="0004_rls_security_spine.sql"><td><div class="file"><span class="format sql">SQL</span><div><b>0004_rls_security_spine.sql</b><span>18.4 KB · SQL DDL</span></div></div></td><td><div class="chips"><span class="chip">테넌트 격리 및 RLS 보안 스파인</span><span class="chip">복합 외래키 전파 규칙</span></div></td><td><b class="mono">12 청크</b><span class="sub">1,420–18,392 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>1시간 전</td><td><button class="more" data-delete="0004_rls_security_spine.sql" aria-label="더보기">···</button></td></tr>
-<tr data-kind="pdf" data-source="tenant_architecture_v2.pdf"><td><div class="file"><span class="format pdf">PDF</span><div><b>tenant_architecture_v2.pdf</b><span>2.8 MB · 시스템 설계</span></div></div></td><td><div class="chips"><span class="chip">테넌트 격리 및 RLS 보안 스파인</span></div></td><td><b class="mono">16 청크</b><span class="sub">0–42,711 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>어제</td><td><button class="more" data-delete="tenant_architecture_v2.pdf" aria-label="더보기">···</button></td></tr>
-<tr data-kind="md" data-source="backfill-runbook.md"><td><div class="file"><span class="format md">MD</span><div><b>backfill-runbook.md</b><span>9.1 KB · 운영 가이드</span></div></div></td><td><div class="chips"><span class="chip">마이그레이션 롤백 운영 원칙</span></div></td><td><b class="mono">07 청크</b><span class="sub">220–8,914 char</span></td><td><span class="status pending"><i class="dot"></i>처리 중</span></td><td>12분 전</td><td><button class="more" data-delete="backfill-runbook.md" aria-label="더보기">···</button></td></tr>
-<tr data-kind="data" data-source="legacy_tenant_map.csv"><td><div class="file"><span class="format csv">CSV</span><div><b>legacy_tenant_map.csv</b><span>642 KB · 마이그레이션 맵</span></div></div></td><td><div class="chips"><span class="chip">DB 샤딩 로드맵</span></div></td><td><b class="mono">07 청크</b><span class="sub">0–82,021 char</span></td><td><span class="status failed"><i class="dot"></i>인덱싱 실패</span></td><td>3일 전</td><td><button class="more" data-delete="legacy_tenant_map.csv" aria-label="더보기">···</button></td></tr>
-</tbody></table></div></section></div></main></div>
-<aside class="inspector" id="inspector" data-od-id="chunk-inspector"><div class="inspect-head"><div><p class="eyebrow">CHUNK INSPECTOR</p><h2 id="inspectTitle">0004_rls_security_spine.sql</h2></div><button class="close" id="closeInspector" aria-label="인스펙터 닫기">×</button></div><div class="info"><div><small>파일 형식</small><b>SQL</b></div><div><small>연결된 위키</small><b>02</b></div><div><small>전체 청크</small><b>12</b></div><div><small>파이프라인</small><b class="health">완료</b></div></div><p class="eyebrow">CHUNKS</p><div class="chunk-list" id="chunkList"><button class="chunk active"><b>청크 #01</b><span>1,420–1,890 char · 132 tokens</span></button><button class="chunk"><b>청크 #02</b><span>1,891–3,202 char · 188 tokens</span></button><button class="chunk"><b>청크 #03</b><span>3,203–4,009 char · 116 tokens</span></button></div><pre class="code" id="codeView"><em>-- row level security</em>
+/* 원문 소스 관리 전용 스타일.
+   토큰·셸·버튼·배지·통계줄·모달은 nexuswiki-design-system.css 소관이다. */
+
+.content{max-width:1320px;margin:auto;padding:42px}
+
+/* 화면 헤더 */
+.hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
+.hero h1{margin:0;font:800 clamp(27px,3vw,38px)/1.1 var(--font-display);letter-spacing:-1.4px}
+.hero p{margin:10px 0 0;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr))}
+
+/* 필터 툴바 */
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:34px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{border:0;border-bottom:2px solid transparent;padding:8px 10px;background:transparent;color:var(--muted);font-size:12px;font-weight:800}
+.tab:hover{color:var(--fg)}
+.tab.active{border-color:var(--accent);color:var(--accent)}
+.search{width:230px}
+
+/* 소스 테이블 */
+.table-wrap{margin-top:10px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table{width:100%;border-collapse:collapse;table-layout:fixed}
+.table th{padding:11px 14px;background:var(--surface);color:var(--muted);text-align:left;font:600 10px var(--font-mono);letter-spacing:.05em}
+.table td{padding:13px 14px;border-top:1px solid var(--border);vertical-align:middle}
+.table tr{cursor:pointer}
+.table tbody tr:hover{background:var(--surface)}
+.table tbody tr.selected{background:var(--soft)}
+
+/* 파일 셀 */
+.file{display:flex;align-items:center;gap:10px;min-width:0}
+.file b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.file span,.sub{display:block;margin-top:2px;color:var(--muted);font-size:10px}
+.format{min-width:42px;height:26px;display:grid;place-items:center;padding:0 7px;border:1px solid var(--border);border-radius:999px;background:var(--bg);font:700 9px/1 var(--font-mono);letter-spacing:.04em;text-align:center;color:var(--muted);flex:none}
+.format.sql{background:var(--soft);border-color:oklch(.58 .11 190/.35);color:var(--accent)}
+.format.pdf{background:oklch(.95 .015 255);border-color:oklch(.78 .025 255);color:oklch(.42 .06 255)}
+.format.md{background:var(--surface);color:var(--fg)}
+.format.csv{background:oklch(.95 .025 155);border-color:oklch(.76 .06 155);color:oklch(.42 .09 155)}
+
+/* 인용 위키 칩 — 공용 .chip(제안 질문 알약)과 다른 물건이라 이름을 분리한다 */
+.doc-chips{display:flex;gap:4px;flex-wrap:wrap}
+.doc-chip{display:inline-flex;align-items:center;gap:6px;max-width:158px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--border);border-radius:999px;padding:5px 8px;background:var(--surface);color:var(--fg);font-size:10px;line-height:1.1}
+.doc-chip::before{content:"";width:7px;height:7px;border:1.5px solid currentColor;border-radius:2px;box-shadow:3px -3px 0 -2px var(--surface),3px -3px 0 -1px currentColor;opacity:.62;transform:translateY(1.5px);flex:none}
+.selected .doc-chip{background:var(--bg);border-color:oklch(.58 .11 190/.20)}
+.selected .doc-chip::before{box-shadow:3px -3px 0 -2px var(--bg),3px -3px 0 -1px currentColor}
+
+.more{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-weight:900}
+.more:hover{background:var(--surface);color:var(--fg)}
+
+/* 청크 인스펙터 */
+.inspector{display:none;position:fixed;z-index:20;top:66px;right:0;bottom:0;width:min(420px,100vw);padding:22px;background:var(--bg);border-left:1px solid var(--border);box-shadow:-18px 0 42px oklch(.208 .033 264/.12);overflow:auto}
+.inspector.open{display:block}
+.inspect-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.inspect-head h2{margin:0;font:800 18px var(--font-display);overflow-wrap:anywhere}
+.close{width:30px;height:30px;border:1px solid var(--border);border-radius:7px;background:var(--bg);font-size:18px;color:var(--muted);flex:none}
+.info{display:grid;grid-template-columns:1fr 1fr;margin:20px 0;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.info div{padding:10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.info div:nth-child(even){border-right:0}
+.info small{display:block;color:var(--muted);font-size:10px}
+.info b{font:700 12px var(--font-mono)}
+.chunk-list{display:grid;gap:4px}
+.chunk{border:1px solid var(--border);border-radius:7px;padding:10px;background:var(--bg);text-align:left;color:var(--fg)}
+.chunk.active{border-color:var(--accent);background:var(--soft)}
+.chunk b{font-size:12px}
+.chunk span{display:block;margin-top:2px;color:var(--muted);font:10px var(--font-mono)}
+.code{margin-top:12px;border-radius:9px;padding:14px;background:oklch(.208 .033 264);color:oklch(.9 .02 190);font:11px/1.65 var(--font-mono);white-space:pre-wrap}
+.code em{color:oklch(.72 .15 155);font-style:normal}
+
+/* 업로드 모달 */
+.drop{display:grid;place-items:center;gap:7px;min-height:160px;border:1px dashed oklch(.65 .04 190);border-radius:10px;background:var(--surface);text-align:center}
+.drop b{font-size:13px}
+.drop span{color:var(--muted);font-size:11px}
+.fields{display:grid;gap:9px;margin-top:16px}
+.fields select{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--bg)}
+
+/* 1600px 이상: 인스펙터를 상시 열린 3번째 열로 고정 */
+@media(min-width:1600px){
+  body{display:grid;grid-template-columns:minmax(0,1fr) 420px}
+  .app{grid-column:1}
+  .inspector{display:block;position:sticky;top:0;width:auto;height:100vh;padding:24px;box-shadow:none}
+  .close{display:none}
+}
+/* 1599px 이하: LNB 를 숨기고 인스펙터는 오버레이 서랍으로 */
+@media(max-width:1599px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .topbar,.content{padding-left:28px;padding-right:28px}
+  .content{padding-top:34px}
+  .inspector{width:min(440px,92vw)}
+  body.inspector-open{overflow:hidden}
+  body.inspector-open::after{content:"";position:fixed;z-index:15;inset:0;background:oklch(.208 .033 264/.22)}
+  .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stat{margin-right:16px;padding-right:16px}
+}
+@media(max-width:900px){
+  .topbar,.content{padding-left:20px;padding-right:20px}
+  .content{padding-top:30px}
+  .hero{display:block}
+  .stats{grid-template-columns:1fr}
+  .stat{margin:0;padding:12px;border-right:0;border-bottom:1px solid var(--border)}
+  .stat:last-child{border-bottom:0}
+  .toolbar{align-items:flex-start;flex-direction:column}
+  .search{width:100%}
+
+  /* 명세 §표와 목록: 900px 이하에서 테이블 행을 카드로 전환한다.
+     열을 숨기거나 가로 스크롤로 때우지 않는다. */
+  .table-wrap{overflow:visible;border:0;background:transparent}
+  .table,.table tbody{display:block;width:100%}
+  .table colgroup,.table thead{display:none}
+  .table tbody{display:grid;gap:10px}
+  .table tbody tr{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;padding:16px 52px 15px 16px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+  .table tbody tr.selected{background:var(--soft);border-color:oklch(.58 .11 190/.32)}
+  .table td{display:block;width:auto;padding:0;border:0}
+  .table td:nth-child(1),.table td:nth-child(2){grid-column:1/-1}
+  .table td:nth-child(3){grid-column:1;grid-row:3}
+  .table td:nth-child(4){grid-column:2;grid-row:3;align-self:center}
+  .table td:nth-child(5){display:none}
+  .table td:nth-child(6){position:absolute;top:12px;right:12px}
+  .table .file b{white-space:normal;overflow:visible;text-overflow:clip;font-size:13px}
+  .table .doc-chips{padding-top:1px}
+  .table .doc-chip{max-width:min(100%,300px)}
+  .table .sub{margin-top:1px}
+  .table .more{width:32px;height:32px}
+  .table tr[hidden]{display:none}
+}
+@media(max-width:640px){
+  .content{padding:25px 14px}
+  .hero h1{font-size:29px;letter-spacing:-1px}
+  .hero p{font-size:13px}
+  .stats{margin:24px 0}
+  .toolbar{gap:10px}
+  .tabs{width:100%;gap:1px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:8px;font-size:10px;white-space:nowrap}
+  .table tbody{gap:8px}
+  .table tbody tr{padding:14px 48px 14px 14px;gap:9px 12px}
+  .table td:nth-child(2){display:none}
+  .table td:nth-child(3),.table td:nth-child(4){grid-row:2}
+  .table .file b{font-size:12px}
+  .table .file span{font-size:10px}
+  .table .doc-chip{max-width:100%}
+  .file{gap:7px}
+  .format{min-width:38px;height:24px;font-size:8px}
+  .inspector{top:58px;width:100%;padding:18px}
+  /* 모바일 상단바에서는 아이콘만 남긴다 */
+  #uploadOpen{width:44px;height:44px;padding:0;font-size:0}
+  #uploadOpen svg{width:18px;height:18px}
+}
+</style>
+</head>
+<body>
+<div class="app" data-od-id="source-management-app">
+  <aside class="sidebar" data-od-id="primary-navigation">
+    <button class="switcher" data-od-id="workspace-switcher" aria-label="워크스페이스 전환">
+      <span class="switcher-mark">N</span><span class="switcher-name">넥서스 SaaS 팀</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <nav class="nav-stack" aria-label="주요 메뉴">
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기 <span class="count">03</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">18</span></button>
+
+      <div class="nav-label"><span>팀 프로젝트</span></div>
+      <button class="nav-item nav-toggle" aria-expanded="true" aria-controls="engineeringTree" aria-label="엔지니어링 코어 접기"><span class="nav-caret">⌄</span>엔지니어링 코어</button>
+      <div class="nav-tree" id="engineeringTree">
+        <button class="nav-item active" data-od-id="source-management-nav">데이터베이스 &amp; RLS <span class="count">18</span></button>
+      </div>
+
+      <div class="nav-label"><span>팀 관리</span></div>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 역할 관리 <span class="count">08</span></button>
+    </nav>
+    <div class="profile">
+      <span class="avatar">김</span>
+      <div class="profile-text"><strong>김개발</strong><span>엔지니어링</span></div>
+    </div>
+  </aside>
+
+  <main class="workspace" data-od-id="source-management-screen">
+    <header class="topbar" data-od-id="source-management-topbar">
+      <div class="crumb"><span>엔지니어링 코어</span><b>/</b><strong>원문 소스 관리</strong></div>
+      <button class="button primary" id="uploadOpen" data-od-id="source-upload-button"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M5 20h14"/></svg>소스 업로드</button>
+    </header>
+
+    <div class="content">
+      <section class="hero" data-od-id="source-management-header">
+        <div>
+          <p class="eyebrow">SOURCE PIPELINE · DATABASE &amp; RLS</p>
+          <h1>원문 소스 관리 &amp;<br>임베딩 파이프라인</h1>
+          <p>등록된 원본의 청킹, 5채널 인덱싱 상태와 위키 인용 관계를 관리합니다.</p>
+        </div>
+      </section>
+
+      <section class="stats" data-od-id="pipeline-stats">
+        <div class="stat"><b>18</b><span>총 등록 소스</span></div>
+        <div class="stat"><b>42</b><span>생성된 청크</span></div>
+        <div class="stat"><b class="text-good">100%</b><span>5채널 인덱싱 · 정상 가동</span></div>
+      </section>
+
+      <section data-od-id="source-table-section">
+        <div class="toolbar">
+          <nav class="tabs" aria-label="파일 형식 필터">
+            <button class="tab active" data-filter="all">전체 18</button>
+            <button class="tab" data-filter="sql">SQL 스크립트 8</button>
+            <button class="tab" data-filter="pdf">PDF 문서 5</button>
+            <button class="tab" data-filter="md">마크다운 3</button>
+            <button class="tab" data-filter="data">CSV/JSON 2</button>
+          </nav>
+          <input class="field search" id="search" placeholder="파일명으로 검색" aria-label="파일명으로 검색">
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <colgroup><col style="width:26%"><col style="width:27%"><col style="width:14%"><col style="width:15%"><col style="width:12%"><col style="width:6%"></colgroup>
+            <thead><tr><th>소스 파일</th><th>연결된 위키 문서</th><th>청크 및 좌표</th><th>파이프라인 상태</th><th>업로드</th><th></th></tr></thead>
+            <tbody id="sourceRows">
+              <tr class="selected" data-kind="sql" data-source="0004_rls_security_spine.sql"><td><div class="file"><span class="format sql">SQL</span><div><b>0004_rls_security_spine.sql</b><span>18.4 KB · SQL DDL</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">테넌트 격리 및 RLS 보안 스파인</span><span class="doc-chip">복합 외래키 전파 규칙</span></div></td><td><b class="mono">12 청크</b><span class="sub">1,420–18,392 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>1시간 전</td><td><button class="more" data-delete="0004_rls_security_spine.sql" aria-label="더보기">···</button></td></tr>
+              <tr data-kind="pdf" data-source="tenant_architecture_v2.pdf"><td><div class="file"><span class="format pdf">PDF</span><div><b>tenant_architecture_v2.pdf</b><span>2.8 MB · 시스템 설계</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">테넌트 격리 및 RLS 보안 스파인</span></div></td><td><b class="mono">16 청크</b><span class="sub">0–42,711 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>어제</td><td><button class="more" data-delete="tenant_architecture_v2.pdf" aria-label="더보기">···</button></td></tr>
+              <tr data-kind="md" data-source="backfill-runbook.md"><td><div class="file"><span class="format md">MD</span><div><b>backfill-runbook.md</b><span>9.1 KB · 운영 가이드</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">마이그레이션 롤백 운영 원칙</span></div></td><td><b class="mono">07 청크</b><span class="sub">220–8,914 char</span></td><td><span class="status pending"><i class="dot"></i>처리 중</span></td><td>12분 전</td><td><button class="more" data-delete="backfill-runbook.md" aria-label="더보기">···</button></td></tr>
+              <tr data-kind="data" data-source="legacy_tenant_map.csv"><td><div class="file"><span class="format csv">CSV</span><div><b>legacy_tenant_map.csv</b><span>642 KB · 마이그레이션 맵</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">DB 샤딩 로드맵</span></div></td><td><b class="mono">07 청크</b><span class="sub">0–82,021 char</span></td><td><span class="status failed"><i class="dot"></i>인덱싱 실패</span></td><td>3일 전</td><td><button class="more" data-delete="legacy_tenant_map.csv" aria-label="더보기">···</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<aside class="inspector" id="inspector" data-od-id="chunk-inspector">
+  <div class="inspect-head">
+    <div><p class="eyebrow">CHUNK INSPECTOR</p><h2 id="inspectTitle">0004_rls_security_spine.sql</h2></div>
+    <button class="close" id="closeInspector" aria-label="인스펙터 닫기">×</button>
+  </div>
+  <div class="info">
+    <div><small>파일 형식</small><b>SQL</b></div>
+    <div><small>연결된 위키</small><b>02</b></div>
+    <div><small>전체 청크</small><b>12</b></div>
+    <div><small>파이프라인</small><b class="text-good">완료</b></div>
+  </div>
+  <p class="eyebrow">CHUNKS</p>
+  <div class="chunk-list" id="chunkList">
+    <button class="chunk active"><b>청크 #01</b><span>1,420–1,890 char · 132 tokens</span></button>
+    <button class="chunk"><b>청크 #02</b><span>1,891–3,202 char · 188 tokens</span></button>
+    <button class="chunk"><b>청크 #03</b><span>3,203–4,009 char · 116 tokens</span></button>
+  </div>
+  <pre class="code" id="codeView"><em>-- row level security</em>
 create policy tenant_isolation
 on app.documents
 using (tenant_id = current_setting(
   'app.tenant_id', true
-)::uuid);</pre></aside>
-<div class="modal-backdrop" id="uploadModal" data-od-id="source-upload-modal"><div class="modal"><h2>원문 소스 업로드</h2><p>업로드 후 청킹과 5채널 인덱싱 큐가 자동으로 시작됩니다.</p><div class="drop"><b>파일을 여기로 끌어오세요</b><span>.sql · .pdf · .md · .csv · .json · .zip · 최대 50MB</span><button class="button">파일 선택</button></div><div class="fields"><select><option>팀 프로젝트 · 엔지니어링 코어</option></select><select><option>위키 그룹 · 데이터베이스 &amp; RLS</option></select></div><div class="foot"><button class="button close-modal">취소</button><button class="button primary close-modal">업로드 시작</button></div></div></div>
-<div class="modal-backdrop" id="deleteModal" data-od-id="permanent-delete-modal"><div class="modal"><h2>원문 소스 영구 삭제</h2><p id="deleteCopy">이 소스를 삭제하면 인용 관계를 분석합니다.</p><p>삭제 시 해당 위키 문서의 인라인 인용 칩은 자동으로 작성 대기 백로그로 전환되고, 재컴파일 작업이 큐에 등록됩니다.</p><div class="foot"><button class="button close-modal">취소</button><button class="button danger close-modal">영구 삭제</button></div></div></div>
+)::uuid);</pre>
+</aside>
+
+<div class="modal-backdrop" id="uploadModal" data-od-id="source-upload-modal">
+  <div class="modal">
+    <h2>원문 소스 업로드</h2>
+    <p>업로드 후 청킹과 5채널 인덱싱 큐가 자동으로 시작됩니다.</p>
+    <div class="drop"><b>파일을 여기로 끌어오세요</b><span>.sql · .pdf · .md · .csv · .json · .zip · 최대 50MB</span><button class="button">파일 선택</button></div>
+    <div class="fields">
+      <select aria-label="팀 프로젝트"><option>팀 프로젝트 · 엔지니어링 코어</option></select>
+      <select aria-label="위키 그룹"><option>위키 그룹 · 데이터베이스 &amp; RLS</option></select>
+    </div>
+    <div class="modal-foot"><button class="button close-modal">취소</button><button class="button primary close-modal">업로드 시작</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="deleteModal" data-od-id="permanent-delete-modal">
+  <div class="modal">
+    <h2>원문 소스 영구 삭제</h2>
+    <p id="deleteCopy">이 소스를 삭제하면 인용 관계를 분석합니다.</p>
+    <p>삭제 시 해당 위키 문서의 인라인 인용 칩은 자동으로 작성 대기 백로그로 전환되고, 재컴파일 작업이 큐에 등록됩니다.</p>
+    <div class="modal-foot"><button class="button close-modal">취소</button><button class="button danger close-modal">영구 삭제</button></div>
+  </div>
+</div>
+
 <script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);let selected='0004_rls_security_spine.sql';
 function openModal(id){$(id).classList.add('open')}function closeModals(){$$('.modal-backdrop').forEach(x=>x.classList.remove('open'))}
@@ -50,7 +290,10 @@ function setInspector(open){$('#inspector').classList.toggle('open',open);docume
 function selectRow(row){$$('#sourceRows tr').forEach(r=>r.classList.remove('selected'));row.classList.add('selected');selected=row.dataset.source;$('#inspectTitle').textContent=selected;setInspector(true)}
 $$('#sourceRows tr').forEach(row=>row.onclick=e=>{if(!e.target.closest('.more'))selectRow(row)});$('#closeInspector').onclick=()=>setInspector(false);
 $$('.chunk').forEach((b,i)=>b.onclick=()=>{$$('.chunk').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#codeView').textContent=`-- chunk ${String(i+1).padStart(2,'0')}\n-- ${b.querySelector('span').textContent}\n\ncreate policy tenant_isolation\non app.documents\nusing (tenant_id = current_setting('app.tenant_id', true)::uuid);`});
-$$('.tab').forEach(tab=>tab.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');const key=tab.dataset.filter;$$('#sourceRows tr').forEach(r=>r.hidden=key!=='all'&&r.dataset.kind!==key)});$('#search').oninput=e=>{$$('#sourceRows tr').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(e.target.value.toLowerCase()))};
+$$('.tab').forEach(tab=>tab.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));tab.classList.add('active');const key=tab.dataset.filter;$$('#sourceRows tr').forEach(r=>r.hidden=key!=='all'&&r.dataset.kind!==key)});
+$('#search').oninput=e=>{$$('#sourceRows tr').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(e.target.value.toLowerCase()))};
 $$('.more').forEach(b=>b.onclick=e=>{e.stopPropagation();selected=b.dataset.delete;$('#deleteCopy').textContent=`현재 2개 위키 문서가 ${selected}을 인용하고 있습니다.`;openModal('#deleteModal')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModals();setInspector(false)}});
-</script></body></html>
+</script>
+</body>
+</html>
