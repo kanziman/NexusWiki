@@ -7,7 +7,7 @@
 ## 🎯 1. 작업 목표 & 현재 상태
 
 - **목표**: 마일스톤2 대시보드 재설계. (1) v2 프로토타입의 중복 CSS 정리 → (2) PRD 를 하나씩 실제 스키마·코드와 대조하며 재작성.
-- **진행률**: CSS 정리 **완료**. PRD 리뷰 **4개 중 3개 완료**(workspace-home · source-management · wiki-document-reader). 다음은 workspace-settings.
+- **진행률**: CSS 정리 **완료**. PRD 리뷰 **짝 있는 5개 전부 완료**(workspace-home · source-management · wiki-document-reader · workspace-settings · auth-google). 남은 것은 프로토타입이 없는 `backlog-management` · `public-sharing` 2개.
 
 ### 이번 세션의 가장 중요한 발견
 
@@ -53,6 +53,61 @@
 | **workspace-home** (`a5fa10f`) | §5 DB 계약이 참조하는 객체가 **하나도 실재하지 않았다**(`category_lens`·`project_id`·`group_id`·`archived_at`·`wiki_page_citations`). 실행하면 통째로 에러. 3계층 라우트 축소, 데모 장치(시뮬레이션 모드 스위처·로그인 버튼) 제거 |
 | **source-management** (`1815993`, `770bfa6`) | 지원 형식이 구현과 달랐고(실제 3종/20MiB vs PRD 6종/50MB), 탭 필터 축이 스키마에 없었으며(→`mime_type` 으로 고정), **역인용 조회에 GIN 인덱스가 없어 전체 스캔**이었다 |
 | **wiki-document-reader** (`1bf75a1`) | `[+ 소스 추가]` 가 "이 문서에 소스 연결"로 적혀 파이프라인 계약과 충돌, `archived_at` 미구현, JobStepper 단계 수 하드코딩, 유사도 0.91 근거 없음 |
+| **workspace-settings** | §E-1 참조 — 15건 정정 |
+
+### E-1. workspace-settings PRD 재작성 (4번째)
+
+**"100% 정합" 이라던 문서에서 15건이 틀렸다.** 이 화면은 나머지 3개와 달리 **이미 구현되어 있어서**(`SettingsMembersPanel`·`MembersList`·`InviteForm`·`OperationsPanel`) 코드가 정본이다. 큰 것만:
+
+- **RLS 38개 → 27개**, 그리고 **RLS 상태 위젯 자체가 화면에 없다.** `/operations` 응답에 정책 필드가 없고 `pg_policies` 를 사용자 경로에서 읽을 방법도 없다. 정책 **개수**는 격리가 작동한다는 증거도 아니다 — `● 100% 격리 정상` 초록 뱃지는 검증하지 않은 안전 신호라 요구사항에서 삭제했다.
+- **파이프라인 3대 → 5단계.** 라벨(`원문 소스 수집 & 청킹` 등)도 어디에도 없는 것이었다. 서버 `STEP_LABELS` 가 라벨을 소유한다.
+- **초대는 이메일을 보내지 않는다.** 이미 가입한 사용자만 즉시 추가하고 미가입은 `NW404`. "초대장 발송"·"가입 승인 파이프라인"은 사용자가 받은편지함을 기다리게 만드는 문구다. 초대 권한도 **Owner/Editor 가 아니라 owner 전용**.
+- **역할 변경 UI 는 없다.** RLS 정책(`workspace_members_update_owner`)은 있는데 화면이 없다 → `[UI 미구현]` 표기 체계를 이 PRD 에 추가.
+- **`editor` 는 원문 소스를 삭제할 수 없다** (`raw_sources_delete_owner`). 이전 판이 editor 권한으로 적었다.
+- **예산 단위는 micro-dollar 정수**(`monthly_budget_micros`, 기본 5,000,000 = $5)이고 `authoritative: false` 다 — 집행은 `enqueue_source_job` 이 하고 초과 시 `NW402`. 화면 수치는 표시용.
+
+**코드 쪽 실제 버그 1건 발견**: `SettingsMembersPanel.tsx:120-128` 이 `currentRole` 을 갖고 있으면서 초대 폼을 **무조건 렌더한다.** `InviteForm.tsx` 주석은 "비-owner 에게는 폼 자체를 숨기는 것이 우선"을 전제하고 `42501` 분기를 마지막 방어선으로만 뒀는데 그 전제가 성립하지 않는다. 문서가 아니라 코드 수정이므로 별도 태스크로 뺐다.
+
+### E-2. auth-google PRD 재작성 (5번째) — 문서 전체가 미구현 기능이었다
+
+**제목부터 본문까지 Google OAuth 를 기술했는데, 구현된 로그인은 이메일 + 비밀번호이고 이는 누락이 아니라 잠긴 결정이다.**
+
+> **D-01**: 로그인은 이메일 + 비밀번호만 지원한다 (매직링크/OAuth 없음). — **Reversibility: costly**
+> (`.planning/phases/06-dashboard/06-CONTEXT.md`. 디렉터리가 `3e6bcef` 에서 삭제됐으므로 `git show 3e6bcef^:…` 로 읽는다.)
+
+`signInWithOAuth` 호출 0건, `config.toml` 에 `[auth.external.google]` 블록 **자체가 없음**(있는 건 `apple = false` 하나), `/auth/callback` 라우트 없음. 셀프서브 워크스페이스 생성(`OnboardingWorkspaceCard`)도 없고, **그게 사양이다** — `openspec/specs/workspace-entry-flow/spec.md` 가 0개 사용자에게 초대 안내를 유지하라고 명시적으로 요구한다.
+
+**→ 사용자가 D-01 번복을 결정했다 (E-3 참조).** PRD 는 그 결정을 반영해 **구현 계약** 형태로 다시 썼다.
+
+**🔴 이번 리뷰 최대 발견 — 계정 생성 경로가 닫혀 있다.** OAuth 불일치보다 우선한다.
+
+- 회원가입 UI 가 **없다** (`signUp`·`회원가입` 전역 grep 0건, 라우트는 `/login` 하나)
+- `invite_workspace_member` 는 미가입 이메일을 `NW404` 로 **거부**한다 — 초대 대상이 먼저 계정이 있어야 한다
+- 워크스페이스 0개 사용자에게는 `관리자에게 초대를 요청하세요` 를 보여준다
+
+닫힌 고리다. 지금 새 사용자를 들이는 유일한 방법은 Studio/Admin API 로 계정을 직접 만드는 것이다. **"구현 안 됨"과 "그렇게 하기로 함"이 구분되지 않는 상태**가 진짜 문제라, 폐쇄 베타로 명시 확정하든 `/signup` 을 만들든 결정이 필요하다.
+
+**코드 쪽 불변식 위반 1건 발견**: `WorkspaceEntryChooser.tsx:27,33` 이 `프로젝트 선택` / `계속할 프로젝트를 선택하세요.` 를 렌더한다. **`프로젝트` 계층은 존재하지 않는다**(불변식 §1). 시안이 아니라 **실제 배포 코드**에 남은 3계층 잔재다 — 2줄 수정.
+
+### E-3. 🔒 D-01 번복 — 인증을 Google OAuth 로 단일화 (2026-08-17 사용자 결정)
+
+`checklists.json > decisions.auth` 에 기록했다(revision 7). **근거를 여기 되풀이하지 않는다 — 그 항목을 인용할 것.**
+
+| 결정 | 값 |
+| --- | --- |
+| 가입 | `/signup` 신설, **Google 계정만** |
+| 로그인 | `/login` 에서 이메일+비밀번호 폼 **제거**, Google 단일화 |
+| 가입 후 진입 | **셀프서브 워크스페이스 생성 허용** |
+
+**로그인 단일화는 선택이 아니라 귀결이다** — Google 로 만든 계정에는 비밀번호가 없어 `signInWithPassword` 가 구조적으로 실패한다. "Google 전용 가입 + 비밀번호 전용 로그인"은 성립하지 않는 조합이다.
+
+**설계상 파급 3가지 (전부 PRD 에 계약으로 적어 뒀다):**
+
+1. **D-02 에 예외가 생긴다.** `exchangeCodeForSession` 은 세션 쿠키를 **직접 쓴다.** 1회용 authorization code 라 미들웨어에 위임할 수 없다(중복 실행 = 실패). → D-02 를 "미들웨어가 유일한 기록자" → **"OAuth 콜백과 미들웨어 두 곳만"** 으로 개정. `/auth/callback` 은 matcher 에서 **제외**해야 한다 — 미들웨어가 먼저 돌면 세션 없는 상태로 `/login` 리다이렉트가 걸려 코드가 소비되지 못한다.
+2. **거버닝 스펙 개정 필요.** `openspec/specs/workspace-entry-flow/spec.md` 가 0개 사용자에게 초대 안내 유지를 **MUST** 로 요구한다. 셀프서브 생성과 정면 충돌 → 해당 시나리오만 개정하되, **"접근 불가 워크스페이스의 존재·개수를 노출하지 않는다"는 유지**한다(초대 안내와 무관한 정보 노출 방지 요구사항이다).
+3. **계정 열거 방지(D-12)는 승계된다.** 비밀번호 폼이 사라져도 원칙은 남는다 — 콜백 실패는 원인 무관 단일 문구. `invite_workspace_member` 의 `NW404` 와 상반돼 보이지만 그건 owner 전용 표면이라 의도된 차이다.
+
+**남은 구멍**: `/signup` 이 열려도 `invite_workspace_member` 는 여전히 미가입 이메일을 `NW404` 로 거부한다. owner 는 상대의 가입 여부를 알 수 없고 알려줄 수단도 없다 → PRD §9-2.
 
 ### F. 트러블슈팅
 
@@ -70,30 +125,55 @@
   - workspace-home §5.2/5.3/5.4 — 3개 쿼리 에러 없이 실행
   - source-management §4.1 — 3,000행 넣고 `Seq Scan` → `Bitmap Index Scan` 전환 확인
   - wiki-document-reader §3 — 4개 계약 실행 확인, `p_fanout` 21 입력이 거부되는 것까지 확인
+  - auth-google §5 — 구판 §5.2 1단계가 `owner_id` NOT NULL 위반으로 **실패 재현**, 신판은 성공 + `workspace_members` owner 행 **정확히 1개**. 전역 프롬프트 템플릿 `ask 4 / compile 1` 이 `workspace_id IS NULL` 로 존재(=바인딩 단계 없음), `workspaces.slug` **부재** 확인
+  - workspace-settings §4 — 6개 계약 실행 확인 + `invite_workspace_member` 가 비-owner 를 `42501` 로 거부하는 것까지 확인. `pg_policies` **27행**, `role` CHECK 3종, `monthly_budget_micros` 기본값 `5000000`, RPC 5개 전부 `prosecdef = t` 로 실재, `workspace_public_settings`·`wiki_page_publications`·`user_profiles`·`workspaces.slug` **전부 부재** 확인
 - **정합성**: 프로토타입 카운트 통일(카테고리 합 18 = 문서 18, 백로그 03, 원문 42), 이모지 0개, 미정의 클래스 없음.
 
 ### 미검증
 
-- `pnpm test` / `typecheck` / `lint` / `build` 미실행 — 이번 세션은 `apps/` 를 한 줄도 건드리지 않았다.
-- workspace-settings · google-auth · backlog-management · public-sharing PRD 미검토.
+- `pnpm test` / `typecheck` / `lint` / `build` 미실행 — 아직 `apps/` 를 한 줄도 건드리지 않았다.
+- backlog-management · public-sharing PRD 미검토.
+- **프로토타입 HTML 은 하나도 안 고쳤다.** workspace-settings §5(11건) · auth-google §7(8건)에 정정 목록만 표로 남겼다.
+- **E-3(Google 인증)은 결정만 됐고 코드는 한 줄도 안 썼다.** PRD 는 구현 계약이지 구현 현황이 아니다.
 
 ## ⚠️ 4. 주의사항 & 남은 작업 (TODO)
 
-### 🔴 최우선 — 저장소 상태 경고
+### 저장소 상태 — 해소됨
 
-- [ ] **`.claude/skills/` 하위 841개 파일이 working tree 에서 삭제된 상태**(`git status` 상 `D`, 미스테이징). **이번 세션에서 내가 지운 것이 아니다.** 이전 세션 HANDOFF 가 `.planning/` 227개 삭제로 똑같이 경고했던 패턴이다. 의도된 것인지 사용자에게 확인하고 나서 커밋하거나 복구할 것 — **임의로 커밋하지 말 것.**
+- [x] **`.claude/skills/` 하위 840개 파일 삭제는 사용자가 의도한 것으로 확인**(2026-08-17). 더 이상 경고 대상이 아니다. 스테이징·커밋은 아직 안 했다 — 사용자가 별도로 지시할 때 처리할 것.
 
-### PRD 리뷰 (짝 있는 4개 중 2개 남음)
+### 🔴 최우선 — Google 인증 구현 (E-3 결정, 전량 미구현)
 
-- [ ] **workspace-settings PRD 리뷰** — 다음 차례. 선행 리뷰 기록상 "100% 정합" 주장이 부분적으로 사실이었던 유일한 문서지만, **RLS 정책 수를 38개로 적었고 실제는 27개**다.
-- [ ] **google-auth PRD 리뷰**
+착수 순서는 `auth-google-prd.md` §7 체크리스트. **하나라도 빠지면 콜백이 조용히 실패한다.**
+
+- [ ] Google Cloud OAuth 2.0 클라이언트 생성 + 로컬·클라우드 리디렉션 URI 등록
+- [ ] `config.toml` 에 `[auth.external.google]` **블록 신설** — 현재 이 블록 자체가 없다(있는 건 `apple = false` 하나). 시크릿은 `env(...)` 참조로만
+- [ ] `skip_nonce_check = true` — **로컬 전용**, 클라우드에 넘기지 말 것 (config 주석: "Required for local sign in with Google auth")
+- [ ] 클라우드 프로젝트 Auth Provider 별도 설정 — `config.toml` 은 로컬 스택용이다
+- [ ] `app/auth/callback/route.ts` Route Handler 신설 (PRD §4.3)
+- [ ] `middleware.ts` matcher: `/signup` **추가**, `/auth/callback` **제외**
+- [ ] `LoginForm.tsx` 삭제 → `GoogleAuthButton` 교체, `/signup` 신설
+- [ ] `/` 0개 분기를 셀프서브 온보딩으로 교체 (PRD §5)
+- [ ] `openspec/specs/workspace-entry-flow/spec.md` 개정 (PRD §8)
+- [ ] **클라우드 기존 계정 확인** — `select provider, count(*) from auth.identities group by 1`. 로컬은 2개 전부 `email` 이라 `db reset` 이면 되지만 클라우드는 별도. 같은 이메일의 자동 계정 연결을 **가정하지 말고 실측할 것** (어긋나면 한 사람에게 계정이 둘 생기고 한쪽에만 멤버십이 붙는다)
+- [ ] **이용약관 · 개인정보 처리방침 문서** — `/signup` 이 링크해야 하는데 문서 자체가 없다. 가입을 여는 이상 미룰 수 없다
+
+### PRD 리뷰
+
 - [ ] 짝 없는 2개(`backlog-management`·`public-sharing`)는 프로토타입이 없다. 리뷰 방식을 따로 정할 것.
 
 ### 미해결 결정 (PRD 에 `[미구현]`/미해결로 기록해 둠)
 
 - [ ] **컬렉션 스키마·UI 설계** — 방향만 확정했고 테이블 설계는 아직. `wiki-document-reader`·`source-management` 양쪽이 기다린다.
 - [ ] **즐겨찾기 · 최근 본 위키 저장소 없음** — 제외할지, `user_wiki_bookmarks` 를 만들지, `localStorage` 로 갈지. 프로토타입은 카운트 뱃지를 빼둔 상태.
-- [ ] **`workspaces.slug` 없음** — 라우트 `/w/[workspace_slug]` 가 의존. 현재는 `/w/[workspace_id]` 로 두었다. `workspace_public_settings` 에 넣지 말고 `workspaces.slug` 로 따로 두는 쪽 권고(비공개 워크스페이스도 URL 이 필요하므로).
+- [ ] **`workspaces.slug` 없음** — 라우트 `/w/[workspace_slug]` 가 의존. 현재는 `/w/[workspace_id]` 로 두었다. `workspace_public_settings` 에 넣지 말고 `workspaces.slug` 로 따로 두는 쪽 권고(비공개 워크스페이스도 URL 이 필요하므로). **DB 실측으로 부재 확정.**
+- [ ] **초대 폼 owner 게이트 (코드 수정)** — `SettingsMembersPanel.tsx` 가 `currentRole === "owner"` 로 `InviteForm` 을 감싸야 한다. 지금은 viewer/editor 도 폼을 보고 제출 후에야 `권한이 없습니다.` 를 받는다.
+- [ ] **멤버 로스터 `가입 일시` 표시 여부** — RPC 는 `created_at` 을 주고 시안은 열을 그리는데 `MembersList` 가 렌더하지 않는다. 표시 권고.
+- [ ] **역할 변경 UI** — `workspace_members_update_owner` 정책은 있고 화면이 없다. owner 자기 강등은 `protect_owner_membership` 이 막으므로 owner 행은 비활성이어야 한다.
+- [ ] **워크스페이스 이름 변경·삭제 UI** — 정책만 있고 화면 없음. 삭제는 `owner_id … on delete restrict` 와 맞물린다.
+- [ ] **멤버 표시 이름** — `auth.users` 에도 `workspace_members` 에도 이름이 없다. `user_profiles` 신설이 필요하며 이번 마일스톤 제외 권고.
+- [ ] **초대 흐름의 남은 구멍** — `/signup` 이 열려도 `invite_workspace_member` 는 미가입 이메일을 `NW404` 로 거부한다. `NW404` 문구에 `/signup` 링크를 넣을지, Supabase `inviteUserByEmail` 로 초대 메일 경로를 따로 만들지. (auth-google PRD §9-2)
+- [ ] **첫 워크스페이스의 `kind`** — PRD §6.2 는 `'personal'` 제안. `'team'` 이 맞다면 근거를 `decisions` 에 적을 것.
 - [ ] **`wiki_pages_sources_idx` 선행 마이그레이션** — source-management 화면 구현 전에 적용해야 함(§4.1).
 - [ ] **JobStepper 단계 총계** — 서버 `CHAIN_ORDER` 5단계 vs 대시보드 `STAGE_TYPES` 4단계. `conflict_check` 를 진행 표시에 넣을지.
 - [ ] **아카이브 기능** — `archived_at` 컬럼 + 5채널 제외 필터 + `wiki_embeddings` 처리가 필요. 이번 마일스톤 제외 권고 상태.
@@ -101,9 +181,16 @@
 ### 정리 대상
 
 - [ ] **`docs/design-systems/design-tokens.css`·`.json` 이 옛 Airbnb 팔레트**(`--color-primary: #ff385c`). v2 는 청록 `oklch(.58 .11 190)` 체계다. 지금은 아무도 참조하지 않지만 남겨두면 누가 집어들 위험이 있다. `apps/dashboard/app/globals.css` 가 이걸 쓰는지 확인 후 판단할 것.
-- [ ] **v1 preview 를 아직 링크하는 PRD 2개** — `backlog-management-prd.md`, `workspace-settings-prd.md`. 각자 리뷰 차례에 정정.
+- [ ] **v1 preview 를 아직 링크하는 PRD 1개** — `backlog-management-prd.md`. (`workspace-settings-prd.md` 는 정정 완료)
 - [ ] **프로토타입 LNB 의 카테고리 표시명이 코드와 어긋난다 (확인 완료)** — 시안은 `개념/대상/가이드/지도`, 실제 `GraphLensFilter.tsx` 는 `개념/엔티티/가이드/맵`. PRD 는 코드 쪽으로 이미 맞췄으니 **시안 2군데(`대상`→`엔티티`, `지도`→`맵`)만 고치면 된다.**
 - [ ] **source-management 프로토타입이 PRD 와 어긋남** — 시안은 아직 SQL·CSV 파일과 포맷 탭 5개를 보여주는데, PRD 는 3종(`PDF`·`텍스트/마크다운`)으로 확정됐다.
+- [ ] **workspace-settings 프로토타입 정정 11건** — 목록은 `workspace-settings-prd.md` §5 표에 있다. 그중 **`EDITOR … 위키 재컴파일` 문구는 불변식 §2 직접 위반**이라 우선순위가 높다.
+- [ ] **auth-google 프로토타입 정정** — 목록은 `auth-google-prd.md` §10 표. **E-3 결정으로 대부분 되살아났다**(Google CTA·온보딩 카드 전부 유지). 실제 정정은 slug 필드 제거 · `프로젝트` 어휘 · `🚀` 3건이고, `/signup` 화면 1개를 새로 그려야 한다.
+
+### 코드 수정 대기 (문서 아님)
+
+- [ ] **`WorkspaceEntryChooser.tsx:27,33` 의 `프로젝트` 어휘** → `워크스페이스`. 불변식 §1 직접 위반이고 2줄이다.
+- [ ] **`SettingsMembersPanel.tsx:120-128` 초대 폼 owner 게이트** — `currentRole === "owner"` 로 감쌀 것.
 
 ### 주의사항
 
@@ -116,4 +203,4 @@
 
 다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
 
-> "HANDOFF.md 확인하고, `.claude/skills/` 841개 삭제가 의도된 것인지부터 확인한 다음 workspace-settings PRD 리뷰를 이어서 진행해줘."
+> "HANDOFF.md 확인하고 §4 최우선의 Google 인증 구현을 `auth-google-prd.md` §7 체크리스트 순서대로 착수해줘. `.claude/skills/` 삭제는 의도된 것이니 경고하지 말 것."
