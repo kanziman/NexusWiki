@@ -31,10 +31,11 @@ insert into auth.users (id, email)
 values ('10000000-0000-0000-0000-000000000021', 'search@example.test');
 
 -- 소유자 멤버십은 workspaces_add_owner_member 트리거가 자동으로 만듭니다.
-insert into public.workspaces (id, name, owner_id)
+insert into public.workspaces (id, name, slug, owner_id)
 values (
   '20000000-0000-0000-0000-000000000021',
   '검색 계약 테스트',
+  'search-contract',
   '10000000-0000-0000-0000-000000000021'
 );
 

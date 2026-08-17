@@ -129,9 +129,9 @@ $catalog$;
 insert into auth.users (id, email) values
   ('10000000-0000-0000-0000-000000000116', 'retrieval-plan@example.test'),
   ('10000000-0000-0000-0000-000000000117', 'retrieval-decoy@example.test');
-insert into public.workspaces (id, name, owner_id) values
-  ('20000000-0000-0000-0000-000000000116', 'retrieval HNSW fixture', '10000000-0000-0000-0000-000000000116'),
-  ('20000000-0000-0000-0000-000000000117', 'retrieval HNSW decoy', '10000000-0000-0000-0000-000000000117');
+insert into public.workspaces (id, name, slug, owner_id) values
+  ('20000000-0000-0000-0000-000000000116', 'retrieval HNSW fixture', 'retrieval-fixture', '10000000-0000-0000-0000-000000000116'),
+  ('20000000-0000-0000-0000-000000000117', 'retrieval HNSW decoy', 'retrieval-decoy', '10000000-0000-0000-0000-000000000117');
 insert into public.raw_sources (id, workspace_id, created_by, title, source_type, content, content_hash) values
   ('40000000-0000-0000-0000-000000000116', '20000000-0000-0000-0000-000000000116', '10000000-0000-0000-0000-000000000116', 'fixture', 'text', 'fixture', 'retrieval-contract-v1'),
   ('40000000-0000-0000-0000-000000000117', '20000000-0000-0000-0000-000000000117', '10000000-0000-0000-0000-000000000117', 'decoy', 'text', 'decoy', 'retrieval-contract-decoy-v1');

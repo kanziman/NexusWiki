@@ -7,16 +7,18 @@ values
   ('10000000-0000-0000-0000-000000000002', 'outsider@example.test');
 
 -- 소유자 멤버십은 workspaces_add_owner_member 트리거가 자동으로 만듭니다.
-insert into public.workspaces (id, name, owner_id)
+insert into public.workspaces (id, name, slug, owner_id)
 values
   (
     '20000000-0000-0000-0000-000000000001',
     '스토리지 정책 A',
+    'storage-policy-a',
     '10000000-0000-0000-0000-000000000001'
   ),
   (
     '20000000-0000-0000-0000-000000000002',
     '스토리지 정책 B',
+    'storage-policy-b',
     '10000000-0000-0000-0000-000000000002'
   );
 
