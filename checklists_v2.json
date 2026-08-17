@@ -273,7 +273,7 @@
       "phase_id": "v2_phase_2",
       "name": "Phase 2: 워크스페이스 설정 & 멤버 관리",
       "description": "workspace-settings-prd.md 기반. 멤버 RBAC, 프로필, 운영 현황.",
-      "status": "pending",
+      "status": "completed",
       "prd": "docs/design-systems/v2/workspace-settings-prd.md",
       "prototype": "docs/design-systems/v2/nexuswiki-workspace-settings.html",
       "tasks": [
@@ -288,8 +288,15 @@
           "depends_on": ["HOME-01"],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "설정 3탭 전환 동작"
+          "status": "completed",
+          "verification": "설정 3탭 전환 동작",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "SettingsMembersPanel 3탭(일반, 멤버, 운영 현황) 구조 개편",
+              "키보드 로빙 포커스 및 탭 전환 단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "SETTINGS-02",
@@ -302,8 +309,15 @@
           "depends_on": ["SETTINGS-01"],
           "priority": "P0",
           "estimate": "0.5d",
-          "status": "pending",
-          "verification": "이름 변경 → DB 반영, 비-owner 수정 불가"
+          "status": "completed",
+          "verification": "이름 변경 → DB 반영, 비-owner 수정 불가",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "WorkspaceGeneralSettings 컴포넌트 구현 (이름·슬러그 유효성 검사, owner 수정 및 저장)",
+              "비-owner 비활성화 및 안내 문구 노출 단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "SETTINGS-03",
@@ -318,9 +332,16 @@
           "depends_on": ["SETTINGS-01"],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
+          "status": "completed",
           "verification": "owner: 초대 폼 표시 + 초대 성공. viewer/editor: 폼 미표시.",
-          "notes": "기존 버그 수정 포함 — SettingsMembersPanel이 currentRole 무관하게 InviteForm을 렌더하는 문제."
+          "notes": "기존 버그 수정 포함 — SettingsMembersPanel이 currentRole 무관하게 InviteForm을 렌더하는 문제.",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "SettingsMembersPanel에서 canInvite = currentRole === 'owner' 게이트 적용",
+              "viewer/editor에게 초대 폼 미노출 버그 수정 및 단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "SETTINGS-04",
@@ -333,8 +354,15 @@
           "depends_on": ["SETTINGS-01"],
           "priority": "P1",
           "estimate": "0.8d",
-          "status": "pending",
-          "verification": "소스/위키/사용량 수치 정상 표시"
+          "status": "completed",
+          "verification": "소스/위키/사용량 수치 정상 표시",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "OperationsPanel 예산 micro-dollars 변환 및 5단계 파이프라인 적체 모니터링 연동",
+              "새로고침 및 단위 테스트 통과"
+            ]
+          }
         }
       ]
     },
