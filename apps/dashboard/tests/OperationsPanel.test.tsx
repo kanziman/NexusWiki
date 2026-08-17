@@ -203,8 +203,8 @@ describe("OperationsPanel", () => {
       />,
     );
     const operationsTab = screen.getByRole("tab", { name: "운영 현황" });
-    fireEvent.keyDown(screen.getByRole("tab", { name: "멤버" }), {
-      key: "ArrowRight",
+    fireEvent.keyDown(screen.getByRole("tab", { name: "일반" }), {
+      key: "End",
     });
     await waitFor(() =>
       expect(operationsTab).toHaveAttribute("aria-selected", "true"),
