@@ -1,0 +1,606 @@
+{
+  "title": "NexusWiki v2 PRD Implementation Checklists",
+  "project_name": "NexusWiki 마일스톤 2 — 대시보드 화면 구현",
+  "source_prds": "docs/design-systems/v2/*.md",
+  "depends_on_v1": "checklists.json (Phase 3+ 백엔드 API 완성 시 바인딩)",
+  "created_at": "2026-08-17T15:48:00+09:00",
+  "updated_at": "2026-08-17",
+  "revision": 1,
+  "_notes": [
+    "v2 PRD 7종(workspace-home · workspace-settings · source-management · wiki-document-reader · backlog-management · public-sharing · auth-google)에서 도출된 구현 체크리스트.",
+    "auth-google PRD는 PR #20으로 구현 완료되어 이 체크리스트에서는 잔여 작업만 포함한다.",
+    "v1 checklists.json과 관심사가 다르다: v1은 백엔드 파이프라인(수직 의존), v2는 프론트엔드 화면(수평 병렬).",
+    "백엔드 API가 필요한 태스크는 depends_on에 v1 태스크 ID를 명시한다."
+  ],
+  "phases": [
+    {
+      "phase_id": "v2_phase_0",
+      "name": "Phase 0: 인증 & 진입 기반",
+      "description": "Google OAuth 단일 인증, 셀프서브 온보딩, workspace_slug 인프라. PR #20, #23, #24로 완료.",
+      "status": "completed",
+      "tasks": [
+        {
+          "id": "AUTH-01",
+          "category": "Auth Infrastructure",
+          "title": "Google Cloud OAuth 2.0 클라이언트 생성",
+          "description": "GCP 콘솔에서 웹 클라이언트 생성, 로컬·클라우드 리디렉션 URI 등록.",
+          "target_files": [],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.3d",
+          "status": "completed",
+          "verification": "GCP 콘솔 클라이언트 ID 확인, 리디렉션 URI 3개 등록",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": ["웹 클라이언트 생성 완료", "리디렉션 URI 3개 등록 확인", "OAuth 동의 화면 브랜딩 설정 완료"]
+          }
+        },
+        {
+          "id": "AUTH-02",
+          "category": "Auth Infrastructure",
+          "title": "supabase config.toml [auth.external.google] 블록 신설",
+          "description": "로컬 Supabase에 Google 프로바이더 활성화. skip_nonce_check = true (로컬 전용).",
+          "target_files": ["supabase/config.toml"],
+          "depends_on": ["AUTH-01"],
+          "priority": "P0",
+          "estimate": "0.2d",
+          "status": "completed",
+          "verification": "로컬 supabase에서 Google OAuth 플로우 동작"
+        },
+        {
+          "id": "AUTH-03",
+          "category": "Auth Route",
+          "title": "/auth/callback Route Handler 신설",
+          "description": "exchangeCodeForSession으로 세션 쿠키 기록. middleware matcher에서 제외.",
+          "target_files": ["apps/dashboard/app/auth/callback/route.ts"],
+          "depends_on": ["AUTH-02"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "Google 로그인 후 /auth/callback 경유하여 세션 생성",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": ["로컬에서 Google 로그인 → 콜백 → 세션 생성 → 홈 리다이렉트 정상 동작 확인"]
+          }
+        },
+        {
+          "id": "AUTH-04",
+          "category": "Auth UI",
+          "title": "/login Google 전환 및 /signup 신설",
+          "description": "LoginForm.tsx에서 이메일+비밀번호 제거, GoogleAuthButton 교체. /signup 페이지 신설.",
+          "target_files": [
+            "apps/dashboard/app/(auth)/login/page.tsx",
+            "apps/dashboard/app/(auth)/signup/page.tsx",
+            "apps/dashboard/components/LoginForm.tsx"
+          ],
+          "depends_on": ["AUTH-03"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "/login, /signup에서 Google 버튼만 표시"
+        },
+        {
+          "id": "AUTH-05",
+          "category": "Auth Onboarding",
+          "title": "셀프서브 첫 워크스페이스 생성 (WorkspaceOnboarding)",
+          "description": "소속 워크스페이스 0개 사용자에게 이름 입력으로 워크스페이스 생성.",
+          "target_files": [
+            "apps/dashboard/components/WorkspaceOnboarding.tsx",
+            "apps/dashboard/app/onboarding-actions.ts"
+          ],
+          "depends_on": ["AUTH-04"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "신규 가입 후 워크스페이스 이름 입력 → 생성 → 홈 이동",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": ["Google 로그인 → 온보딩 화면 표시 → 워크스페이스 생성 정상 동작 확인"]
+          }
+        },
+        {
+          "id": "AUTH-06",
+          "category": "Auth Infrastructure",
+          "title": "middleware matcher 갱신",
+          "description": "/signup 추가, /auth/callback 제외.",
+          "target_files": ["apps/dashboard/middleware.ts"],
+          "depends_on": ["AUTH-03"],
+          "priority": "P0",
+          "estimate": "0.2d",
+          "status": "completed",
+          "verification": "미인증 사용자가 /auth/callback에 도달 가능"
+        },
+        {
+          "id": "AUTH-07",
+          "category": "DB Infrastructure",
+          "title": "0015 workspace_slug 마이그레이션",
+          "description": "workspaces.slug 정본 컬럼 + 형식 CHECK + 전역 UNIQUE. 기존 행 백필.",
+          "target_files": [
+            "supabase/migrations/0015_workspace_slug.sql",
+            "supabase/tests/0015_workspace_slug.sql"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "로컬 db reset 통과, 클라우드 push 완료"
+        },
+        {
+          "id": "AUTH-08",
+          "category": "Repo Cleanup",
+          "title": ".claude/skills/ 847개 파일 제거",
+          "description": "불필요한 Claude 스킬 파일 대량 정리.",
+          "target_files": [".claude/skills/"],
+          "depends_on": [],
+          "priority": "P1",
+          "estimate": "0.2d",
+          "status": "completed",
+          "verification": "PR #24 머지 완료"
+        }
+      ]
+    },
+    {
+      "phase_id": "v2_phase_1",
+      "name": "Phase 1: 홈 대시보드",
+      "description": "workspace-home-prd.md 기반. 질문 시작점, 카테고리 렌즈, 지식 그리드.",
+      "status": "completed",
+      "prd": "docs/design-systems/v2/workspace-home-prd.md",
+      "prototype": "docs/design-systems/v2/nexuswiki-workspace-home.html",
+      "tasks": [
+        {
+          "id": "HOME-01",
+          "category": "Layout",
+          "title": "워크스페이스 셸 레이아웃 (LNB + 콘텐츠 영역)",
+          "description": "v2 디자인 시스템 CSS 기반 사이드바·탑바·콘텐츠 영역 3분할 레이아웃. 반응형 규칙 적용.",
+          "target_files": [
+            "apps/dashboard/app/w/[workspaceId]/layout.tsx",
+            "apps/dashboard/components/WorkspaceSidebar.tsx"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "completed",
+          "verification": "390/640/900/1280/1680px에서 가로 스크롤 없음",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "v2 디자인 시스템 CSS 토큰 기반 3분할 셸 및 모바일 드로어 WorkspaceSidebar/WorkspaceShell 구현",
+              "Next.js build, lint, TypeScript, Vitest 135개 전체 테스트 통과",
+              "OpenSpec workspace-shell-layout 제안·구현·spec sync·archive 완료"
+            ]
+          }
+        },
+        {
+          "id": "HOME-02",
+          "category": "Navigation",
+          "title": "카테고리 렌즈 필터 (전체/개념/엔티티/가이드/맵)",
+          "description": "LNB에 5종 렌즈(전체 + category 4종). 선택 시 콘텐츠 영역 필터링.",
+          "target_files": [
+            "apps/dashboard/components/CategoryLensFilter.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "렌즈 선택 시 위키 목록 필터링 동작",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": ["CategoryLensFilter 컴포넌트 구현 및 5종 렌즈 탭/카운트 뱃지 지원", "선택 시 위키 목록 필터링 동작 및 단위 테스트 통과"]
+          }
+        },
+        {
+          "id": "HOME-03",
+          "category": "Ask UI",
+          "title": "Ask 히어로 캔버스 (질문 입력 + 스타터 칩)",
+          "description": "중앙 질문 입력창 + 추천 질문 칩 3종. 진입 후 첫 질문까지 클릭 2회 이내.",
+          "target_files": [
+            "apps/dashboard/components/AskHero.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "completed",
+          "verification": "질문 입력 → 전송 가능, 스타터 칩 클릭 → 자동 입력",
+          "notes": "SSE 스트리밍 응답은 v1 API-01 (Phase 5) 완성 후 바인딩. 이 단계에서는 UI 껍데기만.",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": ["AskHero 컴포넌트 구현 (다중 라인 질문창, 스코프 메뉴, 스타터 칩 3종, /ask 라우팅)", "단위 테스트 통과"]
+          }
+        },
+        {
+          "id": "HOME-04",
+          "category": "Content",
+          "title": "2컬럼 지식 그리드 (최신 위키 + 최근 소스)",
+          "description": "좌측: 최근 검증된 위키 페이지 피드. 우측: 최근 수집 소스 피드.",
+          "target_files": [
+            "apps/dashboard/components/KnowledgeGrid.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "completed",
+          "verification": "위키·소스 데이터 표시, 빈 상태 안내 문구 표시",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": ["KnowledgeGrid 컴포넌트 구현 (검증 완료 뱃지, 카테고리 표시, 미해결 백로그 및 소스 연결 CTA)", "단위 테스트 및 빌드 통과"]
+          }
+        },
+        {
+          "id": "HOME-05",
+          "category": "Navigation",
+          "title": "워크스페이스 스위처",
+          "description": "LNB 상단 워크스페이스 선택 드롭다운. 복수 워크스페이스 전환.",
+          "target_files": [
+            "apps/dashboard/components/WorkspaceSwitcher.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P1",
+          "estimate": "0.5d",
+          "status": "completed",
+          "verification": "복수 워크스페이스 간 전환 동작",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "WorkspaceSwitcher 컴포넌트 v2 토큰 및 새 워크스페이스 생성 링크 연동",
+              "단위 테스트 및 빌드 검증 완료"
+            ]
+          }
+        },
+        {
+          "id": "HOME-06",
+          "category": "Code Fix",
+          "title": "WorkspaceEntryChooser '프로젝트' 어휘 → '워크스페이스'",
+          "description": "불변식 §1 위반 수정. 3계층 잔재 제거. 2줄 수정.",
+          "target_files": [
+            "apps/dashboard/components/WorkspaceEntryChooser.tsx"
+          ],
+          "depends_on": [],
+          "priority": "P0",
+          "estimate": "0.1d",
+          "status": "completed",
+          "verification": "화면에 '프로젝트' 문구 없음",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "WorkspaceEntryChooser 및 하위 뷰 어휘 점검 및 '워크스페이스'로 통일 확인",
+              "테스트 목 내 '내 프로젝트' 어휘 '내 워크스페이스'로 정정"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "phase_id": "v2_phase_2",
+      "name": "Phase 2: 워크스페이스 설정 & 멤버 관리",
+      "description": "workspace-settings-prd.md 기반. 멤버 RBAC, 프로필, 운영 현황.",
+      "status": "pending",
+      "prd": "docs/design-systems/v2/workspace-settings-prd.md",
+      "prototype": "docs/design-systems/v2/nexuswiki-workspace-settings.html",
+      "tasks": [
+        {
+          "id": "SETTINGS-01",
+          "category": "Settings Shell",
+          "title": "설정 화면 레이아웃 (탭 네비게이션)",
+          "description": "일반·멤버·운영 3탭 구조. v2 디자인 시스템 CSS 적용.",
+          "target_files": [
+            "apps/dashboard/app/w/[workspaceId]/settings/page.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "설정 3탭 전환 동작"
+        },
+        {
+          "id": "SETTINGS-02",
+          "category": "Settings General",
+          "title": "워크스페이스 기본 정보 편집 (이름, 슬러그)",
+          "description": "워크스페이스 이름·슬러그 조회·수정. owner만 수정 가능.",
+          "target_files": [
+            "apps/dashboard/components/WorkspaceGeneralSettings.tsx"
+          ],
+          "depends_on": ["SETTINGS-01"],
+          "priority": "P0",
+          "estimate": "0.5d",
+          "status": "pending",
+          "verification": "이름 변경 → DB 반영, 비-owner 수정 불가"
+        },
+        {
+          "id": "SETTINGS-03",
+          "category": "Settings Members",
+          "title": "멤버 목록 & 초대 폼 (owner 게이트 적용)",
+          "description": "멤버 로스터 표시. 초대 폼은 owner에게만 노출. 기존 SettingsMembersPanel 리팩터.",
+          "target_files": [
+            "apps/dashboard/components/SettingsMembersPanel.tsx",
+            "apps/dashboard/components/InviteForm.tsx",
+            "apps/dashboard/components/MembersList.tsx"
+          ],
+          "depends_on": ["SETTINGS-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "owner: 초대 폼 표시 + 초대 성공. viewer/editor: 폼 미표시.",
+          "notes": "기존 버그 수정 포함 — SettingsMembersPanel이 currentRole 무관하게 InviteForm을 렌더하는 문제."
+        },
+        {
+          "id": "SETTINGS-04",
+          "category": "Settings Operations",
+          "title": "운영 현황 카드 (소스 수, 위키 수, 사용량)",
+          "description": "워크스페이스 통계 요약. monthly_budget_micros 대비 사용량 표시.",
+          "target_files": [
+            "apps/dashboard/components/OperationsPanel.tsx"
+          ],
+          "depends_on": ["SETTINGS-01"],
+          "priority": "P1",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "소스/위키/사용량 수치 정상 표시"
+        }
+      ]
+    },
+    {
+      "phase_id": "v2_phase_3",
+      "name": "Phase 3: 소스 관리 & 위키 뷰어",
+      "description": "source-management-prd.md + wiki-document-reader-prd.md 기반. 백엔드 API(v1 Phase 3)에 의존.",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "SRC-01",
+          "category": "Source Upload",
+          "title": "소스 드롭존 컴포넌트 (PDF/MD/TXT)",
+          "description": "3종 포맷 파일 업로드 드롭존. 20MiB 제한. 즉시 202 반환 UX.",
+          "target_files": [
+            "apps/dashboard/components/SourceDropzone.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "파일 드롭 → 업로드 → 잡 ID 반환",
+          "notes": "백엔드 ING-01 (POST /sources) 완성 필요. 미완성 시 목 데이터로 UI 구현."
+        },
+        {
+          "id": "SRC-02",
+          "category": "Source Pipeline",
+          "title": "잡 상태 스테퍼 (Parse → Compile → Link → Embed)",
+          "description": "소스별 파이프라인 진행 상태 실시간 표시. STEP_LABELS 서버 의존.",
+          "target_files": [
+            "apps/dashboard/components/JobStepper.tsx"
+          ],
+          "depends_on": ["SRC-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "단계별 진행 상태 실시간 업데이트",
+          "v1_depends_on": ["ING-06", "COMP-04"]
+        },
+        {
+          "id": "SRC-03",
+          "category": "Source List",
+          "title": "소스 목록 & mime_type 필터",
+          "description": "등록된 소스 목록, mime_type 기반 필터링, 상태별 정렬.",
+          "target_files": [
+            "apps/dashboard/app/w/[workspaceId]/sources/page.tsx"
+          ],
+          "depends_on": ["SRC-01"],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "소스 목록 표시, 필터 동작"
+        },
+        {
+          "id": "WIKI-01",
+          "category": "Wiki Viewer",
+          "title": "읽기 전용 위키 문서 뷰어",
+          "description": "컴파일된 위키 마크다운 렌더링, 검증 상태 콜아웃, 카테고리 뱃지.",
+          "target_files": [
+            "apps/dashboard/app/w/[workspaceId]/wiki/[slug]/page.tsx",
+            "apps/dashboard/components/WikiViewer.tsx"
+          ],
+          "depends_on": ["HOME-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "위키 문서 렌더링, 검증 상태 표시",
+          "v1_depends_on": ["API-04"]
+        },
+        {
+          "id": "WIKI-02",
+          "category": "Wiki Navigation",
+          "title": "WikiLink 라우팅 & 레드링크 안내",
+          "description": "[[WikiLink]] 클릭 → 페이지 이동. 미해결 링크는 RedLinkCta 표시.",
+          "target_files": [
+            "apps/dashboard/components/WikiLinkRenderer.tsx"
+          ],
+          "depends_on": ["WIKI-01"],
+          "priority": "P0",
+          "estimate": "0.8d",
+          "status": "pending",
+          "verification": "WikiLink 클릭 시 페이지 라우팅, 레드링크 안내 표시"
+        },
+        {
+          "id": "WIKI-03",
+          "category": "Wiki Citation",
+          "title": "이중 Citation 하이라이트 (원문 역추적)",
+          "description": "Citation 클릭 시 원문 출처 역추적. char_start/char_end 좌표 하이라이트.",
+          "target_files": [
+            "apps/dashboard/components/CitationHighlight.tsx"
+          ],
+          "depends_on": ["WIKI-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "Citation 클릭 → 원문 하이라이트 표시",
+          "v1_depends_on": ["CITE-02", "API-01"]
+        }
+      ]
+    },
+    {
+      "phase_id": "v2_phase_4",
+      "name": "Phase 4: 백로그 & 질문 응답",
+      "description": "backlog-management-prd.md 기반 레드링크 백로그 + Ask 응답 바인딩.",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "BACKLOG-01",
+          "category": "Backlog",
+          "title": "레드링크 백로그 화면",
+          "description": "미해결 레드링크 집계, 참조 수 기준 정렬, 소스 보강 유도.",
+          "target_files": [
+            "apps/dashboard/app/w/[workspaceId]/backlog/page.tsx",
+            "apps/dashboard/components/BacklogList.tsx"
+          ],
+          "depends_on": ["WIKI-02"],
+          "priority": "P1",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "미해결 링크 목록 표시, 참조 수 정렬",
+          "notes": "v2 프로토타입 없음. RedLinkCta 문구 계약 준수."
+        },
+        {
+          "id": "ASK-01",
+          "category": "Ask",
+          "title": "Ask SSE 스트리밍 응답 바인딩",
+          "description": "AskHero에서 질문 전송 → SSE 스트리밍 응답 표시. meta → delta* → citations → done.",
+          "target_files": [
+            "apps/dashboard/components/AskCanvas.tsx"
+          ],
+          "depends_on": ["HOME-03"],
+          "priority": "P0",
+          "estimate": "2d",
+          "status": "pending",
+          "verification": "질문 → 스트리밍 응답 → Citation 인라인 표시",
+          "v1_depends_on": ["API-01", "CITE-02"]
+        }
+      ]
+    },
+    {
+      "phase_id": "v2_phase_5",
+      "name": "Phase 5: 공개 공유",
+      "description": "public-sharing-prd.md 기반. anon 라우트, 사이드카 DDL, 마스터 킬스위치.",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "PUB-01",
+          "category": "DB Migration",
+          "title": "사이드카 테이블 DDL (workspace_public_settings + wiki_page_publications)",
+          "description": "공개 공유용 사이드카 테이블 2개 신설. anon GRANT + RLS 정책.",
+          "target_files": [
+            "supabase/migrations/0016_public_sharing.sql"
+          ],
+          "depends_on": ["AUTH-07"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "로컬 DB에서 anon 역할로 공개 페이지 조회 성공"
+        },
+        {
+          "id": "PUB-02",
+          "category": "Public Route",
+          "title": "/p/[slug]/[page] 공개 위키 라우트",
+          "description": "anon 사용자 접근 가능한 공개 위키 뷰어. 킬스위치 OFF 시 404.",
+          "target_files": [
+            "apps/dashboard/app/p/[slug]/[page]/page.tsx"
+          ],
+          "depends_on": ["PUB-01", "WIKI-01"],
+          "priority": "P0",
+          "estimate": "1.5d",
+          "status": "pending",
+          "verification": "비로그인 사용자가 공개 위키 페이지 조회 가능"
+        },
+        {
+          "id": "PUB-03",
+          "category": "Settings",
+          "title": "공개 공유 킬스위치 설정 UI",
+          "description": "워크스페이스 설정에서 공개 공유 ON/OFF 토글. 발행 관리.",
+          "target_files": [
+            "apps/dashboard/components/PublicSharingSettings.tsx"
+          ],
+          "depends_on": ["PUB-01", "SETTINGS-01"],
+          "priority": "P0",
+          "estimate": "1d",
+          "status": "pending",
+          "verification": "킬스위치 ON → 페이지 발행 가능, OFF → 전부 비공개"
+        }
+      ]
+    }
+  ],
+  "open_design_decisions": [
+    {
+      "id": "OD-01",
+      "title": "컬렉션 스키마·UI 설계",
+      "description": "평면 컬렉션 방향만 확정. 테이블 설계 미완. wiki-document-reader·source-management 양쪽이 대기 중.",
+      "blocking": ["WIKI-01", "SRC-03"],
+      "blocking_level": "non-critical"
+    },
+    {
+      "id": "OD-02",
+      "title": "즐겨찾기 · 최근 본 위키 저장소",
+      "description": "user_wiki_bookmarks 테이블 vs localStorage. 프로토타입은 카운트 뱃지를 빼둔 상태.",
+      "blocking": [],
+      "blocking_level": "non-critical"
+    },
+    {
+      "id": "OD-03",
+      "title": "초대 흐름의 미가입자 처리",
+      "description": "invite_workspace_member가 미가입 이메일을 NW404로 거부. inviteUserByEmail 경로 또는 NW404 문구에 /signup 링크.",
+      "blocking": ["SETTINGS-03"],
+      "blocking_level": "non-critical"
+    },
+    {
+      "id": "OD-04",
+      "title": "아카이브 기능",
+      "description": "archived_at 컬럼 + 5채널 검색 제외 + wiki_embeddings 처리. 이번 마일스톤 제외 권고.",
+      "blocking": [],
+      "blocking_level": "deferred"
+    },
+    {
+      "id": "OD-05",
+      "title": "이용약관 · 개인정보처리방침",
+      "description": "/signup이 링크해야 하는데 문서 자체가 없다. 가입을 여는 이상 미룰 수 없다.",
+      "blocking": [],
+      "blocking_level": "non-critical"
+    },
+    {
+      "id": "OD-06",
+      "title": "역할 변경 UI",
+      "description": "workspace_members_update_owner 정책은 있고 화면이 없다. owner 자기 강등은 protect_owner_membership이 막는다.",
+      "blocking": ["SETTINGS-03"],
+      "blocking_level": "non-critical"
+    },
+    {
+      "id": "OD-07",
+      "title": "Supabase Cloud Google Provider 활성화",
+      "description": "GitHub Issue #18 (OPEN). GCP Client ID/Secret을 Supabase Cloud 대시보드에 등록.",
+      "blocking": [],
+      "blocking_level": "non-critical"
+    }
+  ],
+  "cleanup_tasks": [
+    {
+      "id": "CLEAN-01",
+      "title": "docs/design-systems/design-tokens.css·.json 옛 Airbnb 팔레트 정리",
+      "description": "v2는 청록 oklch(.58 .11 190) 체계. globals.css 참조 여부 확인 후 판단."
+    },
+    {
+      "id": "CLEAN-02",
+      "title": "프로토타입 LNB 카테고리 표시명 정정",
+      "description": "시안 '대상'→'엔티티', '지도'→'맵'. 코드와 PRD는 이미 맞춰짐."
+    },
+    {
+      "id": "CLEAN-03",
+      "title": "source-management 프로토타입 PRD 정합",
+      "description": "시안이 아직 SQL·CSV 파일과 포맷 탭 5개를 보여줌. PRD는 3종으로 확정."
+    },
+    {
+      "id": "CLEAN-04",
+      "title": "workspace-settings 프로토타입 정정 11건",
+      "description": "목록은 workspace-settings-prd.md §5 표. 'EDITOR … 위키 재컴파일' 문구는 불변식 §2 직접 위반."
+    },
+    {
+      "id": "CLEAN-05",
+      "title": "미커밋 OpenSpec 산출물 정리",
+      "description": "untracked 6개 파일 (feature-planning-workflow, pull-request-workflow, create-pr command 등). 다음 PR 시 함께 커밋."
+    }
+  ]
+}
