@@ -179,17 +179,19 @@ where u.id in (
 -- workspaces_add_owner_member 트리거가 소유자를 멤버로 자동 등록하므로
 -- workspace_members 를 직접 만들지 않는다(0001의 계약을 그대로 소비).
 -- -----------------------------------------------------------------------------
-insert into public.workspaces (id, name, kind, owner_id)
+insert into public.workspaces (id, name, slug, kind, owner_id)
 values (
   'b0000000-0000-4000-8000-000000000001'::uuid,
+  'spike-target',
   'spike-target',
   'team',
   'a0000000-0000-4000-8000-000000000001'::uuid
 );
 
-insert into public.workspaces (id, name, kind, owner_id)
+insert into public.workspaces (id, name, slug, kind, owner_id)
 select
   ('b0000000-0000-4000-8000-' || lpad((100 + j)::text, 12, '0'))::uuid,
+  'spike-noise-' || j,
   'spike-noise-' || j,
   'team',
   'a0000000-0000-4000-8000-000000000002'::uuid
