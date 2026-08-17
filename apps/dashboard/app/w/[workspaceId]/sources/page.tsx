@@ -27,7 +27,7 @@ export default async function SourcesPage({
 
   const { data } = await supabase
     .from("raw_sources")
-    .select("id,title,source_type,created_at,content_hash")
+    .select("id,title,source_type,mime_type,created_at,content_hash")
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })
     .limit(50);

@@ -370,7 +370,7 @@
       "phase_id": "v2_phase_3",
       "name": "Phase 3: 소스 관리 & 위키 뷰어",
       "description": "source-management-prd.md + wiki-document-reader-prd.md 기반. 백엔드 API(v1 Phase 3)에 의존.",
-      "status": "pending",
+      "status": "completed",
       "tasks": [
         {
           "id": "SRC-01",
@@ -378,14 +378,21 @@
           "title": "소스 드롭존 컴포넌트 (PDF/MD/TXT)",
           "description": "3종 포맷 파일 업로드 드롭존. 20MiB 제한. 즉시 202 반환 UX.",
           "target_files": [
-            "apps/dashboard/components/SourceDropzone.tsx"
+            "apps/dashboard/components/Dropzone.tsx"
           ],
           "depends_on": ["HOME-01"],
           "priority": "P0",
           "estimate": "1.5d",
-          "status": "pending",
+          "status": "completed",
           "verification": "파일 드롭 → 업로드 → 잡 ID 반환",
-          "notes": "백엔드 ING-01 (POST /sources) 완성 필요. 미완성 시 목 데이터로 UI 구현."
+          "notes": "백엔드 ING-01 (POST /sources) 완성 필요. 미완성 시 목 데이터로 UI 구현.",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "Dropzone 컴포넌트 3종 포맷(PDF/MD/TXT, 20MiB 제한) 업로드 지원",
+              "단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "SRC-02",
@@ -398,9 +405,16 @@
           "depends_on": ["SRC-01"],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
+          "status": "completed",
           "verification": "단계별 진행 상태 실시간 업데이트",
-          "v1_depends_on": ["ING-06", "COMP-04"]
+          "v1_depends_on": ["ING-06", "COMP-04"],
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "JobStepper 컴포넌트 5단계 파이프라인 상태 폴링 및 에러/재시도 UX 지원",
+              "단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "SRC-03",
@@ -408,13 +422,21 @@
           "title": "소스 목록 & mime_type 필터",
           "description": "등록된 소스 목록, mime_type 기반 필터링, 상태별 정렬.",
           "target_files": [
-            "apps/dashboard/app/w/[workspaceId]/sources/page.tsx"
+            "apps/dashboard/app/w/[workspaceId]/sources/page.tsx",
+            "apps/dashboard/components/SourcesList.tsx"
           ],
           "depends_on": ["SRC-01"],
           "priority": "P0",
           "estimate": "0.8d",
-          "status": "pending",
-          "verification": "소스 목록 표시, 필터 동작"
+          "status": "completed",
+          "verification": "소스 목록 표시, 필터 동작",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "SourcesList 3종 MIME 필터 탭(전체, PDF, 텍스트/마크다운) 구현",
+              "sources/page.tsx mime_type 쿼리 연동 및 단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "WIKI-01",
@@ -423,14 +445,21 @@
           "description": "컴파일된 위키 마크다운 렌더링, 검증 상태 콜아웃, 카테고리 뱃지.",
           "target_files": [
             "apps/dashboard/app/w/[workspaceId]/wiki/[slug]/page.tsx",
-            "apps/dashboard/components/WikiViewer.tsx"
+            "apps/dashboard/components/WikiPageContent.tsx"
           ],
           "depends_on": ["HOME-01"],
           "priority": "P0",
           "estimate": "1.5d",
-          "status": "pending",
+          "status": "completed",
           "verification": "위키 문서 렌더링, 검증 상태 표시",
-          "v1_depends_on": ["API-04"]
+          "v1_depends_on": ["API-04"],
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "WikiPageContent 읽기 전용 배너, 검증/충돌 상태 콜아웃, 마크다운 렌더링",
+              "단위 테스트 및 빌드 통과"
+            ]
+          }
         },
         {
           "id": "WIKI-02",
@@ -438,13 +467,21 @@
           "title": "WikiLink 라우팅 & 레드링크 안내",
           "description": "[[WikiLink]] 클릭 → 페이지 이동. 미해결 링크는 RedLinkCta 표시.",
           "target_files": [
-            "apps/dashboard/components/WikiLinkRenderer.tsx"
+            "apps/dashboard/lib/wiki-links.ts",
+            "apps/dashboard/components/RedLinkCta.tsx"
           ],
           "depends_on": ["WIKI-01"],
           "priority": "P0",
           "estimate": "0.8d",
-          "status": "pending",
-          "verification": "WikiLink 클릭 시 페이지 라우팅, 레드링크 안내 표시"
+          "status": "completed",
+          "verification": "WikiLink 클릭 시 페이지 라우팅, 레드링크 안내 표시",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "resolveWikiLinks 및 RedLinkCta 컴포넌트 미해결 링크 소스 생성 유도",
+              "단위 테스트 통과"
+            ]
+          }
         },
         {
           "id": "WIKI-03",
@@ -452,14 +489,23 @@
           "title": "이중 Citation 하이라이트 (원문 역추적)",
           "description": "Citation 클릭 시 원문 출처 역추적. char_start/char_end 좌표 하이라이트.",
           "target_files": [
-            "apps/dashboard/components/CitationHighlight.tsx"
+            "apps/dashboard/components/CitationMarker.tsx",
+            "apps/dashboard/components/CitationSidePanel.tsx",
+            "apps/dashboard/components/ContentViewer.tsx"
           ],
           "depends_on": ["WIKI-01"],
           "priority": "P0",
           "estimate": "1.5d",
-          "status": "pending",
+          "status": "completed",
           "verification": "Citation 클릭 → 원문 하이라이트 표시",
-          "v1_depends_on": ["CITE-02", "API-01"]
+          "v1_depends_on": ["CITE-02", "API-01"],
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "CitationMarker 및 CitationSidePanel 원문 청크 대조 서랍 및 좌표 하이라이트 지원",
+              "단위 테스트 통과"
+            ]
+          }
         }
       ]
     },

@@ -4,12 +4,12 @@ import { File, FileText, Link2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { Dropzone } from "@/components/Dropzone";
 import {
   EmptyState,
   PageHeader,
   StatusBadge,
 } from "@/components/DashboardPrimitives";
+import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
 import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
@@ -18,6 +18,7 @@ export type SourceRow = {
   id: string;
   title: string;
   source_type: string;
+  mime_type?: string | null;
   created_at: string;
   content_hash: string;
 };
@@ -25,15 +26,10 @@ export type SourceRow = {
 export type SourcesListProps = {
   workspaceId: string;
   initialSources: SourceRow[];
-  // RedLinkCta.handleCreate가 심는 ?prefillTitle=&tab=text를 page.tsx가 읽어
-  // 여기로 넘긴다 — Dropzone까지 이어져야 06-REVIEW.md CR-01의 실제 동작이
-  // 완성된다.
   prefillTitle?: string;
   initialTab?: "text";
 };
 
-// UI-SPEC Copywriting Contract "Empty state heading/body" — 문구를 한 글자도
-// 바꾸지 않는다.
 const EMPTY_HEADING = "아직 등록된 소스가 없습니다";
 const EMPTY_BODY =
   "파일을 드래그하거나 URL/텍스트를 붙여넣어 첫 소스를 추가하세요.";
@@ -44,7 +40,7 @@ const SOURCE_ICONS: Record<string, typeof File> = {
   text: FileText,
 };
 
-const SELECT_COLUMNS = "id,title,source_type,created_at,content_hash";
+const SELECT_COLUMNS = "id,title,source_type,mime_type,created_at,content_hash";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ko-KR", {
@@ -54,20 +50,8 @@ function formatDate(iso: string): string {
   });
 }
 
-/**
- * 소스 목록 클라이언트 래퍼 — Dropzone(등록) + 소스별 JobStepper(진행)를
- * 한 화면에 묶는다.
- *
- * 관련 태스크: 06-05-PLAN.md Task 3
- * 설계 근거: supabase/migrations/0004_rls_policies.sql 섹션 5
- *            (raw_sources_select_member — apps/api를 거치지 않는 직접 읽기)
- *
- * [Rule 3] page.tsx는 <action>이 명시한 대로 Server Component로 유지해야
- * 하지만, Dropzone.onIngested로 새 소스를 로컬 state에 prepend하려면 클라이언트
- * state가 필요하다 — Server Component는 state를 가질 수 없으므로 이 얇은
- * 클라이언트 래퍼로 분리했다 (SettingsMembersPanel.tsx와 같은 계열, 06-03-SUMMARY.md
- * Deviation 3 참고).
- */
+type MimeFilter = "all" | "pdf" | "text_md";
+
 export function SourcesList({
   workspaceId,
   initialSources,
@@ -75,13 +59,8 @@ export function SourcesList({
   initialTab,
 }: SourcesListProps) {
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
+  const [activeMime, setActiveMime] = useState<MimeFilter>("all");
 
-  // Dropzone.onIngested는 (jobId, rawSourceId) 두 인자만 준다(Task 1의 고정된
-  // 시그니처) — title/source_type/created_at은 여기서 다시 조회해야 한다.
-  // apps/api의 _insert_and_enqueue가 잡을 인큐하기 전에 이미 raw_sources 행을
-  // 커밋했으므로(sources.py), 이 시점에는 행이 이미 존재한다. 목록 전체를
-  // 다시 읽지 않고(limit(50) 재조회가 아니다) 이 한 행만 targeted select로
-  // 가져와 앞에 붙인다 — "without a full refetch" 요구를 그대로 만족한다.
   async function handleIngested(_jobId: string, rawSourceId: string) {
     const supabase = createClient();
     const { data } = await supabase
@@ -94,6 +73,33 @@ export function SourcesList({
       setSources((prev) => [data, ...prev]);
     }
   }
+
+  function isPdf(source: SourceRow): boolean {
+    return (
+      source.mime_type === "application/pdf" ||
+      source.title.toLowerCase().endsWith(".pdf")
+    );
+  }
+
+  function isTextMd(source: SourceRow): boolean {
+    return (
+      source.mime_type === "text/plain" ||
+      source.mime_type === "text/markdown" ||
+      ["text", "clipping", "article"].includes(source.source_type) ||
+      source.title.toLowerCase().endsWith(".md") ||
+      source.title.toLowerCase().endsWith(".txt")
+    );
+  }
+
+  const filteredSources = sources.filter((source) => {
+    if (activeMime === "all") return true;
+    if (activeMime === "pdf") return isPdf(source);
+    if (activeMime === "text_md") return isTextMd(source);
+    return true;
+  });
+
+  const pdfCount = sources.filter(isPdf).length;
+  const textMdCount = sources.filter(isTextMd).length;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-xxl">
@@ -109,14 +115,70 @@ export function SourcesList({
         initialTab={initialTab}
       />
 
-      {sources.length === 0 ? (
-        <EmptyState title={EMPTY_HEADING} detail={EMPTY_BODY} />
+      {/* SRC-03: MIME 타입 3종 필터 탭 */}
+      <div
+        role="tablist"
+        aria-label="소스 형식 필터"
+        className="flex gap-xs border-b border-[var(--border)] bg-[var(--surface)] p-1 rounded-lg"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMime === "all"}
+          onClick={() => setActiveMime("all")}
+          className={`min-h-8 cursor-pointer rounded-md px-3 text-xs font-semibold outline-none transition-colors ${
+            activeMime === "all"
+              ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+              : "text-[var(--muted)] hover:text-[var(--fg)]"
+          }`}
+        >
+          전체 ({sources.length})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMime === "pdf"}
+          onClick={() => setActiveMime("pdf")}
+          className={`min-h-8 cursor-pointer rounded-md px-3 text-xs font-semibold outline-none transition-colors ${
+            activeMime === "pdf"
+              ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+              : "text-[var(--muted)] hover:text-[var(--fg)]"
+          }`}
+        >
+          PDF ({pdfCount})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMime === "text_md"}
+          onClick={() => setActiveMime("text_md")}
+          className={`min-h-8 cursor-pointer rounded-md px-3 text-xs font-semibold outline-none transition-colors ${
+            activeMime === "text_md"
+              ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+              : "text-[var(--muted)] hover:text-[var(--fg)]"
+          }`}
+        >
+          텍스트/마크다운 ({textMdCount})
+        </button>
+      </div>
+
+      {filteredSources.length === 0 ? (
+        <EmptyState
+          title={
+            sources.length === 0 ? EMPTY_HEADING : "해당 형식의 소스가 없습니다"
+          }
+          detail={
+            sources.length === 0
+              ? EMPTY_BODY
+              : "다른 형식 탭을 선택하거나 새 소스를 업로드하세요."
+          }
+        />
       ) : (
         <ul
           id="sources-library"
           className="flex flex-col border-y border-[var(--nw-rule)]"
         >
-          {sources.map((source) => {
+          {filteredSources.map((source) => {
             const Icon = SOURCE_ICONS[source.source_type] ?? File;
             return (
               <li
