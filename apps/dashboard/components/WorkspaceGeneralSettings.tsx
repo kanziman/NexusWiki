@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { PublicSharingSettings } from "@/components/PublicSharingSettings";
 
 export type WorkspaceGeneralSettingsProps = {
   workspaceId: string;
@@ -175,6 +176,12 @@ export function WorkspaceGeneralSettings({
           </div>
         )}
       </form>
+
+      <PublicSharingSettings
+        workspaceId={workspaceId}
+        workspaceSlug={slug || initialSlug}
+        isOwner={isOwner}
+      />
     </section>
   );
 }

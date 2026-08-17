@@ -568,7 +568,7 @@
       "phase_id": "v2_phase_5",
       "name": "Phase 5: 공개 공유",
       "description": "public-sharing-prd.md 기반. anon 라우트, 사이드카 DDL, 마스터 킬스위치.",
-      "status": "pending",
+      "status": "completed",
       "tasks": [
         {
           "id": "PUB-01",
@@ -581,8 +581,15 @@
           "depends_on": ["AUTH-07"],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
-          "verification": "로컬 DB에서 anon 역할로 공개 페이지 조회 성공"
+          "status": "completed",
+          "verification": "로컬 DB에서 anon 역할로 공개 페이지 조회 성공",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "0016_public_sharing.sql 사이드카 테이블 2종, 킬스위치 RLS, 트리거 게이트 작성",
+              "anon 및 authenticated GRANT 적용"
+            ]
+          }
         },
         {
           "id": "PUB-02",
@@ -595,8 +602,15 @@
           "depends_on": ["PUB-01", "WIKI-01"],
           "priority": "P0",
           "estimate": "1.5d",
-          "status": "pending",
-          "verification": "비로그인 사용자가 공개 위키 페이지 조회 가능"
+          "status": "completed",
+          "verification": "비로그인 사용자가 공개 위키 페이지 조회 가능",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "/p/[slug]/[page] 공개 위키 뷰어 라우트 작성 및 킬스위치 OFF 404 처리",
+              "단위 테스트 및 빌드 통과"
+            ]
+          }
         },
         {
           "id": "PUB-03",
@@ -604,13 +618,21 @@
           "title": "공개 공유 킬스위치 설정 UI",
           "description": "워크스페이스 설정에서 공개 공유 ON/OFF 토글. 발행 관리.",
           "target_files": [
-            "apps/dashboard/components/PublicSharingSettings.tsx"
+            "apps/dashboard/components/PublicSharingSettings.tsx",
+            "apps/dashboard/components/WorkspaceGeneralSettings.tsx"
           ],
           "depends_on": ["PUB-01", "SETTINGS-01"],
           "priority": "P0",
           "estimate": "1d",
-          "status": "pending",
-          "verification": "킬스위치 ON → 페이지 발행 가능, OFF → 전부 비공개"
+          "status": "completed",
+          "verification": "킬스위치 ON → 페이지 발행 가능, OFF → 전부 비공개",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "PublicSharingSettings 컴포넌트 마스터 킬스위치 및 공개 정보 제어",
+              "WorkspaceGeneralSettings 연동 및 단위 테스트 통과"
+            ]
+          }
         }
       ]
     }
