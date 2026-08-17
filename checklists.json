@@ -3,8 +3,8 @@
   "project_name": "NexusWiki (Cairni-style Living Wiki SaaS)",
   "source_plan": ".planning/ROADMAP.md",
   "created_at": "2026-07-31T23:27:15+09:00",
-  "updated_at": "2026-08-08",
-  "revision": 6,
+  "updated_at": "2026-08-17",
+  "revision": 7,
   "_notes": [
     "GSD 로드맵(.planning/ROADMAP.md 및 .planning/REQUIREMENTS.md)과 1:1 동기화된 완벽한 작업 체크리스트입니다.",
     "v1 requirements 73개 전수(BOOT 10, SEC 6, DOM 9, ING 7, COMP 8, RTV 9, CITE 6, API 4, QC 2, UI 6, OPS 6)가 7단계 GSD 페이즈에 정확히 매핑되어 있습니다.",
@@ -78,6 +78,11 @@
     "region_selection": {
       "value": "Supabase ap-southeast-1 + Railway asia-southeast1 (싱가포르)",
       "rationale": "Railway에 서울/도쿄 리전이 없어 싱가포르 양쪽으로 고정하여 네트워크 지연 최소화."
+    },
+    "auth": {
+      "value": "Google OAuth 단일 경로 — 가입 /signup, 로그인 /login 모두 Google 계정만. 이메일+비밀번호 폐지.",
+      "rationale": "2026-08-17 D-01(06-CONTEXT.md, '로그인은 이메일+비밀번호만, OAuth 없음') 번복. 가입 경로가 닫혀 있던 것이 발단 — 회원가입 UI가 없는데 invite_workspace_member는 미가입 이메일을 NW404로 거부하고 진입 화면은 초대를 요청하라고 해, 새 사용자를 들일 방법이 Admin API뿐이었다. Google 전용 가입을 택하면 로그인 단일화는 선택이 아니라 귀결이다 — OAuth로 만든 계정에는 비밀번호가 없어 signInWithPassword가 구조적으로 실패한다. 듀얼 경로도 가능했으나 D-01이 경고한 'auth 상태 분기 재설계' 비용을 두 배로 내면서 얻는 것이 기존 테스트 계정 2개뿐이었다.",
+      "implication": "LoginForm.tsx 삭제 후 GoogleAuthButton으로 교체. /signup + /auth/callback(Route Handler) 신설. config.toml에 [auth.external.google] 블록 추가(현재 부재, apple만 있음) + 클라우드 대시보드 별도 설정. middleware matcher에 /signup 추가하되 /auth/callback은 제외. D-02('middleware가 유일한 쿠키 기록자')는 'OAuth 콜백과 middleware 두 곳만'으로 개정 — exchangeCodeForSession이 쿠키를 직접 쓰고 1회용 code라 위임 불가. 가입 후 셀프서브 워크스페이스 생성을 허용하므로 openspec/specs/workspace-entry-flow/spec.md의 '0개 사용자에게 초대 안내 유지' 요구사항 개정 필요. 계약 전문은 docs/design-systems/v2/auth-google-prd.md."
     }
   },
   "open_questions": [
