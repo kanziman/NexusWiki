@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { WorkspaceEntryChooser } from "@/components/WorkspaceEntryChooser";
+import { WorkspaceOnboarding } from "@/components/WorkspaceOnboarding";
+import { createPersonalWorkspace } from "@/app/onboarding-actions";
 import { workspacePath } from "@/lib/workspace-path";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,19 +37,5 @@ export default async function HomePage() {
     }
   }
 
-  return (
-    <main
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "var(--spacing-lg)",
-      }}
-    >
-      <p style={{ font: "var(--font-body-md)", color: "var(--color-body)" }}>
-        워크스페이스가 없습니다 — 관리자에게 초대를 요청하세요.
-      </p>
-    </main>
-  );
+  return <WorkspaceOnboarding createWorkspace={createPersonalWorkspace} />;
 }

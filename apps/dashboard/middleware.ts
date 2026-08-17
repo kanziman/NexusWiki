@@ -9,7 +9,8 @@ import { requireEnv } from "@/lib/env";
  * 관련 태스크: 06-01-PLAN.md Task 1 (D-02, 06-CONTEXT.md)
  * 위협: T-06-01 (Spoofing, middleware.ts)
  *
- * ⚠️ 이 파일이 `apps/dashboard` 전체에서 세션 쿠키를 쓰는 유일한 곳이어야 한다
+ * ⚠️ 이 파일과 OAuth callback만 세션 쿠키를 쓸 수 있다. callback은 1회용
+ * authorization code를 교환해야 하는 예외다.
  * (D-02). 다른 라우트/컴포넌트가 쿠키를 직접 쓰기 시작하면 CVE-2025-29927
  * (`x-middleware-subrequest` 헤더 위조로 미들웨어 우회)이 열어 놓았던 것과 같은
  * 종류의 우회 경로가 생긴다. CLAUDE.md 제약대로 이 앱은 Next.js 15.5.22를 쓰므로
