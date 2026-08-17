@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { NavShell } from "@/components/NavShell";
+import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { createClient } from "@/lib/supabase/server";
 
 type WorkspaceLayoutProps = {
@@ -48,15 +48,13 @@ export default async function WorkspaceLayout({
     .order("name");
 
   return (
-    <div className="min-h-screen bg-[var(--nw-canvas)] text-[var(--nw-ink)]">
-      <NavShell
-        workspaces={workspaces ?? []}
-        currentWorkspaceId={workspaceId}
-        accountEmail={user?.email ?? "계정"}
-      />
-      <main className="mx-auto w-full max-w-6xl px-base py-xl sm:px-xl sm:py-xxl">
-        {children}
-      </main>
-    </div>
+    <WorkspaceShell
+      workspace={workspace}
+      workspaces={workspaces ?? []}
+      currentWorkspaceId={workspaceId}
+      accountEmail={user?.email ?? "계정"}
+    >
+      {children}
+    </WorkspaceShell>
   );
 }

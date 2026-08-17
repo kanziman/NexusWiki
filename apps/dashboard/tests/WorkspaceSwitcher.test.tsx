@@ -21,13 +21,13 @@ describe("WorkspaceSwitcher", () => {
     push.mockReset();
   });
 
-  it("체브런 아이콘 버튼에 aria-label이 있다", () => {
+  it("스위처 버튼에 현재 워크스페이스 이름이 렌더링된다", () => {
     render(
       <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId="ws-1" />,
     );
 
     expect(
-      screen.getByRole("img", { name: "워크스페이스 전환" }),
+      screen.getByRole("button", { name: /워크스페이스 하나/ }),
     ).toBeInTheDocument();
   });
 

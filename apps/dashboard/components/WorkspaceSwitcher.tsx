@@ -1,10 +1,11 @@
 "use client";
 
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import * as Tooltip from "@radix-ui/react-tooltip";
-import { ChevronDown, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import { Check, ChevronDown, Loader2, Plus } from "lucide-react";
 
 import { workspacePath } from "@/lib/workspace-path";
 
@@ -13,10 +14,6 @@ export type WorkspaceSwitcherProps = {
   currentWorkspaceId: string;
 };
 
-// D-03: 워크스페이스 전환은 URL이 소유한다 — 이 컴포넌트는 어떤 워크스페이스가
-// "현재"인지 자체 상태로 들고 있지 않고, currentWorkspaceId prop과
-// router.push(workspacePath(id))만으로 동작한다. React state에 남은 낡은 id가
-// 조용히 빈 결과를 내는 것을 구조적으로 방지한다.
 export function WorkspaceSwitcher({
   workspaces,
   currentWorkspaceId,
@@ -26,9 +23,6 @@ export function WorkspaceSwitcher({
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // UI-SPEC UI Considerations (workspace-switcher/loading, backstop): /w/[id]
-  // 라우트 재검증이 진행되는 동안 선택한 항목을 비활성화하고 인라인 스피너를
-  // 보여준다. isPending이 꺼지면(네비게이션 완료) 드롭다운을 닫는다.
   useEffect(() => {
     if (!isPending && navigatingId !== null) {
       setNavigatingId(null);
@@ -38,6 +32,7 @@ export function WorkspaceSwitcher({
 
   const current =
     workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null;
+  const initial = (current?.name || "W").charAt(0).toUpperCase();
 
   function handleSelect(workspaceId: string) {
     if (workspaceId === currentWorkspaceId || navigatingId !== null) return;
@@ -54,21 +49,14 @@ export function WorkspaceSwitcher({
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="nw-focus-ring flex h-9 max-w-64 min-w-0 items-center gap-xs border-0 bg-transparent px-0 text-[var(--nw-ink)]"
+            className="switcher cursor-pointer"
+            data-od-id="workspace-switcher"
           >
-            <span
-              className="min-w-0 truncate"
-              style={{ font: "var(--font-caption)", fontWeight: 600 }}
-            >
+            <span className="switcher-mark">{initial}</span>
+            <span className="switcher-name">
               {current?.name ?? "워크스페이스 선택"}
             </span>
-            <span
-              role="img"
-              aria-label="워크스페이스 전환"
-              className="flex h-11 w-11 shrink-0 items-center justify-center"
-            >
-              <ChevronDown size={20} aria-hidden="true" />
-            </span>
+            <ChevronDown className="chev" aria-hidden="true" />
           </button>
         </DropdownMenu.Trigger>
 
@@ -76,10 +64,12 @@ export function WorkspaceSwitcher({
           <DropdownMenu.Content
             align="start"
             sideOffset={4}
-            // overflow backstop: 워크스페이스가 8개를 넘으면 Content 자체가
-            // 무한정 자라는 대신 스크롤한다.
-            className="max-h-64 overflow-y-auto rounded-md border border-[var(--nw-rule)] bg-[var(--nw-surface)] py-xs shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
+            className="z-50 min-w-56 max-h-64 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-[var(--shadow)]"
           >
+            <div className="px-2 py-1 text-[10px] font-mono font-semibold tracking-wider text-[var(--muted)]">
+              소속 워크스페이스
+            </div>
+
             {workspaces.map((workspace) => {
               const isActive = workspace.id === currentWorkspaceId;
               const isNavigating = navigatingId === workspace.id && isPending;
@@ -94,31 +84,32 @@ export function WorkspaceSwitcher({
                         event.preventDefault();
                         handleSelect(workspace.id);
                       }}
-                      className={`nw-focus-ring flex cursor-pointer items-center justify-between gap-xs px-base py-sm outline-none data-[highlighted]:bg-[var(--nw-canvas)] data-[disabled]:cursor-default data-[disabled]:opacity-60 ${
+                      className={`flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none transition-colors data-[highlighted]:bg-[var(--surface)] ${
                         isActive
-                          ? "text-[var(--nw-ink)]"
-                          : "text-[var(--nw-body)]"
+                          ? "bg-[var(--soft)] text-[var(--accent)]"
+                          : "text-[var(--fg)]"
                       }`}
-                      style={{ font: "var(--font-caption)", fontWeight: 600 }}
                     >
                       <span className="min-w-0 truncate">{workspace.name}</span>
                       {isNavigating ? (
                         <Loader2
-                          size={14}
+                          size={13}
                           className="shrink-0 animate-spin"
                           aria-hidden="true"
+                        />
+                      ) : isActive ? (
+                        <Check
+                          size={13}
+                          className="shrink-0 text-[var(--accent)]"
                         />
                       ) : null}
                     </DropdownMenu.Item>
                   </Tooltip.Trigger>
-                  {/* long-text backstop: 트리거에서 truncate된 긴 이름은
-                      hover/focus 시 Tooltip으로 전체 텍스트를 노출한다. */}
                   <Tooltip.Portal>
                     <Tooltip.Content
                       side="right"
                       sideOffset={4}
-                      className="z-50 rounded-sm bg-ink px-sm py-xs text-on-primary"
-                      style={{ font: "var(--font-caption-sm)" }}
+                      className="z-50 rounded-sm bg-[var(--fg)] px-2 py-1 text-[11px] font-semibold text-white shadow-md"
                     >
                       {workspace.name}
                     </Tooltip.Content>
@@ -126,6 +117,18 @@ export function WorkspaceSwitcher({
                 </Tooltip.Root>
               );
             })}
+
+            <div className="my-1 border-t border-[var(--border)]" />
+
+            <DropdownMenu.Item asChild>
+              <Link
+                href="/"
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--fg)] outline-none hover:bg-[var(--surface)] transition-colors"
+              >
+                <Plus size={13} aria-hidden="true" />
+                <span>새 워크스페이스 생성</span>
+              </Link>
+            </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>

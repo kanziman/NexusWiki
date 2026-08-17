@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "../../../docs/design-systems/design-tokens.css";
+@import "../../../docs/design-systems/v2/nexuswiki-design-system.css";
 
 /* Tailwind 4 @theme 편입 (06-01-PLAN.md Task 2).
  *

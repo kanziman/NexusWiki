@@ -1,124 +1,155 @@
-import Link from "next/link";
+import { Star } from "lucide-react";
 
-import {
-  EmptyState,
-  PageHeader,
-  SectionHeading,
-} from "@/components/DashboardPrimitives";
+import { AskHero } from "@/components/AskHero";
+import { KnowledgeGrid } from "@/components/KnowledgeGrid";
 import { createClient } from "@/lib/supabase/server";
-import { workspacePath } from "@/lib/workspace-path";
 
-type Props = { params: Promise<{ workspaceId: string }> };
+type Props = {
+  params: Promise<{ workspaceId: string }>;
+  searchParams?: Promise<{ category?: string }>;
+};
 
-export default async function WorkspaceHomePage({ params }: Props) {
-  const { workspaceId } = await params;
-  const supabase = await createClient();
-  const base = workspacePath(workspaceId);
-  const [workspaceResult, sourcesResult, pagesResult] = await Promise.all([
-    supabase.from("workspaces").select("name").eq("id", workspaceId).single(),
-    supabase
-      .from("raw_sources")
-      .select("id,title,source_type")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("wiki_pages")
-      .select("id,title,slug")
-      .eq("workspace_id", workspaceId)
-      .order("updated_at", { ascending: false })
-      .limit(5),
-  ]);
-  const sources = sourcesResult.data ?? [];
-  const pages = pagesResult.data ?? [];
+function formatTimeAgo(dateString?: string | null): string {
+  if (!dateString) return "없음";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
 
-  return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-xxl">
-      <PageHeader
-        title={workspaceResult.data?.name ?? "워크스페이스"}
-        description="자료를 등록하고, 질문하며, 쌓인 지식을 탐색하세요."
-        action={
-          <div className="flex flex-wrap gap-sm">
-            <Link
-              href={`${base}/sources`}
-              className="nw-action nw-focus-ring px-base py-sm"
-            >
-              자료 추가
-            </Link>
-            <Link
-              href={`${base}/ask`}
-              className="nw-focus-ring border border-[var(--nw-rule-strong)] px-base py-sm"
-            >
-              질문하기
-            </Link>
-          </div>
-        }
-      />
-      {sources.length === 0 && pages.length === 0 ? (
-        <EmptyState
-          title="첫 자료를 등록하세요"
-          detail="등록한 원문이 위키와 질문의 근거가 됩니다."
-        />
-      ) : (
-        <div className="grid gap-xxl md:grid-cols-2">
-          <Activity
-            title="최근 자료"
-            empty="최근 등록한 자료가 없습니다."
-            items={sources.map((source) => ({
-              id: source.id,
-              label: source.title,
-              href: `${base}/sources`,
-              detail: source.source_type,
-            }))}
-          />
-          <Activity
-            title="최근 위키"
-            empty="아직 생성된 위키 페이지가 없습니다."
-            items={pages.map((page) => ({
-              id: page.id,
-              label: page.title,
-              href: `${base}/wiki/${page.slug}`,
-              detail: "위키 페이지",
-            }))}
-          />
-        </div>
-      )}
-    </div>
-  );
+  if (diffMinutes < 1) return "방금 전";
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+  if (diffHours < 24) return `${diffHours}시간 전`;
+  if (diffDays < 7) return `${diffDays}일 전`;
+  return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-function Activity({
-  title,
-  empty,
-  items,
-}: {
-  title: string;
-  empty: string;
-  items: { id: string; label: string; href: string; detail: string }[];
-}) {
+export default async function WorkspaceHomePage({
+  params,
+  searchParams,
+}: Props) {
+  const { workspaceId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const activeCategory = resolvedSearchParams.category ?? null;
+
+  const supabase = await createClient();
+
+  const [workspaceResult, sourcesResult, pagesResult, linksResult] =
+    await Promise.all([
+      supabase.from("workspaces").select("name").eq("id", workspaceId).single(),
+      supabase
+        .from("raw_sources")
+        .select("id,title,source_type,created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("wiki_pages")
+        .select("id,title,slug,category,verification_status,sources,updated_at")
+        .eq("workspace_id", workspaceId)
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("wiki_links")
+        .select("target_slug")
+        .eq("workspace_id", workspaceId)
+        .eq("resolved", false),
+    ]);
+
+  const workspaceName = workspaceResult.data?.name ?? "워크스페이스";
+  const rawSources = sourcesResult.data ?? [];
+  const wikiPages = (pagesResult.data ?? []).map((p) => ({
+    id: p.id,
+    title: p.title,
+    slug: p.slug,
+    category: p.category,
+    verification_status: p.verification_status,
+    updated_at: p.updated_at,
+    citation_count: Array.isArray(p.sources) ? p.sources.length : 0,
+  }));
+
+  // Group and count unresolved links
+  const unresolvedLinks = linksResult.data ?? [];
+  const backlogCountMap = new Map<string, number>();
+  for (const link of unresolvedLinks) {
+    if (link.target_slug) {
+      backlogCountMap.set(
+        link.target_slug,
+        (backlogCountMap.get(link.target_slug) ?? 0) + 1,
+      );
+    }
+  }
+
+  const backlogItems = Array.from(backlogCountMap.entries())
+    .map(([target_slug, reference_count]) => ({
+      target_slug,
+      reference_count,
+    }))
+    .sort((a, b) => b.reference_count - a.reference_count);
+
+  const compiledCount = wikiPages.length;
+  const sourcesCount = rawSources.length;
+  const backlogCount = backlogItems.length;
+  const latestUpdated = wikiPages[0]?.updated_at ?? null;
+
   return (
-    <section>
-      <SectionHeading title={title} />
-      {items.length === 0 ? (
-        <p className="mt-base text-[var(--nw-muted)]">{empty}</p>
-      ) : (
-        <ul className="mt-base border-y border-[var(--nw-rule)]">
-          {items.map((item) => (
-            <li
-              key={item.id}
-              className="border-b border-[var(--nw-rule)] last:border-b-0"
+    <div className="content">
+      {/* 1. 지식 그룹/워크스페이스 히어로 헤더 */}
+      <section className="context" data-od-id="workspace-header">
+        <div>
+          <p className="eyebrow">워크스페이스</p>
+          <div className="title-row">
+            <h1 data-od-id="workspace-title">{workspaceName}</h1>
+            <button
+              type="button"
+              className="star"
+              id="favorite"
+              data-od-id="favorite-control"
+              aria-label="즐겨찾기에 추가"
             >
-              <Link
-                href={item.href}
-                className="nw-focus-ring flex justify-between gap-sm px-sm py-base"
-              >
-                <span>{item.label}</span>
-                <span className="text-[var(--nw-muted)]">{item.detail}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+              <Star size={18} aria-hidden="true" />
+            </button>
+          </div>
+          <p>
+            연결한 원문과 컴파일된 위키를 한곳에서 질문하고, 비어 있는 지식을
+            확인합니다.
+          </p>
+        </div>
+      </section>
+
+      {/* 2. 현황 요약 통계 */}
+      <section
+        className="stats"
+        data-od-id="workspace-summary"
+        aria-label="워크스페이스 현황"
+      >
+        <div className="stat">
+          <b>{String(compiledCount).padStart(2, "0")}</b>
+          <span>컴파일된 문서</span>
+        </div>
+        <div className="stat">
+          <b>{String(sourcesCount).padStart(2, "0")}</b>
+          <span>연결된 원문 소스</span>
+        </div>
+        <div className="stat">
+          <b>{String(backlogCount).padStart(2, "0")}</b>
+          <span>작성 대기 항목</span>
+        </div>
+        <div className="stat">
+          <b>{formatTimeAgo(latestUpdated)}</b>
+          <span>최종 업데이트</span>
+        </div>
+      </section>
+
+      {/* 3. 중앙 질문창 (Ask 히어로 캔버스 + 스타터 칩) */}
+      <AskHero workspaceId={workspaceId} />
+
+      {/* 4. 2열 지식 그리드 (컴파일된 위키 + 작성 대기 백로그) */}
+      <KnowledgeGrid
+        workspaceId={workspaceId}
+        wikiPages={wikiPages}
+        backlogItems={backlogItems}
+        activeCategory={activeCategory}
+      />
+    </div>
   );
 }

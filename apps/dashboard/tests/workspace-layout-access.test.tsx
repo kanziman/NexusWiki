@@ -5,10 +5,12 @@ const redirect = vi.hoisted(() =>
     throw new Error(`redirect:${destination}`);
   }),
 );
-const navShell = vi.hoisted(() => vi.fn(() => null));
+const workspaceShell = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("next/navigation", () => ({ redirect }));
-vi.mock("@/components/NavShell", () => ({ NavShell: navShell }));
+vi.mock("@/components/WorkspaceShell", () => ({
+  WorkspaceShell: workspaceShell,
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => {
     const query = {
@@ -38,6 +40,6 @@ describe("workspace layout access boundary", () => {
       }),
     ).rejects.toThrow("redirect:/");
 
-    expect(navShell).not.toHaveBeenCalled();
+    expect(workspaceShell).not.toHaveBeenCalled();
   });
 });
