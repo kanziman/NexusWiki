@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { SettingsMembersPanel } from "@/components/SettingsMembersPanel";
+import { PageHeader } from "@/components/DashboardPrimitives";
 import { createClient } from "@/lib/supabase/server";
 
 type SettingsPageProps = {
@@ -37,10 +38,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     .maybeSingle();
 
   return (
-    <SettingsMembersPanel
-      workspaceId={workspaceId}
-      currentUserId={user.id}
-      currentRole={membership?.role ?? "viewer"}
-    />
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-xl">
+      <PageHeader
+        title="설정"
+        description="워크스페이스 멤버와 운영 상태를 관리합니다."
+      />
+      <SettingsMembersPanel
+        workspaceId={workspaceId}
+        currentUserId={user.id}
+        currentRole={membership?.role ?? "viewer"}
+      />
+    </div>
   );
 }

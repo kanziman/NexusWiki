@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>넥서스위키(NexusWiki) - 원문 소스 관리 & 임베딩 파이프라인 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Pretendard", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      color: #0f172a;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* SVG Icon Helpers */
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      vertical-align: -2px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* App Root Grid: LNB + Main Workspace Area */
+    .app-root {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      height: 100vh;
+    }
+
+    /* =========================================================================
+       1. 좌측 내비게이션 바 (LNB: Screen 1, 2, 3과 완벽 일치)
+       ========================================================================= */
+    .nlb-sidebar {
+      background: #f8fafc;
+      border-right: 1.5px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 16px 12px;
+      gap: 16px;
+    }
+
+    .nlb-ws-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: all 0.12s;
+    }
+    .nlb-ws-header:hover {
+      border-color: #cbd5e1;
+    }
+    .nlb-ws-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nlb-ws-logo {
+      width: 24px;
+      height: 24px;
+      background: #2563eb;
+      color: #ffffff;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .nlb-ws-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+
+    .nlb-sec-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 8px 4px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nlb-nav-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nlb-nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.12s;
+      border: none;
+      background: transparent;
+      width: 100%;
+    }
+    .nlb-nav-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .nlb-nav-btn.active {
+      background: #eff6ff;
+      color: #2563eb;
+      font-weight: 800;
+    }
+    .nlb-btn-left {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .nlb-project-node {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-bottom: 4px;
+    }
+    .nlb-project-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .nlb-project-row:hover {
+      background: #f1f5f9;
+    }
+
+    .nlb-subgroup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-left: 14px;
+      margin-left: 12px;
+      border-left: 2px solid #e2e8f0;
+      margin-top: 2px;
+    }
+    .nlb-subgroup-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .nlb-subgroup-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .nlb-add-subgroup {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #64748b;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      margin-top: 2px;
+    }
+    .nlb-add-subgroup:hover {
+      color: #2563eb;
+    }
+
+    .nlb-team-admin-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nlb-footer {
+      border-top: 1.5px solid #e2e8f0;
+      padding-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nlb-user-box {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+    }
+    .nlb-avatar {
+      width: 26px;
+      height: 26px;
+      background: #e2e8f0;
+      color: #0f172a;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+
+    /* =========================================================================
+       2. 메인 파이프라인 관리 캔버스
+       ========================================================================= */
+    .sources-main-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #ffffff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top Sticky Action Bar */
+    .sources-top-bar {
+      padding: 12px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #f1f5f9;
+      background: #ffffff;
+      z-index: 10;
+    }
+    .sources-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .sources-breadcrumb strong {
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    .btn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-pill.primary {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+    }
+    .btn-pill.primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-pill.secondary {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+    .btn-pill.secondary:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+    }
+
+    /* Two-Column Split Body (Canvas + Slide-out Inspector) */
+    .sources-content-layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .sources-scroll-canvas {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 36px 60px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header Block */
+    .sources-header-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 4px;
+    }
+    .sources-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sources-title-row h1 {
+      font-size: 32px;
+      font-weight: 900;
+      color: #090d16;
+      letter-spacing: -0.8px;
+      line-height: 1.2;
+    }
+
+    .group-tags-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .group-tags-label {
+      color: #64748b;
+      font-weight: 700;
+      font-size: 12.5px;
+    }
+    .group-tag-pill {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 9999px;
+    }
+
+    .sources-meta-stats-row {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-top: 2px;
+    }
+    .sources-stat-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .sources-stat-item strong {
+      font-weight: 800;
+      color: #090d16;
+      font-size: 14px;
+      margin-left: 2px;
+    }
+
+    /* Quick Ingestion Dropzone Banner */
+    .ingestion-dropzone-card {
+      background: #f8fafc;
+      border: 1.5px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ingestion-dropzone-card:hover {
+      background: #f0f7ff;
+      border-color: #2563eb;
+    }
+    .dropzone-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .dropzone-icon-box {
+      width: 40px;
+      height: 40px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #2563eb;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .dropzone-text h3 {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .dropzone-text p {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    /* Filter Tabs Bar */
+    .filter-tabs-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1.5px solid #f1f5f9;
+      padding-bottom: 8px;
+      margin-top: 4px;
+    }
+    .filter-btn-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filter-tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .filter-tab-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .filter-tab-btn.active {
+      background: #0f172a;
+      color: #ffffff;
+    }
+
+    /* High Density Sources Table */
+    .sources-table-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+    }
+    .sources-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 12.5px;
+    }
+    .sources-table th {
+      background: #f8fafc;
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .sources-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+    .sources-table tr:last-child td {
+      border-bottom: none;
+    }
+    .sources-table tr.table-row-item {
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .sources-table tr.table-row-item:hover {
+      background: #f8fafc;
+    }
+    .sources-table tr.table-row-item.selected {
+      background: #eff6ff;
+    }
+
+    /* Format Badge */
+    .format-badge {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .format-badge.sql { background: #f0f7ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .format-badge.pdf { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+    .format-badge.slack { background: #fdf4ff; color: #a21caf; border: 1px solid #f5d0fe; }
+    .format-badge.md { background: #f0fdf4; color: #047857; border: 1px solid #bbf7d0; }
+
+    /* Wiki Link Chip */
+    .wiki-link-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      background: #f0f7ff;
+      border: 1px solid #d0e4ff;
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+    .wiki-link-chip:hover {
+      background: #dbeafe;
+      border-color: #2563eb;
+    }
+
+    /* Status Pill */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 9999px;
+    }
+    .status-dot.completed { background: #10b981; }
+    .status-dot.processing { background: #2563eb; animation: pulse 1.2s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      font-weight: 800;
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+
+    .action-icon-btn {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      color: #334155;
+      padding: 3px 8px;
+      min-width: 28px;
+      height: 24px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.12s;
+    }
+    .action-icon-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-color: #94a3b8;
+    }
+
+    .source-action-dropdown-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .source-action-popover {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+      padding: 4px;
+      min-width: 175px;
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .source-action-popover.open {
+      display: flex;
+    }
+    .popover-item {
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      width: 100%;
+      transition: all 0.12s;
+    }
+    .popover-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .popover-item.danger {
+      color: #e11d48;
+    }
+    .popover-item.danger:hover {
+      background: #fff1f2;
+      color: #be123c;
+    }
+
+    /* Top-Right Toast Notification */
+    .toast-container {
+      position: fixed;
+      top: 18px;
+      right: 24px;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast-item {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+      animation: toastIn 0.2s ease-out;
+      pointer-events: auto;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* =========================================================================
+       3. 우측 슬라이드아웃 청크 인스펙터 (Chunk Inspector Slide-out)
+       ========================================================================= */
+    .chunk-inspector-panel {
+      width: 380px;
+      background: #f8fafc;
+      border-left: 1.5px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 20px;
+      gap: 16px;
+      transition: all 0.2s ease-in-out;
+    }
+    .inspector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .inspector-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .inspector-close-btn {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .inspector-close-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .inspector-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .inspector-card-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .chunk-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: #f8fafc;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.12s;
+      border: 1px solid transparent;
+    }
+    .chunk-item-row:hover {
+      background: #eff6ff;
+      color: #2563eb;
+    }
+    .chunk-item-row.active {
+      background: #eff6ff;
+      color: #2563eb;
+      border-color: #bfdbfe;
+      font-weight: 800;
+    }
+
+    .dark-code-console {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11.5px;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    /* =========================================================================
+       4. 소스 업로드 모달 (Source Upload Modal)
+       ========================================================================= */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .modal-backdrop.open {
+      display: flex;
+    }
+    .modal-container {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+      width: 520px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      animation: modalScale 0.15s ease-out;
+    }
+    @keyframes modalScale {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #090d16;
+    }
+    .modal-dropzone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 32px 20px;
+      text-align: center;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .modal-dropzone:hover {
+      background: #eff6ff;
+      border-color: #2563eb;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-root">
+    <!-- =======================================================================
+         1. 좌측 내비게이션 바 (LNB: '원문 소스' 활성 상태)
+         ======================================================================= -->
+    <aside class="nlb-sidebar">
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="nlb-ws-header">
+          <div class="nlb-ws-brand">
+            <div class="nlb-ws-logo">N</div>
+            <span class="nlb-ws-title">넥서스 SaaS 팀</span>
+          </div>
+          <svg class="svg-icon" style="color:#64748b; width:13px; height:13px;" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+
+        <div class="nlb-nav-group">
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span>즐겨찾기</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">3</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>최근 본 위키</span>
+            </div>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" style="color:#e11d48;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>미완성 백로그</span>
+            </div>
+            <span style="font-size:10.5px; color:#e11d48; font-weight:800;">7</span>
+          </button>
+          <button class="nlb-nav-btn active">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" style="color:#2563eb;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>
+              <span>원문 소스</span>
+            </div>
+            <span style="font-size:10.5px; color:#2563eb; font-weight:800;">18</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>템플릿 관리</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">5</span>
+          </button>
+        </div>
+
+        <div class="nlb-sec-title">
+          <span>팀 프로젝트</span>
+          <svg class="svg-icon" style="width:13px; height:13px; cursor:pointer;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+
+        <div class="nlb-project-node">
+          <div class="nlb-project-row">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <svg class="svg-icon" style="width:13px; height:13px; color:#2563eb;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              <span>엔지니어링 코어</span>
+            </div>
+            <span style="font-size:10.5px; color:#2563eb; font-weight:800;">4</span>
+          </div>
+
+          <div class="nlb-subgroup-list">
+            <div class="nlb-subgroup-item">
+              <span>백엔드 아키텍처</span>
+              <span style="font-size:10.5px; color:#94a3b8;">12</span>
+            </div>
+            <div class="nlb-subgroup-item">
+              <span>데이터베이스 & RLS</span>
+              <span style="font-size:10.5px; color:#94a3b8;">18</span>
+            </div>
+            <div class="nlb-subgroup-item">
+              <span>5채널 하이브리드 검색</span>
+              <span style="font-size:10.5px; color:#94a3b8;">8</span>
+            </div>
+            <div class="nlb-subgroup-item">
+              <span>잡 큐 & 워커 풀</span>
+              <span style="font-size:10.5px; color:#94a3b8;">4</span>
+            </div>
+            <button class="nlb-add-subgroup">
+              <svg class="svg-icon" style="width:11px; height:11px;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>위키 추가</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="nlb-sec-title">
+          <span>팀 관리</span>
+        </div>
+        <div class="nlb-team-admin-group">
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>팀원 & 역할 관리</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">8명</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <span>새 팀원 초대하기</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="nlb-footer">
+        <div class="nlb-user-box">
+          <div class="nlb-avatar">김</div>
+          <span style="font-size:12.5px; font-weight:800; color:#0f172a;">김개발</span>
+        </div>
+        <svg class="svg-icon" style="color:#64748b; cursor:pointer;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+    </aside>
+
+    <!-- =======================================================================
+         2. 메인 파이프라인 관리 캔버스
+         ======================================================================= -->
+    <main class="sources-main-wrapper">
+      <!-- Top Action Bar -->
+      <div class="sources-top-bar">
+        <div class="sources-breadcrumb">
+          <span>엔지니어링 코어</span>
+          <span style="color:#cbd5e1;">/</span>
+          <strong>원문 소스 관리</strong>
+        </div>
+        <button class="btn-pill primary" onclick="toggleUploadModal()">
+          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>+ 소스 업로드</span>
+        </button>
+      </div>
+
+      <!-- Content Split: Table Area + Slide-out Inspector -->
+      <div class="sources-content-layout">
+        <div class="sources-scroll-canvas">
+          <!-- Header Block -->
+          <div class="sources-header-block">
+            <div class="sources-title-row">
+              <h1>원문 소스 관리 & 임베딩 파이프라인</h1>
+            </div>
+
+            <div class="group-tags-row">
+              <span class="group-tags-label">지식 그룹:</span>
+              <span class="group-tag-pill">백엔드</span>
+              <span class="group-tag-pill">데이터</span>
+              <span class="group-tag-pill">보안</span>
+              <span class="group-tag-pill">운영</span>
+            </div>
+
+            <div class="sources-meta-stats-row">
+              <div class="sources-stat-item">
+                <svg class="svg-icon" style="color:#64748b; width:15px; height:15px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>
+                <span>총 등록 소스 <strong>18개 파일</strong></span>
+              </div>
+              <div class="sources-stat-item">
+                <svg class="svg-icon" style="color:#64748b; width:15px; height:15px;" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                <span>생성된 청크 <strong>42개 청크</strong></span>
+              </div>
+              <div class="sources-stat-item">
+                <svg class="svg-icon" style="color:#10b981; width:15px; height:15px;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>5채널 인덱싱 <strong>100% 정상 가동</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Dropzone Banner -->
+          <div class="ingestion-dropzone-card" onclick="toggleUploadModal()">
+            <div class="dropzone-left">
+              <div class="dropzone-icon-box">
+                <svg class="svg-icon" style="width:20px; height:20px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>
+              </div>
+              <div class="dropzone-text">
+                <h3>SQL DDL, 아키텍처 PDF, 마크다운, CSV 문서를 이곳으로 드래그하세요</h3>
+                <p>업로드 즉시 5채널 pgvector HNSW 임베딩과 tsvector GIN 인덱싱 파이프라인이 자동 실행됩니다.</p>
+              </div>
+            </div>
+            <button class="btn-pill secondary" style="font-size:11.5px;">파일 선택</button>
+          </div>
+
+          <!-- Filter Tabs Bar -->
+          <div class="filter-tabs-row">
+            <div class="filter-btn-group">
+              <button class="filter-tab-btn active">전체 (18)</button>
+              <button class="filter-tab-btn">SQL 스크립트 (8)</button>
+              <button class="filter-tab-btn">PDF 문서 (5)</button>
+              <button class="filter-tab-btn">마크다운 (3)</button>
+              <button class="filter-tab-btn">CSV/JSON (2)</button>
+            </div>
+            <div style="font-size:11.5px; color:#64748b; font-weight:700;">
+              자동 재인덱싱 활성화됨
+            </div>
+          </div>
+
+          <!-- High-Density Data Table -->
+          <div class="sources-table-card">
+            <table class="sources-table">
+              <thead>
+                <tr>
+                  <th style="width:30%;">소스 파일명</th>
+                  <th style="width:32%;">연결된 위키 문서</th>
+                  <th style="width:14%;">청크 수</th>
+                  <th style="width:14%;">인덱싱 상태</th>
+                  <th style="width:10%; text-align:right;">액션</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Row 1 (Selected) -->
+                <tr class="table-row-item selected" onclick="selectRow(this, '0004_rls_security_spine.sql', 'SQL', '18.4 KB', '테넌트 격리 및 RLS 보안 스파인', '12')">
+                  <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="format-badge sql">SQL</span>
+                      <div>
+                        <strong style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#0f172a;">0004_rls_security_spine.sql</strong>
+                        <div style="font-size:10.5px; color:#94a3b8; font-weight:600;">18.4 KB · 1시간 전</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="wiki-link-chip">📘 테넌트 격리 및 RLS 보안 스파인</span>
+                  </td>
+                  <td>
+                    <span style="font-family:'JetBrains Mono', monospace; font-weight:700;">12개 청크</span>
+                  </td>
+                  <td>
+                    <div class="status-pill">
+                      <span class="status-dot completed"></span>
+                      <span style="color:#059669;">인덱싱 완료</span>
+                    </div>
+                  </td>
+                  <td style="text-align:right;">
+                    <div class="source-action-dropdown-wrap">
+                      <button class="action-icon-btn" title="더보기" onclick="toggleRowMenu(event, this)">···</button>
+                      <div class="source-action-popover">
+                        <button class="popover-item" onclick="downloadSource('0004_rls_security_spine.sql')">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          <span>원본 파일 다운로드</span>
+                        </button>
+                        <button class="popover-item danger" onclick="openDeleteModal('0004_rls_security_spine.sql', '테넌트 격리 및 RLS 보안 스파인', 2)">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <span>소스 영구 삭제</span>
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Row 2 -->
+                <tr class="table-row-item" onclick="selectRow(this, 'database_schema_v2.sql', 'SQL', '45.2 KB', '복합 외래키 전파 규칙', '18')">
+                  <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="format-badge sql">SQL</span>
+                      <div>
+                        <strong style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#0f172a;">database_schema_v2.sql</strong>
+                        <div style="font-size:10.5px; color:#94a3b8; font-weight:600;">45.2 KB · 3시간 전</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="wiki-link-chip">📘 복합 외래키 전파 규칙</span>
+                  </td>
+                  <td>
+                    <span style="font-family:'JetBrains Mono', monospace; font-weight:700;">18개 청크</span>
+                  </td>
+                  <td>
+                    <div class="status-pill">
+                      <span class="status-dot completed"></span>
+                      <span style="color:#059669;">인덱싱 완료</span>
+                    </div>
+                  </td>
+                  <td style="text-align:right;">
+                    <div class="source-action-dropdown-wrap">
+                      <button class="action-icon-btn" title="더보기" onclick="toggleRowMenu(event, this)">···</button>
+                      <div class="source-action-popover">
+                        <button class="popover-item" onclick="downloadSource('database_schema_v2.sql')">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          <span>원본 파일 다운로드</span>
+                        </button>
+                        <button class="popover-item danger" onclick="openDeleteModal('database_schema_v2.sql', '복합 외래키 전파 규칙', 1)">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <span>소스 영구 삭제</span>
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Row 3 -->
+                <tr class="table-row-item" onclick="selectRow(this, 'cache_strategy_rfp.pdf', 'PDF', '1.2 MB', '캐시 계층 전략 (미완성 백로그)', '6')">
+                  <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="format-badge pdf">PDF</span>
+                      <div>
+                        <strong style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#0f172a;">cache_strategy_rfp.pdf</strong>
+                        <div style="font-size:10.5px; color:#94a3b8; font-weight:600;">1.2 MB · 5시간 전</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="wiki-link-chip" style="background:#fff5f5; border-color:#fecdd3; color:#9f1239;">⭕ 작성 대기 · 캐시 계층 전략</span>
+                  </td>
+                  <td>
+                    <span style="font-family:'JetBrains Mono', monospace; font-weight:700;">6개 청크</span>
+                  </td>
+                  <td>
+                    <div class="status-pill">
+                      <span class="status-dot completed"></span>
+                      <span style="color:#059669;">인덱싱 완료</span>
+                    </div>
+                  </td>
+                  <td style="text-align:right;">
+                    <div class="source-action-dropdown-wrap">
+                      <button class="action-icon-btn" title="더보기" onclick="toggleRowMenu(event, this)">···</button>
+                      <div class="source-action-popover">
+                        <button class="popover-item" onclick="downloadSource('cache_strategy_rfp.pdf')">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          <span>원본 파일 다운로드</span>
+                        </button>
+                        <button class="popover-item danger" onclick="openDeleteModal('cache_strategy_rfp.pdf', '캐시 계층 전략', 1)">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <span>소스 영구 삭제</span>
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Row 4 -->
+                <tr class="table-row-item" onclick="selectRow(this, 'slack_incident_thread_2026.csv', 'SLACK', '88.0 KB', '5채널 하이브리드 검색', '6')">
+                  <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="format-badge slack">SLACK</span>
+                      <div>
+                        <strong style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#0f172a;">slack_incident_thread_2026.csv</strong>
+                        <div style="font-size:10.5px; color:#94a3b8; font-weight:600;">88.0 KB · 방금 전</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="wiki-link-chip">📘 5채널 하이브리드 검색</span>
+                  </td>
+                  <td>
+                    <span style="font-family:'JetBrains Mono', monospace; font-weight:700;">6개 청크</span>
+                  </td>
+                  <td>
+                    <div class="status-pill">
+                      <span class="status-dot processing"></span>
+                      <span style="color:#2563eb;">처리 중 (92%)</span>
+                    </div>
+                  </td>
+                  <td style="text-align:right;">
+                    <div class="source-action-dropdown-wrap">
+                      <button class="action-icon-btn" title="더보기" onclick="toggleRowMenu(event, this)">···</button>
+                      <div class="source-action-popover">
+                        <button class="popover-item" onclick="downloadSource('slack_incident_thread_2026.csv')">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          <span>원본 파일 다운로드</span>
+                        </button>
+                        <button class="popover-item danger" onclick="openDeleteModal('slack_incident_thread_2026.csv', '5채널 하이브리드 검색', 1)">
+                          <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <span>소스 영구 삭제</span>
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right Slide-out Chunk Inspector -->
+        <aside id="chunk-inspector" class="chunk-inspector-panel">
+          <div class="inspector-header">
+            <div class="inspector-title">
+              <svg class="svg-icon" style="color:#2563eb;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>청크 인스펙터</span>
+            </div>
+            <button class="inspector-close-btn" onclick="closeInspector()">✕</button>
+          </div>
+
+          <!-- File Info Card -->
+          <div class="inspector-card">
+            <div class="inspector-card-title">선택된 소스 파일</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span id="inspect-format" class="format-badge sql">SQL</span>
+              <strong id="inspect-filename" style="font-family:'JetBrains Mono', monospace; font-size:12px; color:#0f172a;">0004_rls_security_spine.sql</strong>
+            </div>
+            <div style="font-size:11.5px; color:#64748b; font-weight:600; margin-top:2px;">
+              연결된 위키: <span id="inspect-wiki" class="wiki-link-chip" style="margin-left:4px;">📘 테넌트 격리 및 RLS 보안 스파인</span>
+            </div>
+          </div>
+
+          <!-- Chunk List -->
+          <div class="inspector-card">
+            <div class="inspector-card-title" style="display:flex; justify-content:space-between;">
+              <span>분할된 청크 목록</span>
+              <span id="inspect-chunk-count" style="color:#2563eb;">총 12개</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div class="chunk-item-row active">
+                <span>청크 #12 (RLS 격리 정책)</span>
+                <span style="font-size:10px; color:#94a3b8; font-family:'JetBrains Mono';">1,420–1,890 char</span>
+              </div>
+              <div class="chunk-item-row">
+                <span>청크 #11 (복합 외래키 DDL)</span>
+                <span style="font-size:10px; color:#94a3b8; font-family:'JetBrains Mono';">1,020–1,419 char</span>
+              </div>
+              <div class="chunk-item-row">
+                <span>청크 #10 (테이블 인덱스 정의)</span>
+                <span style="font-size:10px; color:#94a3b8; font-family:'JetBrains Mono';">640–1,019 char</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Chunk Code View -->
+          <div class="inspector-card">
+            <div class="inspector-card-title">청크 #12 원문 코드 발췌</div>
+            <div class="dark-code-console">
+              <code>-- Enable Row Level Security
+ALTER TABLE "workspace_members" 
+ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "members_isolation" 
+ON "workspace_members"
+FOR ALL USING (workspace_id = 
+current_setting('request.jwt.claim.workspace_id', true)::uuid);</code>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+              <span style="font-size:10.5px; color:#64748b; font-weight:700;">토큰 수: 142 tokens</span>
+              <button class="btn-pill secondary" style="font-size:10.5px; padding:2px 8px;">원문 파일 열기 ↗</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <!-- Upload Modal -->
+  <div id="upload-modal" class="modal-backdrop">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>새 엔지니어링 소스 업로드</h2>
+        <button class="inspector-close-btn" onclick="toggleUploadModal()">✕</button>
+      </div>
+      <div class="modal-dropzone" onclick="alert('파일 선택 창이 열립니다.')">
+        <svg class="svg-icon" style="width:32px; height:32px; color:#2563eb;" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>
+        <strong style="font-size:14px; color:#0f172a;">파일을 여기에 드래그하거나 클릭하여 선택</strong>
+        <span style="font-size:11.5px; color:#64748b;">지원 파일: .sql, .pdf, .md, .csv, .json (최대 50MB)</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:12px; font-weight:700; color:#334155;">귀속될 위키 그룹 선택</label>
+        <select style="padding:8px 10px; border-radius:8px; border:1px solid #cbd5e1; font-size:12.5px; font-weight:700; color:#0f172a; outline:none;">
+          <option>엔지니어링 코어 / 데이터베이스 & RLS</option>
+          <option>엔지니어링 코어 / 백엔드 아키텍처</option>
+          <option>엔지니어링 코어 / 5채널 하이브리드 검색</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-pill secondary" onclick="toggleUploadModal()">취소</button>
+        <button class="btn-pill primary" onclick="toggleUploadModal()">업로드 및 인덱싱 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Impact Warning Modal -->
+  <div id="delete-modal" class="modal-backdrop">
+    <div class="modal-container" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="width:28px; height:28px; border-radius:6px; background:#fff1f2; color:#e11d48; display:flex; align-items:center; justify-content:center;">
+            <svg class="svg-icon" style="width:15px; height:15px;" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h2 style="font-size:16px;">원문 소스 영구 삭제</h2>
+        </div>
+        <button class="inspector-close-btn" onclick="toggleDeleteModal()">✕</button>
+      </div>
+      <div style="font-size:13px; color:#334155; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
+        <p>
+          <strong id="delete-target-file" style="color:#0f172a; font-family:'JetBrains Mono';">0004_rls_security_spine.sql</strong> 파일을 영구 삭제하시겠습니까?
+        </p>
+        <div style="background:#fff5f5; border:1px solid #fecdd3; border-radius:8px; padding:10px 12px; color:#9f1239; font-size:12px;">
+          <div style="font-weight:800; display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+            ⚠️ 인용 영향도 알림
+          </div>
+          <div>
+            현재 <strong id="delete-impact-count">2개 위키 문서</strong>(<span id="delete-impact-wiki">📘 테넌트 격리 및 RLS 보안 스파인</span> 등)가 이 소스를 인용 중입니다.
+          </div>
+          <div style="margin-top:4px; font-size:11.5px; opacity:0.9;">
+            삭제 시 해당 인용 칩은 즉시 <strong>'작성 대기 백로그(Red-link)'</strong>로 자동 전환됩니다.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-pill secondary" onclick="toggleDeleteModal()">취소</button>
+        <button class="btn-pill" style="background:#e11d48; color:#ffffff; font-weight:800;" onclick="confirmDelete()">영구 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    function toggleUploadModal() {
+      const modal = document.getElementById('upload-modal');
+      modal.classList.toggle('open');
+    }
+
+    function toggleDeleteModal() {
+      const modal = document.getElementById('delete-modal');
+      modal.classList.toggle('open');
+    }
+
+    let pendingDeleteFile = '';
+
+    function openDeleteModal(filename, wikiName, count) {
+      closeAllMenus();
+      pendingDeleteFile = filename;
+      document.getElementById('delete-target-file').innerText = filename;
+      document.getElementById('delete-impact-count').innerText = count + '개 위키 문서';
+      document.getElementById('delete-impact-wiki').innerText = '📘 ' + wikiName;
+      toggleDeleteModal();
+    }
+
+    function confirmDelete() {
+      toggleDeleteModal();
+      showToast(`${pendingDeleteFile} 파일이 영구 삭제되었습니다. 관련 인용이 백로그로 전환되었습니다.`);
+    }
+
+    function downloadSource(filename) {
+      closeAllMenus();
+      showToast(`${filename} 원본 파일 다운로드가 시작되었습니다.`);
+    }
+
+    function toggleRowMenu(event, btn) {
+      event.stopPropagation();
+      const popover = btn.nextElementSibling;
+      const isOpen = popover.classList.contains('open');
+      closeAllMenus();
+      if (!isOpen) {
+        popover.classList.add('open');
+      }
+    }
+
+    function closeAllMenus() {
+      document.querySelectorAll('.source-action-popover').forEach(p => p.classList.remove('open'));
+    }
+
+    document.addEventListener('click', () => {
+      closeAllMenus();
+    });
+
+    function closeInspector() {
+      const panel = document.getElementById('chunk-inspector');
+      panel.style.display = 'none';
+    }
+
+    function selectRow(rowEl, filename, format, size, wiki, chunkCount) {
+      document.querySelectorAll('.table-row-item').forEach(r => r.classList.remove('selected'));
+      rowEl.classList.add('selected');
+
+      const panel = document.getElementById('chunk-inspector');
+      panel.style.display = 'flex';
+
+      document.getElementById('inspect-filename').innerText = filename;
+      document.getElementById('inspect-wiki').innerText = '📘 ' + wiki;
+      document.getElementById('inspect-chunk-count').innerText = '총 ' + chunkCount + '개';
+
+      const fmtBadge = document.getElementById('inspect-format');
+      fmtBadge.className = 'format-badge ' + format.toLowerCase();
+      fmtBadge.innerText = format;
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast-item';
+      toast.innerHTML = `
+        <svg class="svg-icon" style="color:#60a5fa; width:13px; height:13px;" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span>${msg}</span>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.2s';
+        setTimeout(() => toast.remove(), 200);
+      }, 2500);
+    }
+  </script>
+</body>
+</html>

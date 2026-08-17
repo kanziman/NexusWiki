@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusWiki — 데이터베이스 &amp; RLS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nexuswiki-design-system.css">
+<style>
+/* 워크스페이스 홈 전용 스타일.
+   토큰·셸·버튼·배지·모달은 nexuswiki-design-system.css 소관이므로 여기 없다. */
+
+/* 콘텐츠 캔버스 */
+.workspace{min-width:0;display:flex;flex-direction:column;min-height:100vh}
+.content{width:min(1120px,100%);margin:0 auto;padding:46px 42px 58px}
+
+/* 지식 그룹 헤더 */
+.context{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.title-row{display:flex;align-items:center;gap:9px}
+.title-row h1{margin:0;font:800 clamp(27px,3vw,38px)/1.12 var(--font-display);letter-spacing:-1.4px}
+.context p{margin:10px 0 0;color:var(--muted);font-size:14px}
+.star{width:33px;height:33px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted);display:grid;place-items:center}
+.star:hover,.star.is-on{color:var(--fg);background:var(--surface)}
+.star svg{width:19px;height:19px;stroke:currentColor;fill:none}
+.star.is-on svg{fill:currentColor}
+
+/* 현황 요약 — 공용 .stats/.stat 위에 이 화면의 여백만 얹는다 */
+.stats{margin:31px 0 28px}
+
+/* 질문 입력 카드 */
+.ask{border:1px solid var(--border);border-radius:14px;background:var(--bg);box-shadow:var(--shadow);padding:18px 19px 14px}
+.ask:focus-within{border-color:var(--accent);box-shadow:0 18px 46px oklch(.58 .11 190/.14)}
+.ask-main{display:flex;align-items:flex-start;gap:11px}
+.ask-main svg{width:20px;height:20px;margin-top:2px;flex:none;color:var(--muted);stroke:currentColor;fill:none;stroke-width:1.8}
+.ask textarea{resize:none;border:0;outline:0;width:100%;min-height:52px;background:transparent;color:var(--fg);font-size:16px;line-height:1.55}
+.ask textarea::placeholder{color:oklch(.70 .02 258)}
+.ask-bottom{border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+
+/* 검색 범위 선택 */
+.scope-wrap{position:relative}
+.scope{display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:7px;padding:7px 9px;background:var(--surface);color:var(--fg);font-size:11px;font-weight:700}
+.scope:hover{background:var(--bg)}
+.scope-dot{width:6px;height:6px;border-radius:50%;background:var(--fg)}
+.scope-menu{display:none;position:absolute;left:0;bottom:calc(100% + 8px);z-index:4;width:260px;padding:5px;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
+.scope-menu.open{display:grid;gap:2px}
+.scope-option{border:0;background:transparent;color:var(--fg);border-radius:6px;text-align:left;padding:9px;display:grid;gap:2px}
+.scope-option:hover{background:var(--surface)}
+.scope-option b{font-size:12px}
+.scope-option span{color:var(--muted);font-size:11px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
+
+/* 문서 목록 2열 */
+.sections{display:grid;grid-template-columns:minmax(0,1.16fr) minmax(280px,.84fr);gap:42px;margin-top:48px}
+.section-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:11px;margin-bottom:4px}
+.section-head h2{margin:0;font:800 15px var(--font-display);letter-spacing:-.3px}
+.section-head h2 span{font:600 11px var(--font-mono);color:var(--muted);margin-left:6px}
+.doc-list{display:grid}
+.doc{display:flex;align-items:center;gap:12px;width:100%;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--fg);text-align:left;padding:15px 2px}
+.doc:hover{padding-left:8px;padding-right:8px;background:var(--surface)}
+.doc-body{display:grid;gap:5px;min-width:0;flex:1}
+.doc-title{font-size:13px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc svg{width:16px;height:16px;flex:none;color:var(--muted);stroke:currentColor;fill:none;stroke-width:1.8}
+
+/* 작성 대기 백로그 */
+.backlog .doc{align-items:flex-start}
+.backlog .doc-title:before{content:"작성 대기";font:600 9px var(--font-mono);letter-spacing:.03em;color:var(--danger);margin-right:7px}
+.backlog .doc:last-child{border-bottom:0}
+.source-line{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:28px;padding:16px;border:1px dashed var(--border-strong);border-radius:10px;background:var(--surface)}
+.source-line b{display:block;font-size:12px}
+.source-line span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+
+/* 소스 추가 모달 — 공용 .modal 보다 좁게 */
+.modal{width:min(470px,100%)}
+.modal label{display:grid;gap:7px;color:var(--fg);font-size:12px;font-weight:750}
+
+@media(max-width:900px){
+  .content{padding:32px 20px}
+  .top-actions .button:first-child{display:none}
+  .stats{overflow:auto}
+  .stat{min-width:126px}
+  .sections{grid-template-columns:1fr;gap:34px}
+  .context{display:block}
+  .context p{max-width:42rem}
+  .ask-bottom{align-items:flex-end}
+  .scope{max-width:190px;text-align:left}
+  .scope span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doc-title,.doc-meta{white-space:normal}
+}
+@media(max-width:640px){
+  .crumb strong{font-size:12px;max-width:174px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-actions .button.primary{display:none}
+  .content{padding:27px 16px 42px}
+  .eyebrow{font-size:9px;margin-bottom:8px}
+  .title-row h1{font-size:27px;letter-spacing:-1px}
+  .context p{font-size:13px;line-height:1.6}
+  .stats{display:grid;grid-template-columns:1fr 1fr;margin:24px 0;overflow:visible}
+  .stat{min-width:0;margin:0;padding:12px 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .stat:last-child{border-right:0}
+  .stat:nth-child(even){border-right:0}
+  .stat:nth-last-child(-n+2){border-bottom:0}
+  .stat b{font-size:14px}
+  .ask{padding:15px 14px 13px;border-radius:14px}
+  .ask-main svg{display:none}
+  .ask textarea{min-height:78px;font-size:15px}
+  .ask-bottom{display:grid;grid-template-columns:1fr;gap:9px;align-items:stretch}
+  .scope-wrap,.scope{width:100%}
+  .scope{min-height:44px;max-width:none;justify-content:flex-start}
+  .scope-menu{position:fixed;left:16px;right:16px;bottom:16px;width:auto}
+  .scope-option{padding:12px}
+  .chips{display:grid;grid-template-columns:1fr;margin-top:11px}
+  .chip{text-align:left;padding:9px 11px;min-height:44px}
+  .sections{margin-top:34px;gap:30px}
+  .section-head{padding-bottom:9px}
+  .doc{padding:14px 2px;gap:8px}
+  .doc:hover{padding-left:2px;padding-right:2px}
+  .doc-title{font-size:12px}
+  .doc-meta{font-size:10px;line-height:1.5}
+  .source-line{padding:14px;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<div class="app" data-od-id="nexuswiki-workspace">
+  <aside class="sidebar" data-od-id="primary-navigation">
+    <button class="switcher" data-od-id="workspace-switcher" aria-label="워크스페이스 전환">
+      <span class="switcher-mark">N</span><span class="switcher-name">넥서스 SaaS 팀</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <nav class="nav-stack" aria-label="주요 메뉴">
+      <button class="nav-item" aria-label="즐겨찾기"><svg class="nav-icon" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기</button>
+      <button class="nav-item" aria-label="최근 본 위키"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button>
+      <button class="nav-item" aria-label="미완성 백로그"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>미완성 백로그 <span class="count">03</span></button>
+      <button class="nav-item" aria-label="원문 소스"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">42</span></button>
+
+      <div class="nav-label"><span>카테고리</span></div>
+      <button class="nav-item" data-category="concepts" aria-label="개념"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>개념 <span class="count">07</span></button>
+      <button class="nav-item" data-category="entities" aria-label="대상"><svg class="nav-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/><path d="M11 7.5h4a2 2 0 0 1 2 2V13"/></svg>대상 <span class="count">05</span></button>
+      <button class="nav-item" data-category="guides" aria-label="가이드"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5Z"/></svg>가이드 <span class="count">04</span></button>
+      <button class="nav-item" data-category="maps" aria-label="지도"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 3 6-2.5v-13L15 7Z"/><path d="M9 4v13m6-10v13"/></svg>지도 <span class="count">02</span></button>
+
+      <div class="nav-label"><span>팀 관리</span></div>
+      <button class="nav-item" aria-label="팀원 & 역할 관리"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 역할 관리 <span class="count">08</span></button>
+    </nav>
+    <div class="profile" data-od-id="user-profile">
+      <div class="avatar">김</div>
+      <div class="profile-text"><strong>김개발</strong><span>엔지니어링</span></div>
+      <button class="icon-btn" aria-label="설정"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="workspace" data-od-id="workspace-home">
+    <header class="topbar" data-od-id="workspace-topbar">
+      <div class="crumb"><strong>넥서스 SaaS 팀</strong></div>
+      <div class="top-actions">
+        <button class="button" id="openSource" data-od-id="add-source-button">소스 추가</button>
+        <button class="button primary" id="askTop" data-od-id="ask-top-button">질문 시작</button>
+        <button class="mobile-nav-button" id="mobileMenu" data-od-id="mobile-menu-button" aria-label="메뉴 열기">메뉴</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <section class="context" data-od-id="workspace-header">
+        <div>
+          <p class="eyebrow">워크스페이스</p>
+          <div class="title-row">
+            <h1 data-od-id="workspace-title">넥서스 SaaS 팀</h1>
+            <button class="star" id="favorite" data-od-id="favorite-control" aria-label="즐겨찾기에 추가"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg></button>
+          </div>
+          <p>연결한 원문과 컴파일된 위키를 한곳에서 질문하고, 비어 있는 지식을 확인합니다.</p>
+        </div>
+      </section>
+
+      <section class="stats" data-od-id="workspace-summary" aria-label="워크스페이스 현황">
+        <div class="stat"><b>18</b><span>컴파일된 문서</span></div>
+        <div class="stat"><b>42</b><span>연결된 원문 소스</span></div>
+        <div class="stat"><b>03</b><span>작성 대기 항목</span></div>
+        <div class="stat"><b>1시간 전</b><span>최종 업데이트</span></div>
+      </section>
+
+      <section class="ask" data-od-id="workspace-question">
+        <div class="ask-main">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.1 4.1"/></svg>
+          <textarea id="question" aria-label="질문 입력" placeholder="이 워크스페이스에 질문하세요. 예: 테넌트 격리를 보장하는 RLS 정책의 핵심 원칙은 무엇인가요?"></textarea>
+        </div>
+        <div class="ask-bottom">
+          <div class="scope-wrap">
+            <button class="scope" id="scopeTrigger" data-od-id="search-scope-control"><i class="scope-dot"></i><span id="scopeText">워크스페이스 전체</span>⌄</button>
+            <div class="scope-menu" id="scopeMenu" role="menu">
+              <button class="scope-option" data-scope="워크스페이스 전체"><b>워크스페이스 전체</b><span>모든 팀 지식에서 검색</span></button>
+              <button class="scope-option" data-scope="개념 카테고리"><b>개념 카테고리</b><span>선택한 카테고리 문서로 한정</span></button>
+              <button class="scope-option" data-scope="현재 문서 주변"><b>현재 문서 주변</b><span>이 문서와 링크로 이어진 문서만</span></button>
+            </div>
+          </div>
+          <button class="button primary" id="submitQuestion" data-od-id="submit-question-button">질문하기 <span>↗</span></button>
+        </div>
+      </section>
+
+      <div class="chips" data-od-id="suggested-questions">
+        <button class="chip">PostgreSQL RLS 격리 규칙 요약</button><button class="chip">복합 외래키 전파 규칙</button><button class="chip">캐시 계층 전략의 누락 항목</button>
+      </div>
+
+      <div class="sections">
+        <section data-od-id="compiled-wiki-section">
+          <div class="section-head"><h2>컴파일된 위키 문서 <span>18</span></h2><button class="text-button" data-od-id="view-all-documents">전체 보기 →</button></div>
+          <div class="doc-list">
+            <button class="doc" data-od-id="wiki-document-tenant-rls"><div class="doc-body"><span class="doc-title">테넌트 격리 및 RLS 보안 스파인</span><span class="doc-meta">대상 · 원문 2개 인용 · <b class="badge verified">검증 완료</b></span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-foreign-key"><div class="doc-body"><span class="doc-title">복합 외래키 전파 규칙</span><span class="doc-meta">개념 · 1시간 전 컴파일</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-vector-index"><div class="doc-body"><span class="doc-title">벡터 인덱스와 HNSW iterative_scan</span><span class="doc-meta">가이드 · 원문 3개 인용</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-migration"><div class="doc-body"><span class="doc-title">마이그레이션 롤백 운영 원칙</span><span class="doc-meta">가이드 · 2일 전 컴파일</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+        </section>
+
+        <section class="backlog" data-od-id="writing-backlog-section">
+          <div class="section-head"><h2>작성 대기 백로그 <span>03</span></h2><button class="text-button" data-od-id="view-all-backlog">전체 보기 →</button></div>
+          <div class="doc-list">
+            <button class="doc" data-od-id="backlog-cache-layer"><div class="doc-body"><span class="doc-title">캐시 계층 전략</span><span class="doc-meta">위키 4곳에서 인용됨 · 원본 소스 연결 필요</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="backlog-sharding"><div class="doc-body"><span class="doc-title">DB 샤딩 로드맵</span><span class="doc-meta">위키 2곳에서 인용됨 · 초안 템플릿 있음</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="backlog-audit-log"><div class="doc-body"><span class="doc-title">감사 로그 보존 정책</span><span class="doc-meta">보안 검토 요청 · 담당자 미지정</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+          <div class="source-line" data-od-id="source-connection-callout"><div><b>새 원문으로 지식 업데이트</b><span>문서, 링크 또는 저장소 파일을 연결할 수 있습니다.</span></div><button class="text-button strong" id="openSourceInline">소스 연결</button></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="mobile-scrim" id="mobileScrim" aria-hidden="true"></div>
+
+<div class="modal-backdrop" id="sourceModal" data-od-id="add-source-dialog" role="dialog" aria-modal="true" aria-labelledby="sourceTitle">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="sourceTitle">원문 소스 추가</h2><p>연결할 문서나 URL을 입력하면 지식 그룹에 포함됩니다.</p></div><button class="icon-btn" id="closeSource" aria-label="닫기">×</button></div>
+    <label>소스 URL 또는 경로<input class="field" id="sourceInput" placeholder="https:// 또는 파일 경로"></label>
+    <div class="modal-foot"><button class="button" id="cancelSource">취소</button><button class="button primary" id="saveSource">연결하기</button></div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const question=$("#question"), askTop=$("#askTop"), submit=$("#submitQuestion");
+function focusQuestion(){question.focus();question.scrollTop=0}
+askTop.addEventListener("click",focusQuestion);
+submit.addEventListener("click",()=>{if(!question.value.trim()){focusQuestion();return} submit.textContent="질문 준비됨";setTimeout(()=>submit.innerHTML="질문하기 <span>↗</span>",1400)});
+document.querySelectorAll(".chip").forEach(chip=>chip.addEventListener("click",()=>{question.value=chip.textContent;focusQuestion()}));
+
+const scopeTrigger=$("#scopeTrigger"),scopeMenu=$("#scopeMenu");
+scopeTrigger.addEventListener("click",e=>{e.stopPropagation();scopeMenu.classList.toggle("open")});
+document.querySelectorAll(".scope-option").forEach(option=>option.addEventListener("click",()=>{$("#scopeText").textContent=option.dataset.scope;scopeMenu.classList.remove("open")}));
+document.addEventListener("click",()=>scopeMenu.classList.remove("open"));
+
+
+$("#favorite").addEventListener("click",e=>{e.currentTarget.classList.toggle("is-on");e.currentTarget.setAttribute("aria-label",e.currentTarget.classList.contains("is-on")?"즐겨찾기에서 제거":"즐겨찾기에 추가")});
+
+const sidebar=$(".sidebar"),mobileMenu=$("#mobileMenu"),mobileScrim=$("#mobileScrim");
+function closeMobileMenu(){sidebar.classList.remove("mobile-open");mobileScrim.classList.remove("show");mobileMenu.setAttribute("aria-label","메뉴 열기")}
+mobileMenu.addEventListener("click",()=>{const open=sidebar.classList.toggle("mobile-open");mobileScrim.classList.toggle("show",open);mobileMenu.setAttribute("aria-label",open?"메뉴 닫기":"메뉴 열기")});
+mobileScrim.addEventListener("click",closeMobileMenu);
+sidebar.querySelectorAll("button").forEach(button=>button.addEventListener("click",()=>{if(matchMedia("(max-width:640px)").matches)closeMobileMenu()}));
+
+const modal=$("#sourceModal"),input=$("#sourceInput");
+function openModal(){modal.classList.add("open");setTimeout(()=>input.focus(),20)}
+function closeModal(){modal.classList.remove("open")}
+$("#openSource").addEventListener("click",openModal);$("#openSourceInline").addEventListener("click",openModal);
+$("#closeSource").addEventListener("click",closeModal);$("#cancelSource").addEventListener("click",closeModal);
+$("#saveSource").addEventListener("click",()=>{if(input.value.trim())closeModal();else input.focus()});
+modal.addEventListener("click",e=>{if(e.target===modal)closeModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
+</script>
+</body>
+</html>

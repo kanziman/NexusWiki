@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>넥서스위키(NexusWiki) - 컴파일된 위키 문서 리더 & 출처 역추적 뷰어 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Pretendard", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      color: #0f172a;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* SVG Icon Helpers */
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      vertical-align: -2px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* App Root Grid: LNB + Main Workspace Area */
+    .app-root {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      height: 100vh;
+    }
+
+    /* =========================================================================
+       1. 좌측 내비게이션 바 (LNB: Screen 1, Screen 2와 완벽 일치)
+       ========================================================================= */
+    .nlb-sidebar {
+      background: #f8fafc;
+      border-right: 1.5px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 16px 12px;
+      gap: 16px;
+    }
+
+    .nlb-ws-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: all 0.12s;
+    }
+    .nlb-ws-header:hover {
+      border-color: #cbd5e1;
+    }
+    .nlb-ws-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nlb-ws-logo {
+      width: 24px;
+      height: 24px;
+      background: #2563eb;
+      color: #ffffff;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .nlb-ws-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+
+    .nlb-sec-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 8px 4px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nlb-nav-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nlb-nav-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.12s;
+      border: none;
+      background: transparent;
+      width: 100%;
+    }
+    .nlb-nav-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .nlb-btn-left {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .nlb-project-node {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-bottom: 4px;
+    }
+    .nlb-project-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .nlb-project-row:hover {
+      background: #f1f5f9;
+    }
+
+    .nlb-subgroup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-left: 14px;
+      margin-left: 12px;
+      border-left: 2px solid #e2e8f0;
+      margin-top: 2px;
+    }
+    .nlb-subgroup-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .nlb-subgroup-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .nlb-subgroup-item.active {
+      background: #eff6ff;
+      color: #2563eb;
+      font-weight: 800;
+    }
+    .nlb-add-subgroup {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #64748b;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      margin-top: 2px;
+    }
+    .nlb-add-subgroup:hover {
+      color: #2563eb;
+    }
+
+    .nlb-team-admin-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nlb-footer {
+      border-top: 1.5px solid #e2e8f0;
+      padding-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nlb-user-box {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+    }
+    .nlb-avatar {
+      width: 26px;
+      height: 26px;
+      background: #e2e8f0;
+      color: #0f172a;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11.5px;
+      font-weight: 800;
+    }
+
+    /* =========================================================================
+       2. 메인 위키 리더 레이아웃 (중앙 본문 독서 캔버스 + 우측 사이드바)
+       ========================================================================= */
+    .reader-main-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #ffffff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top Sticky Action Bar */
+    .reader-top-bar {
+      padding: 12px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #f1f5f9;
+      background: #ffffff;
+      z-index: 10;
+    }
+    .reader-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .reader-breadcrumb strong {
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    /* Action Buttons */
+    .btn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-pill.primary {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+    }
+    .btn-pill.primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-pill.secondary {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+    .btn-pill.secondary:hover {
+      background: #f8fafc;
+    }
+
+    /* Two-Column Reader Split Body */
+    .reader-content-layout {
+      display: grid;
+      grid-template-columns: 1fr 290px;
+      flex: 1;
+      overflow-y: auto;
+      height: calc(100vh - 53px);
+      transition: all 0.2s ease;
+    }
+    .reader-content-layout.toc-collapsed {
+      grid-template-columns: 1fr 0px;
+    }
+    .reader-content-layout.toc-collapsed .reader-sidebar {
+      display: none;
+    }
+
+    /* Reading Canvas */
+    .reading-canvas-area {
+      padding: 32px 48px 80px 48px;
+      max-width: 860px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Document Title Block */
+    .doc-header-block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 20px;
+      border-bottom: 1.5px solid #f1f5f9;
+    }
+    .doc-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .doc-title-row h1 {
+      font-size: 34px;
+      font-weight: 900;
+      color: #090d16;
+      letter-spacing: -0.8px;
+      line-height: 1.2;
+    }
+    .star-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      padding: 2px;
+    }
+    .star-btn:hover {
+      color: #f59e0b;
+      transform: scale(1.12);
+    }
+
+    .doc-governance-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      font-weight: 800;
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+      padding: 2px 8px;
+      border-radius: 9999px;
+    }
+
+    .group-tag-pill {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 9999px;
+    }
+
+    .doc-meta-strip {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 12.5px;
+      color: #475569;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .doc-meta-strip strong {
+      color: #090d16;
+      font-weight: 800;
+    }
+
+    /* Structured Markdown Prose */
+    .prose-body {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      color: #334155;
+      font-size: 15px;
+      line-height: 1.8;
+    }
+    .prose-body h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.4px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 6px;
+      margin-top: 16px;
+    }
+    .prose-body h3 {
+      font-size: 16.5px;
+      font-weight: 800;
+      color: #1e293b;
+      margin-top: 10px;
+    }
+    .prose-body p {
+      margin-bottom: 4px;
+    }
+
+    /* Minimalist Interactive Citation Chips */
+    .cite-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.12s;
+      vertical-align: baseline;
+      text-decoration: none;
+    }
+    .cite-chip.wiki {
+      background: #f0f7ff;
+      border: 1px solid #d0e4ff;
+      color: #1d4ed8;
+    }
+    .cite-chip.wiki:hover {
+      background: #dbeafe;
+      border-color: #2563eb;
+    }
+    .cite-chip.source {
+      background: #f0fdf4;
+      border: 1px solid #c7f4d5;
+      color: #047857;
+    }
+    .cite-chip.source:hover, .cite-chip.source.active {
+      background: #d1fae5;
+      border-color: #059669;
+    }
+
+    /* Code Block inside Prose */
+    .code-block-wrap {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      margin: 8px 0;
+      overflow-x: auto;
+    }
+
+    /* Callout Note */
+    .callout-box {
+      background: #f8fafc;
+      border-left: 3.5px solid #2563eb;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13.5px;
+      color: #1e293b;
+      margin: 10px 0;
+    }
+
+    /* =========================================================================
+       3. 우측 고정 사이드바 (TOC + 연결된 지식 다이어그램 + 백링크)
+       ========================================================================= */
+    .reader-sidebar {
+      background: #f8fafc;
+      border-left: 1.5px solid #e2e8f0;
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .sidebar-sec-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    /* TOC List */
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      border-left: 2px solid #e2e8f0;
+      padding-left: 10px;
+      margin-left: 4px;
+    }
+    .toc-item {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      padding: 3px 0;
+      transition: all 0.12s;
+      text-decoration: none;
+    }
+    .toc-item:hover {
+      color: #0f172a;
+    }
+    .toc-item.active {
+      color: #2563eb;
+      font-weight: 800;
+      position: relative;
+    }
+    .toc-item.active::before {
+      content: "";
+      position: absolute;
+      left: -12px;
+      top: 6px;
+      width: 2px;
+      height: 12px;
+      background: #2563eb;
+    }
+
+    /* Connected Knowledge SVG Node Diagram Card */
+    .knowledge-diagram-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+    }
+    .node-canvas-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      padding: 6px 2px;
+      gap: 6px;
+    }
+    .node-column {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      z-index: 2;
+    }
+    .node-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 7px;
+      padding: 3px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.12s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 80px;
+    }
+    .node-pill:hover {
+      border-color: #2563eb;
+      color: #2563eb;
+      transform: translateY(-1px);
+    }
+    .node-pill.hub {
+      background: #eff6ff;
+      border: 1.5px solid #2563eb;
+      color: #1e40af;
+      font-weight: 800;
+      max-width: 88px;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+    }
+    .connector-svg-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Inbound Backlinks Card */
+    .backlink-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .backlink-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      background: #f8fafc;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.12s;
+      border: 1px solid transparent;
+    }
+    .backlink-item:hover {
+      background: #eff6ff;
+      color: #2563eb;
+      border-color: #bfdbfe;
+    }
+
+    /* Document More Actions Dropdown Popover */
+    .doc-action-dropdown-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .doc-action-popover {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+      padding: 4px;
+      min-width: 195px;
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .doc-action-popover.open {
+      display: flex;
+    }
+    .popover-item {
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      width: 100%;
+      transition: all 0.12s;
+    }
+    .popover-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .popover-item.danger {
+      color: #e11d48;
+    }
+    .popover-item.danger:hover {
+      background: #fff1f2;
+      color: #be123c;
+    }
+
+    /* =========================================================================
+       4. 하단 슬라이드업 출처 대조 서랍 (Slide-up Provenance Drawer)
+       ========================================================================= */
+    .provenance-drawer {
+      position: absolute;
+      bottom: 0;
+      left: 260px;
+      right: 0;
+      background: #ffffff;
+      border-top: 2px solid #2563eb;
+      box-shadow: 0 -8px 25px rgba(15, 23, 42, 0.1);
+      padding: 16px 32px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 50;
+      animation: slideUp 0.18s ease-out;
+    }
+    .provenance-drawer.open {
+      display: flex;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .drawer-title {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .drawer-close-btn {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .drawer-close-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    /* Top-Right Toast Notification */
+    .toast-container {
+      position: fixed;
+      top: 18px;
+      right: 24px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast-item {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+      animation: toastIn 0.2s ease-out;
+      pointer-events: auto;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-root">
+    <!-- =======================================================================
+         1. 좌측 내비게이션 바 (LNB: Screen 1 & 2와 완벽 일치)
+         ======================================================================= -->
+    <aside class="nlb-sidebar">
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="nlb-ws-header">
+          <div class="nlb-ws-brand">
+            <div class="nlb-ws-logo">N</div>
+            <span class="nlb-ws-title">넥서스 SaaS 팀</span>
+          </div>
+          <svg class="svg-icon" style="color:#64748b; width:13px; height:13px;" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+
+        <div class="nlb-nav-group">
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span>즐겨찾기</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">3</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>최근 본 위키</span>
+            </div>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" style="color:#e11d48;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>미완성 백로그</span>
+            </div>
+            <span style="font-size:10.5px; color:#e11d48; font-weight:800;">7</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/></svg>
+              <span>원문 소스</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">18</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>템플릿 관리</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">5</span>
+          </button>
+        </div>
+
+        <div class="nlb-sec-title">
+          <span>팀 프로젝트</span>
+          <svg class="svg-icon" style="width:13px; height:13px; cursor:pointer;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+
+        <div class="nlb-project-node">
+          <div class="nlb-project-row">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <svg class="svg-icon" style="width:13px; height:13px; color:#2563eb;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              <span>엔지니어링 코어</span>
+            </div>
+            <span style="font-size:10.5px; color:#2563eb; font-weight:800;">4</span>
+          </div>
+
+          <div class="nlb-subgroup-list">
+            <div class="nlb-subgroup-item">
+              <span>백엔드 아키텍처</span>
+              <span style="font-size:10.5px; color:#94a3b8;">12</span>
+            </div>
+            <div class="nlb-subgroup-item active">
+              <span>데이터베이스 & RLS</span>
+              <span style="font-size:10.5px; color:#2563eb; font-weight:800;">18</span>
+            </div>
+            <div class="nlb-subgroup-item">
+              <span>5채널 하이브리드 검색</span>
+              <span style="font-size:10.5px; color:#94a3b8;">8</span>
+            </div>
+            <div class="nlb-subgroup-item">
+              <span>잡 큐 & 워커 풀</span>
+              <span style="font-size:10.5px; color:#94a3b8;">4</span>
+            </div>
+            <button class="nlb-add-subgroup">
+              <svg class="svg-icon" style="width:11px; height:11px;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>위키 추가</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="nlb-sec-title">
+          <span>팀 관리</span>
+        </div>
+        <div class="nlb-team-admin-group">
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>팀원 & 역할 관리</span>
+            </div>
+            <span style="font-size:10.5px; color:#94a3b8; font-weight:700;">8명</span>
+          </button>
+          <button class="nlb-nav-btn">
+            <div class="nlb-btn-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <span>새 팀원 초대하기</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="nlb-footer">
+        <div class="nlb-user-box">
+          <div class="nlb-avatar">김</div>
+          <span style="font-size:12.5px; font-weight:800; color:#0f172a;">김개발</span>
+        </div>
+        <svg class="svg-icon" style="color:#64748b; cursor:pointer;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+    </aside>
+
+    <!-- =======================================================================
+         2. 메인 위키 리더 영역 (/wiki/[slug])
+         ======================================================================= -->
+    <main class="reader-main-wrapper">
+      <!-- Top Action Bar -->
+      <div class="reader-top-bar">
+        <div class="reader-breadcrumb">
+          <span>엔지니어링 코어</span>
+          <span style="color:#cbd5e1;">/</span>
+          <span>데이터베이스 & RLS</span>
+          <span style="color:#cbd5e1;">/</span>
+          <strong>테넌트 격리 및 RLS 보안 스파인</strong>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <!-- Public Sharing Button -->
+          <button id="public-share-btn" class="btn-pill secondary" style="height:28px; font-size:12px; font-weight:700; gap:5px; border-color:#cbd5e1;" onclick="openPublicReviewModal('first')">
+            <svg class="svg-icon" style="width:12px; height:12px; color:#2563eb;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+            <span id="share-btn-label">🔗 웹에 공개</span>
+          </button>
+          <button id="toc-toggle-btn" class="btn-pill secondary" style="height:28px; font-size:12px; font-weight:700; gap:5px; background:#f1f5f9; border-color:#cbd5e1;" onclick="toggleSidebar()" title="목차 패널 열기/닫기">
+            <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span>목차 패널</span>
+          </button>
+          <button class="btn-pill primary" onclick="showToast('새 원본 소스 연결 모달이 열립니다.')">
+            <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>+ 소스 추가</span>
+          </button>
+          <div class="doc-action-dropdown-wrap">
+            <button class="btn-pill secondary" style="min-width:32px; height:28px; justify-content:center; font-size:13px; font-weight:800; padding:4px 10px; cursor:pointer;" onclick="toggleDocMenu(event)" title="더보기 메뉴">···</button>
+            <div id="doc-action-popover" class="doc-action-popover">
+              <button class="popover-item" onclick="copyWikiLink()">
+                <svg class="svg-icon" style="width:13px; height:13px;" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span>문서 링크 복사</span>
+              </button>
+              <button class="popover-item" onclick="exportMarkdown()">
+                <svg class="svg-icon" style="width:13px; height:13px;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="18"/><line x1="15" y1="15" x2="12" y2="18"/></svg>
+                <span>마크다운으로 내보내기 (.md)</span>
+              </button>
+              <div style="height:1px; background:#f1f5f9; margin:2px 0;"></div>
+              <button class="popover-item danger" onclick="archiveWiki()">
+                <svg class="svg-icon" style="width:13px; height:13px;" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                <span>위키 문서 아카이브</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two-Column Split: Reading Canvas + Sticky Right Sidebar -->
+      <div class="reader-content-layout">
+        <!-- Center Reading Canvas -->
+        <article class="reading-canvas-area">
+          <!-- Re-publish Notice Banner (updated_at > published_at) -->
+          <div id="republish-banner" style="background:#fffbeb; border:1px solid #fef3c7; border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; font-size:12.5px; color:#92400e;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <svg class="svg-icon" style="color:#f59e0b;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>공개 이후 최신 내용이 갱신되었습니다. (마지막 발행: 2026.08.15 14:20)</span>
+            </div>
+            <button class="btn-pill primary" style="font-size:11.5px; padding:4px 10px; height:auto; background:#d97706;" onclick="openPublicReviewModal('republish')">변경사항 검토 및 재발행</button>
+          </div>
+
+          <!-- Document Header -->
+          <div class="doc-header-block">
+            <div class="doc-title-row">
+              <h1>테넌트 격리 및 RLS 보안 스파인</h1>
+              <button class="star-btn" title="즐겨찾기">
+                <svg class="svg-icon" style="width:20px; height:20px;" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </button>
+            </div>
+
+            <div class="doc-governance-row">
+              <span class="verified-badge">
+                <svg class="svg-icon" style="width:11px; height:11px;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                검증 완료
+              </span>
+              <span style="font-size:12px; font-weight:700; color:#64748b;">지식 그룹:</span>
+              <span class="group-tag-pill">백엔드</span>
+              <span class="group-tag-pill">데이터</span>
+              <span class="group-tag-pill">보안</span>
+              <span class="group-tag-pill">운영</span>
+            </div>
+
+            <div class="doc-meta-strip">
+              <div>📄 인용된 원문 소스 <strong>2개 파일 (SQL, PDF)</strong></div>
+              <div>🕒 최종 컴파일 <strong>1시간 전 (자동 동기화)</strong></div>
+              <div>🔗 인용 중인 백링크 <strong>2개 위키 문서</strong></div>
+            </div>
+          </div>
+
+          <!-- Structured Prose Body -->
+          <div class="prose-body">
+            <h2 id="sec-summary">개요 (Summary)</h2>
+            <p>
+              넥서스위키의 모든 데이터는 멀티테넌트 환경에서 완벽히 격리되며, <button class="cite-chip wiki">📘 PostgreSQL 17</button>의 행 단위 보안(RLS) 정책과 <code>(id, workspace_id)</code> 복합 외래키를 통해 물리적 데이터 유출을 원천 방지합니다.
+            </p>
+
+            <div class="callout-box">
+              <strong>핵심 보안 원칙:</strong> 모든 데이터 접근 및 쿼리는 애플리케이션 레벨의 <code>WHERE</code> 절에 의존하지 않고, 데이터베이스 커널이 직접 테넌트 경계를 강제합니다.
+            </div>
+
+            <h2 id="sec-composite-fk">1. 복합 외래키(Composite FK) 전파 규칙</h2>
+            <p>
+              단일 ID 컬럼 대신 상위 테넌트의 <code>workspace_id</code>가 모든 하위 테이블(documents, chunks, wiki_pages)에 복합 키로 전파됩니다. 원본 DDL 정의 스크립트 <button class="cite-chip source active" onclick="toggleProvenanceDrawer()">📗 0004_rls_security_spine.sql (라인 42-58)</button>에 명시된 바와 같이, 테넌트 경계를 벗어난 조인은 데이터베이스 레벨에서 즉시 차단됩니다.
+            </p>
+
+            <div class="code-block-wrap">
+              <code>-- 모든 하위 엔티티의 복합 외래키 제약조건 예시
+ALTER TABLE "chunks" ADD CONSTRAINT "fk_chunks_workspace_doc"
+FOREIGN KEY ("document_id", "workspace_id") 
+REFERENCES "documents"("id", "workspace_id") ON DELETE CASCADE;</code>
+            </div>
+
+            <h2 id="sec-rls-verification">2. 38개 RLS 정책 보안 검증</h2>
+            <p>
+              비동기 백그라운드 워커 풀조차 <code>request.jwt.claim.workspace_id</code> 컨텍스트를 강제받으며, 자동화된 테스트 스위트 38건이 통과되었습니다. 하이브리드 라우팅 및 인덱스 스캔 튜닝에 대해서는 <button class="cite-chip wiki">📘 5채널 하이브리드 검색</button> 문서를 참조하십시오.
+            </p>
+          </div>
+        </article>
+
+        <!-- Right Sticky Sidebar: TOC + Micro-Diagram + Inbound Backlinks -->
+        <aside class="reader-sidebar">
+          <!-- Sidebar Header with Close Button -->
+          <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:6px; border-bottom:1px solid #e2e8f0; margin-bottom:-4px;">
+            <span style="font-size:11px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px;">목차 & 지식 관계</span>
+            <button onclick="toggleSidebar()" title="목차 패널 접기" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:12px; font-weight:700; padding:2px 6px; border-radius:4px; transition:all 0.12s;" onmouseover="this.style.color='#0f172a'; this.style.background='#e2e8f0';" onmouseout="this.style.color='#94a3b8'; this.style.background='transparent';">✕</button>
+          </div>
+
+          <!-- TOC -->
+          <div>
+            <div class="sidebar-sec-title">목차 (Contents)</div>
+            <nav class="toc-list">
+              <a href="#sec-summary" class="toc-item active">개요 (Summary)</a>
+              <a href="#sec-composite-fk" class="toc-item">1. 복합 외래키 전파 규칙</a>
+              <a href="#sec-rls-verification" class="toc-item">2. 38개 RLS 보안 검증</a>
+            </nav>
+          </div>
+
+          <!-- Connected Knowledge SVG Node Diagram -->
+          <div>
+            <div class="sidebar-sec-title">연결된 지식 관계도</div>
+            <div class="knowledge-diagram-card">
+              <div style="font-size:10px; color:#64748b; font-weight:700; display:flex; justify-content:space-between;">
+                <span>인용(백링크)</span>
+                <span>참조</span>
+              </div>
+              <div class="node-canvas-wrap">
+                <svg class="connector-svg-layer" viewBox="0 0 240 70" preserveAspectRatio="none">
+                  <path d="M 75 18 C 95 18, 95 35, 115 35" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3,3" />
+                  <path d="M 75 52 C 95 52, 95 35, 115 35" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3,3" />
+                  <path d="M 165 35 C 185 35, 185 18, 205 18" fill="none" stroke="#cbd5e1" stroke-width="1.5" />
+                  <path d="M 165 35 C 185 35, 185 52, 205 52" fill="none" stroke="#cbd5e1" stroke-width="1.5" />
+                </svg>
+
+                <div class="node-column">
+                  <div class="node-pill" title="인증 & 권한">인증 & 권한</div>
+                  <div class="node-pill" title="테넌트 마이그">테넌트 마이그</div>
+                </div>
+
+                <div class="node-column" style="align-items:center;">
+                  <div class="node-pill hub" title="테넌트 격리 스파인">테넌트 격리</div>
+                </div>
+
+                <div class="node-column">
+                  <div class="node-pill" title="Postgres 17">Postgres 17</div>
+                  <div class="node-pill" title="5채널 검색">5채널 검색</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inbound Backlinks -->
+          <div>
+            <div class="sidebar-sec-title">이 문서를 인용 중인 위키 (2)</div>
+            <div class="backlink-card">
+              <div class="backlink-item">
+                <span>📘 인증 및 권한 관리</span>
+                <span style="font-size:10px; color:#94a3b8;">#보안</span>
+              </div>
+              <div class="backlink-item">
+                <span>📘 멀티테넌트 마이그레이션</span>
+                <span style="font-size:10px; color:#94a3b8;">#DB</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Slide-up Provenance Code Drawer (Default Closed) -->
+      <div id="provenance-drawer" class="provenance-drawer">
+        <div class="drawer-header">
+          <div class="drawer-title">
+            <span class="btn-pill secondary" style="font-size:10px; padding:2px 7px; color:#059669; font-weight:800;">SQL 원문 출처</span>
+            <strong>0004_rls_security_spine.sql</strong>
+            <span style="font-size:11px; color:#64748b; font-weight:600; margin-left:8px;">청크 #12 · 유사도 0.91 · 좌표 1,420–1,890 char</span>
+          </div>
+          <button class="drawer-close-btn" onclick="toggleProvenanceDrawer()">✕</button>
+        </div>
+        <div class="code-block-wrap" style="margin:0; font-size:12px;">
+          <code>-- Enable Row Level Security on Core Tables
+ALTER TABLE "workspace_members" ENABLE ROW LEVEL SECURITY;
+
+<span style="background:rgba(16,185,129,0.2); color:#6ee7b7; display:block; border-left:3px solid #10b981; padding-left:6px;">CREATE POLICY "members_isolation_policy" ON "workspace_members"
+FOR ALL USING (workspace_id = (current_setting('request.jwt.claim.workspace_id', true))::uuid);</span>
+
+-- Composite FK enforcement
+ALTER TABLE "documents" ADD CONSTRAINT "fk_doc_ws"
+FOREIGN KEY ("id", "workspace_id") REFERENCES "workspaces"("id", "workspace_id") ON DELETE CASCADE;</code>
+        </div>
+        <div style="display:flex; justify-content:flex-end;">
+          <button class="btn-pill secondary" style="font-size:11px;">전체 원문 파일 열기 ↗</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    function toggleProvenanceDrawer() {
+      const drawer = document.getElementById('provenance-drawer');
+      drawer.classList.toggle('open');
+    }
+
+    function toggleSidebar() {
+      const layout = document.querySelector('.reader-content-layout');
+      const btn = document.getElementById('toc-toggle-btn');
+      layout.classList.toggle('toc-collapsed');
+      const isCollapsed = layout.classList.contains('toc-collapsed');
+      if (isCollapsed) {
+        btn.style.background = '#ffffff';
+        btn.style.color = '#94a3b8';
+        btn.style.borderColor = '#e2e8f0';
+        showToast('목차 패널을 접었습니다.');
+      } else {
+        btn.style.background = '#f1f5f9';
+        btn.style.color = '#0f172a';
+        btn.style.borderColor = '#cbd5e1';
+        showToast('목차 패널을 열었습니다.');
+      }
+    }
+
+    function toggleDocMenu(event) {
+      event.stopPropagation();
+      const popover = document.getElementById('doc-action-popover');
+      popover.classList.toggle('open');
+    }
+
+    function closeDocMenu() {
+      const popover = document.getElementById('doc-action-popover');
+      if (popover) popover.classList.remove('open');
+    }
+
+    document.addEventListener('click', () => {
+      closeDocMenu();
+    });
+
+    function copyWikiLink() {
+      closeDocMenu();
+      navigator.clipboard.writeText(window.location.href);
+      showToast('위키 문서 링크가 클립보드에 복사되었습니다.');
+    }
+
+    function exportMarkdown() {
+      closeDocMenu();
+      showToast('테넌트_격리_및_RLS_보안_스파인.md 파일 다운로드가 시작되었습니다.');
+    }
+
+    function archiveWiki() {
+      closeDocMenu();
+      showToast('문서가 아카이브되었습니다. 검색 결과에서 제외됩니다.');
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast-item';
+      toast.innerHTML = `
+        <svg class="svg-icon" style="color:#60a5fa; width:13px; height:13px;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>${msg}</span>
+      `;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.2s';
+        setTimeout(() => toast.remove(), 200);
+      }, 2500);
+    }
+
+    /* Public Review Modal Functions */
+    function openPublicReviewModal(mode) {
+      document.getElementById('public-review-modal').classList.add('open');
+      const titleEl = document.getElementById('modal-publish-title');
+      const btnEl = document.getElementById('btn-confirm-publish');
+      if (mode === 'republish') {
+        titleEl.innerText = '✨ 변경사항 검토 및 재발행 (Re-publish Review)';
+        btnEl.innerText = '🚀 재검토 완료 및 재발행';
+      } else {
+        titleEl.innerText = '✨ 웹에 공개 검토 및 발행 (Public Review)';
+        btnEl.innerText = '🚀 최종 공개 승인 및 발행';
+      }
+    }
+
+    function closePublicReviewModal() {
+      document.getElementById('public-review-modal').classList.remove('open');
+    }
+
+    function handlePublishWiki() {
+      closePublicReviewModal();
+      const banner = document.getElementById('republish-banner');
+      if (banner) banner.style.display = 'none';
+      const label = document.getElementById('share-btn-label');
+      label.innerText = '🔗 공개 중 (URL 복사)';
+      label.parentElement.style.background = '#ecfdf5';
+      label.parentElement.style.borderColor = '#a7f3d0';
+      label.parentElement.style.color = '#047857';
+      showToast('위키 문서가 승인되어 /p/nexusdb-core/tenant-isolation-rls 경로로 안전하게 공개 발행되었습니다!');
+    }
+  </script>
+
+  <!-- Public Review Modal Dialog -->
+  <div id="public-review-modal" class="modal-backdrop" onclick="if(event.target.id==='public-review-modal') closePublicReviewModal()">
+    <div class="modal-card" style="width: 520px; background:#ffffff; border-radius:14px; border:1.5px solid #e2e8f0; box-shadow:0 20px 40px rgba(0,0,0,0.15); overflow:hidden; display:flex; flex-direction:column;">
+      <div style="padding:18px 20px; border-bottom:1px solid #f1f5f9; display:flex; align-items:flex-start; justify-content:space-between;">
+        <div>
+          <h3 id="modal-publish-title" style="font-size:16px; font-weight:900; color:#0f172a; letter-spacing:-0.4px;">✨ 웹에 공개 검토 및 발행 (Public Review)</h3>
+          <p style="font-size:12px; color:#64748b; margin-top:2px;">인용 스니펫에 내부 호스트명, 주석, 민감 정보가 없는지 육안 검토합니다.</p>
+        </div>
+        <button onclick="closePublicReviewModal()" style="border:none; background:transparent; color:#94a3b8; font-size:16px; cursor:pointer;">✕</button>
+      </div>
+
+      <div style="padding:20px; display:flex; flex-direction:column; gap:16px; max-height:480px; overflow-y:auto;">
+        <!-- Gate Status Box -->
+        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 12px; font-size:11.5px; color:#065f46; display:flex; align-items:center; gap:8px;">
+          <svg class="svg-icon" style="color:#059669; width:14px; height:14px;" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span><strong>사전 게이트 통과</strong>: 기술 내용 정확성 검증 완료 (Verified 문서)</span>
+        </div>
+
+        <!-- Snippets Review List -->
+        <div>
+          <div style="font-size:12px; font-weight:800; color:#0f172a; margin-bottom:8px;">외에 노출될 인용 스니펫 목록 (2건)</div>
+          
+          <!-- Snippet 1 -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+              <strong style="font-size:12px; color:#0f172a;">📄 0001_core_schema.sql (L42~L48)</strong>
+              <label style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:#059669; font-weight:700; cursor:pointer;">
+                <input type="checkbox" checked /> 노출 승인
+              </label>
+            </div>
+            <pre style="background:#0f172a; color:#f8fafc; padding:8px 10px; border-radius:6px; font-size:11px; font-family:'JetBrains Mono', monospace; overflow-x:auto;"><code>CREATE TABLE wiki_pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    slug TEXT NOT NULL, ...</code></pre>
+          </div>
+
+          <!-- Snippet 2 -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+              <strong style="font-size:12px; color:#0f172a;">📄 0003_rls_policies.sql (L110~L118)</strong>
+              <label style="display:flex; align-items:center; gap:5px; font-size:11.5px; color:#059669; font-weight:700; cursor:pointer;">
+                <input type="checkbox" checked /> 노출 승인
+              </label>
+            </div>
+            <pre style="background:#0f172a; color:#f8fafc; padding:8px 10px; border-radius:6px; font-size:11px; font-family:'JetBrains Mono', monospace; overflow-x:auto;"><code>CREATE POLICY wiki_pages_select_member ON wiki_pages
+FOR SELECT TO authenticated
+USING (is_workspace_member(workspace_id));</code></pre>
+          </div>
+        </div>
+
+        <div style="font-size:11.5px; color:#64748b; line-height:1.4;">
+          승인된 본문과 스니펫은 <code>wiki_page_publications</code> 사이드카 테이블에 불변 스냅샷으로 보관되며, 원본 소스 파일 전문은 외부에 노출되지 않습니다.
+        </div>
+      </div>
+
+      <div style="padding:14px 20px; border-top:1px solid #f1f5f9; background:#f8fafc; display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+        <button type="button" class="btn-pill secondary" onclick="closePublicReviewModal()">취소</button>
+        <button id="btn-confirm-publish" type="button" class="btn-pill primary" onclick="handlePublishWiki()">🚀 최종 공개 승인 및 발행</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -43,7 +43,7 @@ describe("JobStepper", () => {
     apiFetch.mockReset();
   });
 
-  it("5단계 라벨을 모두 렌더링하고 컴파일을 현재 단계로 강조한다", async () => {
+  it("현재 단계와 완료 진행률만 compact summary로 렌더링한다", async () => {
     apiFetch.mockResolvedValue({
       jobs: [
         makeJob({
@@ -79,13 +79,33 @@ describe("JobStepper", () => {
 
     render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
 
-    await screen.findByText("컴파일");
-    for (const label of ["업로드", "파싱", "컴파일", "링크 동기화", "임베딩"]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
-    expect(screen.getByRole("list")).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(5);
-    expect(screen.getByText("컴파일")).toHaveClass("text-[var(--nw-ink)]");
+    expect(
+      await screen.findByText("위키 컴파일 처리 중 · 2/5단계 완료"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "처리 진행률 2/5단계 완료" }),
+    ).toHaveAttribute("value", "2");
+    expect(screen.queryByText("링크 동기화")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "취소" })).toBeInTheDocument();
+  });
+
+  it("모든 단계가 성공하면 완료 진행률만 표시하고 복구 행동을 숨긴다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({ id: "j-parse", type: "parse", status: "succeeded" }),
+        makeJob({ id: "j-compile", type: "compile", status: "succeeded" }),
+        makeJob({ id: "j-link", type: "link_sync", status: "succeeded" }),
+        makeJob({ id: "j-embed", type: "embed", status: "succeeded" }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    expect(
+      await screen.findByText("처리가 완료되었습니다 · 5/5단계 완료"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "재시도" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "취소" })).toBeNull();
   });
 
   it("dead 상태 행에는 aria-label='재시도' 버튼이 있고, 클릭하면 재시도 엔드포인트를 호출한다", async () => {
@@ -116,6 +136,18 @@ describe("JobStepper", () => {
         { method: "POST" },
       ),
     );
+  });
+
+  it("실패하지 않은 작업에는 오류와 재시도 행동을 표시하지 않는다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [makeJob({ status: "running" })],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    await screen.findByText("원문 파싱 처리 중 · 1/5단계 완료");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "재시도" })).toBeNull();
   });
 
   it("취소 확인 다이얼로그는 정확한 문구를 표시한다", async () => {

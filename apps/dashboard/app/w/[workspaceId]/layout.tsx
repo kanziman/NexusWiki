@@ -22,6 +22,9 @@ export default async function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const { workspaceId } = await params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: workspace, error } = await supabase
     .from("workspaces")
@@ -49,6 +52,7 @@ export default async function WorkspaceLayout({
       <NavShell
         workspaces={workspaces ?? []}
         currentWorkspaceId={workspaceId}
+        accountEmail={user?.email ?? "계정"}
       />
       <main className="mx-auto w-full max-w-6xl px-base py-xl sm:px-xl sm:py-xxl">
         {children}

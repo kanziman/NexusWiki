@@ -1,11 +1,18 @@
 "use client";
 
 import { File, FileText, Link2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
+import {
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+} from "@/components/DashboardPrimitives";
 import { JobStepper } from "@/components/JobStepper";
 import { createClient } from "@/lib/supabase/client";
+import { workspacePath } from "@/lib/workspace-path";
 
 export type SourceRow = {
   id: string;
@@ -90,17 +97,10 @@ export function SourcesList({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-xxl">
-      <section className="max-w-2xl">
-        <p className="mb-sm text-xs font-semibold tracking-[0.12em] text-[var(--nw-muted)]">
-          KNOWLEDGE LIBRARY
-        </p>
-        <h1 className="text-4xl font-semibold tracking-[-0.055em] text-[var(--nw-ink)] sm:text-5xl">
-          Sources
-        </h1>
-        <p className="mt-sm text-base leading-7 text-[var(--nw-body)]">
-          생각의 근거가 되는 자료를 모으고, 연결하고, 다시 찾으세요.
-        </p>
-      </section>
+      <PageHeader
+        title="Sources"
+        description="생각의 근거가 되는 자료를 모으고, 연결하고, 다시 찾으세요."
+      />
 
       <Dropzone
         workspaceId={workspaceId}
@@ -110,22 +110,12 @@ export function SourcesList({
       />
 
       {sources.length === 0 ? (
-        <div className="flex flex-col items-center gap-xs border-y border-[var(--nw-rule)] py-section text-center">
-          <p
-            className="text-[var(--nw-ink)]"
-            style={{ font: "var(--font-title-md)" }}
-          >
-            {EMPTY_HEADING}
-          </p>
-          <p
-            className="text-[var(--nw-muted)]"
-            style={{ font: "var(--font-body-md)" }}
-          >
-            {EMPTY_BODY}
-          </p>
-        </div>
+        <EmptyState title={EMPTY_HEADING} detail={EMPTY_BODY} />
       ) : (
-        <ul className="flex flex-col border-y border-[var(--nw-rule)]">
+        <ul
+          id="sources-library"
+          className="flex flex-col border-y border-[var(--nw-rule)]"
+        >
           {sources.map((source) => {
             const Icon = SOURCE_ICONS[source.source_type] ?? File;
             return (
@@ -148,12 +138,15 @@ export function SourcesList({
                       {source.title}
                     </span>
                   </div>
-                  <span
-                    className="shrink-0 text-[var(--nw-muted)]"
-                    style={{ font: "var(--font-caption)", fontWeight: 600 }}
-                  >
-                    {formatDate(source.created_at)}
-                  </span>
+                  <div className="flex items-center gap-sm">
+                    <StatusBadge>{formatDate(source.created_at)}</StatusBadge>
+                    <Link
+                      href={`${workspacePath(workspaceId)}/sources/${source.id}`}
+                      className="nw-focus-ring rounded-sm border border-[var(--nw-rule-strong)] px-sm py-xs text-sm text-[var(--nw-ink)]"
+                    >
+                      상세 보기
+                    </Link>
+                  </div>
                 </div>
                 <JobStepper workspaceId={workspaceId} rawSourceId={source.id} />
               </li>

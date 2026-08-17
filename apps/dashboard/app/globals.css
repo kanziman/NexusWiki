@@ -58,6 +58,18 @@
   --font-family-base:
     var(--font-inter), -apple-system, BlinkMacSystemFont, Roboto,
     "Helvetica Neue", sans-serif;
+  /* HHH-21 / openspec/changes/archive/2026-08-14-unify-primary-action-color:
+     --font-family-base 바로 위 주석과 같은 이유로 여기서 덮어쓴다 — Tailwind
+     v4의 @theme 블록은 @layer theme로 컴파일되는데, CSS Cascade Layers
+     규칙상 레이어 없는(unlayered) 규칙이 항상 이긴다. design-tokens.css의
+     `:root { --color-primary: ... }`가 바로 그 unlayered 규칙이라, @theme
+     안에서 재배선해봤자 이길 수 없다(실제로 시도했다가 컴파일된 CSS에서
+     확인함) — 여기, 같은 unlayered :root에서 뒤에 다시 선언해야 이긴다.
+     --color-primary-error-text는 브랜드 primary와 무관한 별도 시맨틱(폼
+     에러 텍스트)이라 그대로 둔다. */
+  --color-primary: var(--nw-action);
+  --color-primary-active: var(--nw-action-hover);
+  --color-primary-disabled: color-mix(in srgb, var(--nw-action) 42%, white);
   --nw-canvas: #fcfcfa;
   --nw-surface: #ffffff;
   --nw-ink: #171717;

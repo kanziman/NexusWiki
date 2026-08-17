@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 
+import { WorkspaceEntryChooser } from "@/components/WorkspaceEntryChooser";
 import { workspacePath } from "@/lib/workspace-path";
 import { createClient } from "@/lib/supabase/server";
 
-// 루트 경로는 "테넌시 진입점"이다 — 사용자를 자신의 첫 워크스페이스로 보낸다.
+// 루트 경로는 "테넌시 진입점"이다 — 요청자 자신에게 보이는 워크스페이스 수에
+// 따라 직접 진입하거나 선택 화면을 표시한다.
 // middleware.ts가 이미 `/`를 게이트하지 않으므로(matcher는 /w/:path*, /login만
 // 포함) 여기서 user가 null일 수 있다는 걱정은 하지 않는다: 이 페이지는 로그인
 // 여부와 무관하게 항상 렌더링되고, 미인증 사용자는 아래에서 user가 없을 때
@@ -21,12 +23,15 @@ export default async function HomePage() {
     // owner_id 필터를 추가하면 non-owner 멤버 워크스페이스가 숨어버리므로 넣지 않는다.
     const { data: workspaces } = await supabase
       .from("workspaces")
-      .select("id")
-      .order("created_at")
-      .limit(1);
+      .select("id,name")
+      .order("name");
 
-    if (workspaces && workspaces.length > 0) {
+    if (workspaces?.length === 1) {
       redirect(workspacePath(workspaces[0].id));
+    }
+
+    if (workspaces && workspaces.length > 1) {
+      return <WorkspaceEntryChooser workspaces={workspaces} />;
     }
   }
 

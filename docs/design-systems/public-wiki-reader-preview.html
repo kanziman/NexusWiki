@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>넥서스위키(NexusWiki) - 공개 위키 뷰어 (/p/nexusdb-core/tenant-isolation-rls)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Pretendard", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      color: #0f172a;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* SVG Icon Helpers */
+    .svg-icon {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      stroke-width: 2.1px;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    /* App Shell Container */
+    .public-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      height: 100vh;
+      width: 100vw;
+      background: #ffffff;
+    }
+
+    /* Left Public LNB */
+    .public-sidebar {
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 16px 12px;
+      gap: 16px;
+      user-select: none;
+    }
+    .public-brand-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px;
+    }
+    .brand-logo-badge {
+      width: 24px;
+      height: 24px;
+      background: #2563eb;
+      color: #ffffff;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .brand-text {
+      font-size: 13.5px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+
+    .public-ws-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .ws-name {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .ws-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: #059669;
+      font-weight: 700;
+    }
+
+    .public-doc-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .doc-list-header {
+      font-size: 11px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 6px 8px 4px 8px;
+    }
+    .public-doc-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #475569;
+      text-decoration: none;
+      transition: all 0.12s;
+    }
+    .public-doc-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .public-doc-item.active {
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+
+    /* Main Reader Canvas */
+    .public-main-canvas {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #ffffff;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    /* Top Bar */
+    .public-top-bar {
+      padding: 12px 32px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: #ffffff;
+      z-index: 10;
+    }
+    .breadcrumb-public {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: #64748b;
+      font-weight: 700;
+    }
+
+    .btn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-pill.primary {
+      background: #2563eb;
+      color: #ffffff;
+    }
+    .btn-pill.primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-pill.secondary {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+    .btn-pill.secondary:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    /* Document Layout Grid (Article + Sticky TOC) */
+    .doc-layout-grid {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 36px 32px 80px 32px;
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 48px;
+    }
+
+    /* Document Header */
+    .doc-header-area {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .category-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      width: fit-content;
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .category-pill.concepts { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+
+    .doc-title {
+      font-size: 28px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.6px;
+      line-height: 1.3;
+    }
+    .doc-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    /* Document Markdown Body */
+    .doc-markdown-body {
+      font-size: 14.5px;
+      color: #334155;
+      line-height: 1.75;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .doc-markdown-body h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-top: 14px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .doc-markdown-body p {
+      margin: 0;
+    }
+    .doc-markdown-body ul {
+      padding-left: 20px;
+    }
+    .doc-markdown-body li {
+      margin-bottom: 6px;
+    }
+
+    /* Citation Badges */
+    .cite-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      text-decoration: none;
+      vertical-align: 1px;
+      margin: 0 2px;
+      transition: all 0.1s;
+    }
+    .cite-tag:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
+    }
+
+    /* Code Block */
+    .code-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      color: #0f172a;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    /* Floating TOC */
+    .floating-toc {
+      position: sticky;
+      top: 80px;
+      height: fit-content;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-left: 16px;
+      border-left: 1.5px solid #f1f5f9;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .toc-link {
+      font-size: 12.5px;
+      color: #64748b;
+      font-weight: 600;
+      text-decoration: none;
+      transition: color 0.12s;
+    }
+    .toc-link:hover, .toc-link.active {
+      color: #2563eb;
+      font-weight: 700;
+    }
+
+    /* Citation Inspector Drawer (Right Slide-out) */
+    .citation-drawer {
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 400px;
+      height: 100vh;
+      background: #ffffff;
+      border-left: 1.5px solid #e2e8f0;
+      box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .citation-drawer.open {
+      right: 0;
+    }
+    .drawer-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .drawer-footer {
+      padding: 14px 20px;
+      border-top: 1px solid #f1f5f9;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .snippet-box {
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="public-layout">
+    <!-- 1. Left Public LNB -->
+    <aside class="public-sidebar">
+      <div class="public-brand-box">
+        <div class="brand-logo-badge">N</div>
+        <span class="brand-text">NexusWiki</span>
+      </div>
+
+      <div class="public-ws-card">
+        <div class="ws-name">NexusDB Core</div>
+        <div class="ws-badge">
+          <svg class="svg-icon" style="width:11px; height:11px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+          <span>공개 기술 문서</span>
+        </div>
+      </div>
+
+      <div class="public-doc-list">
+        <div class="doc-list-header">공개 문서 목록</div>
+        <a href="#" class="public-doc-item active">
+          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>테넌트 격리 및 RLS</span>
+        </a>
+        <a href="#" class="public-doc-item">
+          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>복합 외래키 전파 규칙</span>
+        </a>
+      </div>
+
+      <div style="padding:10px; background:#f1f5f9; border-radius:8px; font-size:11.5px; color:#64748b; text-align:center;">
+        NexusWiki 공개 뷰어<br><strong>읽기 전용 모드</strong>
+      </div>
+    </aside>
+
+    <!-- 2. Main Reader Canvas -->
+    <main class="public-main-canvas">
+      <!-- Top Bar -->
+      <div class="public-top-bar">
+        <div class="breadcrumb-public">
+          <span>NexusDB Core</span>
+          <span style="color:#cbd5e1;">/</span>
+          <span>공개 위키</span>
+          <span style="color:#cbd5e1;">/</span>
+          <strong style="color:#0f172a;">테넌트 격리 및 RLS</strong>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <a href="auth-google-preview.html" class="btn-pill secondary">로그인</a>
+          <a href="auth-google-preview.html" class="btn-pill primary">NexusWiki 시작하기</a>
+        </div>
+      </div>
+
+      <!-- Document Grid -->
+      <div class="doc-layout-grid">
+        <!-- Article Area -->
+        <article>
+          <div class="doc-header-area">
+            <span class="category-pill concepts">CONCEPTS · 개념</span>
+            <h1 class="doc-title">테넌트 격리 및 Row Level Security (RLS) 아키텍처</h1>
+            <div class="doc-meta-row">
+              <span>발행일: <strong>2026. 08. 15</strong></span>
+              <span>•</span>
+              <span style="color:#059669; font-weight:700;">● 검증 승인본 (Published Snapshot)</span>
+            </div>
+          </div>
+
+          <div class="doc-markdown-body">
+            <p>
+              NexusDB의 멀티테넌시(Multi-Tenancy) 데이터 격리는 PostgreSQL 17의 <strong>Row Level Security (RLS)</strong>를 기반으로 작동합니다. 모든 비즈니스 데이터는 워크스페이스 단위로 완벽하게 물리적 격리되며, 권한이 없는 사용자의 접근은 데이터베이스 엔진 레벨에서 원천 차단됩니다.
+            </p>
+
+            <h2 id="sec-1">1. 워크스페이스 격리 원리</h2>
+            <p>
+              모든 테이블(<code>wiki_pages</code>, <code>source_chunks</code>)은 최상위 테넌트 식별자인 <code>workspace_id</code>를 필수로 보유합니다 <button class="cite-tag" onclick="openCitationDrawer('0001_core_schema.sql', 'Line 42-48', 'CREATE TABLE wiki_pages (\n    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,\n    slug TEXT NOT NULL,\n    title TEXT NOT NULL,\n    UNIQUE (id, workspace_id)\n);')">[1]</button>.
+            </p>
+            <p>
+              RLS 정책은 사용자의 세션 토큰에서 파싱된 <code>auth.uid()</code>가 <code>workspace_members</code> 테이블에 등록된 멤버인지 검사하는 <code>is_workspace_member(workspace_id)</code> 함수를 통해 수행됩니다 <button class="cite-tag" onclick="openCitationDrawer('0003_rls_policies.sql', 'Line 110-118', 'CREATE POLICY wiki_pages_select_member ON wiki_pages\nFOR SELECT TO authenticated\nUSING (is_workspace_member(workspace_id));')">[2]</button>.
+            </p>
+
+            <h2 id="sec-2">2. 복합 외래키(Composite FK) 전파 규칙</h2>
+            <p>
+              자식 테이블은 단순 <code>wiki_page_id</code>만 참조하지 않고, 항상 <code>FOREIGN KEY (wiki_page_id, workspace_id) REFERENCES wiki_pages(id, workspace_id)</code> 복합 외래키를 통해 테넌트 식별자를 일체형으로 실어 나릅니다. 이를 통해 서비스 계정이 RLS를 우회하더라도 다른 테넌트로 데이터가 잘못 연결되는 버그를 DB 제약 조건 차원에서 100% 방지합니다.
+            </p>
+          </div>
+        </article>
+
+        <!-- Floating TOC -->
+        <aside class="floating-toc">
+          <div class="toc-title">목차 (Contents)</div>
+          <a href="#sec-1" class="toc-link active">1. 워크스페이스 격리 원리</a>
+          <a href="#sec-2" class="toc-link">2. 복합 외래키 전파 규칙</a>
+        </aside>
+      </div>
+    </main>
+
+    <!-- 3. Citation Inspector Drawer (우측 슬라이드 아웃 인스펙터) -->
+    <div id="citation-drawer" class="citation-drawer">
+      <div class="drawer-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <svg class="svg-icon" style="color:#2563eb;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <strong id="drawer-file-name" style="font-size:13.5px; color:#0f172a;">0001_core_schema.sql</strong>
+        </div>
+        <button onclick="closeCitationDrawer()" style="background:none; border:none; color:#94a3b8; font-size:16px; cursor:pointer;">✕</button>
+      </div>
+
+      <div class="drawer-body">
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:11.5px; color:#64748b;">
+          <span>승인된 인용 발췌 구간</span>
+          <strong id="drawer-line-range" style="color:#2563eb; font-family:'JetBrains Mono', monospace;">Line 42-48</strong>
+        </div>
+
+        <pre id="drawer-code-snippet" class="snippet-box"><code>CREATE TABLE wiki_pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    UNIQUE (id, workspace_id)
+);</code></pre>
+
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; font-size:12px; color:#475569; line-height:1.5;">
+          <strong style="color:#0f172a; display:block; margin-bottom:2px;">🔒 양방향 추적성 보장</strong>
+          이 스니펫은 사람이 검토 승인한 원문 발췌본입니다. 비공개 내부 원본 소스 파일 전체는 보호됩니다.
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        <a href="auth-google-preview.html" class="btn-pill primary" style="width:100%; justify-content:center;">
+          <span>전체 원본 소스 열람 (로그인)</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openCitationDrawer(fileName, lineRange, codeSnippet) {
+      document.getElementById('drawer-file-name').innerText = fileName;
+      document.getElementById('drawer-line-range').innerText = lineRange;
+      document.getElementById('drawer-code-snippet').querySelector('code').innerText = codeSnippet;
+      document.getElementById('citation-drawer').classList.add('open');
+    }
+
+    function closeCitationDrawer() {
+      document.getElementById('citation-drawer').classList.remove('open');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeCitationDrawer();
+    });
+  </script>
+</body>
+</html>

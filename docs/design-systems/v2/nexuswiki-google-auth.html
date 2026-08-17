@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusWiki — 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nexuswiki-design-system.css">
+<style>
+/* 로그인 / 워크스페이스 온보딩 전용 스타일.
+   앱 셸(.sidebar/.topbar)이 없는 유일한 화면이라 공용 CSS 에서는 토큰·리셋·
+   버튼·폼만 가져다 쓴다.
+   .brand 는 여기서 제품 로고 락업을 뜻한다 — 워크스페이스 스위처(.switcher)와
+   다른 물건이라 이름을 분리해 두었다. */
+
+.page{width:min(100%,1220px);min-height:100vh;margin:auto;display:grid;grid-template-columns:minmax(0,1fr) 456px;align-items:center;gap:clamp(52px,9vw,136px);padding:44px}
+.intro{max-width:480px}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:46px}
+.brand img{width:38px;height:38px;object-fit:contain}
+.brand span{font:800 20px var(--font-display);letter-spacing:-.7px}
+.intro .eyebrow{margin:0 0 13px;color:var(--muted);font:600 10px var(--font-mono);letter-spacing:.11em}
+.intro h1{margin:0;font:800 clamp(38px,4.3vw,56px)/1.07 var(--font-display);letter-spacing:-2.6px}
+.intro h1 em{color:var(--accent);font-style:normal}
+.intro p{margin:20px 0 0;max-width:420px;color:var(--muted);font-size:15px;line-height:1.65}
+.trust{display:flex;gap:20px;margin-top:36px;padding-top:18px;border-top:1px solid var(--border)}
+.trust div{display:grid;gap:3px}
+.trust b{font:700 11px var(--font-mono)}
+.trust span{color:var(--muted);font-size:11px}
+.card{width:100%;padding:30px;border:1px solid var(--border);border-radius:14px;background:var(--bg);box-shadow:var(--shadow)}
+.view{display:none}
+.view.active{display:block}
+.card-head{text-align:center}
+.card-head .mini-mark{width:44px;height:44px;object-fit:contain;margin-bottom:14px}
+.card h2{margin:0;font:800 21px var(--font-display);letter-spacing:-.7px}
+.card-head p{margin:8px auto 0;max-width:310px;color:var(--muted);font-size:13px}
+.google{width:100%;min-height:50px;margin-top:26px;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center;gap:11px;font-size:13px;font-weight:800}
+.google:hover{background:var(--surface);border-color:oklch(.82 .015 255)}
+.google svg{width:18px;height:18px;flex:none}
+.google.loading{pointer-events:none}
+.spinner{display:none;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.google.loading .google-icon{display:none}
+.google.loading .spinner{display:block}
+to{transform:rotate(360deg)}
+.legal{margin:21px auto 0;max-width:320px;text-align:center;color:var(--muted);font-size:10px;line-height:1.6}
+.legal a{color:var(--fg);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.security{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;color:var(--good);font-size:10px;font-weight:800}
+.security svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.back{border:0;background:transparent;padding:0;color:var(--muted);font-size:11px;font-weight:700}
+.back:hover{color:var(--fg);text-decoration:underline}
+.welcome{display:flex;align-items:center;gap:11px;margin:22px 0;padding:11px;border:1px solid var(--border);border-radius:9px;background:var(--surface)}
+.welcome-avatar{width:29px;height:29px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:white;font-size:11px;font-weight:800}
+.welcome b{display:block;font-size:12px}
+.welcome span{display:block;margin-top:1px;color:var(--muted);font-size:10px}
+.form{display:grid;gap:14px}
+.field label{font-size:11px;font-weight:800}
+.field small{color:var(--muted);font-size:10px}
+.field input{width:100%;min-height:42px;border:1px solid var(--border);border-radius:8px;padding:9px 10px;background:var(--bg);color:var(--fg);font-size:12px}
+.field input:focus{border-color:var(--accent);outline:0}
+.slug{display:grid;grid-template-columns:auto minmax(0,1fr);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.slug span{display:grid;place-items:center;padding:0 9px;background:var(--surface);color:var(--muted);font:10px var(--font-mono);border-right:1px solid var(--border)}
+.slug input{border:0;border-radius:0}
+.create{width:100%;min-height:46px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:white;font-size:12px;font-weight:800;box-shadow:0 5px 16px oklch(.58 .11 190/.18)}
+.create:hover{background:oklch(.49 .11 190);border-color:oklch(.49 .11 190)}
+.create:disabled{opacity:.7;cursor:default}
+.form-note{margin:1px 0 0;color:var(--muted);font-size:10px;line-height:1.55}
+.success{padding:16px;border:1px solid oklch(.76 .06 155);border-radius:10px;background:oklch(.97 .02 155);text-align:center}
+.success svg{width:25px;height:25px;stroke:var(--good);fill:none;stroke-width:2}
+.success h3{margin:9px 0 0;font:800 15px var(--font-display)}
+.success p{margin:5px 0 0;color:var(--muted);font-size:11px}
+@media(max-width:860px){.page{grid-template-columns:1fr;max-width:520px;gap:36px;padding:36px 22px 48px}.intro{max-width:none}.brand{margin-bottom:31px}.intro h1{font-size:40px}.intro p{max-width:460px}.trust{margin-top:26px}.card{padding:26px}}
+@media(max-width:480px){.page{padding:26px 15px 38px;gap:28px}.brand{margin-bottom:26px}.brand img{width:34px;height:34px}.intro h1{font-size:34px;letter-spacing:-1.7px}.intro p{font-size:13px}.trust{gap:14px}.trust span{font-size:10px}.card{padding:22px 18px}.card h2{font-size:19px}.card-head p{font-size:12px}}
+.template-picker{display:grid;gap:8px}
+.template-picker>label{font-size:11px;font-weight:800}
+.pack-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.pack{min-height:47px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);text-align:left;font-size:10px;font-weight:800;line-height:1.35}
+.pack:hover{background:var(--surface)}
+.pack.selected{border-color:var(--accent);background:var(--soft);color:var(--accent);box-shadow:0 0 0 2px oklch(.58 .11 190/.10)}
+.pack small{display:block;margin-top:2px;color:var(--muted);font-size:9px;font-weight:600}
+.pack.selected small{color:inherit}
+.pack-items{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.pack-item{display:flex;align-items:center;gap:6px;color:var(--fg);font-size:10px;font-weight:700}
+.pack-item input{width:14px;height:14px;margin:0;accent-color:var(--accent)}
+.template-note{margin:0;color:var(--muted);font-size:10px;line-height:1.45}
+@media(max-width:480px){.pack-grid,.pack-items{grid-template-columns:1fr}.pack{min-height:42px}}
+.onboarding-app{display:none;min-height:100vh;background:var(--bg)}
+.onboarding-app.active{display:grid;grid-template-columns:240px minmax(0,1fr)}
+.onboarding-side{display:flex;flex-direction:column;gap:18px;padding:18px 12px;background:var(--surface);border-right:1px solid var(--border)}
+.onboarding-brand{display:flex;align-items:center;gap:9px;padding:8px;border:1px solid var(--border);border-radius:9px;background:var(--bg);font:800 13px var(--font-display)}
+.onboarding-brand img{width:26px;height:26px;object-fit:contain}
+.onboarding-nav{display:grid;gap:3px}
+.onboarding-nav p{margin:10px 8px 3px;color:var(--muted);font:600 10px var(--font-mono);letter-spacing:.08em}
+.onboarding-nav span{padding:8px;border-radius:7px;color:var(--muted);font-size:12px;font-weight:700}
+.onboarding-nav .current{background:var(--soft);color:var(--accent)}
+.onboarding-user{margin-top:auto;padding:13px 8px 0;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
+.onboarding-user i{display:grid;place-items:center;width:29px;height:29px;border-radius:50%;background:oklch(.88 .02 255);font-style:normal;font-size:11px;font-weight:800}
+.onboarding-user b{display:block;font-size:11px}
+.onboarding-user small{display:block;margin-top:1px;color:var(--muted);font-size:10px}
+.onboarding-main{min-width:0}
+.onboarding-top{height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 38px;border-bottom:1px solid var(--border)}
+.onboarding-top span{color:var(--muted);font-size:12px}
+.onboarding-top b{color:var(--fg);font-family:var(--font-display)}
+.onboarding-top .status{border:1px solid var(--border);border-radius:999px;padding:5px 8px;background:var(--surface);color:var(--muted);font:600 10px var(--font-mono)}
+.onboarding-content{width:min(980px,100%);margin:auto;padding:54px 42px}
+.onboarding-title{text-align:center;margin-bottom:26px}
+.onboarding-title p{margin:0 0 9px;color:var(--muted);font:600 10px var(--font-mono);letter-spacing:.1em}
+.onboarding-title h1{margin:0;font:800 clamp(28px,3.4vw,40px)/1.12 var(--font-display);letter-spacing:-1.4px}
+.onboarding-title span{display:block;max-width:480px;margin:10px auto 0;color:var(--muted);font-size:13px}
+.onboarding-host{width:min(560px,100%);margin:auto}
+.onboarding-host .view{display:block}
+.onboarding-host .card-head{margin-top:0!important}
+.onboarding-host .back{display:none}
+.onboarding-host .welcome{margin-top:18px}
+.onboarding-host .success{margin-top:20px}
+@media(max-width:760px){.onboarding-app.active{grid-template-columns:1fr}.onboarding-side{display:none}.onboarding-top{height:58px;padding:0 17px}.onboarding-content{padding:36px 17px 48px}.onboarding-title{margin-bottom:20px}.onboarding-title h1{font-size:30px}.onboarding-host{max-width:520px}}
+</style>
+</head>
+<body>
+<main class="page" id="authPage" data-od-id="google-auth-page">
+  <section class="intro" data-od-id="auth-introduction">
+<div class="brand" data-od-id="nexuswiki-brand">
+<img src="assets_nexuswiki-network-mark.png" alt="NexusWiki 네트워크 마크">
+<span>NexusWiki</span>
+</div>
+<p class="eyebrow">TEAM KNOWLEDGE, COMPILED</p>
+<h1>팀의 지식을<br>
+<em>살아 있게.</em>
+</h1>
+<p>원문, 결정, 질문이 한곳에서 연결되는 팀의 지식 베이스입니다.</p>
+<div class="trust">
+<div>
+<b>GOOGLE OAUTH 2.0</b>
+<span>안전한 원클릭 인증</span>
+</div>
+<div>
+<b>POSTGRESQL RLS</b>
+<span>테넌트 단위 데이터 격리</span>
+</div>
+</div>
+</section>
+  <section class="card" data-od-id="auth-card">
+    <div class="view active" id="loginView">
+<div class="card-head">
+<img class="mini-mark" src="assets_nexuswiki-network-mark.png" alt="">
+<h2>로그인 또는 회원가입</h2>
+<p>로그인 후 NexusWiki의 모든 기능을 이용할 수 있습니다.</p>
+</div>
+<button class="google" id="googleLogin" data-od-id="google-oauth-button">
+<svg class="google-icon" viewBox="0 0 24 24" aria-hidden="true">
+<path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.8 3-4.4 3-7.3Z"/>
+<path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.5l-3.2-2.5c-.9.6-2 .9-3.4.9-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22Z"/>
+<path fill="#FBBC05" d="M6.4 13.8a6 6 0 0 1 0-3.6V7.6H3.1a10 10 0 0 0 0 8.8l3.3-2.6Z"/>
+<path fill="#EA4335" d="M12 6.1c1.5 0 2.8.5 3.9 1.5l2.9-2.9C17 3.1 14.7 2 12 2a10 10 0 0 0-8.9 5.6l3.3 2.6C7.2 7.9 9.4 6.1 12 6.1Z"/>
+</svg>
+<span class="spinner">
+</span>
+<span id="googleText">Google 계정으로 계속하기</span>
+</button>
+<p class="legal">계속하면 NexusWiki의 <a href="#terms">서비스 이용약관</a> 및 <a href="#privacy">개인정보 처리방침</a>에 동의하게 됩니다.</p>
+<div class="security">
+<svg viewBox="0 0 24 24">
+<path d="M12 3 5 6v5c0 4.4 3 8.5 7 10 4-1.5 7-5.6 7-10V6l-7-3Z"/>
+<path d="m9 12 2 2 4-4"/>
+</svg>Google OAuth로 안전하게 보호됩니다.</div>
+</div>
+    <div class="view" id="onboardingView">
+<button class="back" id="backToLogin">← 다른 계정으로 로그인</button>
+<div class="card-head" style="margin-top:20px">
+<h2>첫 워크스페이스를<br>만들어볼까요?</h2>
+<p>새로운 지식 베이스의 이름을 정하면 바로 시작할 수 있습니다.</p>
+</div>
+<div class="welcome">
+<span class="welcome-avatar">김</span>
+<div>
+<b>김개발 님, 환영합니다!</b>
+<span>dev@nexuswiki.io</span>
+</div>
+</div>
+<form class="form" id="workspaceForm">
+<div class="field">
+<label for="workspaceName">워크스페이스 명칭</label>
+<input id="workspaceName" required placeholder="예: 결제 플랫폼 코어" autocomplete="off">
+</div>
+<div class="field">
+<label for="workspaceSlug">URL 식별자</label>
+<div class="slug">
+<span>/w/</span>
+<input id="workspaceSlug" required pattern="[a-z0-9-]+" placeholder="billing-core" autocomplete="off">
+</div>
+<small>영문 소문자, 숫자, 하이픈만 사용할 수 있습니다.</small>
+</div>
+<button class="create" id="createWorkspace" data-od-id="create-workspace-button" type="submit">워크스페이스 생성하고 시작하기</button>
+</form>
+<div class="success" id="successState" hidden>
+<svg viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"/>
+<path d="m8 12 2.5 2.5L16 9"/>
+</svg>
+<h3>워크스페이스를 만들었습니다</h3>
+<p id="successCopy">
+</p>
+</div>
+</div>
+  </section>
+</main>
+<main class="onboarding-app" id="onboardingApp" data-od-id="new-workspace-onboarding"><aside class="onboarding-side" data-od-id="onboarding-navigation"><div class="onboarding-brand"><img src="assets_nexuswiki-network-mark.png" alt=""><span>NexusWiki</span></div><nav class="onboarding-nav" aria-label="신규 워크스페이스 메뉴"><p>시작하기</p><span class="current">첫 워크스페이스 만들기</span><p>미리보기</p><span>즐겨찾기</span><span>최근 본 위키</span></nav><div class="onboarding-user"><i>김</i><div><b>김개발</b><small>새로운 멤버</small></div></div></aside><section class="onboarding-main"><header class="onboarding-top"><span>홈 / <b>첫 워크스페이스</b></span><span class="status">NEW MEMBER</span></header><div class="onboarding-content"><div class="onboarding-title"><p>WELCOME TO NEXUSWIKI</p><h1>첫 지식 베이스를<br>시작해볼까요?</h1><span>워크스페이스와 팀 프로젝트 구성을 정하면 바로 대시보드에서 작업을 이어갈 수 있습니다.</span></div><div class="card onboarding-host" id="onboardingHost"></div></div></section></main>
+<script>
+const $=s=>document.querySelector(s);const loginView=$('#loginView'),onboardingView=$('#onboardingView'),authPage=$('#authPage'),onboardingApp=$('#onboardingApp'),onboardingHost=$('#onboardingHost'),authCard=$('[data-od-id="auth-card"]');
+function showOnboarding(){loginView.classList.remove('active');onboardingHost.append(onboardingView);authPage.hidden=true;onboardingApp.classList.add('active');onboardingView.classList.add('active');$('#workspaceName').focus()}
+$('#googleLogin').addEventListener('click',()=>{const button=$('#googleLogin');button.classList.add('loading');$('#googleText').textContent='Google 계정 확인 중';setTimeout(()=>{button.classList.remove('loading');$('#googleText').textContent='Google 계정으로 계속하기';showOnboarding()},720)});
+$('#backToLogin').addEventListener('click',()=>{onboardingView.classList.remove('active');authCard.append(onboardingView);onboardingApp.classList.remove('active');authPage.hidden=false;loginView.classList.add('active')});
+$('#workspaceName').addEventListener('input',e=>{const value=e.target.value.trim().toLowerCase().replace(/[^a-z0-9가-힣\s-]/g,'').replace(/\s+/g,'-');if(value)$('#workspaceSlug').value=/[가-힣]/.test(value)?'new-workspace':value.replace(/-+/g,'-')});
+$('#workspaceForm').addEventListener('submit',e=>{e.preventDefault();const name=$('#workspaceName').value.trim(),slug=$('#workspaceSlug').value.trim();if(!name||!slug)return;const button=$('#createWorkspace');button.disabled=true;button.textContent='워크스페이스 생성 중';setTimeout(()=>{$('#workspaceForm').hidden=true;$('#successCopy').textContent=`/w/${slug}에서 ${name} 워크스페이스를 준비하고 있습니다.`;$('#successState').hidden=false},650)});
+</script>
+</body>
+</html>

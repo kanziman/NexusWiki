@@ -1,74 +1,285 @@
 # 🤝 Handoff Document
 
-- **작성 일시**: 2026-08-13 19:30 KST
-- **작업 브랜치**: `main`
+- **작성 일시**: 2026-08-17 (세션 종료 시점)
+- **작업 브랜치**: main
+- **이번 세션 커밋**: 18개 (`665b98a` ~ HEAD). **산출물은 전부 커밋 완료** — `docs/`·`apps/`·`supabase/` 에 미커밋 변경 없음.
 
 ## 🎯 1. 작업 목표 & 현재 상태
 
-- **목표**: v1.0 마일스톤 아카이브 이후, 실제로 배포하고 실 계정으로 써보면서 발견되는 문제를 그때그때 진단·수정한다 — "배포는 어떻게 해?"에서 시작해 Vercel 대시보드 배포, Railway 환경변수 누락 4건 발견·수정, 위키 상세 페이지 한글 슬러그 라우팅 버그 진단(미수정), 멤버 초대 RPC 마이그레이션 미적용 발견(수정 제안, **사용자 확인 대기 중**)까지 이어진 세션.
-- **진행률**: 배포는 완료(dashboard+api+worker+DB 전부 라이브). 발견한 문제 중 3건 해결, 1건 진단만 완료(코드 수정 보류 지시), 1건 원인 확정 후 수정 제안 상태로 세션 종료.
+- **목표**: 마일스톤2 대시보드 재설계. (1) v2 프로토타입의 중복 CSS 정리 → (2) PRD 를 하나씩 실제 스키마·코드와 대조하며 재작성.
+- **진행률**: CSS 정리 **완료**. PRD 리뷰 **짝 있는 5개 전부 완료**(workspace-home · source-management · wiki-document-reader · workspace-settings · auth-google). 남은 것은 프로토타입이 없는 `backlog-management` · `public-sharing` 2개.
+
+### 이번 세션의 가장 중요한 발견
+
+**3계층 정보구조(프로젝트 > 지식 그룹)는 PRD 와 v2 시안에만 존재하던 허구였다.**
+`projects`·`wiki_groups` 테이블도 `wiki_pages.project_id`·`group_id` 컬럼도 실재하지 않는다. 그런데 **실제 앱(`apps/dashboard/`)은 처음부터 2계층으로 올바르게 구현되어 있었다** — 라우트는 `/w/[workspaceId]/{sources,ask,wiki,graph,settings}` 이고 `GraphLensFilter.tsx` 는 `wiki_pages.category` 4값을 그대로 재사용한다는 주석까지 달려 있다.
+
+즉 **시안이 올바른 구현에서 멀어지고 있었던 것**이고, 이번 작업은 시안·문서를 구현 쪽으로 되돌린 것이다. 다음 세션도 이 전제로 판단할 것 — **의심스러우면 실제 코드가 정답이다.**
 
 ## ✏️ 2. 주요 변경 사항 & 의사결정 (Why)
 
-### Vercel 대시보드 배포 (완료)
-- `apps/dashboard`를 Vercel Production에 처음 배포. **반드시 저장소 루트에서 `vercel --prod`를 실행해야 한다** — `apps/dashboard` 안에서 실행하면 `docs/design-systems/design-tokens.css`를 참조하는 `app/globals.css`의 모노레포 바깥 import가 깨진다(Vercel Root Directory 설정을 `apps/dashboard`로 두고 루트에서 배포해야 "Include files outside the Root Directory" 토글이 실제로 먹힘 — CLI 배포는 실행한 디렉터리를 업로드 스코프로 잡기 때문). 근거: `docs/ops/vercel-deploy-record.md`.
-- 배포 URL: https://dashboard-zeta-six-33a27nwo93.vercel.app
+### A. v2 공용 디자인 시스템 CSS 신설 (`9657825`~`866818c`)
 
-### Railway 환경변수 누락 4건 (전부 수정·재배포 완료)
-실사용 테스트(소스 등록 → 컴파일 → 임베딩 → Ask) 중 순서대로 발견. `/health`만으로는 하나도 드러나지 않았다. 전부 `docs/ops/railway-env-checklist.md`에 통합 기록:
+- `docs/design-systems/v2/nexuswiki-design-system.css` 신설. 6개 프로토타입이 각자 9~16KB 씩 중복 정의하던 토큰·셸·프리미티브를 한곳으로.
+- 인라인 CSS 합계 **76,591 → 52,732 bytes (31% 감소)**, 공용 CSS 16,571 bytes.
+- 클래스명은 workspace-home 계열(`.sidebar`/`.topbar`/`.nav-item`)을 채택. 축약어(`.side`/`.top`/`.mark`)와 달리 `apps/dashboard/components/` 의 React 컴포넌트명으로 그대로 넘어가기 때문.
+- **명세와 코드가 어긋난 3건은 명세를 따랐다**: LNB 활성 상태(`--soft` 배경), `.brand` 를 제품 로고 전용으로 분리하고 스위처는 `.switcher`, 버튼 기본값 `8px/12px·800`.
 
-1. **`CORS_ALLOWED_ORIGINS`** — Railway `api`에 아예 설정 안 되어 있었음(코드 기본값이 localhost 전용). Vercel 도메인 추가.
-2. **`LLM_MODEL`** — `anthropic/claude-3.5-sonnet`이 OpenRouter에서 완전히 제거된 슬러그. `anthropic/claude-sonnet-4.6`으로 교체.
-3. **`EMBED_BATCH_SIZE`** — 코드 기본값 32였는데, `deepinfra/fp32`(bge-m3) provider pin이 ~27~32KB 요청 본문에서 "No endpoints found"로 404. 실측으로 24개(26.9KB)는 통과, 28개(32.1KB)는 실패 확인. `apps/worker/src/worker/settings.py`에서 기본값 8로 하향(커밋 `a40847d`).
-4. **`QUERY_EMBEDDING_INTERNAL_TOKEN`/`URL`, `LLM_STREAM_INTERNAL_TOKEN`/`URL`** — api·worker 양쪽에 전부 미설정. worker의 내부 리스너(`__main__.py:95-96`)가 토큰 없으면 아예 기동하지 않는 설계라, 벡터 검색 채널 전체가 `embedding_unavailable`로 죽고 Ask는 항상 "근거를 찾지 못했습니다"만 반환했다. 32바이트 랜덤 토큰 생성 후 api·worker에 동일 값 주입, `QUERY_EMBEDDING_INTERNAL_URL`/`LLM_STREAM_INTERNAL_URL`은 `http://worker.railway.internal:8081`로 설정. 수정 후 Ask 실제 스트리밍 답변 + `[[wiki:...]]`/`[[src:...]]` 인용 마커까지 직접 확인함.
+### B. 전환 중 발견해 고친 버그 3건
 
-### 진단만 하고 수정 보류 — 위키 상세 페이지 한글 슬러그 404
-- **증상**: 위키 목록 5개 중 순수 ASCII 슬러그(`hmg-sso`)만 열리고, 한글이 섞인 나머지 4개는 전부 "페이지를 찾을 수 없습니다".
-- **확인한 사실**: DB 데이터 정상(중복 없음, 바이트 단위로 NFC 정규화 일치 확인), 같은 인증 토큰으로 PostgREST 직접 호출 시 정상 반환, `agent-browser`로 실제 로그인 세션에서 재현 확인(네트워크 요청 자체는 정확히 인코딩된 경로로 나감, 서버는 200 반환하지만 렌더링 내용이 "찾을 수 없음"). middleware.ts는 경로를 건드리지 않음, 정적 캐싱도 아님(빌드 로그상 `ƒ` dynamic).
-- **의심 지점**: `apps/dashboard/app/w/[workspaceId]/wiki/[slug]/page.tsx`의 `const { workspaceId, slug } = await params;` — Next.js가 비-ASCII(멀티바이트 UTF-8) dynamic route segment를 프로덕션(Vercel)에서 제대로 디코딩하지 못하는, 알려진 부류의 프레임워크 버그와 정황이 일치. 제안한 수정(미적용): `decodeURIComponent(slug)` 방어적으로 추가.
-- **사용자가 명시적으로 "분석만 하고 소스 수정은 하지마"라고 지시** — 코드는 건드리지 않았다. 다음 세션에서 수정 여부 결정 필요.
+1. **LNB 프로필 아바타가 6개 화면 전부 깨져 있었다** — `.profile span` 이 `.avatar`(도 span)까지 잡아 `display:grid` 를 `block` 으로 덮어써서 이니셜이 원 밖으로 밀려나고 색까지 `--muted` 가 됐다. 공용 CSS 는 `.profile-text` 안에서만 잡도록 좁혔다.
+2. **google-auth 로고가 아예 안 떴다** — `<img src>` 3개가 외부 도구의 죽은 API URL 을 가리켰다.
+3. **reader 의 마크다운 내보내기가 죽어 있었다** — 같은 URL 치환기가 `URL.createObjectURL(blob)` 을 `URL.createObjecturl(/api/projects/.../blob?...)` 로 망가뜨려 문법 오류였다. 6개 화면 `node --check` 통과 확인.
 
-### 원인 확정, 수정 제안 상태 — 멤버 초대 실패 (세션 종료 시점 미해결)
-- **증상**: "초대를 보내지 못했습니다" (제네릭 에러 — `InviteForm.tsx`의 `NW409`/`NW404`/`42501` 어느 것도 아님).
-- **원인**: `supabase migration list --linked` 실행 결과 **마이그레이션 `0014`(`workspace_members_list`/`invite_workspace_member` RPC 2종, Phase 6 06-03)가 로컬에만 적용되어 있고 클라우드 프로젝트에는 한 번도 push된 적이 없음**(`0001`~`0013`은 로컬·클라우드 모두 일치, `0014`만 `remote: ""`). PostgREST가 `PGRST202`(함수를 스키마 캐시에서 찾을 수 없음)를 반환하는 걸 직접 RPC 호출로 재현·확정.
-- **검토 결과**: `0014`는 새 테이블·RLS 정책 변경 없이 `SECURITY DEFINER` 함수 2개만 추가하는 순수 additive 마이그레이션(파일 헤더 주석에 명시).
-- **제안한 수정**: `supabase db push`로 `0014`를 클라우드에 적용. **사용자에게 확인을 요청했으나 `/handoff` 실행으로 세션이 여기서 끊겼다 — 아직 실행하지 않았다.**
+### C. 불변식 문서 재작성 (`79d545e`, `ce247ea`)
 
-### 로컬 개발 환경 재설정 (완료)
-- 재부팅 후 `apps/dashboard/.env.local`을 클라우드 값(`NEXT_PUBLIC_SUPABASE_URL`/`PUBLISHABLE_KEY`/`NEXT_PUBLIC_API_URL`)으로 전환 — 로컬 dashboard가 Railway api/worker + 클라우드 Supabase를 그대로 바라보도록. `.env.local` 편집은 권한상 내가 직접 못 해 사용자가 직접 수정, 이후 `pnpm dev` 재시작으로 실제 반영 확인(`agent-browser`로 실제 로그인 요청이 `dajhhwbkfdaqnuenulsb.supabase.co`로 나가는 것까지 확인).
-- 클라우드용 테스트 계정 생성 및 워크스페이스 부여 완료 (아래 참고).
+`docs/design-systems/v2/PRODUCT-INVARIANTS.md` 가 정본이다.
 
-### (참고) 병행된 별도 작업 — 내가 하지 않음
-- git 로그에 `bf0607d`~`e144a38` 커밋(대시보드 "quiet editorial" 비주얼 리프레시)이 이 세션 작업과 별개로 존재한다. 이 세션에서 검토·작성하지 않았으므로 내용을 보증할 수 없다 — 다음 세션에서 확인 필요.
+- **§1 정보구조 = 2계층 확정.** 계층 대신 쓰는 수단(`category` 4종 CHECK, `wiki_links` 레드링크, `aliases`)을 실재하는 것만 표로.
+- **§3 `verification_status` 오류 정정** — 이전 판이 `('unverified','verified','stale')` 로 적었으나 실제는 **`('verified','partial','unverified','disputed')`**. `stale` 은 존재하지 않는다.
+- **§6 워크스페이스 생성 계약 신설** — `owner_id` 는 NOT NULL 이고 `workspaces_add_owner_member` 트리거가 owner 멤버 등록을 이미 하므로 PRD 가 중복 기술하지 않는다.
+- **`[구현됨]`/`[미구현]` 표기 체계 도입.** PRD 가 없는 테이블을 "확정" 딱지와 함께 적는 반복 실패를 구조적으로 막기 위함.
+
+### D. 컬렉션 방향 확정 (`ce247ea`) — 리뷰 중 지적 반영
+
+3계층 위계를 없앤 것은 유지하되, **사용자 생성 묶음까지 없앤 것은 과했다.** LNB 트리 자리를 카테고리 렌즈로 채운 것은 **그릇(container)을 필터(lens)로 바꿔치기한 오류**였다 — 카테고리는 컴파일러가 배정하는 4종 고정값이라 `[+]` 로 만들 수 없다.
+
+→ **평면 컬렉션을 마일스톤2 범위로 확정**(위계 없음, 한 문서가 여러 컬렉션에 속함). 다만 **스키마·UI 설계는 아직**이고, 설계 전까지 프로토타입 LNB 에 컬렉션 구획과 `[+]` 를 그리지 않기로 했다.
+
+### E. PRD 재작성 3건
+
+| PRD | 핵심 정정 |
+| --- | --- |
+| **workspace-home** (`a5fa10f`) | §5 DB 계약이 참조하는 객체가 **하나도 실재하지 않았다**(`category_lens`·`project_id`·`group_id`·`archived_at`·`wiki_page_citations`). 실행하면 통째로 에러. 3계층 라우트 축소, 데모 장치(시뮬레이션 모드 스위처·로그인 버튼) 제거 |
+| **source-management** (`1815993`, `770bfa6`) | 지원 형식이 구현과 달랐고(실제 3종/20MiB vs PRD 6종/50MB), 탭 필터 축이 스키마에 없었으며(→`mime_type` 으로 고정), **역인용 조회에 GIN 인덱스가 없어 전체 스캔**이었다 |
+| **wiki-document-reader** (`1bf75a1`) | `[+ 소스 추가]` 가 "이 문서에 소스 연결"로 적혀 파이프라인 계약과 충돌, `archived_at` 미구현, JobStepper 단계 수 하드코딩, 유사도 0.91 근거 없음 |
+| **workspace-settings** | §E-1 참조 — 15건 정정 |
+
+### E-1. workspace-settings PRD 재작성 (4번째)
+
+**"100% 정합" 이라던 문서에서 15건이 틀렸다.** 이 화면은 나머지 3개와 달리 **이미 구현되어 있어서**(`SettingsMembersPanel`·`MembersList`·`InviteForm`·`OperationsPanel`) 코드가 정본이다. 큰 것만:
+
+- **RLS 38개 → 27개**, 그리고 **RLS 상태 위젯 자체가 화면에 없다.** `/operations` 응답에 정책 필드가 없고 `pg_policies` 를 사용자 경로에서 읽을 방법도 없다. 정책 **개수**는 격리가 작동한다는 증거도 아니다 — `● 100% 격리 정상` 초록 뱃지는 검증하지 않은 안전 신호라 요구사항에서 삭제했다.
+- **파이프라인 3대 → 5단계.** 라벨(`원문 소스 수집 & 청킹` 등)도 어디에도 없는 것이었다. 서버 `STEP_LABELS` 가 라벨을 소유한다.
+- **초대는 이메일을 보내지 않는다.** 이미 가입한 사용자만 즉시 추가하고 미가입은 `NW404`. "초대장 발송"·"가입 승인 파이프라인"은 사용자가 받은편지함을 기다리게 만드는 문구다. 초대 권한도 **Owner/Editor 가 아니라 owner 전용**.
+- **역할 변경 UI 는 없다.** RLS 정책(`workspace_members_update_owner`)은 있는데 화면이 없다 → `[UI 미구현]` 표기 체계를 이 PRD 에 추가.
+- **`editor` 는 원문 소스를 삭제할 수 없다** (`raw_sources_delete_owner`). 이전 판이 editor 권한으로 적었다.
+- **예산 단위는 micro-dollar 정수**(`monthly_budget_micros`, 기본 5,000,000 = $5)이고 `authoritative: false` 다 — 집행은 `enqueue_source_job` 이 하고 초과 시 `NW402`. 화면 수치는 표시용.
+
+**코드 쪽 실제 버그 1건 발견**: `SettingsMembersPanel.tsx:120-128` 이 `currentRole` 을 갖고 있으면서 초대 폼을 **무조건 렌더한다.** `InviteForm.tsx` 주석은 "비-owner 에게는 폼 자체를 숨기는 것이 우선"을 전제하고 `42501` 분기를 마지막 방어선으로만 뒀는데 그 전제가 성립하지 않는다. 문서가 아니라 코드 수정이므로 별도 태스크로 뺐다.
+
+### E-2. auth-google PRD 재작성 (5번째) — 문서 전체가 미구현 기능이었다
+
+**제목부터 본문까지 Google OAuth 를 기술했는데, 구현된 로그인은 이메일 + 비밀번호이고 이는 누락이 아니라 잠긴 결정이다.**
+
+> **D-01**: 로그인은 이메일 + 비밀번호만 지원한다 (매직링크/OAuth 없음). — **Reversibility: costly**
+> (`.planning/phases/06-dashboard/06-CONTEXT.md`. 디렉터리가 `3e6bcef` 에서 삭제됐으므로 `git show 3e6bcef^:…` 로 읽는다.)
+
+`signInWithOAuth` 호출 0건, `config.toml` 에 `[auth.external.google]` 블록 **자체가 없음**(있는 건 `apple = false` 하나), `/auth/callback` 라우트 없음. 셀프서브 워크스페이스 생성(`OnboardingWorkspaceCard`)도 없고, **그게 사양이다** — `openspec/specs/workspace-entry-flow/spec.md` 가 0개 사용자에게 초대 안내를 유지하라고 명시적으로 요구한다.
+
+**→ 사용자가 D-01 번복을 결정했다 (E-3 참조).** PRD 는 그 결정을 반영해 **구현 계약** 형태로 다시 썼다.
+
+**🔴 이번 리뷰 최대 발견 — 계정 생성 경로가 닫혀 있다.** OAuth 불일치보다 우선한다.
+
+- 회원가입 UI 가 **없다** (`signUp`·`회원가입` 전역 grep 0건, 라우트는 `/login` 하나)
+- `invite_workspace_member` 는 미가입 이메일을 `NW404` 로 **거부**한다 — 초대 대상이 먼저 계정이 있어야 한다
+- 워크스페이스 0개 사용자에게는 `관리자에게 초대를 요청하세요` 를 보여준다
+
+닫힌 고리다. 지금 새 사용자를 들이는 유일한 방법은 Studio/Admin API 로 계정을 직접 만드는 것이다. **"구현 안 됨"과 "그렇게 하기로 함"이 구분되지 않는 상태**가 진짜 문제라, 폐쇄 베타로 명시 확정하든 `/signup` 을 만들든 결정이 필요하다.
+
+**코드 쪽 불변식 위반 1건 발견**: `WorkspaceEntryChooser.tsx:27,33` 이 `프로젝트 선택` / `계속할 프로젝트를 선택하세요.` 를 렌더한다. **`프로젝트` 계층은 존재하지 않는다**(불변식 §1). 시안이 아니라 **실제 배포 코드**에 남은 3계층 잔재다 — 2줄 수정.
+
+### E-3. 🔒 D-01 번복 — 인증을 Google OAuth 로 단일화 (2026-08-17 사용자 결정)
+
+`checklists.json > decisions.auth` 에 기록했다(revision 7). **근거를 여기 되풀이하지 않는다 — 그 항목을 인용할 것.**
+
+| 결정 | 값 |
+| --- | --- |
+| 가입 | `/signup` 신설, **Google 계정만** |
+| 로그인 | `/login` 에서 이메일+비밀번호 폼 **제거**, Google 단일화 |
+| 가입 후 진입 | **셀프서브 워크스페이스 생성 허용** |
+
+**로그인 단일화는 선택이 아니라 귀결이다** — Google 로 만든 계정에는 비밀번호가 없어 `signInWithPassword` 가 구조적으로 실패한다. "Google 전용 가입 + 비밀번호 전용 로그인"은 성립하지 않는 조합이다.
+
+**설계상 파급 3가지 (전부 PRD 에 계약으로 적어 뒀다):**
+
+1. **D-02 에 예외가 생긴다.** `exchangeCodeForSession` 은 세션 쿠키를 **직접 쓴다.** 1회용 authorization code 라 미들웨어에 위임할 수 없다(중복 실행 = 실패). → D-02 를 "미들웨어가 유일한 기록자" → **"OAuth 콜백과 미들웨어 두 곳만"** 으로 개정. `/auth/callback` 은 matcher 에서 **제외**해야 한다 — 미들웨어가 먼저 돌면 세션 없는 상태로 `/login` 리다이렉트가 걸려 코드가 소비되지 못한다.
+2. **거버닝 스펙 개정 필요.** `openspec/specs/workspace-entry-flow/spec.md` 가 0개 사용자에게 초대 안내 유지를 **MUST** 로 요구한다. 셀프서브 생성과 정면 충돌 → 해당 시나리오만 개정하되, **"접근 불가 워크스페이스의 존재·개수를 노출하지 않는다"는 유지**한다(초대 안내와 무관한 정보 노출 방지 요구사항이다).
+3. **계정 열거 방지(D-12)는 승계된다.** 비밀번호 폼이 사라져도 원칙은 남는다 — 콜백 실패는 원인 무관 단일 문구. `invite_workspace_member` 의 `NW404` 와 상반돼 보이지만 그건 owner 전용 표면이라 의도된 차이다.
+
+**남은 구멍**: `/signup` 이 열려도 `invite_workspace_member` 는 여전히 미가입 이메일을 `NW404` 로 거부한다. owner 는 상대의 가입 여부를 알 수 없고 알려줄 수단도 없다 → PRD §9-2.
+
+### E-4. backlog-management PRD 재작성 (6번째) — 화면의 절반이 스키마 없는 기능이었다
+
+`wiki_links` 실컬럼은 **7개**(`id`·`workspace_id`·`from_wiki_id`·`target_slug`·`to_wiki_id`·`resolved`·`created_at`)인데 PRD 는 감지 경로·인용 문맥·해결 상태·수동 등록을 전부 기술했다. DB 실측으로 확정:
+
+- `authenticated` 의 `wiki_links` 권한은 **SELECT 하나뿐**, 정책도 `wiki_links_select_member` 하나 → **`[+ 수동 백로그 등록]` 은 불가능하다**
+- `resolved` 는 `GENERATED ALWAYS` → 직접 쓸 수 없다. `[해결 완료]` 상태로 전환한다는 서술은 성립하지 않는다
+- **"소스 삭제 시 백로그로 전이"는 경로가 통째로 없다.** `on delete set null (to_wiki_id)` 는 **위키 페이지** 삭제 때 걸리고 `wiki_pages.sources` 는 jsonb 라 FK 도 없다. 게다가 **소스 삭제 API 엔드포인트 자체가 없다**(`sources.py` 는 POST 3개뿐)
+- 이모지 5종을 쓰면서 §4.2 에 "Zero Emojis"를 적어 뒀다 — 문서가 자기 규칙을 위반
+- "로즈/레드 틴트"는 불변식 §7.1 이 **명시적으로 금지한 팔레트**다
+
+**핵심 통찰 — 백로그는 할 일 목록이 아니라 본문의 파생 상태다.** `link_sync.py` 가 재컴파일마다 `delete_wiki_links_not_in` 으로 본문에 없는 링크를 **지운다.** 사용자가 항목을 만들어도 다음 컴파일이 지운다. 이게 수동 등록·보류·담당자 지정이 전부 같은 벽에 부딪히는 이유다.
+
+**이미 구현된 표면이 있다** — `RedLinkCta.tsx`. 문구 계약 `아직 작성되지 않음 · 지금 생성`(글자 그대로), 클릭 시 `sources?prefillTitle=…&tab=text`. **"이 백로그에 소스 연결"이 아니라 "워크스페이스에 소스 추가"** 다 — wiki-document-reader §2.2 와 같은 정정이다.
+
+**인덱스 실측에서 나온 함정**: 미해결 링크가 테이블 대부분인 초기 상태에서는 `EXPLAIN` 이 `Seq Scan` 을 보여주는데 **이게 정상이다**(모든 행이 부분 인덱스 조건에 맞으면 인덱스 경유가 손해). 20개 워크스페이스·20,000행 중 미해결 1,000행(5%)으로 만들면 `Bitmap Index Scan on wiki_links_unresolved_slug_idx` 로 넘어간다. **Seq Scan 보고 인덱스를 더 만들지 말 것** — PRD §4.1 에 실측표로 남겼다.
+
+### E-5. public-sharing PRD 재작성 (7번째, 마지막) — 설계는 옳았고 라우팅이 죽어 있었다
+
+**이번엔 칭찬할 것이 먼저다.** 킬스위치를 `exists (select 1 from workspace_public_settings …)` 로 구현한 것은 **정확하다.** 불변식 §5.3 이 금지한 건 `workspaces` 를 서브쿼리하는 것이고(anon 은 그 테이블에 정책이 없어 항상 0행), 사이드카를 보게 만든 것이 바로 그 함정을 피하는 설계다. 로컬에 실제로 세워 `set local role anon` 으로 확인했다.
+
+**그런데 라우팅이 실행 불가였다.** `wiki_page_publications` 에 slug 컬럼이 없어서 `wiki_pages` 를 조인해야 하는데:
+
+```text
+ERROR:  permission denied for table wiki_pages
+```
+
+GRANT 를 줘도 `wiki_pages_select_member` 가 `{authenticated}` 전용이라 anon 은 0행이다. **공개 페이지가 통째로 안 열린다.** → `published_slug` 를 비정규화하고 `unique (workspace_id, published_slug)` 를 URL 유일성 축으로 삼는 수정안을 세워 통과까지 실측했다.
+
+나머지 실측 확정:
+
+- **GRANT 문이 하나도 없었다.** `anon` 은 `public` 스키마 테이블 권한이 **0개**다 — 정책만 써도 `permission denied`. 정책은 권한을 주지 않는다
+- `stale` 이 또 나왔다(§4.1 "unverified/stale 차단"). 불변식 §3 이 이미 정정한 값인데 이 문서에 남아 있었다
+- **검증 게이트를 DB 가 강제하지 않았다** — `with check` 이 역할만 본다. `security definer` 트리거를 설계해 `verified` 통과 / `partial` 42501 거부까지 실측
+- **viewer 가 자기 발행본을 못 본다** — 킬스위치 OFF 면 공개 정책의 EXISTS 가 false 라 0행. editor 이상은 write 정책의 USING 으로 읽히지만 viewer 는 못 읽어 §4.3 재발행 배너가 안 뜬다. 멤버 전용 SELECT 정책을 추가
+- `published_by` 에 `on delete` 누락 → 기본 `NO ACTION` 으로 **사용자 삭제가 조용히 막힌다**. `on delete restrict` 명시
+- 이모지 다수, SQL 전부 대문자(이 저장소는 키워드도 소문자), `$$\text{}$$` LaTeX 수식
+
+**🔴 `workspace_slug` 위치가 세 문서에서 어긋난다** — 이전 판 `public_workspace_slug`, 불변식 §4 `workspace_public_settings.workspace_slug`, 다른 3개 PRD 는 `workspaces.slug`. 권고는 **`workspaces.slug` 정본 + 사이드카에 복제**(트리거 동기화)다. 정본만 두면 anon 이 `workspaces` 를 읽어야 해서 위와 똑같은 실패가 난다.
+
+### E-6. 🔒 `workspaces.slug` 정본 + 사이드카 복제 (2026-08-17 사용자 결정)
+
+`checklists.json > decisions.workspace_slug` 에 기록했다(revision 8). **근거를 여기 되풀이하지 않는다.**
+
+4개 PRD 가 걸려 있었고 세 문서가 위치를 다르게 적고 있었다. 둘 중 하나만으로는 안 되는 이유가 각각 있다:
+
+| 배치 | 깨지는 것 |
+| --- | --- |
+| 사이드카에만 | 비공개 워크스페이스가 URL 을 갖지 못한다 |
+| 정본에만 | 공개 경로가 `workspaces` 를 조인해야 하는데 `anon` 은 정책도 GRANT 도 없다 → E-5-② 와 같은 실패 |
+
+**설계**: `workspaces.slug` 전역 UNIQUE + 형식 CHECK(`slug.py` 와 같은 문자셋, 한글 유지) / 사이드카에 `before insert or update` 트리거로 **항상 정본에서 재파생** / `workspaces` 에 `after update of slug` 트리거로 복제본 추종. 로컬 실측 4건:
+
+- 사이드카에 엉뚱한 슬러그를 넣어도 정본 값으로 **자동 교체**
+- 정본 변경 시 복제본 **추종**
+- 복제본 직접 UPDATE 위조 시도 → `UPDATE 1` 이 보고되지만 값은 정본 그대로 (**위조 불가**)
+- 다른 워크스페이스가 같은 슬러그 → `duplicate key … workspaces_slug_key`
+
+⚠️ **이 결정은 slug 컬럼 도입이지 라우트 전환이 아니다.** 내부 라우트는 이번 마일스톤에서 `/w/[workspaceId]`(UUID) 유지 권고 — 공개 URL 은 `/p/` 라 독립이므로 슬러그의 목적은 라우트를 안 바꿔도 달성된다. `workspacePath()`·미들웨어 matcher·모든 내부 링크·`WorkspaceSwitcher` 가 함께 걸리는 별도 작업이다.
+
+슬러그 생성은 `packages/core/src/nexuswiki_core/slug.py` 의 `slugify(title, taken)` 재사용. **`taken` 에 기존 `workspaces.slug` 전체**를 넘겨야 한다 — 전역 UNIQUE 이므로 워크스페이스 스코프로 좁히면 INSERT 가 실패한다.
+
+**전파 완료**: `PRODUCT-INVARIANTS.md` §4·§5, `public-sharing`(§2.0 계약 신설)·`auth-google`·`workspace-settings`·`workspace-home` 4개 PRD.
+
+### F. 트러블슈팅
+
+- **macOS Chrome 이 창 너비를 최소 485px 로 강제한다.** `--window-size=390` 으로 찍으면 이미지만 390px 로 잘려 "모바일이 깨졌다"고 오판했다. 실제 390px 뷰포트를 보려면 **iframe 하네스**가 필요하다(`scratchpad/frame.py` 패턴).
+- **DOTALL 정규식으로 HTML 블록을 지우다 reader 의 `nav-stack` 을 통째로 날렸다.** 커밋 안 된 작업이 있어 되돌리지 않고 정본 LNB 를 새로 생성해 복구했다. HTML 을 정규식으로 자를 때 `<svg.*?</svg>` 가 버튼 경계를 넘어간다.
 
 ## 🧪 3. 검증 상태
 
-- **완료된 검증**:
-  - Vercel 프로덕션 빌드 성공, `/login` 200 확인
-  - CORS preflight 실측 통과 (`access-control-allow-origin` 헤더 확인)
-  - 실제 소스 업로드 → 컴파일 → 임베딩 전 과정 클라우드에서 성공 확인 (worker 로그/DB 직접 조회로 job 상태 succeeded 확인)
-  - Ask 엔드포인트 SSE 실측 — `meta`→`delta*` 스트리밍 + `[[wiki:w2]]`/`[[src:s5]]` 인용 마커 포함 실제 답변 확인
-  - `apps/worker/tests/test_handlers.py`, `test_settings.py` 35개 통과 (EMBED_BATCH_SIZE 변경 후)
-  - `dev-test@example.test`(로컬)/`dev-test+1786601699@nexuswiki.test`(클라우드) 양쪽 로그인 실측 확인
-- **미검증/미해결 항목**:
-  - 위키 상세 페이지 한글 슬러그 404 — 원인은 특정했으나 수정 미적용(사용자 지시로 보류)
-  - 멤버 초대 RPC — `0014` push 자체가 아직 실행 안 됨. push 후 실제 초대 왕복까지 재검증 필요
-  - 병행된 대시보드 비주얼 리프레시 커밋들의 실제 동작 미확인
+### 완료된 검증
+
+- **렌더 비교**: 6화면 × 390/640/900/1280/1680px 에서 `scrollWidth == clientWidth`(가로 스크롤 금지 규칙). 원본과 렌더 일치 확인.
+- **JS 문법**: 6화면 `node --check` 통과.
+- **DB 계약 실행 검증** (로컬 Supabase `supabase_db_NexusWiki`):
+  - workspace-home §5.1 — 구판은 `owner_id` NOT NULL 위반으로 실패 재현, 신판은 `workspace_members` owner 행 **정확히 1개**(트리거 중복 없음)
+  - workspace-home §5.2/5.3/5.4 — 3개 쿼리 에러 없이 실행
+  - source-management §4.1 — 3,000행 넣고 `Seq Scan` → `Bitmap Index Scan` 전환 확인
+  - wiki-document-reader §3 — 4개 계약 실행 확인, `p_fanout` 21 입력이 거부되는 것까지 확인
+  - public-sharing §2·§3 — **제안 스키마 2개를 로컬에 실제로 세우고 `set local role anon` 으로 질의.** ① 킬스위치 EXISTS 동작 ② 구판 라우팅 `permission denied for table wiki_pages` **실패 재현** ③ `published_slug` 비정규화 수정안 통과 ④ 킬스위치 OFF 시 0행 ⑤ 검증 게이트 트리거가 `partial` 을 42501 로 거부
+  - backlog-management §4 — 3개 계약 실행 확인. `wiki_links` 컬럼 **7개**·`resolved = GENERATED ALWAYS`·`authenticated` 권한 **SELECT 단독**·정책 1개 실측. 인덱스는 현실 비율(20 ws / 20,000행 중 미해결 5%)에서 `Bitmap Index Scan on wiki_links_unresolved_slug_idx` 확인
+  - auth-google §5 — 구판 §5.2 1단계가 `owner_id` NOT NULL 위반으로 **실패 재현**, 신판은 성공 + `workspace_members` owner 행 **정확히 1개**. 전역 프롬프트 템플릿 `ask 4 / compile 1` 이 `workspace_id IS NULL` 로 존재(=바인딩 단계 없음), `workspaces.slug` **부재** 확인
+  - workspace-settings §4 — 6개 계약 실행 확인 + `invite_workspace_member` 가 비-owner 를 `42501` 로 거부하는 것까지 확인. `pg_policies` **27행**, `role` CHECK 3종, `monthly_budget_micros` 기본값 `5000000`, RPC 5개 전부 `prosecdef = t` 로 실재, `workspace_public_settings`·`wiki_page_publications`·`user_profiles`·`workspaces.slug` **전부 부재** 확인
+- **정합성**: 프로토타입 카운트 통일(카테고리 합 18 = 문서 18, 백로그 03, 원문 42), 이모지 0개, 미정의 클래스 없음.
+
+### 미검증
+
+- `pnpm test` / `typecheck` / `lint` / `build` 미실행 — 아직 `apps/` 를 한 줄도 건드리지 않았다.
+- backlog-management · public-sharing PRD 미검토.
+- **프로토타입 HTML 은 하나도 안 고쳤다.** workspace-settings §5(11건) · auth-google §7(8건)에 정정 목록만 표로 남겼다.
+- **E-3(Google 인증)은 결정만 됐고 코드는 한 줄도 안 썼다.** PRD 는 구현 계약이지 구현 현황이 아니다.
 
 ## ⚠️ 4. 주의사항 & 남은 작업 (TODO)
 
-- [ ] **최우선**: `supabase db push`로 마이그레이션 `0014`를 클라우드에 적용할지 사용자 확인 받고 실행 (additive-only, 테이블/RLS 변경 없음 — 낮은 위험으로 판단했으나 프로덕션 DB 변경이라 확인 필요했음)
-- [ ] `0014` push 후 초대 플로우 실제 왕복 검증 (`InviteForm.tsx` → `NW404`/`NW409`/성공 각 케이스)
-- [ ] 위키 상세 페이지 한글 슬러그 라우팅 버그 — `decodeURIComponent(slug)` 수정 적용 여부 결정 후 진행 (현재 코드 미변경)
-- [ ] git 로그의 "quiet editorial" 대시보드 리프레시 커밋들 내용 확인 — 이 세션 작업과 충돌/중복 없는지, 실제 배포에 반영됐는지
-- **주의사항**:
-  - **로컬 vs 클라우드 계정은 완전히 별개 DB다** — `dev-test@example.test`(로컬 전용, `UatVerify-2026!`)와 `dev-test+1786601699@nexuswiki.test`(클라우드 전용, `Nexus748c6c1174f6!Wiki`)를 섞어 쓰면 로그인 자체가 안 됨. `apps/dashboard/.env.local`의 `NEXT_PUBLIC_SUPABASE_URL`이 어느 쪽을 가리키는지가 유일한 판정 기준.
-  - **Next.js는 `.env.local`을 부팅 시 한 번만 읽는다** — 파일만 고치고 dev 서버 재시작을 안 하면 예전 값이 계속 쓰인다(이번 세션에 실제로 헷갈렸던 지점).
-  - **Vercel 재배포는 반드시 저장소 루트에서** `vercel --prod` — `apps/dashboard` 안에서 하면 모노레포 바깥 `docs/` 참조가 깨진다.
-  - `.vercel/`이 저장소 루트와 `apps/dashboard/` 양쪽에 있다(의도적 — 루트에서 배포하되 프로젝트 root directory 설정은 `apps/dashboard`).
-  - `/tmp`에 저장했던 테스트 계정 자격증명 파일(`/tmp/nexuswiki-test-creds.txt`)이 재부팅으로 사라졌다 — 앞으로는 `.env.local` 같은 프로젝트 내 위치(gitignore 대상)에 남기거나 이 문서에 직접 기록하는 편이 낫다. 클라우드 테스트 계정 자격증명은 위 주의사항에 이미 적어 뒀다.
+### 저장소 상태 — 해소됨
+
+- [x] **`.claude/skills/` 하위 840개 파일 삭제는 사용자가 의도한 것으로 확인**(2026-08-17). 더 이상 경고 대상이 아니다. 스테이징·커밋은 아직 안 했다 — 사용자가 별도로 지시할 때 처리할 것.
+
+### 🔴 최우선 — 마이그레이션 0015: `workspaces.slug` (E-6 결정)
+
+Google 인증보다 **먼저** 간다. 셀프서브 워크스페이스 생성(E-3)이 이 컬럼에 의존한다.
+
+- [ ] `supabase/migrations/0015_workspace_slug.sql` — DDL 전문은 `public-sharing-prd.md` §2.0 에 실측 검증된 형태로 있다
+- [ ] 기존 행 백필(`'ws-' || left(id::text, 8)`) 후 `set not null`
+- [ ] `slugify` 를 워크스페이스에도 쓰도록 호출부 정리 — `taken` 은 전체 `workspaces.slug`
+- [ ] ⚠️ **클라우드는 `0014` 까지 적용돼 있다.** `0015` 를 밀기 전에 로컬 `db reset` 으로 순서 확인할 것
+
+### 🔴 그다음 — Google 인증 구현 (E-3 결정, 전량 미구현)
+
+착수 순서는 `auth-google-prd.md` §7 체크리스트. **하나라도 빠지면 콜백이 조용히 실패한다.**
+
+- [ ] Google Cloud OAuth 2.0 클라이언트 생성 + 로컬·클라우드 리디렉션 URI 등록
+- [ ] `config.toml` 에 `[auth.external.google]` **블록 신설** — 현재 이 블록 자체가 없다(있는 건 `apple = false` 하나). 시크릿은 `env(...)` 참조로만
+- [ ] `skip_nonce_check = true` — **로컬 전용**, 클라우드에 넘기지 말 것 (config 주석: "Required for local sign in with Google auth")
+- [ ] 클라우드 프로젝트 Auth Provider 별도 설정 — `config.toml` 은 로컬 스택용이다
+- [ ] `app/auth/callback/route.ts` Route Handler 신설 (PRD §4.3)
+- [ ] `middleware.ts` matcher: `/signup` **추가**, `/auth/callback` **제외**
+- [ ] `LoginForm.tsx` 삭제 → `GoogleAuthButton` 교체, `/signup` 신설
+- [ ] `/` 0개 분기를 셀프서브 온보딩으로 교체 (PRD §5)
+- [ ] `openspec/specs/workspace-entry-flow/spec.md` 개정 (PRD §8)
+- [ ] **클라우드 기존 계정 확인** — `select provider, count(*) from auth.identities group by 1`. 로컬은 2개 전부 `email` 이라 `db reset` 이면 되지만 클라우드는 별도. 같은 이메일의 자동 계정 연결을 **가정하지 말고 실측할 것** (어긋나면 한 사람에게 계정이 둘 생기고 한쪽에만 멤버십이 붙는다)
+- [ ] **이용약관 · 개인정보 처리방침 문서** — `/signup` 이 링크해야 하는데 문서 자체가 없다. 가입을 여는 이상 미룰 수 없다
+
+### PRD 리뷰
+
+- [x] **backlog-management PRD 리뷰 완료** (E-4). 프로토타입 없이 문서만 봤다.
+- [x] **public-sharing PRD 리뷰 완료** (E-5). **7개 PRD 전부 리뷰 완료.**
+
+### 미해결 결정 (PRD 에 `[미구현]`/미해결로 기록해 둠)
+
+- [ ] **컬렉션 스키마·UI 설계** — 방향만 확정했고 테이블 설계는 아직. `wiki-document-reader`·`source-management` 양쪽이 기다린다.
+- [ ] **즐겨찾기 · 최근 본 위키 저장소 없음** — 제외할지, `user_wiki_bookmarks` 를 만들지, `localStorage` 로 갈지. 프로토타입은 카운트 뱃지를 빼둔 상태.
+- [x] **`workspaces.slug` 위치 결정 완료** (E-6). `decisions.workspace_slug`, revision 8.
+- [ ] **초대 폼 owner 게이트 (코드 수정)** — `SettingsMembersPanel.tsx` 가 `currentRole === "owner"` 로 `InviteForm` 을 감싸야 한다. 지금은 viewer/editor 도 폼을 보고 제출 후에야 `권한이 없습니다.` 를 받는다.
+- [ ] **멤버 로스터 `가입 일시` 표시 여부** — RPC 는 `created_at` 을 주고 시안은 열을 그리는데 `MembersList` 가 렌더하지 않는다. 표시 권고.
+- [ ] **역할 변경 UI** — `workspace_members_update_owner` 정책은 있고 화면이 없다. owner 자기 강등은 `protect_owner_membership` 이 막으므로 owner 행은 비활성이어야 한다.
+- [ ] **워크스페이스 이름 변경·삭제 UI** — 정책만 있고 화면 없음. 삭제는 `owner_id … on delete restrict` 와 맞물린다.
+- [ ] **멤버 표시 이름** — `auth.users` 에도 `workspace_members` 에도 이름이 없다. `user_profiles` 신설이 필요하며 이번 마일스톤 제외 권고.
+- [ ] **초대 흐름의 남은 구멍** — `/signup` 이 열려도 `invite_workspace_member` 는 미가입 이메일을 `NW404` 로 거부한다. `NW404` 문구에 `/signup` 링크를 넣을지, Supabase `inviteUserByEmail` 로 초대 메일 경로를 따로 만들지. (auth-google PRD §9-2)
+- [ ] **첫 워크스페이스의 `kind`** — PRD §6.2 는 `'personal'` 제안. `'team'` 이 맞다면 근거를 `decisions` 에 적을 것.
+- [ ] **`wiki_pages_sources_idx` 선행 마이그레이션** — source-management 화면 구현 전에 적용해야 함(§4.1).
+- [ ] **JobStepper 단계 총계** — 서버 `CHAIN_ORDER` 5단계 vs 대시보드 `STAGE_TYPES` 4단계. `conflict_check` 를 진행 표시에 넣을지.
+- [ ] **아카이브 기능** — `archived_at` 컬럼 + 5채널 제외 필터 + `wiki_embeddings` 처리가 필요. 이번 마일스톤 제외 권고 상태.
+
+### 정리 대상
+
+- [ ] **`docs/design-systems/design-tokens.css`·`.json` 이 옛 Airbnb 팔레트**(`--color-primary: #ff385c`). v2 는 청록 `oklch(.58 .11 190)` 체계다. 지금은 아무도 참조하지 않지만 남겨두면 누가 집어들 위험이 있다. `apps/dashboard/app/globals.css` 가 이걸 쓰는지 확인 후 판단할 것.
+- [x] **v1 preview 링크 정정 완료** — `workspace-settings` · `backlog-management` 둘 다.
+- [ ] **backlog 는 v2 프로토타입이 없다** — 만들 경우 `RedLinkCta` 문구 계약을 그대로 따를 것 (PRD §5-4).
+- [ ] **소스 삭제 API 부재** — source-management PRD §3.6·§3.7 이 삭제 흐름을 정의하는데 `sources.py` 에 DELETE 엔드포인트가 없다(POST 3개뿐). RLS 정책은 있으니 **[UI·API 미구현]** 표기가 필요하다. backlog 리뷰 중 발견.
+- [ ] **프로토타입 LNB 의 카테고리 표시명이 코드와 어긋난다 (확인 완료)** — 시안은 `개념/대상/가이드/지도`, 실제 `GraphLensFilter.tsx` 는 `개념/엔티티/가이드/맵`. PRD 는 코드 쪽으로 이미 맞췄으니 **시안 2군데(`대상`→`엔티티`, `지도`→`맵`)만 고치면 된다.**
+- [ ] **source-management 프로토타입이 PRD 와 어긋남** — 시안은 아직 SQL·CSV 파일과 포맷 탭 5개를 보여주는데, PRD 는 3종(`PDF`·`텍스트/마크다운`)으로 확정됐다.
+- [ ] **workspace-settings 프로토타입 정정 11건** — 목록은 `workspace-settings-prd.md` §5 표에 있다. 그중 **`EDITOR … 위키 재컴파일` 문구는 불변식 §2 직접 위반**이라 우선순위가 높다.
+- [ ] **auth-google 프로토타입 정정** — 목록은 `auth-google-prd.md` §10 표. **E-3 결정으로 대부분 되살아났다**(Google CTA·온보딩 카드 전부 유지). 실제 정정은 slug 필드 제거 · `프로젝트` 어휘 · `🚀` 3건이고, `/signup` 화면 1개를 새로 그려야 한다.
+
+### 코드 수정 대기 (문서 아님)
+
+- [ ] **`WorkspaceEntryChooser.tsx:27,33` 의 `프로젝트` 어휘** → `워크스페이스`. 불변식 §1 직접 위반이고 2줄이다.
+- [ ] **`SettingsMembersPanel.tsx:120-128` 초대 폼 owner 게이트** — `currentRole === "owner"` 로 감쌀 것.
+
+### 주의사항
+
+- **이 세션은 `apps/`·`supabase/migrations/` 를 한 줄도 건드리지 않았다.** 전부 `docs/design-systems/v2/` 안의 문서와 정적 프로토타입 작업이다. 실제 제품 코드 반영은 아직 시작 전.
+- **`docs/design-systems/v2/` 가 PRD 정본이다.** 상위 폴더의 중복본 7개는 `a46795f` 에서 제거했고, 상위에는 v1 preview HTML 만 남는다.
+- **PRD 의 "확정(Validated)" 라벨을 믿지 말 것.** 이번 세션에서 검증 가능한 구체적 주장(컬럼명·테이블명·정책 수·MIME 목록·단계 수)이 3개 문서 모두에서 틀렸다. 반드시 `supabase/migrations/` 와 `apps/` 에 대조할 것. 로컬 Supabase 가 떠 있으면 쿼리를 실제로 실행해보는 것이 가장 확실하다:
+  `docker exec -i supabase_db_NexusWiki psql -U postgres -d postgres`
 
 ## 🚀 5. 다음 세션 재개 안내
 
 다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
-> "HANDOFF.md 확인하고, 마이그레이션 0014 클라우드 push부터 확인한 다음 남은 작업 이어서 진행해줘."
+
+> "HANDOFF.md 확인해줘. PRD 리뷰 7건과 결정 3건(auth · workspace_slug)이 끝났으니 §4 최우선부터 착수 — 마이그레이션 0015(`workspaces.slug`) 먼저, 그다음 Google 인증을 `auth-google-prd.md` §7 체크리스트 순서대로. `.claude/skills/` 삭제는 의도된 것이니 경고하지 말 것."
+
+**PRD 리뷰는 여기서 끝났다.** 다음 세션의 무게 중심은 문서가 아니라 **구현**이다 — 이 세션에서 만든 것은 전부 계약이고 코드는 한 줄도 쓰지 않았다.

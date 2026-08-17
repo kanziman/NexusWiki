@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>넥서스위키(NexusWiki) - 워크스페이스 설정 & 멤버 관리 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Pretendard", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #ffffff;
+      color: #0f172a;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* SVG Icon Helpers */
+    .svg-icon {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      stroke-width: 2.1px;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    /* App Shell Container */
+    .app-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      height: 100vh;
+      width: 100vw;
+      background: #ffffff;
+    }
+
+    /* =========================================================================
+       1. 좌측 LNB 네비게이션 (260px)
+       ========================================================================= */
+    .sidebar-left {
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      user-select: none;
+      z-index: 20;
+    }
+
+    .ws-switcher-box {
+      padding: 14px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      background: #f8fafc;
+      transition: background 0.12s;
+    }
+    .ws-switcher-box:hover {
+      background: #f1f5f9;
+    }
+    .ws-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ws-logo-badge {
+      width: 28px;
+      height: 28px;
+      background: #2563eb;
+      color: #ffffff;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .ws-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .ws-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    /* Workspace Switcher Popover */
+    .ws-switcher-popover {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 12px;
+      width: 236px;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 6px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+      z-index: 999;
+      display: none;
+      flex-direction: column;
+      animation: popIn 0.12s ease-out;
+    }
+    .ws-switcher-popover.open {
+      display: flex;
+    }
+    .ws-popover-header {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      padding: 4px 8px;
+    }
+    .ws-popover-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: all 0.1s;
+    }
+    .ws-popover-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .ws-popover-item.active {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .ws-mini-logo {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: #2563eb;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .ws-active-check {
+      color: #2563eb;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .ws-popover-divider {
+      height: 1px;
+      background: #f1f5f9;
+      margin: 4px 0;
+    }
+    .ws-create-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #2563eb;
+      background: #eff6ff;
+      border: 1px dashed #bfdbfe;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.12s;
+    }
+    .ws-create-btn:hover {
+      background: #dbeafe;
+    }
+
+    .lnb-scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .lnb-sec-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 8px 4px 8px;
+    }
+
+    .lnb-nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.12s;
+      text-decoration: none;
+    }
+    .lnb-nav-item:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .lnb-nav-item.active {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 800;
+    }
+    .lnb-item-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .count-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 9999px;
+      background: #f1f5f9;
+      color: #64748b;
+    }
+    .lnb-nav-item.active .count-badge {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .tree-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .tree-group-header:hover {
+      background: #f1f5f9;
+    }
+    .tree-sub-items {
+      margin-left: 12px;
+      padding-left: 8px;
+      border-left: 1.5px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 2px;
+    }
+    .tree-sub-link {
+      padding: 5px 8px;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .tree-sub-link:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    .lnb-user-card {
+      padding: 12px 14px;
+      border-top: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f1f5f9;
+    }
+    .user-avatar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 9999px;
+      background: #2563eb;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    /* =========================================================================
+       2. 메인 워크스페이스 설정 캔버스 (/settings)
+       ========================================================================= */
+    .main-canvas-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #ffffff;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .top-breadcrumb-bar {
+      padding: 12px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #f1f5f9;
+      background: #ffffff;
+      z-index: 10;
+      position: sticky;
+      top: 0;
+    }
+    .breadcrumb-path {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .breadcrumb-path strong {
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    /* Button Tokens */
+    .btn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-pill.primary {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.18);
+    }
+    .btn-pill.primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-pill.secondary {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+    }
+    .btn-pill.secondary:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    .action-icon-btn {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      color: #334155;
+      padding: 3px 8px;
+      min-width: 28px;
+      height: 26px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.12s;
+    }
+    .action-icon-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-color: #94a3b8;
+    }
+
+    /* Max-width Centered Content Container */
+    .settings-container {
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 24px 60px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .settings-header-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .settings-header-card h1 {
+      font-size: 26px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.6px;
+    }
+    .settings-header-card p {
+      font-size: 13.5px;
+      color: #64748b;
+    }
+
+    /* 2-Tab Segment Switcher */
+    .settings-tab-bar {
+      display: flex;
+      gap: 6px;
+      border-bottom: 1.5px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+    .tab-btn {
+      padding: 7px 16px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.12s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .tab-btn.active {
+      background: #0f172a;
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    /* Content Cards */
+    .settings-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .settings-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .card-subtitle {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    /* Invite Form Component */
+    .invite-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 140px auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .form-input, .form-select {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      font-size: 13px;
+      background: #ffffff;
+      color: #0f172a;
+      outline: none;
+      font-family: inherit;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: #2563eb;
+    }
+
+    /* Members List Table */
+    .member-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    .member-table thead {
+      border-bottom: 1.5px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .member-table th {
+      padding: 10px 12px;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .member-table tbody tr {
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.12s;
+    }
+    .member-table tbody tr:hover {
+      background: #f8fafc;
+    }
+    .member-table td {
+      padding: 12px;
+      color: #334155;
+      vertical-align: middle;
+    }
+
+    /* Role Badges */
+    .role-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    .role-badge.owner { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .role-badge.editor { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .role-badge.viewer { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+    .you-pill {
+      font-size: 10.5px;
+      font-weight: 800;
+      background: #f1f5f9;
+      color: #64748b;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-left: 6px;
+    }
+
+    /* Operations Panel Components */
+    .budget-progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .budget-progress-fill {
+      height: 100%;
+      background: #2563eb;
+      border-radius: 9999px;
+      transition: width 0.3s ease;
+    }
+
+    .pipeline-status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+    .pipeline-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .pipeline-name {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .pipeline-counts {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11.5px;
+      color: #64748b;
+    }
+
+    /* Modal Backdrop and Card */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .modal-backdrop.open {
+      display: flex;
+    }
+    .modal-card {
+      width: 460px;
+      background: #ffffff;
+      border-radius: 14px;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: scaleUp 0.15s ease-out;
+    }
+    .modal-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid #f1f5f9;
+      background: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .form-group-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-group-label {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #334155;
+    }
+    .form-input-text {
+      padding: 8px 12px;
+      border-radius: 7px;
+      border: 1px solid #cbd5e1;
+      font-size: 12.5px;
+      background: #ffffff;
+      color: #0f172a;
+      outline: none;
+      font-family: inherit;
+    }
+    .form-input-text:focus {
+      border-color: #2563eb;
+    }
+    .slug-prefix-wrap {
+      display: flex;
+      align-items: center;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      overflow: hidden;
+    }
+    .slug-prefix {
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+      font-size: 11.5px;
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .slug-input {
+      border: none;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      color: #0f172a;
+      flex: 1;
+      outline: none;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: fixed;
+      top: 18px;
+      right: 24px;
+      z-index: 999999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast-item {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      animation: fadeIn 0.15s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes scaleUp {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-layout">
+    <!-- =======================================================================
+         1. 좌측 LNB 네비게이션 (260px)
+         ======================================================================= -->
+    <aside class="sidebar-left">
+      <div style="position:relative;">
+        <div class="ws-switcher-box" onclick="toggleWsDropdown(event)">
+          <div class="ws-info">
+            <div class="ws-logo-badge" id="current-ws-logo">N</div>
+            <div>
+              <div class="ws-title" id="current-ws-title">NexusDB Core</div>
+              <div class="ws-subtitle">엔지니어링 코어 워크스페이스</div>
+            </div>
+          </div>
+          <svg class="svg-icon" style="color:#94a3b8;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <!-- Workspace Switcher Dropdown Popover -->
+        <div id="ws-switcher-popover" class="ws-switcher-popover">
+          <div class="ws-popover-header">소속 워크스페이스</div>
+          <div id="ws-list-container" style="display:flex; flex-direction:column; gap:2px;">
+            <button class="ws-popover-item active" onclick="switchWorkspace('NexusDB Core', 'N', this)">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="ws-mini-logo">N</span>
+                <span style="font-weight:800; color:#0f172a;">NexusDB Core</span>
+              </div>
+              <span class="ws-active-check">✓</span>
+            </button>
+            <button class="ws-popover-item" onclick="switchWorkspace('결제 & 정산 플랫폼', 'P', this)">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="ws-mini-logo" style="background:#059669;">P</span>
+                <span>결제 & 정산 플랫폼</span>
+              </div>
+            </button>
+            <button class="ws-popover-item" onclick="switchWorkspace('AI 검색 파이프라인', 'A', this)">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="ws-mini-logo" style="background:#7c3aed;">A</span>
+                <span>AI 검색 파이프라인</span>
+              </div>
+            </button>
+          </div>
+          <div class="ws-popover-divider"></div>
+          <button class="ws-create-btn" onclick="openCreateWsModal()">
+            <svg class="svg-icon" style="width:12px; height:12px; color:#2563eb;" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>+ 새 워크스페이스 생성</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lnb-scroll-area">
+        <div>
+          <div class="lnb-sec-title">개인 & 빠른 탐색</div>
+          <a class="lnb-nav-item" href="workspace-home-preview.html">
+            <div class="lnb-item-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span>홈 대시보드</span>
+            </div>
+          </a>
+          <a class="lnb-nav-item" href="ask-conversation-preview.html">
+            <div class="lnb-item-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>AI 지식 질문 (Ask)</span>
+            </div>
+          </a>
+          <a class="lnb-nav-item" href="backlog-management-preview.html">
+            <div class="lnb-item-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>미완성 백로그</span>
+            </div>
+            <span class="count-badge">6</span>
+          </a>
+          <a class="lnb-nav-item" href="source-management-preview.html">
+            <div class="lnb-item-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>원문 소스</span>
+            </div>
+            <span class="count-badge">18</span>
+          </a>
+          <a class="lnb-nav-item" href="knowledge-graph-preview.html">
+            <div class="lnb-item-left">
+              <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              <span>지식 그래프</span>
+            </div>
+            <span class="count-badge">38</span>
+          </a>
+        </div>
+
+        <div>
+          <div class="lnb-sec-title">엔지니어링 지식 그룹</div>
+          <div>
+            <div class="tree-group-header">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <svg class="svg-icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                <span>데이터베이스 & RLS</span>
+              </div>
+              <span style="font-size:11px; color:#94a3b8;">18</span>
+            </div>
+            <div class="tree-sub-items">
+              <a class="tree-sub-link" href="wiki-document-reader-preview.html">
+                <svg class="svg-icon" style="width:11px; height:11px;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>테넌트 격리 및 RLS</span>
+              </a>
+              <a class="tree-sub-link" href="wiki-document-reader-preview.html">
+                <svg class="svg-icon" style="width:11px; height:11px;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>복합 외래키 전파 규칙</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lnb-user-card">
+        <div class="user-avatar-wrap">
+          <div class="user-avatar">김</div>
+          <span style="font-size:12.5px; font-weight:800; color:#0f172a;">김개발 (Owner)</span>
+        </div>
+        <a href="workspace-settings-preview.html" style="color:#0f172a;" title="설정">
+          <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </a>
+      </div>
+    </aside>
+
+    <!-- =======================================================================
+         2. 메인 워크스페이스 설정 캔버스 (/settings)
+         ========================================================================= -->
+    <main class="main-canvas-wrapper">
+      <!-- Top Breadcrumb Bar -->
+      <div class="top-breadcrumb-bar">
+        <div class="breadcrumb-path">
+          <span>엔지니어링 코어</span>
+          <span style="color:#cbd5e1;">/</span>
+          <strong>설정</strong>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:12px; color:#059669; font-weight:700;">● PostgreSQL 17 RLS 활성</span>
+        </div>
+      </div>
+
+      <!-- Settings Content Container -->
+      <div class="settings-container">
+        <!-- Header -->
+        <div class="settings-header-card">
+          <h1>워크스페이스 설정</h1>
+          <p>워크스페이스 멤버 권한과 백그라운드 운영 상태를 관리합니다.</p>
+        </div>
+
+        <!-- 2-Tab Switcher -->
+        <div class="settings-tab-bar">
+          <button id="tab-btn-members" class="tab-btn active" onclick="switchSettingsTab('members')">
+            <svg class="svg-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>멤버 관리 (4)</span>
+          </button>
+          <button id="tab-btn-ops" class="tab-btn" onclick="switchSettingsTab('operations')">
+            <svg class="svg-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>운영 현황 (Operations)</span>
+          </button>
+        </div>
+
+        <!-- ===================================================================
+             Tab 1: 멤버 관리 뷰 (MembersList + InviteForm)
+             =================================================================== -->
+        <div id="panel-members" style="display:flex; flex-direction:column; gap:20px;">
+          <!-- Invite Form Card (InviteForm.tsx) -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <div class="card-title">신규 멤버 초대</div>
+                <div class="card-subtitle">초대된 멤버는 워크스페이스 RLS 정책에 따라 권한이 부여됩니다.</div>
+              </div>
+            </div>
+            <form onsubmit="handleInvite(event)" class="invite-form-grid">
+              <input id="invite-email" type="email" required placeholder="동료 이메일 주소 (colleague@company.com)" class="form-input" />
+              <select id="invite-role" class="form-select">
+                <option value="editor">Editor (편집자)</option>
+                <option value="viewer">Viewer (뷰어)</option>
+                <option value="owner">Owner (소유자)</option>
+              </select>
+              <button type="submit" class="btn-pill primary">
+                <svg class="svg-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>초대장 발송</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Members List Card (MembersList.tsx) -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <div class="card-title">워크스페이스 멤버 목록 (<span id="member-count-label">4</span>명)</div>
+                <div class="card-subtitle">Owner는 멤버의 역할을 변경하거나 퇴장시킬 수 있습니다.</div>
+              </div>
+            </div>
+
+            <table class="member-table">
+              <thead>
+                <tr>
+                  <th style="width:40%;">멤버</th>
+                  <th style="width:22%;">역할 (Role)</th>
+                  <th style="width:24%;">가입 일시</th>
+                  <th style="width:14%; text-align:right;">액션</th>
+                </tr>
+              </thead>
+              <tbody id="member-table-body">
+                <!-- Member 1: Current User (Owner) -->
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div class="user-avatar" style="background:#2563eb;">김</div>
+                      <div>
+                        <strong style="color:#0f172a; font-size:13px;">김개발</strong>
+                        <span class="you-pill">나</span>
+                        <div style="font-size:11.5px; color:#64748b;">kim@nexusdb.io</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="role-badge owner">owner</span></td>
+                  <td style="font-size:12px; color:#64748b;">2026. 08. 01</td>
+                  <td style="text-align:right; font-size:11.5px; color:#94a3b8;">-</td>
+                </tr>
+
+                <!-- Member 2: Architect (Editor) -->
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div class="user-avatar" style="background:#059669;">이</div>
+                      <div>
+                        <strong style="color:#0f172a; font-size:13px;">이아키텍트</strong>
+                        <div style="font-size:11.5px; color:#64748b;">lee.arch@nexusdb.io</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="role-badge editor">editor</span></td>
+                  <td style="font-size:12px; color:#64748b;">2026. 08. 05</td>
+                  <td style="text-align:right;">
+                    <button class="action-icon-btn" onclick="removeMember(this, '이아키텍트')" title="멤버 퇴장">✕</button>
+                  </td>
+                </tr>
+
+                <!-- Member 3: Platform Engineer (Editor) -->
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div class="user-avatar" style="background:#059669;">박</div>
+                      <div>
+                        <strong style="color:#0f172a; font-size:13px;">박엔지니어</strong>
+                        <div style="font-size:11.5px; color:#64748b;">park.eng@nexusdb.io</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="role-badge editor">editor</span></td>
+                  <td style="font-size:12px; color:#64748b;">2026. 08. 10</td>
+                  <td style="text-align:right;">
+                    <button class="action-icon-btn" onclick="removeMember(this, '박엔지니어')" title="멤버 퇴장">✕</button>
+                  </td>
+                </tr>
+
+                <!-- Member 4: Intern (Viewer) -->
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <div class="user-avatar" style="background:#64748b;">최</div>
+                      <div>
+                        <strong style="color:#0f172a; font-size:13px;">최인턴</strong>
+                        <div style="font-size:11.5px; color:#64748b;">choi.intern@nexusdb.io</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="role-badge viewer">viewer</span></td>
+                  <td style="font-size:12px; color:#64748b;">2026. 08. 14</td>
+                  <td style="text-align:right;">
+                    <button class="action-icon-btn" onclick="removeMember(this, '최인턴')" title="멤버 퇴장">✕</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ===================================================================
+             Tab 2: 운영 현황 뷰 (OperationsPanel.tsx)
+             =================================================================== -->
+        <div id="panel-operations" style="display:none; flex-direction:column; gap:20px;">
+          <!-- Budget Card -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <div class="card-title">월별 LLM API 추론 예산</div>
+                <div class="card-subtitle">2026년 8월 기준 실시간 추론 토큰 사용량 집계</div>
+              </div>
+              <strong style="font-size:16px; color:#2563eb;">$34.20 <span style="font-size:12px; color:#64748b; font-weight:600;">/ $100.00</span></strong>
+            </div>
+
+            <div class="budget-progress-bar">
+              <div class="budget-progress-fill" style="width: 34.2%;"></div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:#64748b; font-weight:700;">
+              <span>소진율 <strong>34.2%</strong></span>
+              <span>잔여 예산 <strong>$65.80</strong></span>
+            </div>
+          </div>
+
+          <!-- Pipeline Queue Status Card -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <div class="card-title">비동기 파이프라인 잡 큐 현황</div>
+                <div class="card-subtitle">apps/worker 상주 프로세스에서 실행 중인 3대 파이프라인</div>
+              </div>
+              <button id="refresh-ops-btn" class="btn-pill secondary" onclick="refreshOperations()">
+                <svg class="svg-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>새로고침</span>
+              </button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <!-- Pipeline 1 -->
+              <div class="pipeline-status-row">
+                <div class="pipeline-info">
+                  <span class="pipeline-name">원문 소스 수집 & 청킹 (Ingest)</span>
+                  <span style="font-size:11px; color:#64748b;">SQL/PDF 파싱 및 512-토큰 분할</span>
+                </div>
+                <div class="pipeline-counts">
+                  <span>대기 <strong>0건</strong></span>
+                  <span style="color:#059669; font-weight:700;">● 실행 1건</span>
+                  <span>실패 <strong>0건</strong></span>
+                </div>
+              </div>
+
+              <!-- Pipeline 2 -->
+              <div class="pipeline-status-row">
+                <div class="pipeline-info">
+                  <span class="pipeline-name">위키 자동 컴파일러 (Compiler)</span>
+                  <span style="font-size:11px; color:#64748b;">Claude 3.5 Sonnet 기반 위키 생성 및 상호 링크</span>
+                </div>
+                <div class="pipeline-counts">
+                  <span>대기 <strong>2건</strong></span>
+                  <span style="color:#2563eb; font-weight:700;">● 실행 1건</span>
+                  <span>실패 <strong>0건</strong></span>
+                </div>
+              </div>
+
+              <!-- Pipeline 3 -->
+              <div class="pipeline-status-row">
+                <div class="pipeline-info">
+                  <span class="pipeline-name">벡터 임베딩 생성 (Embedding)</span>
+                  <span style="font-size:11px; color:#64748b;">text-embedding-3-small pgvector 저장</span>
+                </div>
+                <div class="pipeline-counts">
+                  <span>대기 <strong>0건</strong></span>
+                  <span>실행 <strong>0건</strong></span>
+                  <span>실패 <strong>0건</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Security & Isolation Card -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <div class="card-title">데이터 격리 및 보안 무결성</div>
+                <div class="card-subtitle">PostgreSQL 17 Row Level Security (RLS) 거버넌스</div>
+              </div>
+              <span style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:#059669; font-weight:800;">
+                <span style="width:7px; height:7px; border-radius:9999px; background:#10b981;"></span> 100% 격리 정상
+              </span>
+            </div>
+            <div style="font-size:12.5px; color:#475569; line-height:1.5;">
+              모든 테이블(`wiki_pages`, `source_chunks`, `prompt_templates`)에 대해 워크스페이스 격리 RLS가 활성화되어 있어 다른 테넌트의 접근이 원천 차단됩니다.
+            </div>
+          </div>
+
+          <!-- Public Sharing Master Switch Card (workspace_public_settings) -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <div class="card-title">외부 웹 공개 마스터 스위치 (Allow Public Sharing)</div>
+                <div class="card-subtitle">1:1 사이드카 테이블(`workspace_public_settings`) 기반의 물리적 킬스위치</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span id="master-switch-status" style="font-size:11.5px; color:#2563eb; font-weight:800;">활성화 (ON)</span>
+                <button id="master-switch-btn" class="action-icon-btn" onclick="togglePublicMaster()" style="background:#2563eb; color:#ffffff; border-color:#2563eb; font-size:11.5px; padding:4px 10px; height:auto;">스위치 전환</button>
+              </div>
+            </div>
+            <div style="font-size:12.5px; color:#475569; line-height:1.5;">
+              스위치가 <strong>ON</strong>이면 승인된 공개 위키(<code>/p/[slug]</code>)가 외부에 안전하게 열립니다. <strong>OFF</strong>로 전환 시 모든 공개 엔드포인트 조회가 DB RLS 엔진 레벨에서 즉각 404로 일괄 차단(Instant Kill Switch)됩니다.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Workspace Modal Dialog -->
+  <div id="create-ws-modal" class="modal-backdrop" onclick="handleBackdropClick(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size:16px; font-weight:900; color:#0f172a; letter-spacing:-0.4px;">✨ 새 워크스페이스 생성</h3>
+          <p style="font-size:12px; color:#64748b; margin-top:2px;">팀의 소스 코드와 위키 문서를 격리하여 안전하게 관리합니다.</p>
+        </div>
+        <button class="action-icon-btn" onclick="closeCreateWsModal()" style="border:none; background:transparent; color:#94a3b8; font-size:14px;">✕</button>
+      </div>
+      <form onsubmit="handleCreateWorkspace(event)">
+        <div class="modal-body">
+          <div class="form-group-field">
+            <label class="form-group-label">워크스페이스 명칭 *</label>
+            <input id="ws-name-input" class="form-input-text" required placeholder="예: 결제 & 정산 서비스" oninput="autoFillSlug(this.value)" />
+          </div>
+          <div class="form-group-field">
+            <label class="form-group-label">URL 슬러그 식별자 *</label>
+            <div class="slug-prefix-wrap">
+              <span class="slug-prefix">/w/</span>
+              <input id="ws-slug-input" class="slug-input" required placeholder="billing-platform" />
+            </div>
+          </div>
+          <div class="form-group-field">
+            <label class="form-group-label">프로젝트 도메인 / 설명 (선택)</label>
+            <input id="ws-domain-input" class="form-input-text" placeholder="예: 결제 트랜잭션, 정산 배치 및 RLS 보안 아키텍처" />
+          </div>
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:11.5px; color:#475569; display:flex; align-items:center; gap:6px;">
+            <svg class="svg-icon" style="color:#059669; width:13px; height:13px;" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>생성자는 자동으로 <strong>Owner (소유자)</strong> 권한으로 등록되며, 전역 프롬프트가 기본 적용됩니다.</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-pill secondary" onclick="closeCreateWsModal()">취소</button>
+          <button type="submit" class="btn-pill primary">✨ 워크스페이스 생성 및 이동</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    function toggleWsDropdown(e) {
+      e.stopPropagation();
+      const popover = document.getElementById('ws-switcher-popover');
+      popover.classList.toggle('open');
+    }
+
+    function switchWorkspace(name, logoChar, btnElement) {
+      document.getElementById('current-ws-title').innerText = name;
+      document.getElementById('current-ws-logo').innerText = logoChar;
+      
+      document.querySelectorAll('.ws-popover-item').forEach(el => {
+        el.classList.remove('active');
+        const check = el.querySelector('.ws-active-check');
+        if (check) check.remove();
+      });
+
+      btnElement.classList.add('active');
+      btnElement.innerHTML += '<span class="ws-active-check">✓</span>';
+      document.getElementById('ws-switcher-popover').classList.remove('open');
+      showToast(`'${name}' 워크스페이스로 전환되었습니다.`);
+    }
+
+    function openCreateWsModal() {
+      const popover = document.getElementById('ws-switcher-popover');
+      if (popover) popover.classList.remove('open');
+      document.getElementById('create-ws-modal').classList.add('open');
+      document.getElementById('ws-name-input').focus();
+    }
+
+    function closeCreateWsModal() {
+      document.getElementById('create-ws-modal').classList.remove('open');
+    }
+
+    function handleBackdropClick(e) {
+      if (e.target.id === 'create-ws-modal') {
+        closeCreateWsModal();
+      }
+    }
+
+    function autoFillSlug(val) {
+      const slugInput = document.getElementById('ws-slug-input');
+      const slugified = val.toLowerCase().trim().replace(/[^a-z0-9가-힣]/g, '-').replace(/-+/g, '-');
+      slugInput.value = slugified;
+    }
+
+    function handleCreateWorkspace(e) {
+      e.preventDefault();
+      const name = document.getElementById('ws-name-input').value.trim();
+      const slug = document.getElementById('ws-slug-input').value.trim();
+      const firstChar = name[0] ? name[0].toUpperCase() : 'W';
+
+      if (!name) return;
+
+      // Add to workspace list
+      const container = document.getElementById('ws-list-container');
+      const newBtn = document.createElement('button');
+      newBtn.className = 'ws-popover-item';
+      newBtn.onclick = function() { switchWorkspace(name, firstChar, this); };
+      newBtn.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="ws-mini-logo" style="background:#2563eb;">${firstChar}</span>
+          <span>${name}</span>
+        </div>
+      `;
+      container.appendChild(newBtn);
+
+      // Switch to new workspace
+      switchWorkspace(name, firstChar, newBtn);
+      closeCreateWsModal();
+      showToast(`새 워크스페이스 '${name}'이 성공적으로 생성되었습니다!`);
+
+      // Reset form
+      document.getElementById('ws-name-input').value = '';
+      document.getElementById('ws-slug-input').value = '';
+      document.getElementById('ws-domain-input').value = '';
+    }
+
+    function switchSettingsTab(tab) {
+      const btnMembers = document.getElementById('tab-btn-members');
+      const btnOps = document.getElementById('tab-btn-ops');
+      const panelMembers = document.getElementById('panel-members');
+      const panelOps = document.getElementById('panel-operations');
+
+      if (tab === 'members') {
+        btnMembers.classList.add('active');
+        btnOps.classList.remove('active');
+        panelMembers.style.display = 'flex';
+        panelOps.style.display = 'none';
+      } else {
+        btnMembers.classList.remove('active');
+        btnOps.classList.add('active');
+        panelMembers.style.display = 'none';
+        panelOps.style.display = 'flex';
+      }
+    }
+
+    function handleInvite(event) {
+      event.preventDefault();
+      const emailInput = document.getElementById('invite-email');
+      const roleSelect = document.getElementById('invite-role');
+      const email = emailInput.value.trim();
+      const role = roleSelect.value;
+
+      if (!email) return;
+
+      const tbody = document.getElementById('member-table-body');
+      const newRow = document.createElement('tr');
+      newRow.innerHTML = `
+        <td>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="user-avatar" style="background:#6366f1;">${email[0].toUpperCase()}</div>
+            <div>
+              <strong style="color:#0f172a; font-size:13px;">${email.split('@')[0]}</strong>
+              <div style="font-size:11.5px; color:#64748b;">${email}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="role-badge ${role}">${role}</span></td>
+        <td style="font-size:12px; color:#64748b;">방금 전</td>
+        <td style="text-align:right;">
+          <button class="action-icon-btn" onclick="removeMember(this, '${email}')" title="멤버 퇴장">✕</button>
+        </td>
+      `;
+      tbody.appendChild(newRow);
+
+      const countLabel = document.getElementById('member-count-label');
+      countLabel.innerText = parseInt(countLabel.innerText, 10) + 1;
+
+      emailInput.value = '';
+      showToast(`'${email}' 님에게 '${role}' 권한 초대장을 발송했습니다!`);
+    }
+
+    function removeMember(btnEl, name) {
+      if (confirm(`'${name}' 멤버를 워크스페이스에서 퇴장시키겠습니까?`)) {
+        const row = btnEl.closest('tr');
+        row.remove();
+        const countLabel = document.getElementById('member-count-label');
+        countLabel.innerText = parseInt(countLabel.innerText, 10) - 1;
+        showToast(`'${name}' 멤버가 워크스페이스에서 퇴장 처리되었습니다.`);
+      }
+    }
+
+    let isMasterPublic = true;
+    function togglePublicMaster() {
+      isMasterPublic = !isMasterPublic;
+      const status = document.getElementById('master-switch-status');
+      const btn = document.getElementById('master-switch-btn');
+      if (isMasterPublic) {
+        status.innerText = '활성화 (ON)';
+        status.style.color = '#2563eb';
+        btn.style.background = '#2563eb';
+        btn.style.borderColor = '#2563eb';
+        btn.style.color = '#ffffff';
+        showToast('외부 웹 공개 마스터 스위치가 켜졌습니다. 승인된 공개 위키가 열립니다.');
+      } else {
+        status.innerText = '비활성화 (OFF)';
+        status.style.color = '#e11d48';
+        btn.style.background = '#ffffff';
+        btn.style.borderColor = '#cbd5e1';
+        btn.style.color = '#334155';
+        showToast('물리적 킬스위치 발동: 모든 외부 공개 페이지 접근이 즉시 차단되었습니다 (404).');
+      }
+    }
+
+    function refreshOperations() {
+      const btn = document.getElementById('refresh-ops-btn');
+      btn.style.opacity = '0.5';
+      btn.innerText = '갱신 중...';
+      setTimeout(() => {
+        btn.style.opacity = '1';
+        btn.innerHTML = `
+          <svg class="svg-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>새로고침</span>
+        `;
+        showToast('운영 현황 및 파이프라인 상태가 최신으로 갱신되었습니다.');
+      }, 500);
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast-item';
+      toast.innerHTML = `
+        <svg class="svg-icon" style="color:#60a5fa; width:13px; height:13px;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>${msg}</span>
+      `;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.2s';
+        setTimeout(() => toast.remove(), 200);
+      }, 2500);
+    }
+
+    document.addEventListener('click', () => {
+      const wsPopover = document.getElementById('ws-switcher-popover');
+      if (wsPopover) wsPopover.classList.remove('open');
+    });
+  </script>
+</body>
+</html>

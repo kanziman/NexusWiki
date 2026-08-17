@@ -1,7 +1,5 @@
-import Link from "next/link";
-
+import { WikiLibrary } from "@/components/WikiLibrary";
 import { createClient } from "@/lib/supabase/server";
-import { workspacePath } from "@/lib/workspace-path";
 
 type WikiIndexPageProps = {
   params: Promise<{ workspaceId: string }>;
@@ -25,7 +23,7 @@ export default async function WikiIndexPage({ params }: WikiIndexPageProps) {
 
   const { data } = await supabase
     .from("wiki_pages")
-    .select("id,slug,title,category")
+    .select("id,slug,title,category,content,verification_status,disputed")
     .eq("workspace_id", workspaceId)
     .order("title");
 
@@ -44,19 +42,5 @@ export default async function WikiIndexPage({ params }: WikiIndexPageProps) {
     );
   }
 
-  return (
-    <ul className="flex flex-col gap-xs">
-      {pages.map((page) => (
-        <li key={page.id}>
-          <Link
-            href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-            className="text-ink hover:text-primary"
-            style={{ font: "var(--font-body-md)" }}
-          >
-            {page.title}
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
+  return <WikiLibrary pages={pages} workspaceId={workspaceId} />;
 }

@@ -32,12 +32,6 @@ type JobRow = {
 // raw_source 행이 이미 있어야 이 컴포넌트가 렌더된다는 사실 자체로 항상
 // 완료 상태인 implicit 단계라 대응하는 잡 type이 없다.
 const STAGE_TYPES = ["parse", "compile", "link_sync", "embed"] as const;
-const STAGE_CAPTIONS: Record<(typeof STAGE_TYPES)[number], string> = {
-  parse: "파싱",
-  compile: "컴파일",
-  link_sync: "링크 동기화",
-  embed: "임베딩",
-};
 
 const TERMINAL_STATUSES = new Set(["succeeded", "dead", "canceled"]);
 const CURRENT_CANDIDATE_STATUSES = new Set(["queued", "running"]);
@@ -180,126 +174,104 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
     );
   }
 
-  // "현재 단계"는 (parse, compile, link_sync, embed) 순서에서 상태가
-  // queued/running인 첫 행이다 — Task 2 <action>의 정의를 그대로 따른다.
+  // 잡 체인은 순서대로 생성되므로 첫 대기/실행 행이 사용자에게 보여줄 현재
+  // 단계다. 업로드는 raw_source가 존재하는 것으로 완료된 암묵 단계다.
   const currentJob = STAGE_TYPES.map((type) =>
     jobs.find((row) => row.type === type),
   ).find(
     (job): job is JobRow =>
       job !== undefined && CURRENT_CANDIDATE_STATUSES.has(job.status),
   );
+  const failedJobs = jobs.filter((job) => job.status === "dead");
+  const completedStages =
+    1 + jobs.filter((job) => job.status === "succeeded").length;
+  const progressValue = Math.min(completedStages, 5);
+  const allSucceeded = STAGE_TYPES.every(
+    (type) => jobs.find((job) => job.type === type)?.status === "succeeded",
+  );
+  const wasCanceled =
+    !currentJob &&
+    !allSucceeded &&
+    failedJobs.length === 0 &&
+    jobs.some((job) => job.status === "canceled");
+  const statusText = currentJob
+    ? `${currentJob.step_label} 처리 중`
+    : allSucceeded
+      ? "처리가 완료되었습니다"
+      : wasCanceled
+        ? "처리가 취소되었습니다"
+        : failedJobs.length > 0
+          ? "처리에 실패했습니다"
+          : "처리 상태를 확인하고 있습니다";
 
   return (
     <div className="flex flex-col gap-sm border-l border-[var(--nw-rule)] pl-base sm:pl-lg">
-      <ol className="flex flex-col gap-xs">
-        {/* 업로드 — 이 컴포넌트가 렌더된다는 것 자체가 raw_source 행의 존재를
-            증명하므로 항상 완료 상태다 (implicit stage, 대응하는 잡 없음). */}
-        <li className="flex items-center gap-sm">
+      <div className="flex items-center gap-sm" role="status">
+        {allSucceeded ? (
           <CheckCircle2
             size={16}
             aria-hidden="true"
             className="text-success-text"
           />
+        ) : failedJobs.length > 0 ? (
+          <XCircle
+            size={16}
+            aria-hidden="true"
+            className="text-primary-error-text"
+          />
+        ) : (
           <span
-            className="text-ink"
+            aria-hidden="true"
+            className="h-3 w-3 rounded-full border-2 border-[var(--nw-ink)] bg-[var(--nw-ink)]"
+          />
+        )}
+        <span
+          className="flex-1 text-[var(--nw-ink)]"
+          style={{ font: "var(--font-caption)", fontWeight: 600 }}
+        >
+          {statusText} · {progressValue}/5단계 완료
+        </span>
+        {currentJob ? (
+          <button
+            type="button"
+            aria-label="취소"
+            onClick={() => setCancelTarget(currentJob)}
+            className="nw-focus-ring flex h-11 w-11 items-center justify-center rounded-sm text-[var(--nw-muted)]"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+      <progress
+        aria-label={`처리 진행률 ${progressValue}/5단계 완료`}
+        aria-valuetext={`${progressValue}/5단계 완료`}
+        className="h-1 w-full accent-[var(--nw-ink)]"
+        max={5}
+        value={progressValue}
+      />
+
+      {failedJobs.map((job) => (
+        <div key={job.id} className="flex items-start gap-sm">
+          <p
+            role="alert"
+            className="flex-1 text-[var(--nw-danger)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
-            업로드
-          </span>
-        </li>
-
-        {STAGE_TYPES.map((type) => {
-          const job = jobs.find((row) => row.type === type);
-          const caption = STAGE_CAPTIONS[type];
-          const isDone = job?.status === "succeeded";
-          const isDead = job?.status === "dead";
-          const isCurrent = job !== undefined && job === currentJob;
-          const showCancel =
-            job !== undefined && !TERMINAL_STATUSES.has(job.status);
-
-          const labelClassName = isCurrent
-            ? "text-[var(--nw-ink)] font-semibold"
-            : isDead
-              ? "text-primary-error-text"
-              : isDone
-                ? "text-ink"
-                : "text-muted";
-
-          return (
-            <li key={type} className="flex flex-col gap-xs">
-              <div className="flex items-center gap-sm">
-                {isDone ? (
-                  <CheckCircle2
-                    size={16}
-                    aria-hidden="true"
-                    className="text-success-text"
-                  />
-                ) : isDead ? (
-                  <XCircle
-                    size={16}
-                    aria-hidden="true"
-                    className="text-primary-error-text"
-                  />
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className={`h-4 w-4 rounded-full border-2 ${
-                      isCurrent
-                        ? "border-[var(--nw-ink)] bg-[var(--nw-ink)]"
-                        : "border-[var(--nw-rule-strong)]"
-                    }`}
-                  />
-                )}
-                <span
-                  className={labelClassName}
-                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
-                >
-                  {caption}
-                </span>
-
-                {isDead && job ? (
-                  // Icon-only touch target: 44x44px + aria-label (D-08, UI-SPEC 예외 규칙).
-                  <button
-                    type="button"
-                    aria-label="재시도"
-                    onClick={() => handleRetry(job.id)}
-                    disabled={retryingId === job.id}
-                    className="nw-focus-ring flex h-11 w-11 items-center justify-center rounded-sm text-primary-error-text disabled:opacity-60"
-                  >
-                    <RefreshCw size={18} aria-hidden="true" />
-                  </button>
-                ) : null}
-
-                {showCancel && job ? (
-                  <button
-                    type="button"
-                    aria-label="취소"
-                    onClick={() => setCancelTarget(job)}
-                    className="nw-focus-ring flex h-11 w-11 items-center justify-center rounded-sm text-[var(--nw-muted)]"
-                  >
-                    <X size={18} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-
-              {isDead && job ? (
-                // UI-SPEC Copywriting Contract "Error state" 템플릿 — {단계}는
-                // 서버가 준 step_label(풀 네임)을 쓰고, {last_error 요약}은
-                // 200자에서 잘라 원문 예외를 그대로 노출하지 않는다.
-                <p
-                  role="alert"
-                  className="text-[var(--nw-danger)]"
-                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
-                >
-                  {`${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
-                    job.last_error,
-                  )}. 재시도를 눌러 다시 시도하세요.`}
-                </p>
-              ) : null}
-            </li>
-          );
-        })}
-      </ol>
+            {`${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
+              job.last_error,
+            )}. 재시도를 눌러 다시 시도하세요.`}
+          </p>
+          <button
+            type="button"
+            aria-label="재시도"
+            onClick={() => handleRetry(job.id)}
+            disabled={retryingId === job.id}
+            className="nw-focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-sm text-primary-error-text disabled:opacity-60"
+          >
+            <RefreshCw size={18} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
 
       <Dialog.Root
         open={cancelTarget !== null}
