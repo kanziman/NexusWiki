@@ -41,19 +41,92 @@
 
 ## 2. 스키마 — [미구현] · 구현 계약
 
+### 2.0 `workspaces.slug` — 정본과 복제 (`decisions.workspace_slug`)
+
+공개 URL 의 첫 번째 세그먼트다. **정본은 `workspaces` 에 두고 사이드카에 복제한다.** 둘 중 하나만으로는 안 되는 이유가 각각 있다:
+
+| 배치 | 깨지는 것 |
+| --- | --- |
+| 사이드카에만 | 비공개 워크스페이스가 URL 을 갖지 못한다. 내부 라우트 `/w/[slug]` 는 공개 여부와 무관하다 |
+| 정본에만 | 공개 경로가 `workspaces` 를 조인해야 하는데 `anon` 은 정책도 GRANT 도 없다 → §6-② 와 같은 실패로 공개 페이지가 통째로 안 열린다 |
+
+```sql
+-- ① 정본
+alter table public.workspaces add column slug text;
+
+-- 기존 행 백필. id 기반이라 결정적이고 충돌하지 않는다.
+update public.workspaces set slug = 'ws-' || left(id::text, 8) where slug is null;
+
+alter table public.workspaces
+  alter column slug set not null,
+  add constraint workspaces_slug_key unique (slug),
+  -- 문자셋은 slug.py 의 _DISALLOWED 와 같다 — 한글을 로마자화하지 않는다(D-20).
+  -- 경로 구분자와 점이 집합 밖이라 슬러그가 경로 조작 표면이 되지 않는다.
+  add constraint workspaces_slug_format check (
+    slug ~ '^[0-9a-z가-힣][0-9a-z가-힣-]*$'
+    and char_length(slug) between 1 and 80
+  );
+
+-- ② 복제본은 언제나 정본에서 파생된다. 사용자가 값을 써도 덮어써진다.
+create or replace function public.derive_workspace_public_slug()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  select w.slug into new.workspace_slug
+  from public.workspaces w where w.id = new.workspace_id;
+  return new;
+end;
+$$;
+
+create trigger workspace_public_settings_derive_slug
+  before insert or update on public.workspace_public_settings
+  for each row execute function public.derive_workspace_public_slug();
+
+-- ③ 정본이 바뀌면 복제본이 따라온다.
+create or replace function public.sync_workspace_public_slug()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.workspace_public_settings
+     set workspace_slug = new.slug, updated_at = now()
+   where workspace_id = new.id;
+  return new;
+end;
+$$;
+
+create trigger workspaces_sync_public_slug
+  after update of slug on public.workspaces
+  for each row when (new.slug is distinct from old.slug)
+  execute function public.sync_workspace_public_slug();
+```
+
+* 슬러그 생성은 [`slug.py`](../../../packages/core/src/nexuswiki_core/slug.py) 의 `slugify(title=…, taken=…)` 를 재사용한다. 충돌은 숫자 접미로 해소된다. **`taken` 에 기존 `workspaces.slug` 전체를 넘겨야 한다** — 전역 UNIQUE 이므로 워크스페이스 스코프로 좁히면 INSERT 가 실패한다.
+* ⚠️ **이것은 slug 컬럼 도입이지 라우트 전환이 아니다.** 내부 라우트는 당분간 `/w/[workspaceId]`(UUID) 그대로다. `/w/[slug]` 로 바꾸는 것은 `workspacePath()`·미들웨어 matcher·모든 링크가 걸린 별도 작업이다 — §7-1.
+* §6-⑥~⑨ 에서 네 가지 동작을 실측했다.
+
 ### 2.1 `workspace_public_settings` — 마스터 킬스위치
+
+**슬러그 정본은 `workspaces.slug` 다** (`checklists.json > decisions.workspace_slug`). 여기 있는 것은 공개 경로 전용 복제본이다 — §2.0 참조.
 
 ```sql
 create table public.workspace_public_settings (
   workspace_id         uuid primary key
                          references public.workspaces (id) on delete cascade,
-  -- 전역 고유 URL 네임스페이스. 워크스페이스 내부에서만 고유한 wiki slug 를
-  -- 전역 평면 URL 로 노출하면 테넌트 간 라우팅이 충돌한다 (불변식 §4).
-  workspace_slug       text unique,
+  -- ⚠️ 읽기 전용 복제본이다. 정본은 workspaces.slug 이고 §2.0 의 트리거가
+  --    항상 재파생한다. 애플리케이션이 이 값을 쓰지 않는다.
+  workspace_slug       text not null,
   allow_public_sharing boolean not null default false,
   public_display_name  text,
   public_description   text,
-  updated_at           timestamptz not null default now()
+  updated_at           timestamptz not null default now(),
+  -- 공개 URL 네임스페이스의 유일성 축. 정본에도 UNIQUE 가 있어 이중으로 걸린다.
+  constraint workspace_public_settings_slug_key unique (workspace_slug)
 );
 
 alter table public.workspace_public_settings enable row level security;
@@ -249,6 +322,10 @@ where s.workspace_slug = :workspace_slug
 | ③ | `published_slug` 비정규화 수정안 | **통과** — `wiki_pages` 를 건드리지 않고 제목·본문 반환 |
 | ④ | 킬스위치 OFF 후 동일 쿼리 | **0행** — 물리적 차단 확인 |
 | ⑤ | §2.3 검증 게이트 트리거 | **통과** — `verified` 문서는 발행되고, `partial` 문서는 `42501 검증 완료된 문서만 공개할 수 있습니다` 로 거부됨 |
+| ⑥ | §2.0 사이드카 INSERT 에 **엉뚱한 슬러그**를 넣으면 | 정본 값(`nexusdb-core`)으로 **자동 교체됨** |
+| ⑦ | `workspaces.slug` 를 바꾸면 | 복제본이 `nexusdb-core-v2` 로 **추종함** |
+| ⑧ | 복제본을 직접 UPDATE 로 위조 시도 | `UPDATE 1` 이 보고되지만 값은 정본 그대로 — **위조 불가** |
+| ⑨ | 다른 워크스페이스가 같은 슬러그 INSERT | `duplicate key value violates unique constraint "workspaces_slug_key"` — **전역 고유성 확인** |
 
 부수 실측: `wiki_pages_id_workspace_key unique (id, workspace_id)` 존재(복합 FK 성립), `anon` 의 `public` 스키마 테이블 권한 **0개**, `verification_status` CHECK 4종에 `stale` 없음.
 
@@ -256,9 +333,8 @@ where s.workspace_slug = :workspace_slug
 
 ## 7. 미해결 결정
 
-1. 🔴 **`workspace_slug` 를 어디에 둘 것인가** — 세 문서가 어긋나 있다. 이전 판은 `workspace_public_settings.public_workspace_slug`, 불변식 §4 는 `workspace_public_settings.workspace_slug`, workspace-home·workspace-settings·auth-google 3개 PRD 는 **`workspaces.slug`** 를 권고한다.
-   *권고: `workspaces.slug` 로 두고 사이드카는 참조만 한다.* 비공개 워크스페이스도 URL 이 필요하고(`/w/[slug]`), 공개 여부와 무관한 식별자를 공개 전용 테이블에 두면 공개를 끈 순간 내부 URL 이 깨진다.
-   ⚠️ **다만 그러면 `anon` 이 슬러그를 해석하려고 `workspaces` 를 읽어야 하는데 정책이 없다** — §6-② 와 같은 실패다. `workspaces.slug` 를 정본으로 두되 사이드카에 **복제**해서 공개 경로가 사이드카만 보게 해야 한다. 복제 동기화는 트리거로 강제한다.
+1. ~~`workspace_slug` 위치~~ — **2026-08-17 결정 완료.** `workspaces.slug` 정본 + 사이드카 복제. 계약은 §2.0, 근거는 `checklists.json > decisions.workspace_slug`.
+   **남은 것은 라우트 전환이다** — 내부 라우트를 `/w/[workspaceId]`(UUID)에서 `/w/[slug]` 로 바꿀지, 바꾼다면 언제. `workspacePath()`·미들웨어 matcher·모든 내부 링크·`WorkspaceSwitcher` 가 함께 걸린다. *권고: 이번 마일스톤에서는 UUID 라우트를 유지한다.* 공개 URL 은 `/p/` 라 내부 라우트와 독립이고, 슬러그 도입의 목적(공개 네임스페이스)은 라우트를 안 바꿔도 달성된다.
 2. **`published_slug` 와 `wiki_pages.slug` 가 갈라질 때** — 발행 후 원본 slug 가 바뀌면 공개 URL 은 옛 slug 를 유지한다. 이것이 의도인지(공개 URL 안정성) 따라가야 하는지(일관성) 결정한다. *권고: 유지.* 외부에 나간 URL 이 깨지는 것이 더 나쁘다.
 3. **발행본 삭제 권한** — `for all` 이면 editor 가 공개를 내릴 수 있다. owner 전용으로 좁힐지 결정(§5).
 4. **공개 페이지의 인용 스니펫 렌더** — `published_citations` jsonb 스키마를 정의해야 한다. 앵커 규약은 `citations.py` 가 소유하므로 그 형태를 그대로 굳힐지, 승인 시점에 평문으로 펼칠지. *권고: 평문으로 펼친다.* 공개본은 불변 스냅샷이므로 런타임 해석기를 외부에 노출할 이유가 없다.

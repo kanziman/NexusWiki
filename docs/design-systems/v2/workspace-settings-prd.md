@@ -172,7 +172,7 @@
 
 * **외부 웹 공개 킬스위치 · 공개 식별자 · 공개 사이트 이름/소개** → [`public-sharing-prd.md`](public-sharing-prd.md) 가 소유한다. `workspace_public_settings` · `wiki_page_publications` 는 둘 다 **[미구현]** 이다(불변식 §5).
   * 설정 화면에 진입점을 두는 것 자체는 자연스럽지만, **계약을 여기 복제하지 않는다.** 같은 규칙을 두 곳에 적으면 한쪽만 고쳐질 때 어긋난다.
-  * ⚠️ 공개 URL 이 의존하는 `workspace_slug` 는 아직 어디에도 없다. `workspaces.slug` 로 둘지 사이드카에 둘지 미결이다(§6).
+  * 공개 URL 이 의존하는 슬러그는 **[마이그레이션 필요]** 다 — `workspaces.slug` 정본 + 사이드카 복제로 확정됐다(§6-6).
 * **실패 잡 재시도** → `JobStepper` 가 소유한다. 운영 현황은 조회 전용이다.
 * **워크스페이스 이름 변경 · 삭제** → RLS 정책은 있으나 **[UI 미구현]**. 이번 마일스톤 범위인지 §6 에서 결정한다.
 
@@ -265,7 +265,7 @@ select public.has_workspace_role(:workspace_id, 'editor');
 3. **표시 이름** — 이메일만으로 로스터를 읽는 것이 충분한가. 필요하면 `user_profiles` 신설이 필요하다(**[마이그레이션 필요]**). *권고: 이번 마일스톤 제외.* 이메일이 이미 고유 식별자 역할을 한다.
 4. **역할 변경 UI** — `workspace_members_update_owner` 정책이 이미 허용한다. 구현하면 §2 표의 `[UI 미구현]` 이 사라진다. `protect_owner_membership` 이 owner 자기 강등을 막으므로 owner 행은 비활성이어야 한다.
 5. **워크스페이스 이름 변경 · 삭제 UI** — 정책은 있고 화면이 없다. 삭제는 `owner_id … on delete restrict` 와 맞물리므로 문구를 신중히 정해야 한다.
-6. **`workspaces.slug`** — 공개 URL `/p/[workspace_slug]/[page_slug]` 가 의존한다. *권고: `workspace_public_settings` 가 아니라 `workspaces.slug` 로 둔다* — 비공개 워크스페이스도 URL 이 필요하다. (workspace-home PRD 와 동일 항목)
+6. ~~`workspaces.slug`~~ — **2026-08-17 결정 완료.** `workspaces.slug` 정본 + `workspace_public_settings` 복제. 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0, 근거는 `checklists.json > decisions.workspace_slug`. 내부 라우트는 당분간 `/w/[workspaceId]`(UUID) 유지.
 7. **즐겨찾기 · 최근 본 위키 저장소** — 제외 / `user_wiki_bookmarks` 신설 / `localStorage` 중 택일. (workspace-home · wiki-document-reader PRD 와 동일 항목)
 8. **예산 파생 지표** — 일 평균·소진 예상일을 넣을지. 넣는다면 `month_start` 기준 경과일로 계산하고, `truncated: true` 일 때는 표시하지 않아야 한다.
 

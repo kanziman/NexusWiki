@@ -148,6 +148,30 @@ GRANT 를 줘도 `wiki_pages_select_member` 가 `{authenticated}` 전용이라 a
 
 **🔴 `workspace_slug` 위치가 세 문서에서 어긋난다** — 이전 판 `public_workspace_slug`, 불변식 §4 `workspace_public_settings.workspace_slug`, 다른 3개 PRD 는 `workspaces.slug`. 권고는 **`workspaces.slug` 정본 + 사이드카에 복제**(트리거 동기화)다. 정본만 두면 anon 이 `workspaces` 를 읽어야 해서 위와 똑같은 실패가 난다.
 
+### E-6. 🔒 `workspaces.slug` 정본 + 사이드카 복제 (2026-08-17 사용자 결정)
+
+`checklists.json > decisions.workspace_slug` 에 기록했다(revision 8). **근거를 여기 되풀이하지 않는다.**
+
+4개 PRD 가 걸려 있었고 세 문서가 위치를 다르게 적고 있었다. 둘 중 하나만으로는 안 되는 이유가 각각 있다:
+
+| 배치 | 깨지는 것 |
+| --- | --- |
+| 사이드카에만 | 비공개 워크스페이스가 URL 을 갖지 못한다 |
+| 정본에만 | 공개 경로가 `workspaces` 를 조인해야 하는데 `anon` 은 정책도 GRANT 도 없다 → E-5-② 와 같은 실패 |
+
+**설계**: `workspaces.slug` 전역 UNIQUE + 형식 CHECK(`slug.py` 와 같은 문자셋, 한글 유지) / 사이드카에 `before insert or update` 트리거로 **항상 정본에서 재파생** / `workspaces` 에 `after update of slug` 트리거로 복제본 추종. 로컬 실측 4건:
+
+- 사이드카에 엉뚱한 슬러그를 넣어도 정본 값으로 **자동 교체**
+- 정본 변경 시 복제본 **추종**
+- 복제본 직접 UPDATE 위조 시도 → `UPDATE 1` 이 보고되지만 값은 정본 그대로 (**위조 불가**)
+- 다른 워크스페이스가 같은 슬러그 → `duplicate key … workspaces_slug_key`
+
+⚠️ **이 결정은 slug 컬럼 도입이지 라우트 전환이 아니다.** 내부 라우트는 이번 마일스톤에서 `/w/[workspaceId]`(UUID) 유지 권고 — 공개 URL 은 `/p/` 라 독립이므로 슬러그의 목적은 라우트를 안 바꿔도 달성된다. `workspacePath()`·미들웨어 matcher·모든 내부 링크·`WorkspaceSwitcher` 가 함께 걸리는 별도 작업이다.
+
+슬러그 생성은 `packages/core/src/nexuswiki_core/slug.py` 의 `slugify(title, taken)` 재사용. **`taken` 에 기존 `workspaces.slug` 전체**를 넘겨야 한다 — 전역 UNIQUE 이므로 워크스페이스 스코프로 좁히면 INSERT 가 실패한다.
+
+**전파 완료**: `PRODUCT-INVARIANTS.md` §4·§5, `public-sharing`(§2.0 계약 신설)·`auth-google`·`workspace-settings`·`workspace-home` 4개 PRD.
+
 ### F. 트러블슈팅
 
 - **macOS Chrome 이 창 너비를 최소 485px 로 강제한다.** `--window-size=390` 으로 찍으면 이미지만 390px 로 잘려 "모바일이 깨졌다"고 오판했다. 실제 390px 뷰포트를 보려면 **iframe 하네스**가 필요하다(`scratchpad/frame.py` 패턴).
@@ -183,7 +207,16 @@ GRANT 를 줘도 `wiki_pages_select_member` 가 `{authenticated}` 전용이라 a
 
 - [x] **`.claude/skills/` 하위 840개 파일 삭제는 사용자가 의도한 것으로 확인**(2026-08-17). 더 이상 경고 대상이 아니다. 스테이징·커밋은 아직 안 했다 — 사용자가 별도로 지시할 때 처리할 것.
 
-### 🔴 최우선 — Google 인증 구현 (E-3 결정, 전량 미구현)
+### 🔴 최우선 — 마이그레이션 0015: `workspaces.slug` (E-6 결정)
+
+Google 인증보다 **먼저** 간다. 셀프서브 워크스페이스 생성(E-3)이 이 컬럼에 의존한다.
+
+- [ ] `supabase/migrations/0015_workspace_slug.sql` — DDL 전문은 `public-sharing-prd.md` §2.0 에 실측 검증된 형태로 있다
+- [ ] 기존 행 백필(`'ws-' || left(id::text, 8)`) 후 `set not null`
+- [ ] `slugify` 를 워크스페이스에도 쓰도록 호출부 정리 — `taken` 은 전체 `workspaces.slug`
+- [ ] ⚠️ **클라우드는 `0014` 까지 적용돼 있다.** `0015` 를 밀기 전에 로컬 `db reset` 으로 순서 확인할 것
+
+### 🔴 그다음 — Google 인증 구현 (E-3 결정, 전량 미구현)
 
 착수 순서는 `auth-google-prd.md` §7 체크리스트. **하나라도 빠지면 콜백이 조용히 실패한다.**
 
@@ -208,8 +241,7 @@ GRANT 를 줘도 `wiki_pages_select_member` 가 `{authenticated}` 전용이라 a
 
 - [ ] **컬렉션 스키마·UI 설계** — 방향만 확정했고 테이블 설계는 아직. `wiki-document-reader`·`source-management` 양쪽이 기다린다.
 - [ ] **즐겨찾기 · 최근 본 위키 저장소 없음** — 제외할지, `user_wiki_bookmarks` 를 만들지, `localStorage` 로 갈지. 프로토타입은 카운트 뱃지를 빼둔 상태.
-- [ ] 🔴 **`workspaces.slug` — 4개 PRD 가 걸려 있는 최대 미해결 항목.** 현재 라우트는 `/w/[workspace_id]`. 세 문서가 위치를 다르게 적고 있었다(구 public-sharing `public_workspace_slug` / 불변식 §4 `workspace_public_settings.workspace_slug` / 나머지 PRD `workspaces.slug`).
-  **권고: `workspaces.slug` 를 정본으로 두고 `workspace_public_settings` 에 복제**(트리거 동기화). 정본만 두면 `anon` 이 슬러그 해석을 위해 `workspaces` 를 읽어야 하는데 정책이 없어 E-5-② 와 똑같이 실패한다. 비공개 워크스페이스도 URL 이 필요하므로 공개 전용 테이블에만 둘 수도 없다. **DB 실측으로 부재 확정.**
+- [x] **`workspaces.slug` 위치 결정 완료** (E-6). `decisions.workspace_slug`, revision 8.
 - [ ] **초대 폼 owner 게이트 (코드 수정)** — `SettingsMembersPanel.tsx` 가 `currentRole === "owner"` 로 `InviteForm` 을 감싸야 한다. 지금은 viewer/editor 도 폼을 보고 제출 후에야 `권한이 없습니다.` 를 받는다.
 - [ ] **멤버 로스터 `가입 일시` 표시 여부** — RPC 는 `created_at` 을 주고 시안은 열을 그리는데 `MembersList` 가 렌더하지 않는다. 표시 권고.
 - [ ] **역할 변경 UI** — `workspace_members_update_owner` 정책은 있고 화면이 없다. owner 자기 강등은 `protect_owner_membership` 이 막으므로 owner 행은 비활성이어야 한다.
@@ -248,6 +280,6 @@ GRANT 를 줘도 `wiki_pages_select_member` 가 `{authenticated}` 전용이라 a
 
 다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
 
-> "HANDOFF.md 확인해줘. PRD 리뷰 7건은 전부 끝났으니, `workspaces.slug` 위치부터 확정한 다음 §4 최우선의 Google 인증 구현을 `auth-google-prd.md` §7 체크리스트 순서대로 착수해줘. `.claude/skills/` 삭제는 의도된 것이니 경고하지 말 것."
+> "HANDOFF.md 확인해줘. PRD 리뷰 7건과 결정 3건(auth · workspace_slug)이 끝났으니 §4 최우선부터 착수 — 마이그레이션 0015(`workspaces.slug`) 먼저, 그다음 Google 인증을 `auth-google-prd.md` §7 체크리스트 순서대로. `.claude/skills/` 삭제는 의도된 것이니 경고하지 말 것."
 
 **PRD 리뷰는 여기서 끝났다.** 다음 세션의 무게 중심은 문서가 아니라 **구현**이다 — 이 세션에서 만든 것은 전부 계약이고 코드는 한 줄도 쓰지 않았다.

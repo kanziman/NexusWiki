@@ -96,9 +96,16 @@
 * **원칙**: 위키 슬러그는 워크스페이스 안에서만 고유하다(`UNIQUE (workspace_id, slug)`). 서로 다른 워크스페이스가 같은 `tenant-isolation-rls` 슬러그를 공개할 수 있으므로 전역 평면 URL 은 라우팅 충돌을 일으킨다.
 * **공개 URL 표준 규격**: `https://nexuswiki.io/p/[workspace_slug]/[page_slug]`
 * **동작 계약**:
-  1. **[미구현]** `workspace_public_settings.workspace_slug` 가 전역 고유 식별자 역할을 한다.
+  1. **[미구현]** **`workspaces.slug` 가 전역 고유 식별자의 정본**이고, `workspace_public_settings.workspace_slug` 는 트리거로 파생되는 **읽기 전용 복제본**이다 (`checklists.json > decisions.workspace_slug`).
   2. 라우터는 해당 워크스페이스의 마스터 스위치가 ON 이고 발행본(**[미구현]** `wiki_page_publications`)이 있을 때만 렌더링한다.
 * 로그인 사용자용 내부 라우트는 `/w/[workspace_slug]/...` 로 공개 경로와 분리한다.
+
+### [금지] 공개 경로에서 `workspaces` 를 조인하지 않음
+
+* **원칙**: 슬러그 정본이 `workspaces` 에 있어도 **공개 라우트는 사이드카만 본다.**
+* ⚠️ `anon` 은 `workspaces` 에 정책도 GRANT 도 없다. 조인하는 순간 `permission denied for table wiki_pages` 와 같은 계열의 실패로 **공개 페이지가 통째로 열리지 않는다** (public-sharing 리뷰에서 실측).
+* 복제본이 존재하는 이유가 정확히 이것이다. 정규화를 이유로 복제를 없애면 공개 경로가 죽는다.
+* 복제본은 `before insert or update` 트리거가 정본에서 **항상 재파생**하므로 사용자가 값을 써도 덮어써진다 — 위조 불가능하다.
 
 ---
 
@@ -106,7 +113,7 @@
 
 1. **테넌트 격리 복합 FK — [구현됨] 관행**: 모든 자식·사이드카 테이블은 `FOREIGN KEY (parent_id, workspace_id) REFERENCES parent_table (id, workspace_id)` 를 강제해, RLS 를 우회하는 `service_role` 경로에서도 테넌트 교차를 원천 차단한다.
 2. **사이드카 테이블 분리 — 둘 다 [미구현]**:
-   * `workspace_public_settings`: 워크스페이스 공개 마스터 스위치와 공개 메타데이터. 민감 컬럼과 물리적으로 분리해 `anon` 이 이 테이블 전체를 봐도 안전하게 만든다.
+   * `workspace_public_settings`: 워크스페이스 공개 마스터 스위치, 공개 메타데이터, 그리고 `workspaces.slug` 의 복제본(§4). 민감 컬럼과 물리적으로 분리해 `anon` 이 이 테이블 전체를 봐도 안전하게 만든다.
    * `wiki_page_publications`: 사람이 검토 승인한 공개 발행본 1건 (본문 전문 + 승인된 인용 스니펫 JSONB).
 3. **물리적 킬스위치**: `workspace_public_settings.allow_public_sharing` 이 `false` 면 RLS 엔진 레벨에서 모든 공개 조회가 0건(404)으로 일괄 차단된다.
    * ⚠️ 킬스위치를 `EXISTS (SELECT 1 FROM workspaces ...)` 서브쿼리로 구현하면 안 된다. `anon` 은 `workspaces` 에 정책이 없어 서브쿼리가 **항상 0행**을 반환한다. 사이드카 테이블을 분리한 이유가 이것이다.

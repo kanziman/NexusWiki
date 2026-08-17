@@ -130,13 +130,16 @@
 
 프로토타입은 현재 두 항목을 모두 그리고 있다. **결정 전까지 카운트 뱃지를 표시하지 않는다.**
 
-### 4.2 워크스페이스 URL 슬러그 — 저장소 없음
+### 4.2 워크스페이스 URL 슬러그 — 결정 완료, 컬럼은 [마이그레이션 필요]
 
-`workspaces` 에 `slug` 컬럼이 없다. 라우트 `/w/[workspace_slug]` 와 온보딩 폼이 모두 이것에 의존한다.
+**2026-08-17 결정: `workspaces.slug` 가 정본이고 `workspace_public_settings.workspace_slug` 는 트리거로 파생되는 읽기 전용 복제본이다** (`checklists.json > decisions.workspace_slug`). 계약 전문은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0.
 
-불변식 §4 는 공개 라우팅을 위해 **[미구현]** `workspace_public_settings.workspace_slug` 를 예정하고 있다. 내부 라우트용 슬러그를 여기에 함께 둘지, `workspaces.slug` 로 따로 둘지 결정이 필요하다. 공개 여부와 무관하게 내부 URL 이 필요하므로 **`workspaces.slug` 를 별도로 두는 쪽을 권한다** — 공개 설정 테이블에 의존하면 비공개 워크스페이스가 URL 을 갖지 못한다.
+둘 중 하나만으로는 안 되는 이유가 각각 있다:
 
-결정 전까지 라우트는 `/w/[workspace_id]` 로 두고 슬러그 도입 시 교체한다.
+* **사이드카에만 두면** 비공개 워크스페이스가 URL 을 갖지 못한다.
+* **정본에만 두면** 공개 경로가 `workspaces` 를 조인해야 하는데 `anon` 은 정책도 GRANT 도 없어 공개 페이지가 통째로 열리지 않는다(public-sharing 리뷰에서 `permission denied` 실측).
+
+⚠️ **컬럼은 아직 없다.** 그리고 **이 결정은 슬러그 도입이지 라우트 전환이 아니다** — 내부 라우트는 이번 마일스톤에서 `/w/[workspace_id]`(UUID) 를 유지한다. 공개 URL 은 `/p/` 라 내부 라우트와 독립이므로 슬러그의 목적은 라우트를 바꾸지 않아도 달성된다. 이 문서의 `/w/[workspace_slug]` 표기는 슬러그 라우트 전환 이후를 가리킨다.
 
 ### 4.3 `wiki_pages` 설명 필드 없음
 
@@ -152,12 +155,14 @@
 -- owner_id 는 NOT NULL 이다. 빠지면 INSERT 가 실패한다.
 -- workspace_members INSERT 를 여기에 적지 않는다 —
 -- workspaces_add_owner_member AFTER INSERT 트리거가 이미 수행한다 (불변식 §6).
-insert into public.workspaces (name, kind, owner_id)
-values (:workspace_name, 'team', auth.uid())
-returning id;
+-- slug 는 [마이그레이션 필요] 다. 값은 서버가 slugify(title, taken) 로 만들며
+-- taken 에는 기존 workspaces.slug 전체를 넘긴다 (전역 UNIQUE 이므로).
+insert into public.workspaces (name, kind, owner_id, slug)
+values (:workspace_name, 'team', auth.uid(), :slug)
+returning id, slug;
 ```
 
-`slug` 는 4.2 결정 후 이 INSERT 에 추가한다.
+⚠️ 이 화면의 온보딩은 셀프서브 가입 경로와 같은 흐름이다 — 계약이 갈리지 않도록 [`auth-google-prd.md`](auth-google-prd.md) §5·§6.2 와 함께 고친다.
 
 ### 5.2 홈 위키 목록
 

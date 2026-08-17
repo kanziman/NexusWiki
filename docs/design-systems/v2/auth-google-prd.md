@@ -163,7 +163,8 @@ const { error } = await supabase.auth.exchangeCodeForSession(code);
   * `user.user_metadata.full_name` · `avatar_url` 에서 읽는다. **없을 수 있으므로 이메일 폴백을 반드시 둔다.**
   * ⚠️ 이건 `auth.users` 메타데이터일 뿐 **`workspace_members` 로스터의 표시 이름이 되지 않는다.** 멤버 로스터는 여전히 이메일만 안다(workspace-settings PRD §6-3).
 * 폼 필드 **하나**: `워크스페이스 이름` (1–100자, 한글·영문).
-  * ⚠️ **URL 식별자(slug) 필드를 넣지 않는다.** `workspaces.slug` 가 없고 라우트는 UUID 다. §9-1 확정 전까지 이 필드는 그리지 않는다 — 없는 것을 그려두면 같은 문제가 반복된다.
+  * **URL 식별자(slug) 필드를 넣지 않는다** — 이름에서 자동 생성한다(§9-1). `slug.py` 의 `slugify` 가 충돌을 숫자 접미로 해소하므로 사용자가 고민할 것이 없다.
+  * ⚠️ `taken` 에 **기존 `workspaces.slug` 전체**를 넘겨야 한다. 슬러그는 전역 UNIQUE 라 워크스페이스 스코프로 좁히면 INSERT 가 실패한다.
 * CTA: `워크스페이스 만들기` → 성공 시 `/w/[id]` 로 이동.
 
 ### 5.3 하지 않는 것
@@ -192,12 +193,13 @@ select id, name from public.workspaces order by name;
 ### 6.2 워크스페이스 생성
 
 ```sql
-insert into public.workspaces (name, kind, owner_id)
-values (:name, 'personal', auth.uid())
-returning id;
+insert into public.workspaces (name, kind, owner_id, slug)
+values (:name, 'personal', auth.uid(), :slug)
+returning id, slug;
 ```
 
 * `owner_id` 는 `NOT NULL`. 빠지면 실패한다.
+* ⚠️ **`slug` 은 [마이그레이션 필요]** 다 — 컬럼이 아직 없다(§6.3 실측). 값은 서버가 `slugify(title=:name, taken=<전체 workspaces.slug>)` 로 만들며 사용자에게 입력받지 않는다(§9-1). 컬럼 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0.
 * `kind` 는 `'personal'` · `'team'` 2종. **셀프서브 첫 워크스페이스는 `'personal'`** 로 만든다 — 팀 전환은 멤버를 초대하는 시점의 의미이지 생성 시점이 아니다. *(이 매핑은 §9-4 로 열어 둔다.)*
 * ⚠️ **`workspace_members` INSERT 를 이어 적지 않는다.** `workspaces_add_owner_member` AFTER INSERT 트리거가 `role='owner'` 로 등록한다. 계약이 두 곳에 있으면 한쪽만 고쳐질 때 어긋난다 — **불변식 §6**.
 * ⚠️ **프롬프트 템플릿에 대해 할 일이 없다.** 전역 5종은 `workspace_id IS NULL` 로 존재하고 그대로 조회된다. 상속·복사 단계가 없다.
@@ -259,7 +261,8 @@ select provider, count(*) from auth.identities group by 1;
 
 ## 9. 미해결 결정
 
-1. **`workspaces.slug`** — §5.2 온보딩 폼과 공개 URL `/p/[workspace_slug]/…` 가 둘 다 의존한다. *권고: `workspace_public_settings` 가 아니라 `workspaces.slug` 로 둔다* — 비공개 워크스페이스도 URL 이 필요하다. 확정 전까지 온보딩에 필드를 그리지 않는다. (workspace-home · workspace-settings PRD 와 동일 항목)
+1. ~~`workspaces.slug` 위치~~ — **2026-08-17 결정 완료.** `workspaces.slug` 정본 + 사이드카 복제(`decisions.workspace_slug`, 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0).
+   **온보딩에 남은 것은 UX 결정이다** — 사용자에게 슬러그를 **입력받을지 이름에서 자동 생성할지**. *권고: 자동 생성.* `slug.py` 의 `slugify(title=이름, taken=전체 슬러그)` 가 충돌을 숫자 접미로 이미 해소하고, 첫 화면에서 필드를 하나로 줄이는 것이 §5.3("이름 하나 받고 바로 대시보드")과 맞는다. 슬러그 변경은 나중에 설정에서 열어 준다.
 2. **초대 흐름의 남은 구멍** — `/signup` 이 열려도 `invite_workspace_member` 는 여전히 **미가입 이메일을 `NW404` 로 거부**한다. owner 는 초대 전에 상대가 가입했는지 알 수 없고, 알려줄 수단도 앱 안에 없다. *권고: `NW404` 문구에 `/signup` 링크를 넣거나, Supabase `inviteUserByEmail` 로 초대 메일 경로를 따로 만든다.* 후자는 §1 결정 범위 밖이므로 별도 판단.
 3. **이용약관 · 개인정보 처리방침** — `/signup` 이 링크해야 하는데 **문서 자체가 없다.** 가입을 여는 이상 미룰 수 없다.
 4. **첫 워크스페이스의 `kind`** — §6.2 는 `'personal'` 로 두자고 제안한다. `'team'` 이 맞다면 그 근거를 `decisions` 에 적는다.
@@ -277,7 +280,7 @@ select provider, count(*) from auth.identities group by 1;
 | 특징 뱃지 `GOOGLE OAUTH 2.0` | — | **유지** |
 | 특징 뱃지 `POSTGRESQL RLS / 테넌트 단위 데이터 격리` | — | **유지** |
 | 온보딩 카드 `첫 워크스페이스를 만들어볼까요?` | — | **유지** — §5 로 확정 |
-| 온보딩 폼 `URL 식별자 /w/[slug]` | slug 필드 | **제거** — §9-1 확정 전까지 |
+| 온보딩 폼 `URL 식별자 /w/[slug]` | slug 필드 | **제거** — 슬러그는 이름에서 자동 생성한다(§9-1 결정) |
 | 완료 화면 `워크스페이스와 팀 프로젝트 구성을 정하면` | `프로젝트` 어휘 | **수정** — 불변식 §1 |
 | 전역 `🚀` | 이모지 | **제거** — 불변식 §7.2 |
 | LNB `즐겨찾기` · `최근 본 위키` | 저장소 미정 | 보류 (workspace-home PRD 와 동일 항목) |
