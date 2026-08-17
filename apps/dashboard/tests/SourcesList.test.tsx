@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/Dropzone", () => ({
@@ -69,5 +69,43 @@ describe("SourcesList", () => {
 
     const detailLink = screen.getByRole("link", { name: "상세 보기" });
     expect(detailLink).toHaveAttribute("href", "/w/ws-1/sources/source-1");
+  });
+
+  it("filters sources by MIME type tabs", () => {
+    const sampleSources = [
+      {
+        id: "source-1",
+        title: "설계문서.pdf",
+        source_type: "file",
+        mime_type: "application/pdf",
+        created_at: "2026-08-12T00:00:00Z",
+        content_hash: "hash-1",
+      },
+      {
+        id: "source-2",
+        title: "노트.md",
+        source_type: "text",
+        mime_type: "text/markdown",
+        created_at: "2026-08-13T00:00:00Z",
+        content_hash: "hash-2",
+      },
+    ];
+
+    render(<SourcesList workspaceId="ws-1" initialSources={sampleSources} />);
+
+    expect(screen.getByText("설계문서.pdf")).toBeInTheDocument();
+    expect(screen.getByText("노트.md")).toBeInTheDocument();
+
+    const pdfTab = screen.getByRole("tab", { name: /PDF/ });
+    fireEvent.click(pdfTab);
+
+    expect(screen.getByText("설계문서.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("노트.md")).not.toBeInTheDocument();
+
+    const textTab = screen.getByRole("tab", { name: /텍스트\/마크다운/ });
+    fireEvent.click(textTab);
+
+    expect(screen.queryByText("설계문서.pdf")).not.toBeInTheDocument();
+    expect(screen.getByText("노트.md")).toBeInTheDocument();
   });
 });
