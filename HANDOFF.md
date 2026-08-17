@@ -125,6 +125,29 @@
 
 **인덱스 실측에서 나온 함정**: 미해결 링크가 테이블 대부분인 초기 상태에서는 `EXPLAIN` 이 `Seq Scan` 을 보여주는데 **이게 정상이다**(모든 행이 부분 인덱스 조건에 맞으면 인덱스 경유가 손해). 20개 워크스페이스·20,000행 중 미해결 1,000행(5%)으로 만들면 `Bitmap Index Scan on wiki_links_unresolved_slug_idx` 로 넘어간다. **Seq Scan 보고 인덱스를 더 만들지 말 것** — PRD §4.1 에 실측표로 남겼다.
 
+### E-5. public-sharing PRD 재작성 (7번째, 마지막) — 설계는 옳았고 라우팅이 죽어 있었다
+
+**이번엔 칭찬할 것이 먼저다.** 킬스위치를 `exists (select 1 from workspace_public_settings …)` 로 구현한 것은 **정확하다.** 불변식 §5.3 이 금지한 건 `workspaces` 를 서브쿼리하는 것이고(anon 은 그 테이블에 정책이 없어 항상 0행), 사이드카를 보게 만든 것이 바로 그 함정을 피하는 설계다. 로컬에 실제로 세워 `set local role anon` 으로 확인했다.
+
+**그런데 라우팅이 실행 불가였다.** `wiki_page_publications` 에 slug 컬럼이 없어서 `wiki_pages` 를 조인해야 하는데:
+
+```text
+ERROR:  permission denied for table wiki_pages
+```
+
+GRANT 를 줘도 `wiki_pages_select_member` 가 `{authenticated}` 전용이라 anon 은 0행이다. **공개 페이지가 통째로 안 열린다.** → `published_slug` 를 비정규화하고 `unique (workspace_id, published_slug)` 를 URL 유일성 축으로 삼는 수정안을 세워 통과까지 실측했다.
+
+나머지 실측 확정:
+
+- **GRANT 문이 하나도 없었다.** `anon` 은 `public` 스키마 테이블 권한이 **0개**다 — 정책만 써도 `permission denied`. 정책은 권한을 주지 않는다
+- `stale` 이 또 나왔다(§4.1 "unverified/stale 차단"). 불변식 §3 이 이미 정정한 값인데 이 문서에 남아 있었다
+- **검증 게이트를 DB 가 강제하지 않았다** — `with check` 이 역할만 본다. `security definer` 트리거를 설계해 `verified` 통과 / `partial` 42501 거부까지 실측
+- **viewer 가 자기 발행본을 못 본다** — 킬스위치 OFF 면 공개 정책의 EXISTS 가 false 라 0행. editor 이상은 write 정책의 USING 으로 읽히지만 viewer 는 못 읽어 §4.3 재발행 배너가 안 뜬다. 멤버 전용 SELECT 정책을 추가
+- `published_by` 에 `on delete` 누락 → 기본 `NO ACTION` 으로 **사용자 삭제가 조용히 막힌다**. `on delete restrict` 명시
+- 이모지 다수, SQL 전부 대문자(이 저장소는 키워드도 소문자), `$$\text{}$$` LaTeX 수식
+
+**🔴 `workspace_slug` 위치가 세 문서에서 어긋난다** — 이전 판 `public_workspace_slug`, 불변식 §4 `workspace_public_settings.workspace_slug`, 다른 3개 PRD 는 `workspaces.slug`. 권고는 **`workspaces.slug` 정본 + 사이드카에 복제**(트리거 동기화)다. 정본만 두면 anon 이 `workspaces` 를 읽어야 해서 위와 똑같은 실패가 난다.
+
 ### F. 트러블슈팅
 
 - **macOS Chrome 이 창 너비를 최소 485px 로 강제한다.** `--window-size=390` 으로 찍으면 이미지만 390px 로 잘려 "모바일이 깨졌다"고 오판했다. 실제 390px 뷰포트를 보려면 **iframe 하네스**가 필요하다(`scratchpad/frame.py` 패턴).
@@ -141,6 +164,7 @@
   - workspace-home §5.2/5.3/5.4 — 3개 쿼리 에러 없이 실행
   - source-management §4.1 — 3,000행 넣고 `Seq Scan` → `Bitmap Index Scan` 전환 확인
   - wiki-document-reader §3 — 4개 계약 실행 확인, `p_fanout` 21 입력이 거부되는 것까지 확인
+  - public-sharing §2·§3 — **제안 스키마 2개를 로컬에 실제로 세우고 `set local role anon` 으로 질의.** ① 킬스위치 EXISTS 동작 ② 구판 라우팅 `permission denied for table wiki_pages` **실패 재현** ③ `published_slug` 비정규화 수정안 통과 ④ 킬스위치 OFF 시 0행 ⑤ 검증 게이트 트리거가 `partial` 을 42501 로 거부
   - backlog-management §4 — 3개 계약 실행 확인. `wiki_links` 컬럼 **7개**·`resolved = GENERATED ALWAYS`·`authenticated` 권한 **SELECT 단독**·정책 1개 실측. 인덱스는 현실 비율(20 ws / 20,000행 중 미해결 5%)에서 `Bitmap Index Scan on wiki_links_unresolved_slug_idx` 확인
   - auth-google §5 — 구판 §5.2 1단계가 `owner_id` NOT NULL 위반으로 **실패 재현**, 신판은 성공 + `workspace_members` owner 행 **정확히 1개**. 전역 프롬프트 템플릿 `ask 4 / compile 1` 이 `workspace_id IS NULL` 로 존재(=바인딩 단계 없음), `workspaces.slug` **부재** 확인
   - workspace-settings §4 — 6개 계약 실행 확인 + `invite_workspace_member` 가 비-owner 를 `42501` 로 거부하는 것까지 확인. `pg_policies` **27행**, `role` CHECK 3종, `monthly_budget_micros` 기본값 `5000000`, RPC 5개 전부 `prosecdef = t` 로 실재, `workspace_public_settings`·`wiki_page_publications`·`user_profiles`·`workspaces.slug` **전부 부재** 확인
@@ -178,13 +202,14 @@
 ### PRD 리뷰
 
 - [x] **backlog-management PRD 리뷰 완료** (E-4). 프로토타입 없이 문서만 봤다.
-- [ ] **public-sharing PRD 리뷰** — 마지막 1개. 프로토타입 없음.
+- [x] **public-sharing PRD 리뷰 완료** (E-5). **7개 PRD 전부 리뷰 완료.**
 
 ### 미해결 결정 (PRD 에 `[미구현]`/미해결로 기록해 둠)
 
 - [ ] **컬렉션 스키마·UI 설계** — 방향만 확정했고 테이블 설계는 아직. `wiki-document-reader`·`source-management` 양쪽이 기다린다.
 - [ ] **즐겨찾기 · 최근 본 위키 저장소 없음** — 제외할지, `user_wiki_bookmarks` 를 만들지, `localStorage` 로 갈지. 프로토타입은 카운트 뱃지를 빼둔 상태.
-- [ ] **`workspaces.slug` 없음** — 라우트 `/w/[workspace_slug]` 가 의존. 현재는 `/w/[workspace_id]` 로 두었다. `workspace_public_settings` 에 넣지 말고 `workspaces.slug` 로 따로 두는 쪽 권고(비공개 워크스페이스도 URL 이 필요하므로). **DB 실측으로 부재 확정.**
+- [ ] 🔴 **`workspaces.slug` — 4개 PRD 가 걸려 있는 최대 미해결 항목.** 현재 라우트는 `/w/[workspace_id]`. 세 문서가 위치를 다르게 적고 있었다(구 public-sharing `public_workspace_slug` / 불변식 §4 `workspace_public_settings.workspace_slug` / 나머지 PRD `workspaces.slug`).
+  **권고: `workspaces.slug` 를 정본으로 두고 `workspace_public_settings` 에 복제**(트리거 동기화). 정본만 두면 `anon` 이 슬러그 해석을 위해 `workspaces` 를 읽어야 하는데 정책이 없어 E-5-② 와 똑같이 실패한다. 비공개 워크스페이스도 URL 이 필요하므로 공개 전용 테이블에만 둘 수도 없다. **DB 실측으로 부재 확정.**
 - [ ] **초대 폼 owner 게이트 (코드 수정)** — `SettingsMembersPanel.tsx` 가 `currentRole === "owner"` 로 `InviteForm` 을 감싸야 한다. 지금은 viewer/editor 도 폼을 보고 제출 후에야 `권한이 없습니다.` 를 받는다.
 - [ ] **멤버 로스터 `가입 일시` 표시 여부** — RPC 는 `created_at` 을 주고 시안은 열을 그리는데 `MembersList` 가 렌더하지 않는다. 표시 권고.
 - [ ] **역할 변경 UI** — `workspace_members_update_owner` 정책은 있고 화면이 없다. owner 자기 강등은 `protect_owner_membership` 이 막으므로 owner 행은 비활성이어야 한다.
@@ -223,4 +248,6 @@
 
 다음 세션 시작 시 `/catchup` 스킬을 실행하거나 아래 멘트를 입력하세요:
 
-> "HANDOFF.md 확인하고 §4 최우선의 Google 인증 구현을 `auth-google-prd.md` §7 체크리스트 순서대로 착수해줘. `.claude/skills/` 삭제는 의도된 것이니 경고하지 말 것."
+> "HANDOFF.md 확인해줘. PRD 리뷰 7건은 전부 끝났으니, `workspaces.slug` 위치부터 확정한 다음 §4 최우선의 Google 인증 구현을 `auth-google-prd.md` §7 체크리스트 순서대로 착수해줘. `.claude/skills/` 삭제는 의도된 것이니 경고하지 말 것."
+
+**PRD 리뷰는 여기서 끝났다.** 다음 세션의 무게 중심은 문서가 아니라 **구현**이다 — 이 세션에서 만든 것은 전부 계약이고 코드는 한 줄도 쓰지 않았다.
