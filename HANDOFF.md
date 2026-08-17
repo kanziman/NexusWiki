@@ -109,6 +109,22 @@
 
 **남은 구멍**: `/signup` 이 열려도 `invite_workspace_member` 는 여전히 미가입 이메일을 `NW404` 로 거부한다. owner 는 상대의 가입 여부를 알 수 없고 알려줄 수단도 없다 → PRD §9-2.
 
+### E-4. backlog-management PRD 재작성 (6번째) — 화면의 절반이 스키마 없는 기능이었다
+
+`wiki_links` 실컬럼은 **7개**(`id`·`workspace_id`·`from_wiki_id`·`target_slug`·`to_wiki_id`·`resolved`·`created_at`)인데 PRD 는 감지 경로·인용 문맥·해결 상태·수동 등록을 전부 기술했다. DB 실측으로 확정:
+
+- `authenticated` 의 `wiki_links` 권한은 **SELECT 하나뿐**, 정책도 `wiki_links_select_member` 하나 → **`[+ 수동 백로그 등록]` 은 불가능하다**
+- `resolved` 는 `GENERATED ALWAYS` → 직접 쓸 수 없다. `[해결 완료]` 상태로 전환한다는 서술은 성립하지 않는다
+- **"소스 삭제 시 백로그로 전이"는 경로가 통째로 없다.** `on delete set null (to_wiki_id)` 는 **위키 페이지** 삭제 때 걸리고 `wiki_pages.sources` 는 jsonb 라 FK 도 없다. 게다가 **소스 삭제 API 엔드포인트 자체가 없다**(`sources.py` 는 POST 3개뿐)
+- 이모지 5종을 쓰면서 §4.2 에 "Zero Emojis"를 적어 뒀다 — 문서가 자기 규칙을 위반
+- "로즈/레드 틴트"는 불변식 §7.1 이 **명시적으로 금지한 팔레트**다
+
+**핵심 통찰 — 백로그는 할 일 목록이 아니라 본문의 파생 상태다.** `link_sync.py` 가 재컴파일마다 `delete_wiki_links_not_in` 으로 본문에 없는 링크를 **지운다.** 사용자가 항목을 만들어도 다음 컴파일이 지운다. 이게 수동 등록·보류·담당자 지정이 전부 같은 벽에 부딪히는 이유다.
+
+**이미 구현된 표면이 있다** — `RedLinkCta.tsx`. 문구 계약 `아직 작성되지 않음 · 지금 생성`(글자 그대로), 클릭 시 `sources?prefillTitle=…&tab=text`. **"이 백로그에 소스 연결"이 아니라 "워크스페이스에 소스 추가"** 다 — wiki-document-reader §2.2 와 같은 정정이다.
+
+**인덱스 실측에서 나온 함정**: 미해결 링크가 테이블 대부분인 초기 상태에서는 `EXPLAIN` 이 `Seq Scan` 을 보여주는데 **이게 정상이다**(모든 행이 부분 인덱스 조건에 맞으면 인덱스 경유가 손해). 20개 워크스페이스·20,000행 중 미해결 1,000행(5%)으로 만들면 `Bitmap Index Scan on wiki_links_unresolved_slug_idx` 로 넘어간다. **Seq Scan 보고 인덱스를 더 만들지 말 것** — PRD §4.1 에 실측표로 남겼다.
+
 ### F. 트러블슈팅
 
 - **macOS Chrome 이 창 너비를 최소 485px 로 강제한다.** `--window-size=390` 으로 찍으면 이미지만 390px 로 잘려 "모바일이 깨졌다"고 오판했다. 실제 390px 뷰포트를 보려면 **iframe 하네스**가 필요하다(`scratchpad/frame.py` 패턴).
@@ -125,6 +141,7 @@
   - workspace-home §5.2/5.3/5.4 — 3개 쿼리 에러 없이 실행
   - source-management §4.1 — 3,000행 넣고 `Seq Scan` → `Bitmap Index Scan` 전환 확인
   - wiki-document-reader §3 — 4개 계약 실행 확인, `p_fanout` 21 입력이 거부되는 것까지 확인
+  - backlog-management §4 — 3개 계약 실행 확인. `wiki_links` 컬럼 **7개**·`resolved = GENERATED ALWAYS`·`authenticated` 권한 **SELECT 단독**·정책 1개 실측. 인덱스는 현실 비율(20 ws / 20,000행 중 미해결 5%)에서 `Bitmap Index Scan on wiki_links_unresolved_slug_idx` 확인
   - auth-google §5 — 구판 §5.2 1단계가 `owner_id` NOT NULL 위반으로 **실패 재현**, 신판은 성공 + `workspace_members` owner 행 **정확히 1개**. 전역 프롬프트 템플릿 `ask 4 / compile 1` 이 `workspace_id IS NULL` 로 존재(=바인딩 단계 없음), `workspaces.slug` **부재** 확인
   - workspace-settings §4 — 6개 계약 실행 확인 + `invite_workspace_member` 가 비-owner 를 `42501` 로 거부하는 것까지 확인. `pg_policies` **27행**, `role` CHECK 3종, `monthly_budget_micros` 기본값 `5000000`, RPC 5개 전부 `prosecdef = t` 로 실재, `workspace_public_settings`·`wiki_page_publications`·`user_profiles`·`workspaces.slug` **전부 부재** 확인
 - **정합성**: 프로토타입 카운트 통일(카테고리 합 18 = 문서 18, 백로그 03, 원문 42), 이모지 0개, 미정의 클래스 없음.
@@ -160,7 +177,8 @@
 
 ### PRD 리뷰
 
-- [ ] 짝 없는 2개(`backlog-management`·`public-sharing`)는 프로토타입이 없다. 리뷰 방식을 따로 정할 것.
+- [x] **backlog-management PRD 리뷰 완료** (E-4). 프로토타입 없이 문서만 봤다.
+- [ ] **public-sharing PRD 리뷰** — 마지막 1개. 프로토타입 없음.
 
 ### 미해결 결정 (PRD 에 `[미구현]`/미해결로 기록해 둠)
 
@@ -181,7 +199,9 @@
 ### 정리 대상
 
 - [ ] **`docs/design-systems/design-tokens.css`·`.json` 이 옛 Airbnb 팔레트**(`--color-primary: #ff385c`). v2 는 청록 `oklch(.58 .11 190)` 체계다. 지금은 아무도 참조하지 않지만 남겨두면 누가 집어들 위험이 있다. `apps/dashboard/app/globals.css` 가 이걸 쓰는지 확인 후 판단할 것.
-- [ ] **v1 preview 를 아직 링크하는 PRD 1개** — `backlog-management-prd.md`. (`workspace-settings-prd.md` 는 정정 완료)
+- [x] **v1 preview 링크 정정 완료** — `workspace-settings` · `backlog-management` 둘 다.
+- [ ] **backlog 는 v2 프로토타입이 없다** — 만들 경우 `RedLinkCta` 문구 계약을 그대로 따를 것 (PRD §5-4).
+- [ ] **소스 삭제 API 부재** — source-management PRD §3.6·§3.7 이 삭제 흐름을 정의하는데 `sources.py` 에 DELETE 엔드포인트가 없다(POST 3개뿐). RLS 정책은 있으니 **[UI·API 미구현]** 표기가 필요하다. backlog 리뷰 중 발견.
 - [ ] **프로토타입 LNB 의 카테고리 표시명이 코드와 어긋난다 (확인 완료)** — 시안은 `개념/대상/가이드/지도`, 실제 `GraphLensFilter.tsx` 는 `개념/엔티티/가이드/맵`. PRD 는 코드 쪽으로 이미 맞췄으니 **시안 2군데(`대상`→`엔티티`, `지도`→`맵`)만 고치면 된다.**
 - [ ] **source-management 프로토타입이 PRD 와 어긋남** — 시안은 아직 SQL·CSV 파일과 포맷 탭 5개를 보여주는데, PRD 는 3종(`PDF`·`텍스트/마크다운`)으로 확정됐다.
 - [ ] **workspace-settings 프로토타입 정정 11건** — 목록은 `workspace-settings-prd.md` §5 표에 있다. 그중 **`EDITOR … 위키 재컴파일` 문구는 불변식 §2 직접 위반**이라 우선순위가 높다.
