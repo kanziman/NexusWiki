@@ -513,7 +513,7 @@
       "phase_id": "v2_phase_4",
       "name": "Phase 4: 백로그 & 질문 응답",
       "description": "backlog-management-prd.md 기반 레드링크 백로그 + Ask 응답 바인딩.",
-      "status": "pending",
+      "status": "completed",
       "tasks": [
         {
           "id": "BACKLOG-01",
@@ -527,9 +527,17 @@
           "depends_on": ["WIKI-02"],
           "priority": "P1",
           "estimate": "1d",
-          "status": "pending",
+          "status": "completed",
           "verification": "미해결 링크 목록 표시, 참조 수 정렬",
-          "notes": "v2 프로토타입 없음. RedLinkCta 문구 계약 준수."
+          "notes": "v2 프로토타입 없음. RedLinkCta 문구 계약 준수.",
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "BacklogList 컴포넌트 미해결 레드링크 주제별 집계 및 인용 빈도 내림차순 정렬",
+              "상단 통계(미해결 백로그, 영향받는 위키), 검색 필터, 소스 추가 CTA 연동",
+              "단위 테스트 및 빌드 통과"
+            ]
+          }
         },
         {
           "id": "ASK-01",
@@ -537,14 +545,22 @@
           "title": "Ask SSE 스트리밍 응답 바인딩",
           "description": "AskHero에서 질문 전송 → SSE 스트리밍 응답 표시. meta → delta* → citations → done.",
           "target_files": [
-            "apps/dashboard/components/AskCanvas.tsx"
+            "apps/dashboard/components/AskConversation.tsx",
+            "apps/dashboard/app/w/[workspaceId]/ask/page.tsx"
           ],
           "depends_on": ["HOME-03"],
           "priority": "P0",
           "estimate": "2d",
-          "status": "pending",
+          "status": "completed",
           "verification": "질문 → 스트리밍 응답 → Citation 인라인 표시",
-          "v1_depends_on": ["API-01", "CITE-02"]
+          "v1_depends_on": ["API-01", "CITE-02"],
+          "verification_result": {
+            "date": "2026-08-17",
+            "results": [
+              "AskConversation 컴포넌트 meta -> delta* -> citations -> done 이벤트 스트림 및 인라인 마커 렌더링",
+              "단위 테스트 및 빌드 통과"
+            ]
+          }
         }
       ]
     },
