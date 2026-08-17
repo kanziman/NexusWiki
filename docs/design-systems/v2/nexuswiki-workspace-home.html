@@ -130,34 +130,30 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <nav class="nav-stack" aria-label="주요 메뉴">
-      <button class="nav-item" data-od-id="favorites-nav"><svg class="nav-icon" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기 <span class="count">03</span></button>
-      <button class="nav-item" data-od-id="recent-nav"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button>
-      <button class="nav-item" data-od-id="backlog-nav"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>미완성 백로그 <span class="count">07</span></button>
-      <button class="nav-item" data-od-id="sources-nav"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">18</span></button>
+      <button class="nav-item" aria-label="즐겨찾기"><svg class="nav-icon" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기</button>
+      <button class="nav-item" aria-label="최근 본 위키"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button>
+      <button class="nav-item" aria-label="미완성 백로그"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>미완성 백로그 <span class="count">03</span></button>
+      <button class="nav-item" aria-label="원문 소스"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">42</span></button>
 
-      <div class="nav-label"><span>팀 프로젝트</span><span>+</span></div>
-      <button class="nav-item nav-toggle" id="engineeringToggle" data-od-id="engineering-project-toggle" aria-expanded="true" aria-controls="engineeringTree" aria-label="엔지니어링 코어 접기"><span class="nav-caret">⌄</span>엔지니어링 코어</button>
-      <div class="nav-tree" id="engineeringTree" data-od-id="engineering-project">
-        <button class="nav-item">백엔드 아키텍처 <span class="count">12</span></button>
-        <button class="nav-item active" data-od-id="database-rls-nav">데이터베이스 &amp; RLS <span class="count">18</span></button>
-        <button class="nav-item">5채널 하이브리드 검색 <span class="count">08</span></button>
-        <button class="nav-item">잡 큐 &amp; 워커 풀 <span class="count">04</span></button>
-      </div>
-      <button class="nav-item nav-toggle collapsed" aria-expanded="false" aria-label="제품 기획 펼치기"><span class="nav-caret">⌄</span>제품 기획 <span class="count">02</span></button>
+      <div class="nav-label"><span>카테고리</span></div>
+      <button class="nav-item" data-category="concepts" aria-label="개념"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>개념 <span class="count">07</span></button>
+      <button class="nav-item" data-category="entities" aria-label="대상"><svg class="nav-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/><path d="M11 7.5h4a2 2 0 0 1 2 2V13"/></svg>대상 <span class="count">05</span></button>
+      <button class="nav-item" data-category="guides" aria-label="가이드"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5Z"/></svg>가이드 <span class="count">04</span></button>
+      <button class="nav-item" data-category="maps" aria-label="지도"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 3 6-2.5v-13L15 7Z"/><path d="M9 4v13m6-10v13"/></svg>지도 <span class="count">02</span></button>
 
       <div class="nav-label"><span>팀 관리</span></div>
-      <button class="nav-item" data-od-id="members-nav"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 역할 관리 <span class="count">08</span></button>
+      <button class="nav-item" aria-label="팀원 & 역할 관리"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 역할 관리 <span class="count">08</span></button>
     </nav>
     <div class="profile" data-od-id="user-profile">
       <div class="avatar">김</div>
       <div class="profile-text"><strong>김개발</strong><span>엔지니어링</span></div>
-      <button class="icon-btn" aria-label="설정">⚙</button>
+      <button class="icon-btn" aria-label="설정"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg></button>
     </div>
   </aside>
 
   <main class="workspace" data-od-id="workspace-home">
     <header class="topbar" data-od-id="workspace-topbar">
-      <div class="crumb"><span>엔지니어링 코어</span><b>/</b><strong>데이터베이스 &amp; RLS</strong></div>
+      <div class="crumb"><strong>넥서스 SaaS 팀</strong></div>
       <div class="top-actions">
         <button class="button" id="openSource" data-od-id="add-source-button">소스 추가</button>
         <button class="button primary" id="askTop" data-od-id="ask-top-button">질문 시작</button>
@@ -166,36 +162,36 @@
     </header>
 
     <div class="content">
-      <section class="context" data-od-id="knowledge-group-header">
+      <section class="context" data-od-id="workspace-header">
         <div>
-          <p class="eyebrow">지식 그룹 · ENGINEERING CORE</p>
+          <p class="eyebrow">워크스페이스</p>
           <div class="title-row">
-            <h1 data-od-id="knowledge-group-title">데이터베이스 &amp; RLS</h1>
+            <h1 data-od-id="workspace-title">넥서스 SaaS 팀</h1>
             <button class="star" id="favorite" data-od-id="favorite-control" aria-label="즐겨찾기에 추가"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg></button>
           </div>
-          <p>테넌트 격리, 스키마 규칙, 운영 중인 데이터베이스의 의사결정을 한곳에서 확인합니다.</p>
+          <p>연결한 원문과 컴파일된 위키를 한곳에서 질문하고, 비어 있는 지식을 확인합니다.</p>
         </div>
       </section>
 
-      <section class="stats" data-od-id="knowledge-summary" aria-label="지식 그룹 현황">
+      <section class="stats" data-od-id="workspace-summary" aria-label="워크스페이스 현황">
         <div class="stat"><b>18</b><span>컴파일된 문서</span></div>
         <div class="stat"><b>42</b><span>연결된 원문 소스</span></div>
         <div class="stat"><b>03</b><span>작성 대기 항목</span></div>
         <div class="stat"><b>1시간 전</b><span>최종 업데이트</span></div>
       </section>
 
-      <section class="ask" data-od-id="knowledge-question">
+      <section class="ask" data-od-id="workspace-question">
         <div class="ask-main">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.1 4.1"/></svg>
-          <textarea id="question" aria-label="질문 입력" placeholder="이 지식 그룹에 질문하세요. 예: 테넌트 격리를 보장하는 RLS 정책의 핵심 원칙은 무엇인가요?"></textarea>
+          <textarea id="question" aria-label="질문 입력" placeholder="이 워크스페이스에 질문하세요. 예: 테넌트 격리를 보장하는 RLS 정책의 핵심 원칙은 무엇인가요?"></textarea>
         </div>
         <div class="ask-bottom">
           <div class="scope-wrap">
-            <button class="scope" id="scopeTrigger" data-od-id="search-scope-control"><i class="scope-dot"></i><span id="scopeText">데이터베이스 &amp; RLS · 현재 그룹</span>⌄</button>
+            <button class="scope" id="scopeTrigger" data-od-id="search-scope-control"><i class="scope-dot"></i><span id="scopeText">워크스페이스 전체</span>⌄</button>
             <div class="scope-menu" id="scopeMenu" role="menu">
-              <button class="scope-option" data-scope="데이터베이스 &amp; RLS · 현재 그룹"><b>데이터베이스 &amp; RLS</b><span>현재 지식 그룹 안에서 검색</span></button>
-              <button class="scope-option" data-scope="엔지니어링 코어 · 프로젝트 전체"><b>엔지니어링 코어</b><span>프로젝트 전체 문서에서 검색</span></button>
-              <button class="scope-option" data-scope="넥서스 SaaS 팀 · 워크스페이스 전체"><b>넥서스 SaaS 팀</b><span>모든 팀 지식에서 검색</span></button>
+              <button class="scope-option" data-scope="워크스페이스 전체"><b>워크스페이스 전체</b><span>모든 팀 지식에서 검색</span></button>
+              <button class="scope-option" data-scope="개념 카테고리"><b>개념 카테고리</b><span>선택한 카테고리 문서로 한정</span></button>
+              <button class="scope-option" data-scope="현재 문서 주변"><b>현재 문서 주변</b><span>이 문서와 링크로 이어진 문서만</span></button>
             </div>
           </div>
           <button class="button primary" id="submitQuestion" data-od-id="submit-question-button">질문하기 <span>↗</span></button>
@@ -210,10 +206,10 @@
         <section data-od-id="compiled-wiki-section">
           <div class="section-head"><h2>컴파일된 위키 문서 <span>18</span></h2><button class="text-button" data-od-id="view-all-documents">전체 보기 →</button></div>
           <div class="doc-list">
-            <button class="doc" data-od-id="wiki-document-tenant-rls"><div class="doc-body"><span class="doc-title">테넌트 격리 및 RLS 보안 스파인</span><span class="doc-meta">아키텍처 · 원문 2개 인용 · <b class="badge verified">검증 완료</b></span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-            <button class="doc" data-od-id="wiki-document-foreign-key"><div class="doc-body"><span class="doc-title">복합 외래키 전파 규칙</span><span class="doc-meta">개념 정의 · 1시간 전 컴파일</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-            <button class="doc" data-od-id="wiki-document-vector-index"><div class="doc-body"><span class="doc-title">벡터 인덱스와 HNSW iterative_scan</span><span class="doc-meta">성능 튜닝 · 원문 3개 인용</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-            <button class="doc" data-od-id="wiki-document-migration"><div class="doc-body"><span class="doc-title">마이그레이션 롤백 운영 원칙</span><span class="doc-meta">운영 가이드 · 2일 전 컴파일</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-tenant-rls"><div class="doc-body"><span class="doc-title">테넌트 격리 및 RLS 보안 스파인</span><span class="doc-meta">대상 · 원문 2개 인용 · <b class="badge verified">검증 완료</b></span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-foreign-key"><div class="doc-body"><span class="doc-title">복합 외래키 전파 규칙</span><span class="doc-meta">개념 · 1시간 전 컴파일</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-vector-index"><div class="doc-body"><span class="doc-title">벡터 인덱스와 HNSW iterative_scan</span><span class="doc-meta">가이드 · 원문 3개 인용</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="doc" data-od-id="wiki-document-migration"><div class="doc-body"><span class="doc-title">마이그레이션 롤백 운영 원칙</span><span class="doc-meta">가이드 · 2일 전 컴파일</span></div><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
           </div>
         </section>
 
@@ -254,15 +250,6 @@ scopeTrigger.addEventListener("click",e=>{e.stopPropagation();scopeMenu.classLis
 document.querySelectorAll(".scope-option").forEach(option=>option.addEventListener("click",()=>{$("#scopeText").textContent=option.dataset.scope;scopeMenu.classList.remove("open")}));
 document.addEventListener("click",()=>scopeMenu.classList.remove("open"));
 
-// 프로젝트 트리 접기 — .nav-toggle 과 대상 .nav-tree 가 함께 collapsed 를 갖는다
-const engineeringToggle=$("#engineeringToggle"),engineeringTree=$("#engineeringTree");
-engineeringToggle.addEventListener("click",e=>{
-  e.stopPropagation();
-  const collapsed=engineeringToggle.classList.toggle("collapsed");
-  engineeringTree.classList.toggle("collapsed",collapsed);
-  engineeringToggle.setAttribute("aria-expanded",String(!collapsed));
-  engineeringToggle.setAttribute("aria-label",collapsed?"엔지니어링 코어 펼치기":"엔지니어링 코어 접기");
-});
 
 $("#favorite").addEventListener("click",e=>{e.currentTarget.classList.toggle("is-on");e.currentTarget.setAttribute("aria-label",e.currentTarget.classList.contains("is-on")?"즐겨찾기에서 제거":"즐겨찾기에 추가")});
 

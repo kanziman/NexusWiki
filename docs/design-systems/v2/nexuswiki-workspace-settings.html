@@ -120,20 +120,19 @@
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <nav class="nav-stack" aria-label="주요 메뉴">
-      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기 <span class="count">03</span></button>
-      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button>
-      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">18</span></button>
+      <button class="nav-item" aria-label="즐겨찾기"><svg class="nav-icon" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.5-4.4 6.2-.9L12 3Z"/></svg>즐겨찾기</button>
+      <button class="nav-item" aria-label="최근 본 위키"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>최근 본 위키</button>
+      <button class="nav-item" aria-label="미완성 백로그"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>미완성 백로그 <span class="count">03</span></button>
+      <button class="nav-item" aria-label="원문 소스"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3v12m0-12 4 4m-4-4-4 4M5 14v5h14v-5"/></svg>원문 소스 <span class="count">42</span></button>
 
-      <div class="nav-label"><span>팀 프로젝트</span></div>
-      <button class="nav-item nav-toggle" id="projectToggle" aria-expanded="true" aria-controls="projectLinks" aria-label="엔지니어링 코어 접기"><span class="nav-caret">⌄</span>엔지니어링 코어</button>
-      <div class="nav-tree" id="projectLinks">
-        <button class="nav-item">백엔드 아키텍처 <span class="count">12</span></button>
-        <button class="nav-item">데이터베이스 &amp; RLS <span class="count">18</span></button>
-        <button class="nav-item">5채널 하이브리드 검색 <span class="count">08</span></button>
-      </div>
+      <div class="nav-label"><span>카테고리</span></div>
+      <button class="nav-item" data-category="concepts" aria-label="개념"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>개념 <span class="count">07</span></button>
+      <button class="nav-item" data-category="entities" aria-label="대상"><svg class="nav-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/><path d="M11 7.5h4a2 2 0 0 1 2 2V13"/></svg>대상 <span class="count">05</span></button>
+      <button class="nav-item" data-category="guides" aria-label="가이드"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5Z"/></svg>가이드 <span class="count">04</span></button>
+      <button class="nav-item" data-category="maps" aria-label="지도"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 3 6-2.5v-13L15 7Z"/><path d="M9 4v13m6-10v13"/></svg>지도 <span class="count">02</span></button>
 
       <div class="nav-label"><span>팀 관리</span></div>
-      <button class="nav-item active" data-od-id="workspace-settings-nav"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 워크스페이스 설정 <span class="count">08</span></button>
+      <button class="nav-item active" aria-label="팀원 & 역할 관리"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 역할 관리 <span class="count">08</span></button>
     </nav>
     <div class="profile">
       <span class="avatar">김</span>
@@ -141,7 +140,7 @@
     </div>
   </aside>
   <main class="workspace" data-od-id="workspace-settings-screen">
-    <header class="topbar" data-od-id="workspace-settings-topbar"><div class="crumb"><span>엔지니어링 코어</span><b>/</b><strong>워크스페이스 설정</strong></div><button class="button" id="helpButton">권한 정책 보기</button></header>
+    <header class="topbar" data-od-id="workspace-settings-topbar"><div class="crumb"><span>넥서스 SaaS 팀</span><b>/</b><strong>워크스페이스 설정</strong></div><button class="button" id="helpButton">권한 정책 보기</button></header>
     <div class="content">
       <section class="hero" data-od-id="workspace-settings-header"><div><p class="eyebrow">WORKSPACE CONTROL · RBAC</p><h1>워크스페이스 설정</h1><p>멤버 역할과 초대 권한을 관리하고, 지식 파이프라인의 운영 상태를 확인합니다.</p></div><div class="role-note">현재 역할　<b>OWNER</b></div></section>
       <nav class="tabs" aria-label="워크스페이스 설정 탭" data-od-id="settings-tabs"><button class="tab active" data-panel="members" aria-selected="true">멤버 관리 <span class="mono">08</span></button><button class="tab" data-panel="operations" aria-selected="false">운영 현황</button></nav>
@@ -168,8 +167,6 @@
 <div class="modal-backdrop" id="policyModal" data-od-id="permission-policy-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="policyTitle"><div class="modal-head"><div><h2 id="policyTitle">워크스페이스 권한 정책</h2><p>역할 변경은 RLS 정책과 다음 요청부터 동기화됩니다.</p></div><button class="icon-btn" id="closePolicy" aria-label="권한 정책 닫기">×</button></div><div class="policy-list"><div class="policy-item"><b>OWNER</b><span>멤버 권한·워크스페이스 삭제·운영 현황 전체를 관리합니다.</span></div><div class="policy-item"><b>EDITOR</b><span>소스 업로드, 위키 재컴파일, 운영 현황을 관리합니다.</span></div><div class="policy-item"><b>VIEWER</b><span>위키 문서 열람, AI 질문, 지식 그래프 탐색만 할 수 있습니다.</span></div></div><div class="modal-foot"><button class="button" id="policyDone">확인</button></div></div></div>
 <script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-const projectToggle=$("#projectToggle"),projectLinks=$("#projectLinks");
-projectToggle.addEventListener("click",()=>{const collapsed=projectLinks.classList.toggle("collapsed");projectToggle.classList.toggle("collapsed",collapsed);projectToggle.setAttribute("aria-expanded",String(!collapsed))});
 $$('.tab').forEach(tab=>tab.addEventListener('click',()=>{$$('.tab').forEach(item=>{item.classList.remove('active');item.setAttribute('aria-selected','false')});$$('.panel').forEach(panel=>panel.classList.remove('active'));tab.classList.add('active');tab.setAttribute('aria-selected','true');$('#'+tab.dataset.panel).classList.add('active')}));
 $$('[data-role]').forEach(button=>button.addEventListener('click',()=>{const next=button.dataset.role==='editor'?'viewer':'editor';button.dataset.role=next;button.textContent=next;button.className='role '+next}));
 $('#sendInvite').addEventListener('click',()=>{const email=$('#inviteEmail').value.trim(),role=$('#inviteRole').value,feedback=$('#inviteFeedback');if(!email||!email.includes('@')){feedback.textContent='유효한 이메일 주소를 입력하세요.';feedback.style.color='var(--danger)';feedback.classList.add('show');$('#inviteEmail').focus();return}feedback.textContent=`${email}에 ${role} 역할의 초대장을 보냈습니다.`;feedback.style.color='var(--good)';feedback.classList.add('show');$('#inviteEmail').value=''});
