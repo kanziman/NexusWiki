@@ -13,7 +13,10 @@ const redirect = vi.hoisted(() =>
   }),
 );
 
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({
+  redirect,
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => {
     const query = {
@@ -45,19 +48,17 @@ describe("workspace entry route", () => {
     state.orderField = "";
   });
 
-  it("keeps invitation guidance when RLS exposes no workspace", async () => {
+  it("RLS가 빈 목록을 반환하면 personal 워크스페이스 온보딩을 표시한다", async () => {
     render(await HomePage());
 
     expect(
-      screen.getByText(
-        "워크스페이스가 없습니다 — 관리자에게 초대를 요청하세요.",
-      ),
+      screen.getByRole("heading", { name: "첫 워크스페이스 만들기" }),
     ).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();
   });
 
   it("redirects a user with one RLS-visible workspace to its URL-scoped home", async () => {
-    state.workspaces = [{ id: "ws-1", name: "단일 프로젝트" }];
+    state.workspaces = [{ id: "ws-1", name: "단일 워크스페이스" }];
 
     await expect(HomePage()).rejects.toThrow("redirect:/w/ws-1");
 
@@ -67,22 +68,20 @@ describe("workspace entry route", () => {
 
   it("renders only the RLS-visible workspaces as URL-scoped selection links", async () => {
     state.workspaces = [
-      { id: "ws-1", name: "알파 프로젝트" },
-      { id: "ws-2", name: "베타 프로젝트" },
+      { id: "ws-1", name: "알파 워크스페이스" },
+      { id: "ws-2", name: "베타 워크스페이스" },
     ];
 
     render(await HomePage());
 
     expect(
-      screen.getByRole("heading", { name: "프로젝트 선택" }),
+      screen.getByRole("heading", { name: "워크스페이스 선택" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "알파 프로젝트" })).toHaveAttribute(
-      "href",
-      "/w/ws-1",
-    );
-    expect(screen.getByRole("link", { name: "베타 프로젝트" })).toHaveAttribute(
-      "href",
-      "/w/ws-2",
-    );
+    expect(
+      screen.getByRole("link", { name: "알파 워크스페이스" }),
+    ).toHaveAttribute("href", "/w/ws-1");
+    expect(
+      screen.getByRole("link", { name: "베타 워크스페이스" }),
+    ).toHaveAttribute("href", "/w/ws-2");
   });
 });

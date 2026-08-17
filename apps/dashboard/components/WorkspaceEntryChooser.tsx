@@ -24,13 +24,13 @@ export function WorkspaceEntryChooser({
           className="mt-sm text-[var(--nw-ink)]"
           style={{ font: "var(--font-display-lg)" }}
         >
-          프로젝트 선택
+          워크스페이스 선택
         </h1>
         <p
           className="mt-base text-[var(--nw-muted)]"
           style={{ font: "var(--font-body-md)" }}
         >
-          계속할 프로젝트를 선택하세요.
+          계속할 워크스페이스를 선택하세요.
         </p>
 
         <ul className="mt-xl border-y border-[var(--nw-rule)]">
