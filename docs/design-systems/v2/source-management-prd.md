@@ -1,6 +1,6 @@
 # 원문 소스 관리 PRD
 
-> **문서 상태**: 리뷰 반영판 (2026-08-17). 이전 "확정(Validated)" 판의 지원 형식·필터 축·성능 계약을 실제 구현과 대조해 정정했다.
+> **문서 상태**: 리뷰 반영판 (2026-08-17). 이전 "확정(Validated)" 판의 지원 형식·필터 축·성능 계약을 실제 구현과 대조해 정정하고, `.sql`·`.csv`·`.json` 지원을 이번 마일스톤 범위로 추가했다.
 > **기능 영역**: 원본 소스 수집, 청킹·인덱싱 상태 추적, 청크 인스펙터
 > **라우트**: `/w/[workspace_id]/sources`, `/w/[workspace_id]/sources/[id]`
 > **연계 프로토타입**: [`nexuswiki-source-management.html`](nexuswiki-source-management.html)
@@ -44,23 +44,56 @@
 
 ---
 
-## 2. 지원 형식과 한도 — 구현과 일치시킬 것
+## 2. 지원 형식과 한도
 
-⚠️ **이전 판이 실제 구현과 달랐다.** 아래가 실제 값이다.
+### 2.1 현재 구현 — [구현됨]
 
-| 항목 | 실제 구현 | 이전 판이 적었던 값 |
+| 항목 | 값 | 근거 |
 | --- | --- | --- |
-| 업로드 허용 MIME | `application/pdf` · `text/plain` · `text/markdown` | `.sql .pdf .md .csv .json .zip` |
-| URL 수집 허용 MIME | 위 3종 + `text/html` | — |
-| 업로드 상한 | **20 MiB** (`MAX_UPLOAD_BYTES`) | 50 MB |
-| 버킷 상한 | 50 MiB (`0005_storage.sql:48`) | — |
+| 업로드 허용 MIME | `application/pdf` · `text/plain` · `text/markdown` | [`settings.py:60-62`](../../../apps/api/src/api/settings.py) `ALLOWED_UPLOAD_MIME_TYPES` |
+| URL 수집 허용 MIME | 위 3종 + `text/html` | [`extract.py:37-39`](../../../packages/core/src/nexuswiki_core/extract.py) `SUPPORTED_MIME_TYPES` |
+| 업로드 상한 | **20 MiB** | `MAX_UPLOAD_BYTES` |
+| 버킷 상한 | 50 MiB | `0005_storage.sql:48` |
 
-근거: [`settings.py:60-62`](../../../apps/api/src/api/settings.py) `ALLOWED_UPLOAD_MIME_TYPES`, [`extract.py:37-39`](../../../packages/core/src/nexuswiki_core/extract.py) `SUPPORTED_MIME_TYPES`.
+이전 판은 `.sql .pdf .md .csv .json .zip / 최대 50MB` 라고 적었으나 사실이 아니었다. 상한은 API 설정값(20 MiB)이 사용자에게 보이는 값이며, 버킷 상한은 방어선이지 약속하는 수치가 아니다.
 
-* `.sql` · `.csv` · `.json` · `.zip` 은 **현재 업로드할 수 없다.** 화면에 이 형식들을 예시로 보여주면 안 된다.
-* `.sql` 파일은 `text/plain` 으로 올라올 수는 있으나 그것은 확장자가 아니라 MIME 기준이다.
-* 상한은 API 설정값(20 MiB)이 보이는 값이다. 버킷 상한(50 MiB)은 방어선이지 사용자에게 약속하는 수치가 아니다.
-* 새 형식 추가에 마이그레이션이 필요 없도록 MIME 검증은 의도적으로 애플리케이션 계층에 있다(`0005_storage.sql:44-45` 주석).
+### 2.2 이번 마일스톤에 추가할 형식 — [구현 필요]
+
+`.sql` · `.csv` · `.json` 을 지원 대상에 넣는다. `.zip` 은 넣지 않는다(압축 해제·중첩·zip bomb 방어가 별도 과제다).
+
+| 확장자 | 채택 MIME | 비고 |
+| --- | --- | --- |
+| `.sql` | `application/sql` | RFC 6922 등록 타입 |
+| `.csv` | `text/csv` | |
+| `.json` | `application/json` | |
+
+**변경 지점은 두 상수뿐이다.** 셋 다 평문이라 새 파서가 필요 없다 — `extract_text` 의 텍스트 분기(`_decode_text`: UTF-8 → UTF-8 BOM → CP949)를 그대로 탄다.
+
+1. `packages/core/.../extract.py` — `SUPPORTED_MIME_TYPES` 와 `_TEXT_MIME_TYPES` 양쪽에 추가
+2. `apps/api/.../settings.py` — `ALLOWED_UPLOAD_MIME_TYPES` 에 추가
+
+마이그레이션은 필요 없다. MIME 검증이 의도적으로 애플리케이션 계층에 있는 이유가 이것이다(`0005_storage.sql:44-45` 주석).
+
+⚠️ `_TEXT_MIME_TYPES` 에도 넣어야 한다. `SUPPORTED_MIME_TYPES` 에만 추가하면 `extract_text` 의 마지막 분기인 **HTML 파서**로 떨어져 `<` 를 태그로 오인한다 — JSON 과 SQL 에서 조용히 내용이 잘린다.
+
+### 2.3 추가에 딸린 위험 3건 — 구현 전 판단 필요
+
+**(1) `.sql` 은 MIME 만으로 걸러지지 않는다.**
+`.sql` 은 브라우저가 보내는 MIME 이 일정하지 않다. `application/sql` · `text/x-sql` · `text/plain` · `application/octet-stream` · 빈 문자열이 모두 나온다. MIME 만 보는 허용 목록으로는 **정상 파일이 거부된다.**
+
+→ 업로드 검증은 `MIME 우선, 미상이면 확장자 폴백` 으로 한다. 확장자 폴백은 `.sql` · `.csv` · `.json` 에만 적용하고, 폴백으로 통과한 파일의 `mime_type` 컬럼에는 위 표의 정규 MIME 을 기록해 §3.2 탭 필터가 흔들리지 않게 한다.
+
+**(2) CSV·JSON 은 산문이 아니라 구조 데이터다 — 검색 품질 위험.**
+파이프라인은 `추출 → 청킹 → 임베딩 → 위키 컴파일` 인데, 청커는 산문 전제다(`recursive-cl100k-512-64-v1`, 문장 경계 `[.!?。！？]` 기준). 표나 객체 배열에 이 규칙을 적용하면:
+
+* 청크 경계가 레코드 중간을 자른다. 한 청크가 어느 행의 뒷부분 + 다음 행의 앞부분이 된다.
+* 인용 스니펫이 문장으로 읽히지 않아 **이중 Citation 의 원문 쪽이 깨진다.** 이 제품의 핵심 가치가 걸린 지점이다.
+* 임베딩이 반복적인 열 이름에 지배되어 검색 변별력이 떨어진다.
+
+→ 이번 마일스톤은 **평문 그대로 처리하되 이 한계를 알고 넣는다.** 레코드 단위 청킹은 별도 과제로 남긴다. 다만 사용자에게 형식별 기대치를 알릴 필요가 있으므로, 업로드 모달에서 CSV·JSON 선택 시 "표 형식 데이터는 문장 단위 인용 품질이 낮을 수 있습니다" 안내를 노출한다.
+
+**(3) 짧은 파일이 오해를 부르는 사유로 거부된다.**
+품질 게이트가 `MIN_TOTAL_CHARS = 200` 인데, 미달 시 사유가 `needs_ocr` 다. PDF 를 전제한 이름이라 작은 JSON 설정 파일을 올린 사용자에게는 뜻이 통하지 않는다. 사유 코드를 형식에 맞게 분기하거나 UI 문구에서 사유를 재해석해 보여준다.
 
 ---
 
@@ -92,7 +125,8 @@
 
 **탭 필터는 `mime_type` 을 쓴다.** 이유는 탭이 답하는 질문이 "이게 무슨 파일인가"이기 때문이다. `source_type` 은 사용자가 고르는 값이라 포맷과 어긋날 수 있다(`url` 로 수집했는데 실체는 PDF).
 
-지원 MIME 이 3종뿐이므로 탭도 3개다: `전체` · `PDF` · `텍스트/마크다운`. 형식이 늘면 탭이 는다.
+§2.2 반영 후 탭은 5개다: `전체` · `PDF` · `텍스트/마크다운` · `SQL` · `CSV/JSON`.
+탭은 `mime_type` 집합으로 정의한다 — `텍스트/마크다운`은 `text/plain`+`text/markdown`, `CSV/JSON`은 `text/csv`+`application/json` 을 묶는다. 형식이 늘면 탭 정의만 늘리고 축은 바꾸지 않는다.
 
 * `source_type` 은 탭이 아니라 **행 안의 메타데이터**로 표시한다.
 * 업로드 모달의 종류 선택은 `source_type` 을 쓴다. 두 축을 한 컨트롤에 섞지 않는다.
@@ -127,7 +161,8 @@
 
 ### 3.5 업로드 모달
 
-* 드래그앤드롭 + 지원 형식 안내는 **§2 의 실제 값**을 쓴다: `PDF · 텍스트 · 마크다운, 최대 20MB`.
+* 드래그앤드롭 + 지원 형식 안내는 **§2 의 값**을 쓴다: `PDF · 텍스트 · 마크다운 · SQL · CSV · JSON, 최대 20MB`.
+  * CSV·JSON 선택 시 §2.3(2) 의 인용 품질 안내를 함께 노출한다.
 * `source_type` 선택 셀렉터 (8종).
 * ⚠️ **프로젝트·위키 그룹 선택은 없다.** 2계층이므로 소스는 워크스페이스에 귀속된다(불변식 §1). 컬렉션이 도입되면 그때 선택지가 생긴다.
 * 업로드 즉시 백그라운드 청킹·인덱싱 큐에 진입한다. 사용자가 누르는 시작 버튼은 없다(불변식 §2).
@@ -252,7 +287,9 @@ where id = :raw_source_id
 | 단계 | 항목 | 검증 기준 |
 | --- | --- | --- |
 | 1 | 선행 마이그레이션 | `wiki_pages_sources_idx` 적용 후 §5.2 가 `Bitmap Index Scan` 을 타는지 `EXPLAIN` 확인 |
-| 2 | 업로드 | §2 의 3종 MIME 만 통과하고 20 MiB 초과가 거부되는지 |
+| 2 | 업로드 | §2.2 의 6종 MIME 이 통과하고 20 MiB 초과가 거부되는지 |
+| 2a | 확장자 폴백 | MIME 이 `application/octet-stream`·빈 값인 `.sql` 이 통과하고, `mime_type` 에 `application/sql` 이 기록되는지 |
+| 2b | 텍스트 분기 | `<` 를 포함한 JSON·SQL 이 HTML 파서로 새지 않고 원문 그대로 추출되는지 |
 | 3 | 필터 | 탭이 `mime_type` 으로 필터링되고, `source_type` 은 행 메타로만 보이는지 |
 | 4 | 삭제 | `raw_sources` 삭제 시 `source_chunks` 가 cascade 로 사라지고, 인용 위키에 재컴파일 잡이 큐잉되는지 |
 | 5 | 멱등성 | 같은 위키에 재컴파일 잡을 2건 인큐해도 결과가 1건 처리와 동일한지 |
