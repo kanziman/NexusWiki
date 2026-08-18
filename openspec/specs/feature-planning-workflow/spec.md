@@ -57,9 +57,13 @@ The workflow MUST use a GitHub umbrella issue for each OpenSpec change and MUST 
 - **WHEN** GitHub or Project metadata is unavailable or a command does not confirm success
 - **THEN** the agent does not guess identifiers or report the external transition as complete
 
-### Requirement: Shared Codex and Claude propose contract
-The project SHALL expose the same enhanced `openspec-propose` behavior to Codex and Claude while retaining the existing command name and standard OpenSpec artifact identifiers.
+### Requirement: Shared Codex and Claude planning contract
+This specification SHALL be the single vendor-neutral planning contract, and the project SHALL expose it to each supported agent through exactly one entrypoint per agent. An entrypoint MUST cite this contract rather than duplicate its rules, and MUST use the standard OpenSpec artifact identifiers.
 
-#### Scenario: Either supported agent starts a proposal
-- **WHEN** Codex invokes the `openspec-propose` skill or Claude invokes the existing propose command
-- **THEN** both entrypoints apply the same interview, gate, artifact, validation, and GitHub tracking contract
+#### Scenario: Either supported agent starts planning
+- **WHEN** Codex follows the workflow in `AGENTS.md` or Claude invokes the project `plan-feature` command
+- **THEN** both entrypoints apply the same interview, gate, artifact, validation, and GitHub tracking contract defined here
+
+#### Scenario: An entrypoint would restate a contract rule
+- **WHEN** a rule defined in this specification would be copied into an agent entrypoint file
+- **THEN** the entrypoint cites this specification instead, so the two cannot drift apart

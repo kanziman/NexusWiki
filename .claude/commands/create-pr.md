@@ -23,13 +23,15 @@ When an issue resolves, include a standalone `Closes #<number>` line in the prop
 
 ## Non-negotiable safety rules
 
-- Read `AGENTS.md`, `.claude/CLAUDE.md`, relevant OpenSpec artifacts, and package manifests before drafting commands.
+- Read `AGENTS.md`, `.claude/CLAUDE.md`, `docs/reference/commit.md`, relevant OpenSpec artifacts, and package manifests before drafting commands.
 - Treat inspection and validation as read-only. Treat staging as the first repository mutation.
 - Never use `git add -A`, `git add .`, an unbounded pathspec, `git commit -a`, `git stash`, `git reset`, or index cleanup to manufacture a clean state.
 - Never amend, rebase, force-push, merge, enable auto-merge, delete branches, or close issues as part of this skill.
 - Never include a path or hunk merely because it is dirty, related by directory, or already staged.
 - Never overwrite or revert unrelated user changes.
 - Do not create a commit if a required fresh validation fails.
+- Write the commit subject/body **and the PR title/body in Korean**. The repository squash-merges, so an English PR title becomes an English commit subject on `main` — the PR title is subject to the same language rule as the commit.
+- Never append a `Co-Authored-By:` trailer, a `Generated with` tool signature, or any other agent attribution to a commit message or PR body. `docs/reference/commit.md` forbids them.
 - Verify every mutation from command output and a follow-up read before claiming it succeeded.
 
 If completion requires a forbidden operation, stop and ask for separate direction.
@@ -109,8 +111,8 @@ Before staging or any GitHub mutation, show one review block containing:
 - exact files and, when needed, exact hunks to commit;
 - excluded dirty and staged changes;
 - exact validation commands;
-- Korean conventional commit message following `.claude/CLAUDE.md`;
-- PR title and full body, including summary, test plan, and optional `Closes #N` line;
+- Korean conventional commit message following `docs/reference/commit.md` — subject, bullet body, `AC:` block for `feat`/`fix`, and `Refs:`/`Closes:` issue line;
+- Korean PR title and Korean body, including summary, test plan, and optional `Closes #N` line;
 - exact mutation sequence: stage, verify index, commit, push, create/reuse PR, optional issue comment.
 
 Ask for explicit approval. A previous request to implement or continue is not approval of this commit/PR draft. If the user changes scope, base, metadata, or commands, refresh the complete draft and ask again.
