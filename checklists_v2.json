@@ -746,7 +746,7 @@
               "⚠️ 정의되지 않은 변수 2종을 쓰고 있었다 — var(--surface-soft) 와 var(--font-title-lg) 는 v2·v1 어느 토큰 파일에도 없다. 전자는 '공개 위키' 배지와 인용 카드의 배경을 투명으로 만들었고, 후자는 font 축약 속성 전체를 무효화해 h1 이 브라우저 기본값으로 렌더링됐다",
               "⚠️ prose · prose-neutral 을 쓰고 있었으나 @tailwindcss/typography 가 설치돼 있지 않다 — 본문 조판 규칙이 통째로 no-op 였다. 섹션 15 의 .article 로 교체했다",
               "⚠️ PRD §3.1 이 금지한 allow_public_sharing 조건을 앱 쿼리가 다시 적고 있었다. 제거했다 — 양쪽 테이블의 RLS 가 이미 강제한다. 앱이 같은 조건을 중복하면 '앱이 막고 있다'는 착각이 생기고, 앱에서 빠뜨린 날 격리가 무너진다. 차단은 DB 가 한다",
-              "발행 본문의 [[문서명]] 표기를 평문으로 펼친다. 링크로 만들 수 없는 이유가 둘이다 — 대상이 /w/[workspaceId]/wiki/... 내부 라우트라 anon 이 도달할 수 없고 워크스페이스 UUID 가 함께 새어 나간다. 브래킷을 그대로 두면 외부 열람자에게 내부 마크업이 보인다. 회귀 테스트 1건 추가(브래킷 부재 + /w/ 링크 0개)",
+              "발행 본문의 [[문서명]] 표기를 평문으로 펼친다. 회귀 테스트 1건 추가(브래킷 부재 + /w/ 링크 0개). ⚠️ 근거는 PRODUCT-INVARIANTS.md §4 「공개 표면에서 내부 라우트로 링크하지 않음」이 소유한다 — 이번 작업에서 신설했다",
               "목차를 추가했다 — PRD §5 권한 매트릭스가 게스트에게 '본문·목차'를 허용한다. 새 데이터도 새 라우트도 필요 없고 내부 리더와 같은 extractHeadings 규칙을 쓴다",
               "⚠️ 섹션 15 의 .toc 는 top:0 · height:100vh 다. 공개 페이지에는 자체 상단바(56px)가 있어 그대로 두면 목차 첫 항목이 상단바 뒤로 숨는다 — .public-shell .toc 로 상단바 높이만큼 내렸다",
               "그동안 조회만 하고 쓰지 않던 public_description 을 푸터에 표시한다",
@@ -836,6 +836,20 @@
       "description": "GitHub Issue #18 (OPEN). GCP Client ID/Secret을 Supabase Cloud 대시보드에 등록.",
       "blocking": [],
       "blocking_level": "non-critical"
+    },
+    {
+          "id": "OD-08",
+          "title": "백로그 상세 패널 · 원문 표기 제목",
+          "description": "backlog-management-prd.md §3.3(행 클릭 시 우측 슬라이드아웃: 인용 문맥 발췌)과 §6-2 권고안 (c)(target_slug 역변환 대신 from_wiki_id 본문에서 원문 [[표기]]를 찾아 제목으로 쓴다). 둘 다 같은 조회 경로(§4.3)를 쓴다 — from_wiki_id 의 content 를 읽어 [[target]] 주변을 잘라낸다. ⚠️ 본문 전체를 클라이언트로 내려보내지 않는다. 서버에서 발췌해 스니펫만 응답한다. 새 사용자 동작이라 backlog-ask 스펙에 없다 — OpenSpec change 로 제안한 뒤 구현한다.",
+          "blocking": [],
+          "blocking_level": "deferred"
+    },
+    {
+          "id": "OD-09",
+          "title": "Ask 인용 인스펙터 드래그 스플리터",
+          "description": "nexuswiki-ask-conversation.html 의 .split — 대화와 인스펙터 사이 폭을 포인터로 조절한다. 섹션 16 에서 의도적으로 이식하지 않았다: 폭 조절은 CSS 만으로 끝나지 않는 새 상호작용 계약이고 unified-workspace-viewer 스펙에 없다. 동작 없는 손잡이만 그리면 눌러도 아무 일이 없는 어포던스가 된다. ⚠️ 되살린다면 프로토타입의 포인터 전용 구현을 그대로 옮기지 않는다 — role=\"separator\" + aria-valuenow + 방향키 이동이 없으면 키보드 사용자에게는 조절 수단이 아예 없다.",
+          "blocking": [],
+          "blocking_level": "deferred"
     }
   ],
   "cleanup_tasks": [

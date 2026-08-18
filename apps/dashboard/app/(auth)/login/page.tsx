@@ -10,7 +10,7 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-xxl bg-canvas p-lg">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-xxl p-lg">
       <h1 className="m-0 text-ink" style={{ font: "var(--font-display-xl)" }}>
         NexusWiki
       </h1>

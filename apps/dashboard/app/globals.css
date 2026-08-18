@@ -84,6 +84,10 @@
   --nw-danger: #a33b2b;
 }
 
+/* 앱 캔버스. ⚠️ 이 값 하나가 모든 화면의 바탕이다 — 라우트나 컴포넌트가
+   background: var(--bg) 로 덮지 않는다(v2 --bg 는 순백이라 화면마다 미묘하게
+   다른 흰색이 생긴다). 카드·모달·표처럼 캔버스 위에 떠야 하는 표면만 --bg 를
+   쓴다. 근거: checklists.json > decisions.app_canvas */
 body {
   margin: 0;
   background: var(--nw-canvas);

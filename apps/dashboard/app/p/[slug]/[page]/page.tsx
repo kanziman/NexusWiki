@@ -174,12 +174,8 @@ function extractHeadings(content: string) {
 }
 
 /**
- * ⚠️ `[[문서명]]` 을 제목 평문으로 펼친다. 발행본은 내부 본문의 스냅샷이라
- * 위키 링크 표기가 그대로 들어 있는데, 두 가지 이유로 링크로 만들 수 없다:
- *   1. 대상은 `/w/[workspaceId]/wiki/...` 내부 라우트다. `anon` 은 그 화면에
- *      도달할 수 없고, 링크를 그리면 워크스페이스 UUID 가 밖으로 샌다.
- *   2. 브래킷을 그대로 노출하면 외부 열람자에게 내부 마크업이 보인다.
- * 그래서 표기만 남기고 링크는 만들지 않는다.
+ * `[[문서명]]` 을 제목 평문으로 펼친다 — 링크는 만들지 않는다.
+ * ⚠️ 근거: PRODUCT-INVARIANTS.md §4 「공개 표면에서 내부 라우트로 링크하지 않음」.
  */
 function stripWikiLinks(text: string): string {
   return text.replace(/\[\[([^\]]+)\]\]/g, (_match, inner: string) => {

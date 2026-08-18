@@ -2,7 +2,7 @@ import { LoginForm } from "@/components/LoginForm";
 
 export default function SignupPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-xxl bg-canvas p-lg">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-xxl p-lg">
       <h1 className="m-0 text-ink" style={{ font: "var(--font-display-xl)" }}>
         NexusWiki 가입
       </h1>

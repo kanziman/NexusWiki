@@ -2326,7 +2326,11 @@ summary:focus-visible {
  * 공개 페이지가 여는 것은 승인된 스니펫뿐이다.
  * -------------------------------------------------------------------------- */
 
-.public-shell { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg) }
+/* ⚠️ 캔버스 배경을 여기서 칠하지 않는다. 앱 캔버스는 body 가 소유하며
+   --nw-canvas 하나로 통일돼 있다(checklists.json > decisions.app_canvas).
+   화면마다 --bg 로 덮으면 그 화면만 다른 흰색이 되고, 나중에 캔버스를 바꿀 때
+   덮은 화면들만 조용히 뒤처진다. */
+.public-shell { display: flex; flex-direction: column; min-height: 100vh }
 
 .public-topbar {
   position: sticky;
