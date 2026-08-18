@@ -1,10 +1,14 @@
-# wiki-page-routing Specification
-
 ## Purpose
 
 워크스페이스 멤버가 URL 인코딩 방식과 관계없이 권한 있는 위키 상세 페이지를 안전하고 일관되게 열 수 있도록 한다.
 
-## Requirements
+## REMOVED Requirements
+
+### Requirement: Canonical wiki slug lookup
+
+**Reason**: 이 요구사항의 "Legacy wiki route redirects into the unified viewer" 시나리오가 리다이렉트를 계약으로 못박고 있어, 같은 라우트에서 리더를 렌더링하는 새 동작과 양립할 수 없다. 슬러그 디코딩·격리 경계 부분은 아래 대체 요구사항이 그대로 이어받는다.
+
+## ADDED Requirements
 
 ### Requirement: Canonical wiki slug lookup and in-place reader
 
@@ -25,6 +29,8 @@ The system SHALL resolve a wiki detail route's slug to its decoded Unicode value
 #### Scenario: Wiki route renders the reader in place
 - **WHEN** an authenticated workspace member opens `/wiki/[slug]`
 - **THEN** the system renders the wiki reader at that route with the document body and its table of contents, and does not navigate the member to the unified workspace viewer
+
+## MODIFIED Requirements
 
 ### Requirement: Safe malformed-slug handling
 

@@ -24,6 +24,13 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: "뷰어",
 };
 
+const dateFormatter = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" });
+
+function formatJoinedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : dateFormatter.format(date);
+}
+
 // 0014의 workspace_members_list RPC -> InviteForm.tsx의 성공 콜백이 여기 로컬
 // state를 다시 채운다 (설정 페이지가 key로 리마운트하거나 이 컴포넌트가 직접
 // refetch하는 두 방식 중, 초대 성공 시 목록 갱신은 InviteFormProps.onInvited가
@@ -117,75 +124,100 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
   // 보여준다 — 불확정 스피너 대신 행 개수를 예측 가능하게 흉내낸다.
   if (members === null) {
     return (
-      <ul
+      <div
         aria-busy="true"
         data-testid="members-list-skeleton"
-        className="flex flex-col gap-xs"
+        className="member-shell"
       >
         {[0, 1, 2].map((row) => (
-          <li
+          <div
             key={row}
-            className="h-11 animate-pulse rounded-sm bg-surface-soft"
+            className="h-14 animate-pulse border-t border-[var(--border)] bg-[var(--surface)] first:border-t-0"
           />
         ))}
-      </ul>
+      </div>
     );
   }
 
   if (loadError !== null) {
     return (
-      <p
-        role="alert"
-        className="text-primary-error-text"
-        style={{ font: "var(--font-caption)", fontWeight: 600 }}
-      >
+      <p role="alert" className="invite-feedback error show">
         {loadError}
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col gap-xs">
-      <ul className="flex flex-col">
-        {members.map((member) => {
-          const canRemove = isOwner && member.user_id !== currentUserId;
+    <>
+      <div className="member-shell">
+        <table className="member-table">
+          <thead>
+            <tr>
+              <th scope="col">멤버</th>
+              <th scope="col">역할</th>
+              <th scope="col">가입일</th>
+              {/* 액션 열은 이름이 없다 — 스크린 리더에는 각 행의 버튼
+                  aria-label 이 대상을 말해준다. */}
+              <th scope="col">
+                <span className="sr-only">작업</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((member) => {
+              const canRemove = isOwner && member.user_id !== currentUserId;
+              const localPart = member.email.split("@")[0];
+              const roleClass = ROLE_LABELS[member.role] ? member.role : "";
 
-          return (
-            <li
-              key={member.user_id}
-              className="flex items-center justify-between gap-base border-b border-hairline px-base py-base"
-            >
-              <div className="flex items-center gap-sm">
-                <span
-                  className="text-ink"
-                  style={{ font: "var(--font-title-md)" }}
-                >
-                  {member.email}
-                </span>
-                <span
-                  data-role={member.role}
-                  className="rounded-full bg-surface-soft px-sm py-xs text-ink"
-                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
-                >
-                  {ROLE_LABELS[member.role] ?? member.role}
-                </span>
-              </div>
-
-              {canRemove ? (
-                // Icon-only touch target: 44x44px + aria-label (UI-SPEC 예외 규칙).
-                <button
-                  type="button"
-                  aria-label={`제거: ${member.email}`}
-                  onClick={() => openRemoveDialog(member)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm text-primary-error-text"
-                >
-                  <UserMinus size={20} aria-hidden="true" />
-                </button>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+              return (
+                <tr key={member.user_id}>
+                  <td>
+                    <div className="member">
+                      <span className="member-avatar" aria-hidden="true">
+                        {localPart.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <span className="member-name">
+                          {localPart}
+                          {member.user_id === currentUserId && (
+                            <span className="you">나</span>
+                          )}
+                        </span>
+                        <span className="member-email">{member.email}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      data-role={member.role}
+                      className={`role ${roleClass}`}
+                    >
+                      {ROLE_LABELS[member.role] ?? member.role}
+                    </span>
+                  </td>
+                  <td className="date">{formatJoinedAt(member.created_at)}</td>
+                  <td className="text-right">
+                    {canRemove ? (
+                      <button
+                        type="button"
+                        aria-label={`제거: ${member.email}`}
+                        onClick={() => openRemoveDialog(member)}
+                        className="more"
+                      >
+                        <UserMinus
+                          size={15}
+                          aria-hidden="true"
+                          className="mx-auto"
+                        />
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <Dialog.Root
         open={removeTarget !== null}
@@ -194,41 +226,28 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
         }}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-md bg-canvas p-lg shadow-[var(--shadow-modal)]">
-            <Dialog.Title
-              className="text-ink"
-              style={{ font: "var(--font-title-md)" }}
-            >
-              멤버 제거
-            </Dialog.Title>
+          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
+          <Dialog.Content className="modal fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="modal-head">
+              <Dialog.Title>멤버 제거</Dialog.Title>
+            </div>
             {/* UI-SPEC Copywriting Contract "Members (UI-02) | Removal confirmation" —
                 문구는 한 글자도 바꾸지 않는다. */}
-            <Dialog.Description
-              className="text-body"
-              style={{ font: "var(--font-body-md)" }}
-            >
+            <Dialog.Description className="text-[13px] text-[var(--muted)]">
               {removeTarget
                 ? `제거: ${removeTarget.email}님을 이 워크스페이스에서 제거하시겠습니까? 소유한 콘텐츠는 유지되지만 접근 권한이 즉시 사라집니다.`
                 : ""}
             </Dialog.Description>
 
             {removeError !== null ? (
-              <p
-                role="alert"
-                className="text-primary-error-text"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
-              >
+              <p role="alert" className="invite-feedback error show">
                 {removeError}
               </p>
             ) : null}
 
-            <div className="flex justify-end gap-sm">
+            <div className="modal-foot">
               <Dialog.Close asChild>
-                <button
-                  type="button"
-                  className="rounded-sm border border-border-strong px-base py-sm text-ink"
-                >
+                <button type="button" className="button">
                   취소
                 </button>
               </Dialog.Close>
@@ -236,7 +255,7 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
                 type="button"
                 onClick={handleConfirmRemove}
                 disabled={removing}
-                className="rounded-sm bg-primary-error-text px-base py-sm text-on-primary disabled:opacity-60"
+                className="button danger"
               >
                 제거
               </button>
@@ -244,6 +263,6 @@ export function MembersList({ workspaceId, currentUserId }: MembersListProps) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-    </div>
+    </>
   );
 }

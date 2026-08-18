@@ -1,17 +1,8 @@
-# unified-workspace-viewer Specification
-
 ## Purpose
 
 워크스페이스 멤버가 AI에게 질문하면서 그 근거가 되는 위키 문서·원시 소스·지식 그래프를 같은 화면에서 곧바로 확인할 수 있도록, 대화와 콘텐츠 열람을 하나의 통합 뷰로 제공한다.
 
-## Requirements
-
-### Requirement: Simultaneous conversation and content viewer
-The system SHALL present the Ask conversation and a content viewer (wiki document, raw source, knowledge graph, or mind map) together in a single destination, without requiring navigation to a separate route to read either.
-
-#### Scenario: Member opens the unified workspace viewer
-- **WHEN** a workspace member navigates to the Ask destination
-- **THEN** the member sees the conversation panel and the content viewer panel at the same time, within the same page
+## MODIFIED Requirements
 
 ### Requirement: Content viewer tab switching
 
@@ -32,14 +23,3 @@ The system SHALL let a member switch the content viewer between four views — w
 #### Scenario: Member opens the full reader from the viewer
 - **WHEN** a member viewing a wiki page in the content viewer chooses to open the full document
 - **THEN** the system takes them to the standalone wiki reader route for that page
-
-### Requirement: Citation click integrates with the viewer
-The system SHALL route a citation marker activation in the conversation to the content viewer's matching tab and target, instead of opening a separate overlay panel.
-
-#### Scenario: Member clicks a wiki citation marker
-- **WHEN** a member activates a resolved citation marker pointing at a wiki page
-- **THEN** the content viewer switches to the wiki document tab showing that page, and the conversation remains visible
-
-#### Scenario: Member clicks a source citation marker
-- **WHEN** a member activates a resolved citation marker pointing at a raw source chunk
-- **THEN** the content viewer switches to the raw source tab showing that source

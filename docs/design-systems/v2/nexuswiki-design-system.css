@@ -2,11 +2,17 @@
  * NexusWiki v2 공용 디자인 시스템 스타일시트
  *
  * 명세: nexuswiki-design-system.md (이 파일은 그 문서의 실행 가능한 형태다)
- * 소비자: v2/nexuswiki-*.html 프로토타입 6종
+ * 소비자: v2/nexuswiki-*.html 프로토타입 6종, apps/dashboard (app/globals.css)
  *
  * 이 파일은 화면 6개가 공유하는 토큰·셸·프리미티브만 담는다.
  * 화면 고유 레이아웃(테이블, 인스펙터, 스레드, 문서 본문 등)은 각 HTML의
  * <style> 블록에 남긴다 — 여기로 올리면 한 화면의 변경이 나머지를 깨뜨린다.
+ *
+ * ⚠️ 단, 앱이 실제로 렌더링하는 화면의 레이아웃은 예외다(섹션 12~). 앱은 이
+ *    파일 하나만 임포트하므로, 프로토타입 <style> 에만 있는 규칙은 앱에서
+ *    미정의가 된다 — 클래스명은 맞고 테스트도 통과하지만 화면은 스타일 없이
+ *    렌더링된다. 화면을 앱으로 옮길 때는 그 화면의 <style> 블록도 함께
+ *    섹션으로 올린다.
  *
  * ⚠️ 클래스명은 apps/dashboard/components/ 의 React 컴포넌트로 그대로 넘어간다.
  *    축약어(.side/.top/.mark) 대신 서술적 이름을 쓰는 이유가 이것이다.
@@ -651,4 +657,1650 @@ summary:focus-visible {
 
   .modal-backdrop { padding: 12px; align-items: end }
   .modal { padding: 19px }
+}
+
+/* -----------------------------------------------------------------------------
+ * 12. 워크스페이스 홈 본문 레이아웃
+ *
+ * 이 파일 상단은 "화면 고유 레이아웃은 각 HTML의 <style> 블록에 남긴다"고
+ * 적었다. 이 섹션은 그 원칙의 명시적 예외이며, 이유는 소비자가 하나 늘었기
+ * 때문이다 — 프로토타입 6종만 읽던 시절에는 각자의 <style>로 충분했지만,
+ * apps/dashboard는 이 .css 하나만 임포트한다(app/globals.css).
+ *
+ * ⚠️ 그래서 nexuswiki-workspace-home.html의 <style> 블록에만 있던 규칙은
+ *    앱에서 전부 미정의였다. 컴포넌트는 .content · .ask · .doc-list 같은
+ *    클래스명을 그대로 쓰는데 규칙이 없으니, DOM은 맞고 테스트도 통과하지만
+ *    화면은 스타일 없는 마크업으로 렌더링됐다. Vitest는 CSS를 보지 않으므로
+ *    이 부류의 실패는 테스트로 잡히지 않는다 — 지우면 같은 방식으로 다시 깨진다.
+ *
+ * 출처: nexuswiki-workspace-home.html <style> (값 그대로, 재해석하지 않는다).
+ * 셸·프리미티브와 겹치는 규칙(.button 최소 높이, .modal 폭)은 위 섹션들이
+ * 이미 소유하므로 여기 다시 적지 않는다.
+ * -------------------------------------------------------------------------- */
+
+/* .workspace-main 은 프로토타입에 없다 — 앱에만 있는 래퍼다(WorkspaceShell이
+   Next.js 라우트 children을 <main>으로 감싼다). min-width:0 이 없으면 .workspace
+   와 같은 이유로 안쪽 콘텐츠가 그리드 열을 밀어낸다. */
+.workspace-main { min-width: 0 }
+
+/* 콘텐츠 캔버스 */
+.content {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 46px 42px 58px;
+}
+
+/* 워크스페이스 헤더 */
+.context {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.title-row { display: flex; align-items: center; gap: 9px }
+
+.title-row h1 {
+  margin: 0;
+  font: 800 clamp(27px, 3vw, 38px)/1.12 var(--font-display);
+  letter-spacing: -1.4px;
+}
+
+.context p { margin: 10px 0 0; color: var(--muted); font-size: 14px }
+
+.star {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.star:hover, .star.is-on { color: var(--fg); background: var(--surface) }
+.star svg { width: 19px; height: 19px; stroke: currentColor; fill: none }
+.star.is-on svg { fill: currentColor }
+
+/* 현황 요약 — 공용 .stats/.stat 위에 이 화면의 여백만 얹는다 */
+.stats { margin: 31px 0 28px }
+
+/* 질문 입력 카드 */
+.ask {
+  padding: 18px 19px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.ask:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 18px 46px oklch(.58 .11 190/.14);
+}
+
+.ask-main { display: flex; align-items: flex-start; gap: 11px }
+
+/* 컴포넌트는 이 svg 에 .ask-icon 을 달지만, 크기·색은 여기 자손 선택자가
+   소유한다 — lucide 아이콘이 무엇으로 바뀌든 규칙이 따라간다. */
+.ask-main svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex: none;
+  color: var(--muted);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+.ask textarea {
+  width: 100%;
+  min-height: 52px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.ask textarea::placeholder { color: oklch(.70 .02 258) }
+
+.ask-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* 검색 범위 선택 */
+.scope-wrap { position: relative }
+
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.scope:hover { background: var(--bg) }
+.scope-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg) }
+
+/* 기본 display:none 은 프로토타입이 .open 토글로 여닫기 때문이다. 앱은
+   조건부 렌더링이라 열릴 때만 DOM에 있지만, 그때 .open 을 함께 붙인다 —
+   프로토타입과 클래스 계약을 어긋나게 두면 프로토타입 쪽 수정이 앱에
+   반영되지 않는다. */
+.scope-menu {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 4;
+  width: 260px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.scope-menu.open { display: grid; gap: 2px }
+
+.scope-option {
+  display: grid;
+  gap: 2px;
+  padding: 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+
+.scope-option:hover { background: var(--surface) }
+.scope-option b { font-size: 12px }
+.scope-option span { color: var(--muted); font-size: 11px }
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px }
+
+/* 문서 목록 2열 */
+.sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(280px, .84fr);
+  gap: 42px;
+  margin-top: 48px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 11px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-head h2 { margin: 0; font: 800 15px var(--font-display); letter-spacing: -.3px }
+.section-head h2 span { font: 600 11px var(--font-mono); color: var(--muted); margin-left: 6px }
+
+.doc-list { display: grid }
+
+.doc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+
+.doc:hover { padding-left: 8px; padding-right: 8px; background: var(--surface) }
+.doc-body { display: grid; gap: 5px; min-width: 0; flex: 1 }
+
+.doc-title {
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-meta {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+/* 작성 대기 백로그 */
+.backlog .doc { align-items: flex-start }
+
+.backlog .doc-title:before {
+  content: "작성 대기";
+  margin-right: 7px;
+  font: 600 9px var(--font-mono);
+  letter-spacing: .03em;
+  color: var(--danger);
+}
+
+.backlog .doc:last-child { border-bottom: 0 }
+
+.source-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.source-line b { display: block; font-size: 12px }
+.source-line span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px }
+
+@media (max-width: 900px) {
+  .content { padding: 32px 20px }
+  .top-actions .button:first-child { display: none }
+  .stats { overflow: auto }
+  .stat { min-width: 126px }
+  .sections { grid-template-columns: 1fr; gap: 34px }
+  .context { display: block }
+  .context p { max-width: 42rem }
+  .ask-bottom { align-items: flex-end }
+  .scope { max-width: 190px; text-align: left }
+  .scope span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .doc-title, .doc-meta { white-space: normal }
+}
+
+@media (max-width: 640px) {
+  /* 앱 셸은 브레드크럼을 <strong> 으로 쓴다. 섹션 11의 `.crumb b` 는
+     이것을 잡지 못하므로 여기서 잘라준다 — 없으면 긴 워크스페이스 이름이
+     탑바를 밀어 640px 에서 가로 스크롤이 생긴다. */
+  .crumb strong {
+    max-width: 174px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .top-actions .button.primary { display: none }
+  .content { padding: 27px 16px 42px }
+  .eyebrow { font-size: 9px; margin-bottom: 8px }
+  .title-row h1 { font-size: 27px; letter-spacing: -1px }
+  .context p { font-size: 13px; line-height: 1.6 }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; margin: 24px 0; overflow: visible }
+
+  .stat {
+    min-width: 0;
+    margin: 0;
+    padding: 12px 10px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat:last-child { border-right: 0 }
+  .stat:nth-child(even) { border-right: 0 }
+  .stat:nth-last-child(-n+2) { border-bottom: 0 }
+  .stat b { font-size: 14px }
+
+  .ask { padding: 15px 14px 13px; border-radius: 14px }
+  .ask-main svg { display: none }
+  .ask textarea { min-height: 78px; font-size: 15px }
+  .ask-bottom { display: grid; grid-template-columns: 1fr; gap: 9px; align-items: stretch }
+  .scope-wrap, .scope { width: 100% }
+  .scope { min-height: 44px; max-width: none; justify-content: flex-start }
+  .scope-menu { position: fixed; left: 16px; right: 16px; bottom: 16px; width: auto }
+  .scope-option { padding: 12px }
+  .chips { display: grid; grid-template-columns: 1fr; margin-top: 11px }
+  .chip { text-align: left; padding: 9px 11px; min-height: 44px }
+  .sections { margin-top: 34px; gap: 30px }
+  .section-head { padding-bottom: 9px }
+  .doc { padding: 14px 2px; gap: 8px }
+  .doc:hover { padding-left: 2px; padding-right: 2px }
+  .doc-title { font-size: 12px }
+  .doc-meta { font-size: 10px; line-height: 1.5 }
+  .source-line { padding: 14px; align-items: flex-start }
+}
+
+/* -----------------------------------------------------------------------------
+ * 13. 워크스페이스 설정 본문 레이아웃
+ *
+ * 출처: nexuswiki-workspace-settings.html <style>. 섹션 12와 같은 이유로
+ * 여기 올린다(앱은 이 파일 하나만 임포트한다).
+ *
+ * ⚠️ 두 화면이 같은 이름을 다른 값으로 쓰는 선택자가 셋 있다. 프로토타입은
+ *    파일이 분리돼 있어 충돌하지 않았지만, 한 스타일시트로 합치면 뒤에 온
+ *    규칙이 앞의 화면을 조용히 덮는다. 그래서 여기서만 스코프를 건다:
+ *      .content      → .content.settings   (홈 1120px / 설정 1180px)
+ *      .section-head → .panel .section-head (홈은 밑줄, 설정은 h2 17px + 설명문)
+ *    스코프를 풀면 홈 대시보드가 깨진다.
+ *
+ * .icon-btn 은 섹션 7이 이미 소유한다(32px, 테두리 없음). 설정 프로토타입의
+ * 30px + 테두리 변형은 채택하지 않는다 — LNB 가 같은 클래스를 쓴다.
+ * -------------------------------------------------------------------------- */
+
+.content.settings { width: min(1180px, 100%); padding: 42px }
+
+/* 헤더 */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.hero h1 {
+  margin: 0;
+  font: 800 clamp(27px, 3vw, 38px)/1.1 var(--font-display);
+  letter-spacing: -1.4px;
+}
+
+.hero p { margin: 10px 0 0; color: var(--muted); max-width: 570px }
+
+.role-note {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.role-note b { color: var(--fg) }
+
+/* 탭
+
+   ⚠️ .tabs/.tab 은 프로토타입 셋(settings · source-management · ask-conversation)이
+   전부 다른 값으로 정의한다. 같은 밑줄 탭이라는 발상은 공유하지만 크기·구현
+   (border-bottom 대 ::after)이 달라, 하나로 합치면 어느 화면이든 어긋난다.
+   그래서 화면 루트로 스코프를 건다 — 스코프를 풀면 소스 관리 화면의 탭이
+   여기 값으로 덮인다. */
+.content.settings .tabs {
+  display: flex;
+  gap: 3px;
+  margin: 34px 0 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.content.settings .tab {
+  position: relative;
+  padding: 11px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.content.settings .tab:hover { color: var(--fg) }
+.content.settings .tab.active { color: var(--accent) }
+
+.content.settings .tab.active:after {
+  content: "";
+  position: absolute;
+  inset: auto 10px -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* 패널. 앱은 비활성 탭을 렌더링하지 않지만 .panel.active 계약은 유지한다 —
+   프로토타입과 클래스 계약이 어긋나면 프로토타입 수정이 앱에 반영되지 않는다. */
+.panel { display: none }
+.panel.active { display: block }
+
+.panel .section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 13px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.panel .section-head h2 { margin: 0; font: 800 17px var(--font-display); letter-spacing: -.5px }
+.panel .section-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px }
+
+/* 멤버 표 */
+.member-shell { border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
+.member-table { width: 100%; border-collapse: collapse; table-layout: fixed }
+
+.member-table th {
+  padding: 11px 15px;
+  background: var(--surface);
+  color: var(--muted);
+  text-align: left;
+  font: 600 10px var(--font-mono);
+  letter-spacing: .05em;
+}
+
+.member-table td { padding: 14px 15px; border-top: 1px solid var(--border); vertical-align: middle }
+.member { display: flex; align-items: center; gap: 10px; min-width: 0 }
+
+.member-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.member-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-email {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.you { margin-left: 5px; color: var(--accent); font: 600 9px var(--font-mono) }
+
+.role {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font: 700 10px var(--font-mono);
+}
+
+.role.owner { background: var(--soft); border-color: oklch(.58 .11 190/.3); color: var(--accent) }
+.role.editor { background: oklch(.95 .015 255); color: oklch(.42 .06 255) }
+.role.viewer { color: var(--muted) }
+.date { color: var(--muted); font-size: 11px }
+
+.more {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.more:hover { background: var(--surface); color: var(--fg) }
+
+/* 초대 */
+.invite {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.invite h3 { margin: 0; font: 800 14px var(--font-display) }
+.invite p { margin: 4px 0 14px; color: var(--muted); font-size: 12px }
+.invite-form { display: grid; grid-template-columns: minmax(0, 1fr) 142px auto; gap: 8px }
+.invite-feedback { display: none; margin: 10px 0 0; color: var(--good); font-size: 11px; font-weight: 700 }
+.invite-feedback.show { display: block }
+
+/* ⚠️ 오류 피드백은 .show 대신 색만 바꾼다 — 초대 실패 문구를 성공색(--good)으로
+   그리면 사용자는 실패를 성공으로 읽는다. */
+.invite-feedback.error { color: var(--danger) }
+
+/* 기본 정보 카드 (SETTINGS-02)
+
+   ⚠️ 프로토타입에는 대응 마크업이 없다 — 설정 시안은 이름·슬러그 편집을
+   그리지 않는다(슬러그가 나중에 생겼다). .invite 카드 관용구를 따르되
+   클래스명을 재사용하지 않는다: .invite 를 빌려 쓰면 초대 카드의 여백을
+   바꿀 때 여기가 함께 움직인다. */
+.settings-card {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.settings-card h3 { margin: 0; font: 800 14px var(--font-display) }
+.settings-card > p { margin: 4px 0 14px; color: var(--muted); font-size: 12px }
+.settings-form { display: grid; gap: 12px }
+.settings-field { display: grid; gap: 6px }
+.settings-field label { font-size: 10px; font-weight: 800 }
+.settings-field .hint { color: var(--muted); font-size: 10px }
+.settings-actions { display: flex; justify-content: flex-end }
+
+/* 예산 */
+.budget {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.budget-main { padding: 22px }
+.budget-main h3 { margin: 0; font: 800 15px var(--font-display) }
+.budget-main p { margin: 5px 0 20px; color: var(--muted); font-size: 12px }
+.budget-amount { font: 800 30px/1 var(--font-mono); letter-spacing: -1.5px }
+.budget-amount span { font: 600 13px var(--font-mono); color: var(--muted); letter-spacing: 0 }
+
+/* 폭은 인라인 style 로 준다 — 프로토타입의 34.2% 는 시안용 고정값이다. */
+.progress { height: 8px; margin: 18px 0 8px; border-radius: 999px; background: var(--surface); overflow: hidden }
+.progress i { display: block; height: 100%; border-radius: inherit; background: var(--accent) }
+.budget-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px }
+
+.budget-aside {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: 22px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.budget-aside div { display: flex; justify-content: space-between; gap: 12px }
+.budget-aside span { color: var(--muted); font-size: 11px }
+.budget-aside b { font: 700 13px var(--font-mono) }
+
+/* 파이프라인 */
+.pipeline { margin-top: 28px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
+
+.pipeline-head, .pipeline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 90px 90px;
+  gap: 10px;
+  align-items: center;
+}
+
+.pipeline-head {
+  padding: 11px 15px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 600 10px var(--font-mono);
+  letter-spacing: .05em;
+}
+
+.pipeline-row { padding: 15px; border-top: 1px solid var(--border) }
+.pipe-title { font-size: 12px; font-weight: 800 }
+.pipe-title span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; font-weight: 400 }
+.metric { font: 700 12px var(--font-mono) }
+.metric small { display: block; margin-top: 2px; color: var(--muted); font: 500 9px var(--font-mono) }
+.metric.running { color: oklch(.42 .06 255) }
+.metric.dead { color: var(--danger) }
+
+/* 테넌트 격리 상태 */
+.rls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 22px;
+  padding: 17px 18px;
+  border: 1px solid oklch(.76 .06 155);
+  border-radius: 11px;
+  background: oklch(.97 .02 155);
+}
+
+.rls h3 { margin: 0; font: 800 13px var(--font-display) }
+.rls p { margin: 3px 0 0; color: var(--muted); font-size: 11px }
+.rls-health { font: 700 12px var(--font-mono); white-space: nowrap }
+
+/* 행 메뉴 */
+.menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  min-width: 154px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.menu.open { display: grid; gap: 2px }
+
+.menu button {
+  padding: 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.menu button:hover { background: var(--surface) }
+.menu .danger { color: var(--danger) }
+
+/* 권한 정책 모달 */
+.policy-list { display: grid; gap: 8px; margin: 18px 0 }
+.policy-item { padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface) }
+.policy-item b { display: block; font: 700 11px var(--font-mono) }
+.policy-item span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px }
+
+/* 외부 웹 공개 (PUB-03) */
+.public-share { margin-top: 22px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
+.public-share-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px }
+.public-share h3 { margin: 0; font: 800 14px var(--font-display) }
+.public-share p { margin: 4px 0 0; color: var(--muted); font-size: 11px }
+
+.share-state {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font: 700 10px var(--font-mono);
+  white-space: nowrap;
+}
+
+.share-state.on { color: var(--good) }
+
+.toggle {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: oklch(.78 .015 255);
+  transition: background .16s ease;
+}
+
+.toggle:after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px oklch(.208 .033 264/.22);
+  transition: transform .16s ease;
+}
+
+.toggle[aria-checked="true"] { background: var(--accent) }
+.toggle[aria-checked="true"]:after { transform: translateX(18px) }
+.toggle:disabled { opacity: .5 }
+
+/* 앱은 토글을 <button role="switch"> 가 아니라 시각적으로 감춘 체크박스 +
+   .toggle 스팬으로 그린다 — 체크박스라야 폼 제출·키보드·스크린 리더 동작이
+   브라우저 기본 구현을 그대로 얻는다. 프로토타입의 aria-checked 계약은 위에
+   그대로 두고, 여기서 형제 선택자 버전을 더한다. 둘 중 하나만 남기면 나머지
+   한쪽 마크업이 조용히 스타일 없이 렌더링된다. */
+.toggle-input:checked + .toggle { background: var(--accent) }
+.toggle-input:checked + .toggle:after { transform: translateX(18px) }
+.toggle-input:disabled + .toggle { opacity: .5; cursor: not-allowed }
+
+.toggle-input:focus-visible + .toggle {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.public-share-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 17px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.public-share-body[hidden] { display: none }
+.public-field { display: grid; gap: 6px }
+.public-field label { font-size: 10px; font-weight: 800 }
+
+.public-field input, .public-field textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.public-field textarea { min-height: 63px; resize: vertical }
+.public-field.full { grid-column: 1/-1 }
+
+.public-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin-top: 3px;
+  padding: 10px 11px;
+  border: 1px solid oklch(.58 .11 190/.25);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--accent);
+  font: 600 10px var(--font-mono);
+}
+
+.public-route span { margin-left: auto; color: var(--muted); font: 500 10px var(--font-mono) }
+.share-note { grid-column: 1/-1; margin: 0 !important; font-size: 10px !important; line-height: 1.55 }
+.share-note b { color: var(--fg) }
+
+@media (max-width: 900px) {
+  .content.settings { padding-left: 22px; padding-right: 22px }
+  .hero { display: block }
+  .role-note { display: inline-block; margin-top: 18px }
+  .member-table th:nth-child(3), .member-table td:nth-child(3) { display: none }
+  .budget { grid-template-columns: 1fr }
+  .budget-aside { border-left: 0; border-top: 1px solid var(--border) }
+  .pipeline-head, .pipeline-row { grid-template-columns: minmax(0, 1fr) 76px 76px 76px }
+}
+
+@media (max-width: 640px) {
+  .content.settings { padding: 28px 14px 42px }
+  .hero h1 { font-size: 28px }
+  .hero p { font-size: 13px }
+  .content.settings .tabs { margin: 27px 0 22px; overflow-x: auto }
+  .content.settings .tab { white-space: nowrap }
+  .panel .section-head { align-items: start }
+  .panel .section-head .button { flex: none }
+  .role-note { white-space: normal }
+
+  /* 표를 카드로 접는다. 열 이름이 사라지므로 각 셀은 자기 값만으로 읽혀야 한다. */
+  .member-shell { border: 0; overflow: visible }
+  .member-table, .member-table tbody { display: block }
+  .member-table thead { display: none }
+  .member-table tbody { display: grid; gap: 8px }
+
+  .member-table tr {
+    position: relative;
+    display: block;
+    padding: 14px 48px 14px 14px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+  }
+
+  .member-table td, .member-table td:nth-child(n) { display: block; padding: 0; border: 0 }
+  .member-table td:nth-child(2) { margin: 8px 0 5px }
+  .member-table td:nth-child(3) { display: none }
+  .member-table td:nth-child(4) { position: absolute; right: 10px; top: 13px }
+
+  .invite { margin-top: 16px; padding: 15px }
+  .invite-form { grid-template-columns: 1fr }
+  .invite-form .button { min-height: 44px }
+  .budget-main, .budget-aside { padding: 18px }
+
+  .pipeline { border: 0; overflow: visible }
+  .pipeline-head { display: none }
+
+  .pipeline-row {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+  }
+
+  .pipe-title { grid-column: 1/-1 }
+  .metric small { display: inline; margin-left: 4px }
+  .rls { display: block }
+  .rls-health { display: block; margin-top: 12px }
+  .public-share-head { align-items: flex-start }
+  .public-share-body { grid-template-columns: 1fr }
+  .public-field.full { grid-column: auto }
+  .public-route { flex-direction: column; align-items: flex-start }
+  .public-route span { margin-left: 0 }
+}
+
+/* -----------------------------------------------------------------------------
+ * 14. 원문 소스 관리 본문 레이아웃
+ *
+ * 출처: nexuswiki-source-management.html <style>. 섹션 12~13 과 같은 이유로
+ * 여기 올린다.
+ *
+ * ⚠️ 섹션 13 과 이름이 겹치는 것들(.content · .tabs · .tab · .more)은 전부
+ *    .content.sources 로 스코프한다. 특히 .tab 은 프로토타입 셋이 서로 다른
+ *    값으로 정의한다 — 스코프를 풀면 설정 화면 탭이 여기 값으로 덮인다.
+ *
+ * 프로토타입의 청크 인스펙터(.inspector · .chunk · .code)와 영구 삭제 모달은
+ * 아직 앱에 대응 화면이 없어 옮기지 않았다. 쓰지 않는 규칙을 미리 넣으면
+ * "정의는 있는데 아무도 안 쓰는 CSS"가 쌓여 다음 사람이 어느 쪽이 정본인지
+ * 판단할 수 없게 된다 — 그 화면을 만들 때 함께 옮긴다.
+ * -------------------------------------------------------------------------- */
+
+.content.sources { width: min(1320px, 100%); padding: 42px }
+.content.sources .stats { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)) }
+
+/* 필터 툴바 */
+.content.sources .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 34px;
+}
+
+.content.sources .tabs { display: flex; gap: 4px; flex-wrap: wrap }
+
+.content.sources .tab {
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.content.sources .tab:hover { color: var(--fg) }
+.content.sources .tab.active { border-color: var(--accent); color: var(--accent) }
+.search { width: 230px }
+
+/* 소스 테이블 */
+.table-wrap { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
+.table { width: 100%; border-collapse: collapse; table-layout: fixed }
+
+.table th {
+  padding: 11px 14px;
+  background: var(--surface);
+  color: var(--muted);
+  text-align: left;
+  font: 600 10px var(--font-mono);
+  letter-spacing: .05em;
+}
+
+.table td { padding: 13px 14px; border-top: 1px solid var(--border); vertical-align: middle }
+.table tbody tr:hover { background: var(--surface) }
+.table tbody tr.selected { background: var(--soft) }
+
+/* 파일 셀 */
+.file { display: flex; align-items: center; gap: 10px; min-width: 0 }
+.file b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px }
+.file span, .sub { display: block; margin-top: 2px; color: var(--muted); font-size: 10px }
+
+.format {
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  height: 26px;
+  flex: none;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 700 9px/1 var(--font-mono);
+  letter-spacing: .04em;
+  text-align: center;
+}
+
+.format.pdf { background: oklch(.95 .015 255); border-color: oklch(.78 .025 255); color: oklch(.42 .06 255) }
+.format.md { background: var(--surface); color: var(--fg) }
+
+/* 인용 위키 칩 — 공용 .chip(제안 질문 알약)과 다른 물건이라 이름을 분리한다 */
+.doc-chips { display: flex; gap: 4px; flex-wrap: wrap }
+
+.doc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 158px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+/* 문서 아이콘을 이미지 없이 그린다 — 칩 하나당 <svg> 를 붙이면 목록이
+   길어질수록 노드 수가 그만큼 늘어난다. */
+.doc-chip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  box-shadow: 3px -3px 0 -2px var(--surface), 3px -3px 0 -1px currentColor;
+  opacity: .62;
+  transform: translateY(1.5px);
+}
+
+.selected .doc-chip { background: var(--bg); border-color: oklch(.58 .11 190/.20) }
+.selected .doc-chip::before { box-shadow: 3px -3px 0 -2px var(--bg), 3px -3px 0 -1px currentColor }
+
+.content.sources .more {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.content.sources .more:hover { background: var(--surface); color: var(--fg) }
+
+/* 업로드 모달 */
+.drop {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 160px;
+  border: 1px dashed oklch(.65 .04 190);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.drop.dragging { border-color: var(--accent); background: var(--soft) }
+.drop b { font-size: 13px }
+.drop span { color: var(--muted); font-size: 11px }
+.fields { display: grid; gap: 9px; margin-top: 16px }
+.fields select { padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg) }
+
+@media (max-width: 900px) {
+  .content.sources { padding-left: 20px; padding-right: 20px; padding-top: 30px }
+  .content.sources .stats { grid-template-columns: 1fr }
+
+  .content.sources .stat {
+    margin: 0;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .content.sources .stat:last-child { border-bottom: 0 }
+  .content.sources .toolbar { align-items: flex-start; flex-direction: column }
+  .search { width: 100% }
+
+  /* 명세 §표와 목록: 900px 이하에서 테이블 행을 카드로 전환한다.
+     열을 숨기거나 가로 스크롤로 때우지 않는다. */
+  .table-wrap { overflow: visible; border: 0; background: transparent }
+  .table, .table tbody { display: block; width: 100% }
+  .table colgroup, .table thead { display: none }
+  .table tbody { display: grid; gap: 10px }
+
+  .table tbody tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
+    padding: 16px 52px 15px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+  }
+
+  .table tbody tr.selected { background: var(--soft); border-color: oklch(.58 .11 190/.32) }
+  .table td { display: block; width: auto; padding: 0; border: 0 }
+
+  /* ⚠️ 아래 nth-child 열 배치는 소스 표의 6열 구성에만 유효하므로
+     .content.sources 로 스코프한다. 무스코프로 두면 열 수가 다른 표(백로그는
+     5열)에서 엉뚱한 칸이 숨겨진다 — td:nth-child(5){display:none} 이 백로그의
+     액션 열을 조용히 지운다. 카드 전환 자체(.table/.table tbody tr/.table td)는
+     모든 표가 공유하는 관용구라 무스코프로 남긴다. */
+  .content.sources .table td:nth-child(1),
+  .content.sources .table td:nth-child(2) { grid-column: 1/-1 }
+  .content.sources .table td:nth-child(3) { grid-column: 1; grid-row: 3 }
+  .content.sources .table td:nth-child(4) { grid-column: 2; grid-row: 3; align-self: center }
+  .content.sources .table td:nth-child(5) { display: none }
+  .content.sources .table td:nth-child(6) { position: absolute; top: 12px; right: 12px }
+  .table .file b { white-space: normal; overflow: visible; text-overflow: clip; font-size: 13px }
+  .table .doc-chip { max-width: min(100%, 300px) }
+  .table .sub { margin-top: 1px }
+  .content.sources .table .more { width: 32px; height: 32px }
+}
+
+@media (max-width: 640px) {
+  .content.sources { padding: 25px 14px }
+  .content.sources .stats { margin: 24px 0 }
+  .content.sources .toolbar { gap: 10px }
+
+  .content.sources .tabs {
+    width: 100%;
+    gap: 1px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .content.sources .tabs::-webkit-scrollbar { display: none }
+  .content.sources .tab { padding: 8px; font-size: 10px; white-space: nowrap }
+  .table tbody { gap: 8px }
+  .table tbody tr { padding: 14px 48px 14px 14px; gap: 9px 12px }
+  .content.sources .table td:nth-child(2) { display: none }
+  .content.sources .table td:nth-child(3),
+  .content.sources .table td:nth-child(4) { grid-row: 2 }
+  .table .file b { font-size: 12px }
+  .table .file span { font-size: 10px }
+  .table .doc-chip { max-width: 100% }
+  .file { gap: 7px }
+  .format { min-width: 38px; height: 24px; font-size: 8px }
+}
+
+/* -----------------------------------------------------------------------------
+ * 15. 위키 문서 리더 본문 레이아웃
+ *
+ * 출처: nexuswiki-wiki-document-reader.html <style>.
+ *
+ * ⚠️ 프로토타입은 목차를 앱 셸의 3번째 그리드 열로 잡는다
+ *    (.app{grid-template-columns:264px minmax(0,1fr) 280px}). 여기서는 그렇게
+ *    하지 않는다 — .app 그리드는 WorkspaceShell 이 소유하고 모든 라우트가
+ *    공유하므로, 리더 하나 때문에 열을 늘리면 나머지 라우트가 존재하지 않는
+ *    3번째 열을 위해 자리를 비운다. 대신 리더 라우트 안에서 2열로 배치하고
+ *    목차를 sticky 로 붙인다(openspec/changes/restore-standalone-wiki-reader/design.md).
+ *
+ * 프로토타입의 발행 검토 모달(.review-*)·재컴파일 배너·그래프 카드는 앱에
+ * 대응 화면이 없어 옮기지 않았다 — 섹션 14 와 같은 이유다.
+ * -------------------------------------------------------------------------- */
+
+.reader-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  min-height: 100%;
+}
+
+.reader { width: min(820px, 100%); margin: 0 auto; padding: 48px 42px 108px }
+
+/* 문서 헤더 */
+.reader .title-row { display: flex; align-items: center; gap: 9px }
+
+.reader .title-row h1 {
+  margin: 0;
+  font: 800 clamp(28px, 3.2vw, 37px)/1.17 var(--font-display);
+  letter-spacing: -1.25px;
+}
+
+.governance { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 17px }
+
+.tag {
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* 본문 조판 */
+.article h2 {
+  margin: 36px 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font: 800 20px var(--font-display);
+  letter-spacing: -.4px;
+}
+
+.article h3 { margin: 27px 0 9px; font: 800 15px var(--font-display) }
+.article p { margin: 0 0 15px; color: oklch(.34 .025 264); font-size: 15px; line-height: 1.8 }
+.article ul, .article ol { margin: 0 0 15px; padding-left: 20px; color: oklch(.34 .025 264); font-size: 15px; line-height: 1.8 }
+
+.article blockquote {
+  margin: 20px 0;
+  padding: 5px 0 5px 15px;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.article code {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font: 600 12px var(--font-mono);
+}
+
+/* 인용 마커. .cite.source 는 원문 청크, 기본형은 위키 페이지를 가리킨다 —
+   이중 Citation 이 이 제품의 존재 이유라 두 출처를 색으로 구분한다. */
+.cite {
+  vertical-align: middle;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--fg);
+  font: 700 10px var(--font-mono);
+}
+
+.cite:hover { border-color: var(--accent); background: var(--soft); color: var(--accent) }
+.cite.source { background: oklch(.96 .035 155); border-color: oklch(.82 .08 155); color: oklch(.44 .12 155) }
+
+/* 우측 목차 패널 */
+.toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow: auto;
+  padding: 24px 20px 28px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+.toc-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px }
+.toc-heading h2 { margin: 0; font: 800 12px var(--font-display) }
+.toc-list { display: grid; gap: 4px; margin-bottom: 27px; border-left: 1px solid var(--border) }
+
+.toc-list a {
+  margin-left: -1px;
+  padding: 5px 9px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.toc-list a:hover { color: var(--fg) }
+.toc-list a.active { border-color: var(--accent); color: var(--fg); font-weight: 800 }
+
+.card { margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg) }
+.card h3 { margin: 0; font: 800 12px var(--font-display) }
+
+.backlink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+
+.backlink:last-child { border-bottom: 0 }
+.backlink strong { display: block; font-size: 11px }
+.backlink span { display: block; margin-top: 1px; color: var(--muted); font-size: 9px; font-weight: 500 }
+.backlink:hover strong { color: var(--accent) }
+
+/* 인용 원문 드로어. 하단에서 올라오며 본문을 가리지 않는다. */
+.drawer {
+  position: fixed;
+  z-index: 10;
+  left: 264px;
+  right: 280px;
+  bottom: 0;
+  padding: 16px 28px 20px;
+  background: var(--fg);
+  color: oklch(.90 .02 190);
+  box-shadow: 0 -14px 40px oklch(.208 .033 264/.2);
+  transform: translateY(100%);
+  transition: transform .25s ease;
+}
+
+.drawer.open { transform: translateY(0) }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px }
+.drawer-head b { font: 700 11px var(--font-mono) }
+.drawer button { border: 0; background: transparent; color: oklch(.90 .02 190); font-size: 15px }
+
+.code {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 7px;
+  background: oklch(.16 .025 264);
+  font: 11px/1.7 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+/* char_start–char_end 구간. 원문 어디에서 왔는지 보이지 않으면 이중 Citation 이
+   "출처가 있다"는 주장에 그친다. */
+.code mark {
+  display: block;
+  margin-left: -7px;
+  padding-left: 7px;
+  border-left: 3px solid var(--good);
+  background: oklch(.40 .08 155/.48);
+  color: #fff;
+}
+
+.drawer-foot { display: flex; justify-content: space-between; margin-top: 10px; color: oklch(.70 .02 190); font-size: 10px }
+.drawer-foot a { color: #fff; font-weight: 800 }
+
+@media (max-width: 960px) {
+  .reader-layout { grid-template-columns: minmax(0, 1fr) }
+  .toc { display: none }
+  .reader { padding: 42px 28px 108px }
+  .drawer { left: 0; right: 0 }
+}
+
+@media (max-width: 680px) {
+  .reader { padding: 27px 17px 180px }
+  .reader .title-row h1 { font-size: 28px }
+  .governance { margin-top: 13px }
+  .article p { font-size: 14px }
+  .drawer { padding: 14px 16px 18px }
+  .code { font-size: 9px }
+  .cite { display: inline-block; margin: 2px 0 }
+}
+
+/* -----------------------------------------------------------------------------
+ * 16. Ask 대화 + 인용 인스펙터 본문 레이아웃
+ *
+ * 출처: nexuswiki-ask-conversation.html <style>. 섹션 12~15 와 같은 이유로
+ * 여기 올린다(앱은 이 파일 하나만 임포트한다).
+ *
+ * ⚠️ 프로토타입은 이 화면을 앱 셸의 4열로 잡는다
+ *    (.app{grid-template-columns:264px minmax(420px,1fr) 6px minmax(360px,42%);
+ *    height:100vh;overflow:hidden}). 섹션 15 와 같은 이유로 여기서는 .app 을
+ *    건드리지 않는다 — .app 그리드는 WorkspaceShell 이 소유하고 모든 라우트가
+ *    공유한다. 대신 라우트 안에서 .ask-layout 2열로 배치한다. 프로토타입은
+ *    상단바를 대화 열 안에 넣지만(.topbar{position:static}) 앱 셸은 상단바를
+ *    워크스페이스 열 전체에 걸치므로, 인스펙터는 상단바 아래에서 시작한다.
+ *
+ * ⚠️ 이 프로토타입은 이름이 겹치는 선택자를 가장 많이 들고 온다. 전부 화면
+ *    루트로 스코프한다 — 스코프를 풀면 아래가 조용히 덮인다:
+ *      .tabs · .tab   → .inspect .tabs / .inspect .tab   (섹션 13 설정 · 14 소스)
+ *      .card          → .inspect .card                   (섹션 15 리더의 역인용 카드)
+ *      .tag           → .inspect .tag                    (섹션 15 리더의 거버넌스 태그)
+ *      .code          → .inspect .code                   (섹션 15 리더의 드로어 코드블록)
+ *      .meta·.link·.index·.user → 전부 .conversation / .inspect 아래
+ *      .dot           → .conversation .dot               (섹션 8 의 상태 점)
+ *
+ * 반대로 다시 정의하지 않는 것 둘:
+ *   - .cite / .cite.source 는 섹션 15 가 이미 같은 값으로 소유한다. 인용 마커는
+ *     리더와 대화가 같은 물건을 가리키므로 두 화면이 갈라지면 안 된다.
+ *   - .panel / .panel.active 는 섹션 13 이 같은 계약으로 소유한다.
+ *
+ * 옮기지 않은 것:
+ *   - .split (드래그 스플리터) — 폭 조절은 새 상호작용 계약이라 CSS 만으로
+ *     끝나지 않는다. 동작 없는 손잡이만 그리면 눌러도 아무 일이 없는 어포던스가
+ *     된다. unified-workspace-viewer 스펙에 없으므로 별도 change 로 다룬다.
+ *   - .graph · .node · .map · .a/.b/.c/.d — 프로토타입의 가짜 그래프 미리보기다.
+ *     앱은 같은 자리에 GraphCanvas(cytoscape)를 렌더한다.
+ *   - .mobile — 앱 셸의 .mobile-nav-button 이 이미 그 역할을 한다(섹션 11).
+ * -------------------------------------------------------------------------- */
+
+/* 대화 | 인스펙터 2열. 상단바(66px)를 뺀 높이를 채워 대화 스레드만 스크롤시킨다.
+   min-height 가 아니라 height 여야 한다 — min-height 면 안쪽 overflow:auto 가
+   기준 높이를 못 잡아 스레드 대신 페이지가 늘어난다. */
+.ask-layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(360px, 42%);
+  height: calc(100vh - 66px);
+  min-width: 0;
+}
+
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.thread {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 21px;
+  overflow: auto;
+  padding: 32px clamp(20px, 4vw, 54px);
+}
+
+.thread-meta { color: var(--muted); font: 600 10px var(--font-mono); letter-spacing: .08em }
+
+/* 사용자 발화 버블 */
+.user {
+  justify-self: end;
+  max-width: min(570px, 92%);
+  padding: 14px 16px;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--fg);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 답변 카드 */
+.answer {
+  max-width: 760px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: 0 10px 32px oklch(.208 .033 264/.06);
+}
+
+.answer-head { display: flex; align-items: center; gap: 8px; margin-bottom: 15px }
+.answer-head b { font: 800 12px var(--font-display) }
+.answer-head span { color: var(--muted); font-size: 11px }
+.answer h1 { margin: 0 0 10px; font: 800 19px/1.35 var(--font-display); letter-spacing: -.5px }
+.answer p { margin: 0 0 12px; color: oklch(.30 .025 264); line-height: 1.75 }
+.answer p:last-child { margin-bottom: 0 }
+
+/* 이 화면의 점은 잡 상태가 아니라 "지금 이 맥락" 표식이라 --accent 를 쓴다.
+   섹션 8 의 .dot 은 pending/failed 로 색이 갈리므로 여기서 덮으면 안 된다. */
+.conversation .dot { background: var(--accent) }
+
+.rules {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 7px;
+  color: oklch(.30 .025 264);
+  line-height: 1.65;
+}
+
+/* 답변 카드의 변형 3종 — 근거 없음 · 오류 · 연결 끊김.
+   ⚠️ 일반 답변 버블과 시각적으로 구분돼야 한다(CITE-04/D-11). 테두리 색만
+   바꾸는 것으로 끝내지 않고 좌측 굵은 띠를 준다 — 색만으로 구분하면 색각
+   이상에서 사라진다. */
+.answer.notice { border-left: 3px solid var(--danger); box-shadow: none }
+.answer.notice p { color: var(--danger); margin-bottom: 0 }
+.answer.notice .button { margin-top: 12px }
+
+/* 입력 composer */
+.composer { padding: 14px 24px 18px; border-top: 1px solid var(--border) }
+
+.compose-inner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 5px 5px 15px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.compose-inner:focus-within { border-color: var(--accent) }
+.compose-inner input { min-width: 0; flex: 1; border: 0; outline: 0; font-size: 12px; background: transparent }
+
+.send {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 900;
+}
+
+.send:hover { background: var(--accent-active) }
+.send:disabled { background: var(--border-strong); cursor: not-allowed }
+
+/* 인용 인스펙터 */
+.inspect {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.inspect-head { padding: 16px 18px 0 }
+.inspect-title { display: flex; justify-content: space-between; margin-bottom: 14px }
+.inspect-title h2 { margin: 0; font: 800 14px var(--font-display) }
+.inspect .tabs { display: flex; gap: 3px; border-bottom: 1px solid var(--border); overflow: auto }
+
+.inspect .tab {
+  padding: 8px 6px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.inspect .tab:hover { color: var(--fg) }
+.inspect .tab.active { color: var(--fg); border-color: var(--accent) }
+.inspect-body { flex: 1; padding: 18px; overflow: auto }
+
+.inspect .card { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg) }
+.inspect .card-top { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 14px }
+.inspect .kicker { color: var(--muted); font: 600 9px var(--font-mono); letter-spacing: .08em }
+.inspect .card h3 { margin: 4px 0 0; font: 800 15px/1.35 var(--font-display) }
+.inspect .card h4 { margin: 16px 0 7px; font-size: 12px }
+.inspect .card p { margin: 0; color: oklch(.34 .025 264); font-size: 12px; line-height: 1.7 }
+
+.verified {
+  align-self: start;
+  padding: 3px 5px;
+  border: 1px solid oklch(.82 .08 155);
+  border-radius: 5px;
+  background: oklch(.96 .035 155);
+  color: oklch(.44 .12 155);
+  white-space: nowrap;
+  font: 600 9px var(--font-mono);
+}
+
+.inspect .meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 16px;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.inspect .meta div { padding: 9px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border) }
+.inspect .meta span { display: block; color: var(--muted); font-size: 9px }
+.inspect .meta b { display: block; margin-top: 2px; font-size: 11px }
+
+.inspect .link { display: block; margin-top: 15px; color: var(--fg); font-size: 11px; font-weight: 800; text-decoration: underline }
+.inspect .link:hover { color: var(--accent) }
+
+/* 원문 청크. 섹션 15 의 .code 는 어두운 드로어 안에 사는 값이라 여기서는
+   쓸 수 없다 — 이쪽은 밝은 카드 위에 얹히는 코드블록이다. */
+.inspect .code {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--fg);
+  color: oklch(.89 .02 190);
+  font: 10px/1.7 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+.inspect .index { display: grid; gap: 8px }
+
+.inspect .index div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.inspect .tag {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 9px var(--font-mono);
+}
+
+/* 해소 전 인용 마커. ⚠️ .cite 를 쓰지 않는다 — T-06-18 은 citations 프레임이
+   오기 전의 앵커가 위조 여부와 무관하게 전부 동일한 비활성 placeholder 여야
+   한다고 요구한다. 링크처럼 보이는 순간 "눌러도 아무 일 없는" 어포던스가 된다. */
+.cite-pending {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin: 0 2px;
+  border-radius: 999px;
+  background: var(--border);
+  vertical-align: middle;
+}
+
+/* 인스펙터의 빈 상태 — 대화에서 인용을 누르기 전의 기본 화면이다.
+   이 화면은 대부분의 시간을 이 상태로 보내므로 "덜 그려진 화면"처럼 보이면 안 된다. */
+.inspect-empty { display: grid; gap: 6px; padding: 34px 8px; text-align: center }
+.inspect-empty b { font: 800 13px var(--font-display) }
+.inspect-empty span { color: var(--muted); font-size: 11px; line-height: 1.6 }
+
+/* 빈 대화 — 이 화면의 첫인상이다. 프로토타입은 대화가 이미 있는 상태만 그리므로
+   여기 값은 홈 대시보드의 히어로 조판을 따른다. */
+.thread-empty { display: grid; gap: 6px; place-content: center; text-align: center; min-height: 220px }
+.thread-empty b { font: 800 20px var(--font-display); letter-spacing: -.5px }
+.thread-empty span { color: var(--muted); font-size: 13px }
+
+/* 프롬프트 템플릿 칩. 선택 상태는 aria-pressed 를 그대로 선택자로 쓴다 —
+   .active 클래스를 따로 붙이면 시각 상태와 접근성 상태가 갈라질 수 있다. */
+.conversation .chips { margin-top: 0; padding: 0 clamp(20px, 4vw, 54px) }
+.conversation .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); color: var(--accent) }
+
+@media (max-width: 900px) {
+  /* 상단바가 58px 로 줄기 전 구간. 사이드바가 사라져 대화 폭이 넓어진다. */
+  .ask-layout { grid-template-columns: minmax(0, 1fr) minmax(330px, 43%) }
+  .thread { padding: 26px 22px }
+  .inspect-head { padding: 13px 12px 0 }
+  .inspect-body { padding: 12px }
+}
+
+@media (max-width: 650px) {
+  /* 2열을 포기하고 세로로 쌓는다. height 고정을 풀지 않으면 두 열이 각각
+     절반 높이로 눌려 둘 다 못 읽는 화면이 된다. */
+  .ask-layout { display: block; height: auto }
+  .conversation { min-height: calc(100vh - 58px); overflow: visible }
+  .thread { padding: 22px 16px; gap: 17px }
+  .inspect { min-height: 560px; border-left: 0; border-top: 1px solid var(--border) }
+  .inspect-head { padding: 16px 16px 0 }
+  .inspect-body { padding: 16px }
+  .answer { padding: 15px; border-radius: 11px }
+  .answer h1 { font-size: 17px }
+  .answer p, .rules { font-size: 12px }
+  .user { font-size: 13px }
+  .composer { position: sticky; bottom: 0; padding: 11px 12px 16px; background: var(--bg) }
+}
+
+/* -----------------------------------------------------------------------------
+ * 17. 작성 대기 백로그 본문 레이아웃
+ *
+ * ⚠️ 이 화면만 v2 프로토타입이 없다(backlog-management-prd.md 헤더). 그래서
+ *    출처가 <style> 블록이 아니라 PRD §3.1~3.2 와, 이미 이식된 화면들의 관용구다.
+ *    새 관용구를 만들지 않고 소스 관리(섹션 14)의 .hero/.stats/.toolbar/.table
+ *    구성을 그대로 재사용한다 — 두 화면 모두 "집계 + 표 + 행 액션"이라 형태가 같다.
+ *
+ * ⚠️ 섹션 12 의 .backlog 와 다른 물건이다. 그쪽은 홈 대시보드의 백로그 요약
+ *    목록(.backlog .doc)이고 이쪽은 전용 화면이다. 화면 루트는 .content.backlog
+ *    이므로 섹션 12 의 .backlog(자손 선택자만 정의한다)와 충돌하지 않는다.
+ *
+ * PRD §3.2 판정 둘:
+ *   - 결손은 오류가 아니라 정상적인 작업 대기 상태다. --danger 를 남발하지 않고
+ *     인용 빈도 수치에만 강세를 준다.
+ *   - 필터 탭은 `전체` 하나로 시작한다. 축이 없는 탭(높은 인용 빈도 · 신규 감지)은
+ *     정렬로 충분하고, `소스 삭제 결손` 은 그런 경로가 없다(PRD §2.4).
+ * -------------------------------------------------------------------------- */
+
+.content.backlog { width: min(1180px, 100%); padding: 42px }
+.content.backlog .stats { display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)) }
+
+.content.backlog .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 34px;
+}
+
+.content.backlog .tabs { display: flex; gap: 4px; flex-wrap: wrap }
+
+.content.backlog .tab {
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.content.backlog .tab:hover { color: var(--fg) }
+.content.backlog .tab.active { border-color: var(--accent); color: var(--accent) }
+
+/* 주제 셀. slug 를 그대로 보여주지 않는다 — 하이픈을 공백으로 되돌린 표시형만
+   쓰고 원본 slug 는 title/aria-label 로 남긴다(PRD §6-2 는 미해결 결정이다). */
+.topic { min-width: 0 }
+.topic b { display: block; font-size: 13px; letter-spacing: -.2px }
+.topic span { display: block; margin-top: 2px; color: var(--muted); font: 600 10px var(--font-mono) }
+
+/* 인용 빈도. 이 값이 정렬 축이자 우선순위 근거라 표에서 유일하게 강세를 받는다. */
+.impact { font: 700 15px var(--font-mono); letter-spacing: -.5px }
+.impact-unit { margin-left: 3px; color: var(--muted); font: 600 10px var(--font-mono) }
+
+@media (max-width: 900px) {
+  .content.backlog { padding: 30px 20px }
+  .content.backlog .stats { grid-template-columns: 1fr }
+
+  .content.backlog .stat {
+    margin: 0;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .content.backlog .stat:last-child { border-bottom: 0 }
+  .content.backlog .toolbar { align-items: flex-start; flex-direction: column }
+
+  /* 카드 전환 자체는 섹션 14 의 무스코프 .table 규칙이 이미 처리한다.
+     여기서는 5열 구성에 맞는 배치만 얹는다 — 소스 표의 6열 배치는
+     .content.sources 로 스코프돼 있으므로 여기까지 내려오지 않는다. */
+  .content.backlog .table td:nth-child(1) { grid-column: 1/-1 }
+  .content.backlog .table td:nth-child(2) { grid-column: 1/-1 }
+  .content.backlog .table td:nth-child(3) { grid-column: 1; grid-row: 3 }
+  .content.backlog .table td:nth-child(4) { grid-column: 2; grid-row: 3; align-self: center }
+  .content.backlog .table td:nth-child(5) { grid-column: 1/-1; margin-top: 4px }
+  .content.backlog .table tbody tr { padding: 16px }
+}
+
+@media (max-width: 640px) {
+  .content.backlog { padding: 25px 14px }
+  .content.backlog .stats { margin: 24px 0 }
+  .topic b { font-size: 12px }
+  .impact { font-size: 13px }
 }

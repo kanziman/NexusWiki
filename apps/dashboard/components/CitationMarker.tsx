@@ -34,26 +34,23 @@ export function CitationMarker({
       <span
         aria-hidden="true"
         data-testid="citation-marker-placeholder"
-        className="mx-xs inline-flex h-4 w-4 items-center justify-center rounded-full bg-hairline align-super text-muted"
-        style={{
-          font: "var(--font-caption)",
-          fontSize: "10px",
-          fontWeight: 600,
-        }}
+        className="cite-pending"
       >
-        {" "}
+        {" "}
       </span>
     );
   }
 
+  // .cite / .cite.source 는 섹션 15(위키 리더)가 소유하는 공용 마커다. 리더와
+  // 대화가 같은 물건을 가리키므로 두 화면이 갈라지면 안 된다 — 이중 Citation 의
+  // 두 출처(원문 청크 · 위키 페이지)를 색으로 구분하는 규칙도 그쪽에 있다.
   return (
     <button
       type="button"
       data-testid="citation-marker-resolved"
       data-kind={part.kind}
       onClick={() => onClick?.(part)}
-      className="mx-xs inline-flex h-4 w-4 items-center justify-center rounded-full bg-hairline align-super text-primary transition-colors hover:bg-primary hover:text-on-primary"
-      style={{ font: "var(--font-caption)", fontSize: "10px", fontWeight: 600 }}
+      className={`cite ${part.kind === "source" ? "source" : ""}`}
     >
       {index + 1}
     </button>

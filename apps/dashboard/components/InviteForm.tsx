@@ -89,13 +89,14 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-base">
-      <div className="flex flex-col gap-xs">
-        <label
-          htmlFor={emailId}
-          className="text-ink"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
-        >
+    <section className="invite" data-od-id="invite-member">
+      <h3>새 멤버 초대</h3>
+      <p>가입된 계정만 초대할 수 있습니다. 기본 역할은 뷰어입니다.</p>
+
+      <form onSubmit={handleSubmit} className="invite-form">
+        {/* 프로토타입은 라벨을 그리지 않지만, 라벨 없는 입력은 스크린 리더에
+            "편집 텍스트"로만 읽힌다 — 시각적으로만 감춘다. */}
+        <label htmlFor={emailId} className="sr-only">
           이메일
         </label>
         <input
@@ -104,49 +105,43 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
           type="email"
           required
           autoComplete="email"
+          placeholder="초대할 사람의 이메일"
           value={email}
           onChange={(event) => {
             setEmail(event.target.value);
             setError(null);
             setSuccess(false);
           }}
-          className="h-12 w-full rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-2 focus:border-ink"
-          style={{ font: "var(--font-body-md)" }}
+          className="field"
         />
-      </div>
 
-      <div className="flex flex-col gap-xs">
-        <span
-          className="text-ink"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
-        >
-          역할
-        </span>
         <Select.Root
           value={role}
           onValueChange={(value) => setRole(value as Role)}
         >
           <Select.Trigger
             aria-label="역할 선택"
-            className="flex h-12 items-center justify-between rounded-sm border border-border-strong bg-canvas px-base text-ink"
+            className="field flex items-center justify-between"
           >
             <Select.Value />
             <Select.Icon>
-              <ChevronDown size={16} aria-hidden="true" />
+              <ChevronDown size={14} aria-hidden="true" />
             </Select.Icon>
           </Select.Trigger>
           <Select.Portal>
-            <Select.Content className="rounded-sm border border-hairline bg-canvas shadow-[var(--shadow-dropdown)]">
+            {/* Radix 가 위치를 인라인 style 로 잡는다 — .menu 는 자체
+                position/right 를 갖고 있어 그 계산과 싸운다. 생김새만 맞춘다. */}
+            <Select.Content className="z-20 min-w-[154px] rounded-[9px] border border-[var(--border)] bg-[var(--bg)] p-[5px] shadow-[var(--shadow)]">
               <Select.Viewport>
                 {ROLE_OPTIONS.map((option) => (
                   <Select.Item
                     key={option.value}
                     value={option.value}
-                    className="flex cursor-pointer items-center gap-xs px-base py-sm outline-none data-[highlighted]:bg-surface-soft"
+                    className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-2 text-[11px] font-bold outline-none data-[highlighted]:bg-[var(--surface)]"
                   >
                     <Select.ItemText>{option.label}</Select.ItemText>
                     <Select.ItemIndicator>
-                      <Check size={14} aria-hidden="true" />
+                      <Check size={13} aria-hidden="true" />
                     </Select.ItemIndicator>
                   </Select.Item>
                 ))}
@@ -154,39 +149,28 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
             </Select.Content>
           </Select.Portal>
         </Select.Root>
-      </div>
+
+        {/* 명세 §버튼: primary 는 화면당 1개 — 설정 화면의 그 하나가 이 버튼이다. */}
+        <button type="submit" disabled={!canSubmit} className="button primary">
+          초대 보내기
+        </button>
+      </form>
 
       {error !== null ? (
         <p
           role="alert"
           data-state="error"
-          className="text-primary-error-text"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
+          className="invite-feedback error show"
         >
           {error}
         </p>
       ) : null}
 
       {success ? (
-        <p
-          role="status"
-          className="text-success-text"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
-        >
+        <p role="status" className="invite-feedback show">
           초대를 보냈습니다.
         </p>
       ) : null}
-
-      {/* UI-SPEC Primary Visual Anchor(UI-02): 이 버튼이 화면에서 유일한
-          accent(--color-primary) 요소여야 한다. */}
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-        style={{ font: "var(--font-button-md)", fontWeight: 600 }}
-      >
-        초대 보내기
-      </button>
-    </form>
+    </section>
   );
 }

@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// GraphLensFilter.test.tsx와 같은 패턴 — redirect()는 실제로는 특수 에러를
-// 던져 프레임워크가 가로채는 방식이라, 여기서는 호출 인자(리다이렉트 대상
-// URL)만 직접 관찰한다.
+// 이 라우트는 더 이상 리다이렉트하지 않는다 — 같은 라우트에서 리더를
+// 렌더링한다(openspec/changes/restore-standalone-wiki-reader). redirect 목은
+// "여전히 호출되지 않는다"를 증명하려고 남긴다: 계약이 되돌아가면 여기서 잡힌다.
 const redirectMock = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => redirectMock(url),
+}));
+
+vi.mock("@/components/WikiPageContent", () => ({
+  WikiPageContent: () => null,
 }));
 
 const fixturePage = {
@@ -50,6 +54,7 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+import { WikiPageContent } from "@/components/WikiPageContent";
 import WikiPageRoute from "@/app/w/[workspaceId]/wiki/[slug]/page";
 
 describe("WikiPageRoute", () => {
@@ -62,18 +67,20 @@ describe("WikiPageRoute", () => {
     ["percent-encoded Hangul slug", "%ED%9A%8C%EC%9D%98%EB%A1%9D", "회의록"],
     ["already-decoded mixed slug", "meeting-회의록", "meeting-회의록"],
   ])(
-    "looks up a %s using its decoded slug and redirects into the unified viewer",
+    "looks up a %s using its decoded slug and renders the reader in place",
     async (_name, slug, expectedSlug) => {
       state.requestedSlugs.length = 0;
 
-      await WikiPageRoute({
+      const result = await WikiPageRoute({
         params: Promise.resolve({ workspaceId: "workspace-1", slug }),
       });
 
       expect(state.requestedSlugs).toContain(expectedSlug);
-      expect(redirectMock).toHaveBeenCalledWith(
-        `/w/workspace-1/ask?slug=${encodeURIComponent(expectedSlug)}&tab=wiki`,
-      );
+      // 통합 뷰어로 넘기지 않는다 — 리더가 이 라우트의 화면이다.
+      expect(redirectMock).not.toHaveBeenCalled();
+      expect(result.type).toBe(WikiPageContent);
+      expect(result.props.page).toMatchObject({ id: "wiki-1" });
+      expect(result.props.workspaceId).toBe("workspace-1");
     },
   );
 
