@@ -114,4 +114,40 @@ describe("PublicWikiPage route", () => {
       screen.getByText(/"Redis는 인메모리 데이터 구조 저장소입니다."/),
     ).toBeInTheDocument();
   });
+
+  it("발행 본문의 위키 링크 표기를 평문으로 펼치고 내부 라우트를 노출하지 않는다", async () => {
+    mockSettings = {
+      workspace_id: "ws-1",
+      workspace_slug: "engineering",
+      allow_public_sharing: true,
+      public_display_name: "엔지니어링 팀",
+      public_description: null,
+    };
+
+    mockPub = {
+      published_slug: "cache-strategy",
+      published_title: "캐시 계층 전략",
+      // 발행본은 내부 본문의 스냅샷이라 [[...]] 표기가 그대로 들어 있다.
+      published_content:
+        "# 개요\n자세한 내용은 [[테넌트 격리 스파인]]을 보세요.",
+      published_citations: [],
+      published_at: "2026-08-17T00:00:00Z",
+    };
+
+    const element = await PublicWikiPage({
+      params: Promise.resolve({ slug: "engineering", page: "cache-strategy" }),
+    });
+
+    const { container } = render(element);
+
+    // 브래킷이 외부 열람자에게 보이면 내부 마크업이 새는 것이다.
+    expect(container.textContent).not.toContain("[[");
+    expect(container.textContent).not.toContain("]]");
+    expect(screen.getByText(/테넌트 격리 스파인/)).toBeInTheDocument();
+
+    // anon 이 도달할 수 없는 내부 라우트를 링크로 그리면 워크스페이스 식별자가
+    // 함께 새어 나간다 — 공개 페이지에는 /w/ 링크가 하나도 없어야 한다.
+    const internalLinks = container.querySelectorAll('a[href^="/w/"]');
+    expect(internalLinks).toHaveLength(0);
+  });
 });

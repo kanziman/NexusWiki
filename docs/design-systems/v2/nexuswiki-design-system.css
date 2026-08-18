@@ -2304,3 +2304,106 @@ summary:focus-visible {
   .topic b { font-size: 12px }
   .impact { font-size: 13px }
 }
+
+/* -----------------------------------------------------------------------------
+ * 18. 공개 위키 리더 (/p/[slug]/[page])
+ *
+ * ⚠️ 이 화면도 v2 프로토타입이 없다(public-sharing-prd.md §7-5). v1
+ *    public-wiki-reader-preview.html 은 참고만 하고, 조판은 섹션 15(위키 리더)를
+ *    그대로 재사용한다 — 공개본은 내부 문서와 "같은 문서"를 보여주는 화면이므로
+ *    두 리더가 다르게 생기면 그 자체가 버그다.
+ *
+ * ⚠️ 이 화면은 앱 셸(.app · .sidebar · .topbar) 밖에 있다. 로그인 사용자가
+ *    아니라 anon 이 보는 페이지이므로 워크스페이스 내비게이션이 존재하지 않는다.
+ *    그래서 셸 클래스를 재사용하지 않고 .public-* 로 따로 둔다 — .topbar 를
+ *    빌려 쓰면 셸의 여백 규칙이 바뀔 때 공개 페이지가 함께 흔들린다.
+ *
+ * 재사용하는 것(다시 정의하지 않는다): .reader · .reader .title-row ·
+ * .governance · .tag · .badge · .article · .toc · .toc-list · .eyebrow.
+ *
+ * 옮기지 않은 것: 인용 원문 드로어(.drawer). left:264px 이 앱 셸 사이드바를
+ * 전제하고, 무엇보다 anon 은 원문 청크에 정책도 GRANT 도 없다(불변식 §4~5).
+ * 공개 페이지가 여는 것은 승인된 스니펫뿐이다.
+ * -------------------------------------------------------------------------- */
+
+.public-shell { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg) }
+
+.public-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.public-mark { display: flex; align-items: center; gap: 9px; min-width: 0 }
+.public-mark strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 13px var(--font-display) }
+
+/* 공개본임을 알리는 표식. --accent 는 화면당 핵심 CTA 하나에만 쓰는 색이고
+   이 화면에는 CTA 가 없으므로, 여기서 그 자리를 가져간다. */
+.public-badge {
+  flex: none;
+  padding: 3px 7px;
+  border: 1px solid oklch(.58 .11 190/.35);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent);
+  font: 700 9px var(--font-mono);
+  letter-spacing: .06em;
+}
+
+.public-stamp { flex: none; color: var(--muted); font: 600 10px var(--font-mono); letter-spacing: .04em }
+
+/* ⚠️ 섹션 15 의 .toc 는 top:0 · height:100vh 다. 그대로 두면 목차가 이 화면의
+   공개 상단바 뒤로 미끄러져 들어가 첫 항목이 가려진다. 상단바 높이만큼 내린다. */
+.public-shell .reader-layout { flex: 1 }
+.public-shell .toc { top: 56px; height: calc(100vh - 56px) }
+
+/* 승인된 인용 스니펫. ⚠️ 인라인 마커 .cite 와 다른 물건이라 이름을 나눈다 —
+   이쪽은 발행 시점에 사람이 승인해 평문으로 펼쳐 둔 스냅샷이다
+   (public-sharing-prd.md §7-4 권고: 런타임 해석기를 외부에 노출하지 않는다). */
+.pub-cites { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--border) }
+.pub-cites h2 { margin: 0 0 4px; font: 800 15px var(--font-display); letter-spacing: -.3px }
+.pub-cites-note { margin: 0 0 14px; color: var(--muted); font-size: 11px }
+.pub-cite-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none }
+
+.pub-cite {
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.pub-cite b { display: block; font-size: 12px }
+.pub-cite p { margin: 6px 0 0; color: oklch(.34 .025 264); font-size: 12px; line-height: 1.7 }
+
+.public-foot {
+  padding: 22px 28px 30px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.public-foot b { display: block; color: var(--fg); font-size: 12px }
+
+@media (max-width: 960px) {
+  /* 섹션 15 가 960px 이하에서 .toc 를 감춘다 — 여기서 되살리지 않는다.
+     본문을 좁혀 가며 목차를 유지하는 편이 더 나쁘다. */
+  .public-topbar { padding: 0 20px }
+  .public-foot { padding: 20px }
+}
+
+@media (max-width: 680px) {
+  .public-topbar { height: 52px; padding: 0 14px }
+  .public-shell .toc { top: 52px }
+  .public-stamp { display: none }
+  .pub-cites { margin-top: 30px }
+}
