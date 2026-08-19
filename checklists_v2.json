@@ -47,7 +47,13 @@
           "priority": "P0",
           "estimate": "0.2d",
           "status": "completed",
-          "verification": "로컬 supabase에서 Google OAuth 플로우 동작"
+          "verification": "로컬 supabase에서 Google OAuth 플로우 동작",
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "결손 없음.",
+            "results": ["supabase/config.toml:287-291 확인 — [auth.external.google] enabled=true, client_id/secret 모두 env() 참조(값 직접 기재 없음), skip_nonce_check=true"],
+            "verification": "파일 확인만 수행, 로컬 db reset 재실행은 하지 않음"
+          }
         },
         {
           "id": "AUTH-03",
@@ -79,7 +85,13 @@
           "priority": "P0",
           "estimate": "0.5d",
           "status": "completed",
-          "verification": "/login, /signup에서 Google 버튼만 표시"
+          "verification": "/login, /signup에서 Google 버튼만 표시",
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "기능 요구사항(Google 단일 버튼, 이메일+비밀번호 없음)은 충족한다. 다만 nexuswiki-google-auth.html 프로토타입과 시각적으로 정합되지 않았다 — 로고 이미지·2단 인트로/카드 레이아웃·trust 뱃지·온보딩 뷰 전환이 전부 없고 v1 인라인 스타일(--font-display-xl 등)을 그대로 쓴다.",
+            "results": ["LoginForm.tsx 에 이메일/비밀번호 필드 없음, Google 버튼 단일 CTA 확인", "/signup 이 동일 LoginForm 을 재사용하며 이용약관 안내 문구를 추가로 표시함을 확인", "⚠️ 시각 정합은 이번 재검증 범위에 넣지 않았다 — 로고 자산 적용 등 별도 작업으로 분리"],
+            "verification": "코드 확인 및 프로덕션 홈/로그인 화면 curl 응답 확인, 재실행 테스트는 typecheck·lint·test·build 전체 스위트로 대체"
+          }
         },
         {
           "id": "AUTH-05",
@@ -110,7 +122,13 @@
           "priority": "P0",
           "estimate": "0.2d",
           "status": "completed",
-          "verification": "미인증 사용자가 /auth/callback에 도달 가능"
+          "verification": "미인증 사용자가 /auth/callback에 도달 가능",
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "matcher 는 애초에 /w/:path*, /login 만 포함해 /signup·/auth/callback 은 둘 다 매칭되지 않는 상태였다(=게이트가 아예 안 걸림) — 표면적으로는 AC 를 우회 충족했지만, 같은 이유로 루트 경로 `/` 도 매칭에서 빠져 있었다. 그 결과 프로덕션에서 미인증 방문자가 `/`에 접속하면 로그인으로 보내지지 않고 `app/page.tsx`의 '첫 워크스페이스 만들기' 폼이 그대로 렌더링됐다 — 제출 시에야 서버 액션이 '로그인이 필요합니다' 오류를 반환하는 죽은 흐름이었다.",
+            "results": ["⚠️ 실제 버그 발견 및 수정: middleware.ts matcher 에 \"/\" 추가, (pathname.startsWith(\"/w/\") || pathname === \"/\") && !user 조건으로 확장 — 미인증 방문자는 이제 `/`에서도 /login 으로 리다이렉트된다", "app/page.tsx 상단 주석이 '미들웨어가 `/`를 게이트하지 않는다'는 낡은 전제를 담고 있어 갱신", "middleware-auth.test.ts 에 회귀 테스트 2건 추가 (미인증 `/` → /login 리다이렉트, 인증 사용자 `/` 통과)"],
+            "verification": "pnpm typecheck·lint 통과, Vitest 45파일 188테스트 통과(신규 2건 포함), next build 성공"
+          }
         },
         {
           "id": "AUTH-07",
@@ -125,7 +143,13 @@
           "priority": "P0",
           "estimate": "0.5d",
           "status": "completed",
-          "verification": "로컬 db reset 통과, 클라우드 push 완료"
+          "verification": "로컬 db reset 통과, 클라우드 push 완료",
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "결손 없음.",
+            "results": ["0015_workspace_slug.sql 존재, slug not null + workspaces_slug_key unique + workspaces_slug_format check 확인", "후속 0016_public_sharing.sql 존재로 마이그레이션 순서 정합 확인", "supabase/tests/0015_workspace_slug.sql 존재 확인"],
+            "verification": "파일 확인만 수행 — db reset 재실행은 로컬 데이터 영향 위험이 있어 이번 재검증 범위에서 제외"
+          }
         },
         {
           "id": "AUTH-08",
@@ -137,7 +161,13 @@
           "priority": "P1",
           "estimate": "0.2d",
           "status": "completed",
-          "verification": "PR #24 머지 완료"
+          "verification": "PR #24 머지 완료",
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "결손 없음.",
+            "results": [".claude/skills/ 파일 수 0건 확인"],
+            "verification": "find 로 파일 수만 확인"
+          }
         }
       ]
     },
@@ -275,6 +305,12 @@
               "WorkspaceSwitcher 컴포넌트 v2 토큰 및 새 워크스페이스 생성 링크 연동",
               "단위 테스트 및 빌드 검증 완료"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "두 가지 문제. (1) workspace-home-prd.md §3.1 은 소속 목록에서 workspaces.kind 의 personal/team 구분 표기를 요구하는데, layout.tsx 의 조회가 `select(\"id,name\")`로 kind 를 아예 읽지 않아 WorkspaceSwitcherProps 에도 없다 — 표기가 원천적으로 불가능하다. (2) '새 워크스페이스 생성' 링크가 무조건 `/`로 이동하는데, app/page.tsx 는 1개 워크스페이스면 그 워크스페이스로 즉시 redirect, 2개 이상이면 WorkspaceEntryChooser 를 보여준다 — 둘 다 온보딩 생성 폼(WorkspaceOnboarding)에 도달하지 않는다. 워크스페이스가 이미 1개 이상인 사용자는 이 링크로 추가 워크스페이스를 만들 수 없다(무동작 링크).",
+            "results": ["⚠️ (1)은 시각 정보 누락으로 낮은 심각도라 이번 패스에서 고치지 않았다 — 표시할 kind 조회·전달 배선이 필요", "⚠️ (2)는 사용자가 직접 보고한 버그다. auth-google-prd.md §5 의 셀프서브 생성 화면은 '요청자에게 보이는 워크스페이스가 0개일 때'만 렌더하도록 명시적으로 스코프되어 있고(§8 거버닝 스펙 개정 필요 항목과 연동), '이미 워크스페이스가 있는 사용자가 추가로 만드는' 흐름은 어느 PRD 에도 목적지가 정의돼 있지 않다 — 라우팅 설계 결정이 필요해 이번 재검증에서는 고치지 않고 사용자에게 별도 보고했다"],
+            "verification": "코드 읽기 및 프로덕션 동작 확인만 수행, 수정 없음"
           }
         },
         {
@@ -296,6 +332,12 @@
               "WorkspaceEntryChooser 및 하위 뷰 어휘 점검 및 '워크스페이스'로 통일 확인",
               "테스트 목 내 '내 프로젝트' 어휘 '내 워크스페이스'로 정정"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "결손 없음.",
+            "results": ["'프로젝트' 문구 재검색 결과 0건", "CLEAN-01 로 --nw-* 토큰이 이미 v2 이름(--fg/--muted/--border)으로 정리되어 있음을 확인"],
+            "verification": "grep 재검색만 수행"
           }
         }
       ]

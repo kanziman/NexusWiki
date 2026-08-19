@@ -56,7 +56,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/w/") && !user) {
+  if ((pathname.startsWith("/w/") || pathname === "/") && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     return NextResponse.redirect(redirectUrl);
@@ -72,5 +72,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/w/:path*", "/login"],
+  matcher: ["/w/:path*", "/login", "/"],
 };
