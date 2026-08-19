@@ -10,13 +10,13 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="flex flex-col gap-base border-b border-[var(--nw-rule)] pb-xl sm:flex-row sm:items-end sm:justify-between">
+    <header className="flex flex-col gap-base border-b border-[var(--border)] pb-xl sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
-        <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--nw-ink)] sm:text-4xl">
+        <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--fg)] sm:text-4xl">
           {title}
         </h1>
         {description ? (
-          <p className="mt-sm text-base leading-7 text-[var(--nw-body)]">
+          <p className="mt-sm text-base leading-7 text-[var(--fg)]">
             {description}
           </p>
         ) : null}
@@ -35,11 +35,11 @@ export function SectionHeading({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-base">
-      <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--nw-ink)]">
+      <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--fg)]">
         {title}
       </h2>
       {detail ? (
-        <span className="text-sm text-[var(--nw-muted)]">{detail}</span>
+        <span className="text-sm text-[var(--muted)]">{detail}</span>
       ) : null}
     </div>
   );
@@ -55,11 +55,9 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <section className="flex flex-col items-center gap-sm border-y border-[var(--nw-rule)] px-base py-section text-center">
-      <h2 className="text-lg font-semibold text-[var(--nw-ink)]">{title}</h2>
-      <p className="max-w-lg text-sm leading-6 text-[var(--nw-muted)]">
-        {detail}
-      </p>
+    <section className="flex flex-col items-center gap-sm border-y border-[var(--border)] px-base py-section text-center">
+      <h2 className="text-lg font-semibold text-[var(--fg)]">{title}</h2>
+      <p className="max-w-lg text-sm leading-6 text-[var(--muted)]">{detail}</p>
       {action ? <div className="mt-sm">{action}</div> : null}
     </section>
   );
@@ -73,14 +71,14 @@ export function StatusBadge({
   children: ReactNode;
 }) {
   const colors = {
-    neutral: "text-[var(--nw-muted)]",
+    neutral: "text-[var(--muted)]",
     success: "text-success-text",
     warning: "text-warning-text",
     danger: "text-primary-error-text",
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full border border-[var(--nw-rule)] px-sm py-xs text-xs font-medium ${colors[tone]}`}
+      className={`inline-flex items-center rounded-full border border-[var(--border)] px-sm py-xs text-xs font-medium ${colors[tone]}`}
     >
       {children}
     </span>
@@ -105,23 +103,21 @@ export function DetailHeader({
   breadcrumb?: string;
 }) {
   return (
-    <header className="flex flex-col gap-sm border-b border-[var(--nw-rule)] pb-lg">
+    <header className="flex flex-col gap-sm border-b border-[var(--border)] pb-lg">
       <nav aria-label={navigationLabel}>
         <a
           href={libraryHref}
-          className="nw-focus-ring w-fit text-sm text-[var(--nw-muted)] hover:text-[var(--nw-ink)]"
+          className="nw-focus-ring w-fit text-sm text-[var(--muted)] hover:text-[var(--fg)]"
         >
           ← {libraryLabel}
         </a>
         {breadcrumb ? <span className="sr-only">{breadcrumb}</span> : null}
       </nav>
       <div className="flex flex-wrap items-center gap-sm">
-        <span className="text-xs font-medium text-[var(--nw-muted)]">
-          {kind}
-        </span>
+        <span className="text-xs font-medium text-[var(--muted)]">{kind}</span>
         {meta}
       </div>
-      <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--nw-ink)]">
+      <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[var(--fg)]">
         {title}
       </h1>
     </header>

@@ -27,4 +27,27 @@ describe("middleware authentication gate", () => {
       "https://dashboard.test/login",
     );
   });
+
+  it("redirects a logged-out visitor from the home page to login", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+
+    const response = await middleware(
+      new NextRequest("https://dashboard.test/"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://dashboard.test/login",
+    );
+  });
+
+  it("lets a logged-in visitor reach the home page", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+
+    const response = await middleware(
+      new NextRequest("https://dashboard.test/"),
+    );
+
+    expect(response.status).toBe(200);
+  });
 });

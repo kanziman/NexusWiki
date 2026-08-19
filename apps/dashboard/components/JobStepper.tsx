@@ -267,15 +267,15 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-lg shadow-[var(--shadow-modal)]">
+          <Dialog.Content className="fixed top-1/2 left-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-[var(--border)] bg-[var(--bg)] p-lg shadow-[var(--shadow-modal)]">
             <Dialog.Title
-              className="text-[var(--nw-ink)]"
+              className="text-[var(--fg)]"
               style={{ font: "var(--font-title-md)" }}
             >
               작업 취소
             </Dialog.Title>
             <Dialog.Description
-              className="text-[var(--nw-body)]"
+              className="text-[var(--fg)]"
               style={{ font: "var(--font-body-md)" }}
             >
               {CANCEL_CONFIRM_COPY}
@@ -285,7 +285,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="nw-focus-ring rounded-sm border border-[var(--nw-rule-strong)] px-base py-sm text-[var(--nw-ink)]"
+                  className="nw-focus-ring rounded-sm border border-[var(--border-strong)] px-base py-sm text-[var(--fg)]"
                 >
                   계속 진행
                 </button>
@@ -294,7 +294,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
                 type="button"
                 onClick={handleConfirmCancel}
                 disabled={canceling}
-                className="nw-focus-ring rounded-sm bg-[var(--nw-danger)] px-base py-sm text-on-primary disabled:opacity-60"
+                className="nw-focus-ring rounded-sm bg-[var(--danger)] px-base py-sm text-on-primary disabled:opacity-60"
               >
                 취소하기
               </button>

@@ -704,11 +704,15 @@ summary:focus-visible {
    와 같은 이유로 안쪽 콘텐츠가 그리드 열을 밀어낸다. */
 .workspace-main { min-width: 0 }
 
-/* 콘텐츠 캔버스 */
+/* 콘텐츠 캔버스
+   패딩은 .content.sources/.backlog/.library 와 동일한 42px 균일값으로
+   맞춘다 — 이전 판(46px 42px 58px)은 홈 화면만 유독 비대칭이었다. 폭은
+   화면마다 다르게 두는데(1120/1320/1180), 각 프로토타입에서 그대로
+   옮겨온 값이라 통일할 근거가 없어 그대로 둔다. */
 .content {
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 46px 42px 58px;
+  padding: 42px;
 }
 
 /* 워크스페이스 헤더 */
@@ -953,7 +957,7 @@ summary:focus-visible {
 .source-line > div > span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px }
 
 @media (max-width: 900px) {
-  .content { padding: 32px 20px }
+  .content { padding: 30px 20px }
   .top-actions .button:first-child { display: none }
   .stats { overflow: auto }
   .stat { min-width: 126px }
@@ -979,7 +983,7 @@ summary:focus-visible {
   }
 
   .top-actions .button.primary { display: none }
-  .content { padding: 27px 16px 42px }
+  .content { padding: 25px 14px }
   .eyebrow { font-size: 9px; margin-bottom: 8px }
   .title-row h1 { font-size: 27px; letter-spacing: -1px }
   .context p { font-size: 13px; line-height: 1.6 }
@@ -1749,7 +1753,7 @@ summary:focus-visible {
 .fields select { padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg) }
 
 @media (max-width: 900px) {
-  .content.sources { padding-left: 20px; padding-right: 20px; padding-top: 30px }
+  .content.sources { padding: 30px 20px }
   .content.sources .stats { grid-template-columns: 1fr }
 
   .content.sources .stat {

@@ -8,12 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 
 // 루트 경로는 "테넌시 진입점"이다 — 요청자 자신에게 보이는 워크스페이스 수에
 // 따라 직접 진입하거나 선택 화면을 표시한다.
-// middleware.ts가 이미 `/`를 게이트하지 않으므로(matcher는 /w/:path*, /login만
-// 포함) 여기서 user가 null일 수 있다는 걱정은 하지 않는다: 이 페이지는 로그인
-// 여부와 무관하게 항상 렌더링되고, 미인증 사용자는 아래에서 user가 없을 때
-// 자연히 "워크스페이스 없음" 문구를 보게 된다 — 별도 리다이렉트 분기를 두지
-// 않는 것은 로그인 상태 판정을 이 파일과 middleware.ts 두 곳에서 하지 않기
-// 위해서다(D-02 boundary와의 중복 방지).
+// middleware.ts의 matcher가 `/`를 포함하므로 미인증 요청은 이 컴포넌트에
+// 도달하기 전에 이미 /login으로 리다이렉트된다 — 아래 `if (user)` 분기는
+// 그 게이트를 다시 판정하지 않고 통과를 전제로 워크스페이스 개수만 나눈다.
+// 로그인 상태 판정을 이 파일과 middleware.ts 두 곳에서 하지 않는 것은
+// D-02 boundary와의 중복 방지를 위해서다.
 export default async function HomePage() {
   const supabase = await createClient();
   const {

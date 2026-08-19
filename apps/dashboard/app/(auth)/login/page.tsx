@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { LoginForm } from "@/components/LoginForm";
 
 // 로그인 화면 자체는 인증 상태를 판정하지 않는다 — 이미 로그인된 사용자를 `/`로
@@ -11,9 +13,18 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-xxl p-lg">
-      <h1 className="m-0 text-ink" style={{ font: "var(--font-display-xl)" }}>
-        NexusWiki
-      </h1>
+      <div className="flex items-center gap-sm">
+        <Image
+          src="/nexuswiki-mark.png"
+          alt=""
+          width={38}
+          height={38}
+          priority
+        />
+        <h1 className="m-0 text-ink" style={{ font: "var(--font-display-xl)" }}>
+          NexusWiki
+        </h1>
+      </div>
       <div className="w-full max-w-[360px]">
         <LoginForm initialError={error === "auth"} />
       </div>

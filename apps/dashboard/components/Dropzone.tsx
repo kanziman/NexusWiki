@@ -298,29 +298,29 @@ export function Dropzone({
     textTitle.trim().length > 0 && text.trim().length > 0 && !submitting;
 
   return (
-    <div className="flex flex-col gap-base border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-base sm:p-xl">
+    <div className="flex flex-col gap-base border border-[var(--border)] bg-[var(--bg)] p-base sm:p-xl">
       <Tabs.Root value={tab} onValueChange={switchTab}>
         <Tabs.List
-          className="flex gap-lg border-b border-[var(--nw-rule)]"
+          className="flex gap-lg border-b border-[var(--border)]"
           aria-label="소스 등록 방식"
         >
           <Tabs.Trigger
             value="file"
-            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--nw-muted)] data-[state=active]:border-[var(--nw-ink)] data-[state=active]:text-[var(--nw-ink)]"
+            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--muted)] data-[state=active]:border-[var(--fg)] data-[state=active]:text-[var(--fg)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             파일
           </Tabs.Trigger>
           <Tabs.Trigger
             value="url"
-            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--nw-muted)] data-[state=active]:border-[var(--nw-ink)] data-[state=active]:text-[var(--nw-ink)]"
+            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--muted)] data-[state=active]:border-[var(--fg)] data-[state=active]:text-[var(--fg)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             URL
           </Tabs.Trigger>
           <Tabs.Trigger
             value="text"
-            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--nw-muted)] data-[state=active]:border-[var(--nw-ink)] data-[state=active]:text-[var(--nw-ink)]"
+            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--muted)] data-[state=active]:border-[var(--fg)] data-[state=active]:text-[var(--fg)]"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             텍스트
@@ -349,15 +349,15 @@ export function Dropzone({
                   addFiles(event.dataTransfer.files);
                 }
               }}
-              className="nw-focus-ring flex cursor-pointer flex-col items-center gap-xs border border-dashed border-[var(--nw-rule-strong)] bg-[var(--nw-canvas)] p-xl text-center"
+              className="nw-focus-ring flex cursor-pointer flex-col items-center gap-xs border border-dashed border-[var(--border-strong)] bg-[var(--bg)] p-xl text-center"
             >
               <Upload
                 size={24}
                 aria-hidden="true"
-                className="text-[var(--nw-muted)]"
+                className="text-[var(--muted)]"
               />
               <span
-                className="text-[var(--nw-ink)]"
+                className="text-[var(--fg)]"
                 style={{ font: "var(--font-body-md)" }}
               >
                 파일을 드래그하거나 클릭해서 선택하세요
@@ -379,21 +379,21 @@ export function Dropzone({
             {fileUploadItems.length > 0 ? (
               <ul
                 aria-label="선택한 파일"
-                className="flex flex-col border-y border-[var(--nw-rule)]"
+                className="flex flex-col border-y border-[var(--border)]"
               >
                 {fileUploadItems.map((item) => (
                   <li
                     key={item.id}
-                    className="flex items-center justify-between gap-base border-b border-[var(--nw-rule)] py-sm last:border-b-0"
+                    className="flex items-center justify-between gap-base border-b border-[var(--border)] py-sm last:border-b-0"
                   >
                     <span
-                      className="min-w-0 truncate text-[var(--nw-ink)]"
+                      className="min-w-0 truncate text-[var(--fg)]"
                       style={{ font: "var(--font-body-md)" }}
                     >
                       {item.file.name}
                     </span>
                     <span
-                      className="shrink-0 text-[var(--nw-muted)]"
+                      className="shrink-0 text-[var(--muted)]"
                       style={{ font: "var(--font-caption)", fontWeight: 600 }}
                     >
                       {item.errorMessage ?? FILE_STATUS_LABEL[item.status]}
@@ -433,7 +433,7 @@ export function Dropzone({
                   setUrl(event.target.value);
                   setErrorMessage(null);
                 }}
-                className="nw-input h-12 px-base text-[var(--nw-ink)]"
+                className="nw-input h-12 px-base text-[var(--fg)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -449,7 +449,7 @@ export function Dropzone({
                 id={urlTitleId}
                 value={urlTitle}
                 onChange={(event) => setUrlTitle(event.target.value)}
-                className="nw-input h-12 px-base text-[var(--nw-ink)]"
+                className="nw-input h-12 px-base text-[var(--fg)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -478,7 +478,7 @@ export function Dropzone({
                 id={textTitleId}
                 value={textTitle}
                 onChange={(event) => setTextTitle(event.target.value)}
-                className="nw-input h-12 px-base text-[var(--nw-ink)]"
+                className="nw-input h-12 px-base text-[var(--fg)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -495,7 +495,7 @@ export function Dropzone({
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 rows={6}
-                className="nw-input p-base text-[var(--nw-ink)]"
+                className="nw-input p-base text-[var(--fg)]"
                 style={{ font: "var(--font-body-md)" }}
               />
             </div>
@@ -517,7 +517,7 @@ export function Dropzone({
         <p
           role="alert"
           data-testid="dropzone-error-banner"
-          className="border border-[var(--nw-danger)] bg-[#fff8f6] px-base py-sm text-[var(--nw-danger)]"
+          className="border border-[var(--danger)] bg-[#fff8f6] px-base py-sm text-[var(--danger)]"
           style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           {errorMessage}

@@ -66,7 +66,7 @@ export function KnowledgeGrid({
 
         <div className="doc-list">
           {filteredPages.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--nw-muted)] border-b border-[var(--border)]">
+            <div className="py-8 text-center text-sm text-[var(--muted)] border-b border-[var(--border)]">
               {activeCategory
                 ? `선택한 카테고리(${CATEGORY_LABELS[activeCategory] ?? activeCategory})에 해당하는 문서가 없습니다.`
                 : "컴파일된 위키 문서가 아직 없습니다."}
@@ -125,7 +125,7 @@ export function KnowledgeGrid({
 
         <div className="doc-list">
           {backlogItems.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--nw-muted)] border-b border-[var(--border)]">
+            <div className="py-8 text-center text-sm text-[var(--muted)] border-b border-[var(--border)]">
               작성 대기 중인 백로그가 없습니다.
             </div>
           ) : (
