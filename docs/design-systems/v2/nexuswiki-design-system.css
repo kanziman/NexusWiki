@@ -1815,12 +1815,18 @@ summary:focus-visible {
 .cite:hover { border-color: var(--accent); background: var(--soft); color: var(--accent) }
 .cite.source { background: oklch(.96 .035 155); border-color: oklch(.82 .08 155); color: oklch(.44 .12 155) }
 
-/* 우측 목차 패널 */
+/* 우측 목차 패널.
+   ⚠️ top:0 / height:100vh 로 두면 안 된다. 이 패널은 앱 셸 안에서 렌더링되고
+   셸의 .topbar 는 sticky·66px·z-index:5 다 — 스크롤하면 목차가 상단바 *뒤로*
+   미끄러져 들어가 제목과 첫 항목이 가려지고, 100vh 는 화면 아래로 66px 넘쳐
+   마지막 항목에 닿을 수 없다. 상단바 높이만큼 내리고 그만큼 줄인다.
+   960px 이하에서는 아래 미디어 쿼리가 목차를 감추므로 상단바가 58px 로 줄어드는
+   640px 구간은 이 값과 무관하다. */
 .toc {
   position: sticky;
-  top: 0;
+  top: 66px;
   align-self: start;
-  height: 100vh;
+  height: calc(100vh - 66px);
   overflow: auto;
   padding: 24px 20px 28px;
   border-left: 1px solid var(--border);
@@ -2436,4 +2442,73 @@ summary:focus-visible {
   .public-shell .toc { top: 52px }
   .public-stamp { display: none }
   .pub-cites { margin-top: 30px }
+}
+
+/* -----------------------------------------------------------------------------
+ * 19. 위키 라이브러리 본문 레이아웃 (/w/[workspaceId]/wiki)
+ *
+ * ⚠️ 이 화면은 v2 재작업(섹션 12~18)에서 통째로 빠져 있었다. Phase 3 의
+ *    WIKI-01~03 은 전부 문서 *리더* 였고 목록 화면은 아무도 손대지 않아, 주변이
+ *    전부 v2 로 바뀐 뒤에도 혼자 v1 토큰(text-ink · --font-title-md · nw-input)을
+ *    쓰고 있었다. 위키 문서로 들어가는 진입점이라 어긋남이 특히 눈에 띈다.
+ *
+ * 프로토타입이 없다(섹션 17 백로그와 같은 상황). 새 관용구를 만들지 않고
+ * 섹션 12 홈 대시보드의 문서 목록(.doc-list · .doc · .doc-body · .doc-title ·
+ * .doc-meta)을 그대로 재사용한다 — 홈의 "컴파일된 위키 문서" 피드와 이 화면은
+ * 같은 물건의 요약본과 전체본이므로, 두 곳이 다르게 생기면 그 자체가 버그다.
+ *
+ * ⚠️ .toolbar 는 섹션 14·17 이 각자 스코프로 소유한다. 여기도 .content.library
+ *    로 좁힌다 — 무스코프로 두면 세 화면이 서로를 덮는다.
+ * -------------------------------------------------------------------------- */
+
+.content.library { width: min(1120px, 100%); padding: 42px }
+
+.content.library .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 30px 0 6px;
+}
+
+/* 카테고리 필터. 탭이 아니라 토글이라 .tab 이 아닌 .chip 을 쓴다 —
+   전체/개념/항목/가이드/맵은 상호 배타적 뷰 전환이 아니라 켜고 끄는 필터다.
+   선택 상태는 aria-pressed 를 그대로 선택자로 쓴다(섹션 16 과 같은 이유). */
+.content.library .chips { gap: 6px; margin-top: 0 }
+.content.library .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); color: var(--accent) }
+
+/* 목록. 홈의 .doc 은 요약이라 한 줄이지만 여기는 발췌문이 붙는다. */
+.content.library .doc { align-items: flex-start }
+.content.library .doc-body { min-width: 0 }
+.content.library .doc-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 6px 0 0;
+  color: oklch(.44 .02 264);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.library-empty {
+  padding: 40px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .content.library { padding: 30px 20px }
+  .content.library .toolbar { align-items: stretch; flex-direction: column }
+}
+
+@media (max-width: 640px) {
+  .content.library { padding: 25px 14px }
+  .content.library .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
+  .content.library .chips::-webkit-scrollbar { display: none }
+  .content.library .chip { white-space: nowrap }
 }

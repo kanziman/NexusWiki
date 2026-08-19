@@ -71,28 +71,36 @@
   --color-primary: var(--nw-action);
   --color-primary-active: var(--nw-action-hover);
   --color-primary-disabled: color-mix(in srgb, var(--nw-action) 42%, white);
-  --nw-canvas: #fcfcfa;
-  --nw-surface: #ffffff;
-  --nw-ink: #171717;
-  --nw-body: #4d4d49;
-  --nw-muted: #7a7a74;
-  --nw-rule: #e7e7e1;
-  --nw-rule-strong: #c9c9c1;
+  /* v1 색 토큰을 v2 팔레트로 재배선한다. ⚠️ 아직 9개 파일이 이 이름들을
+     직접 참조하므로(--nw-ink 만 36회) 값을 여기서 한 번 바꾸는 편이 파일을
+     전부 고치는 것보다 안전하다 — 이름 정리는 checklists_v2.json >
+     cleanup_tasks CLEAN-01 이 소유한다.
+     불변식 §7.1 "색은 토큰이 정본이다" — 여기서 hex 를 새로 적지 않고
+     디자인 시스템의 :root 토큰을 가리키기만 한다. */
+  --nw-canvas: var(--bg);
+  --nw-surface: var(--bg);
+  --nw-surface-soft: var(--surface);
+  --nw-ink: var(--fg);
+  --nw-body: var(--fg);
+  --nw-muted: var(--muted);
+  --nw-rule: var(--border);
+  --nw-rule-strong: var(--border-strong);
+  --nw-danger: var(--danger);
+
+  /* ⚠️ 액션 색 셋은 재배선하지 않는다. #171717 은 아카이브된
+     unify-primary-action-color change 가 정한 값이고 v2 --accent(청록)와
+     의도적으로 다르다 — 바꾸면 그 결정을 조용히 뒤집는다. */
   --nw-focus: #171717;
   --nw-action: #171717;
   --nw-action-hover: #363632;
-  --nw-danger: #a33b2b;
 }
 
-/* 앱 캔버스. ⚠️ 이 값 하나가 모든 화면의 바탕이다 — 라우트나 컴포넌트가
-   background: var(--bg) 로 덮지 않는다(v2 --bg 는 순백이라 화면마다 미묘하게
-   다른 흰색이 생긴다). 카드·모달·표처럼 캔버스 위에 떠야 하는 표면만 --bg 를
-   쓴다. 근거: checklists.json > decisions.app_canvas */
-body {
-  margin: 0;
-  background: var(--nw-canvas);
-  color: var(--nw-ink);
-}
+/* ⚠️ body 규칙을 여기 두지 않는다. nexuswiki-design-system.css 가 이미
+   margin/background/color/font 를 전부 소유한다(--bg · --fg). 여기서 다시
+   선언하면 두 곳이 갈라지고, 실제로 그렇게 갈라져 있었다 — v1 --nw-canvas
+   (#fcfcfa, warm)가 v2 --bg(순백)를 덮어 cool 계열인 --surface 와 맞닿는
+   사이드바 경계에서 색온도 차가 드러났다.
+   근거: checklists.json > decisions.app_canvas */
 
 .nw-focus-ring:focus-visible {
   outline: 2px solid var(--nw-focus);

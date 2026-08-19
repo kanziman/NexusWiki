@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -14,6 +15,7 @@ export type WikiLibraryPage = {
   verification_status: string;
   disputed: boolean;
 };
+
 const categories = ["concepts", "entities", "guides", "maps"];
 const labels: Record<string, string> = {
   concepts: "개념",
@@ -29,6 +31,10 @@ function stateLabel(page: WikiLibraryPage) {
   return "검증 필요";
 }
 
+/**
+ * ⚠️ 브래킷을 노출하지 않는다. `[[문서명]]` 은 내부 마크업이므로 표기만 남긴다
+ * (PRODUCT-INVARIANTS.md §4 가 공개 표면에 대해 못박은 규칙의 내부 화면 판본).
+ */
 function preview(content: string) {
   return content
     .replace(/\[\[([^\]]+)\]\]/g, "$1")
@@ -37,6 +43,15 @@ function preview(content: string) {
     .slice(0, 150);
 }
 
+/**
+ * 위키 라이브러리 — 컴파일된 문서의 전체 목록이자 리더로 들어가는 진입점이다.
+ *
+ * 계약: openspec/specs/wiki-library-navigation/spec.md
+ *
+ * ⚠️ 목록 조판은 홈 대시보드(섹션 12)의 .doc-list 를 그대로 재사용한다. 홈의
+ * "컴파일된 위키 문서" 피드와 이 화면은 같은 물건의 요약본과 전체본이므로,
+ * 두 곳이 다르게 생기면 사용자가 같은 목록을 두 번 배워야 한다.
+ */
 export function WikiLibrary({
   pages,
   workspaceId,
@@ -46,6 +61,7 @@ export function WikiLibrary({
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
+
   const visible = useMemo(
     () =>
       pages.filter(
@@ -57,92 +73,91 @@ export function WikiLibrary({
       ),
     [category, pages, query],
   );
+
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-xl">
-      <header className="flex flex-col gap-sm">
-        <div className="flex items-baseline justify-between gap-base">
-          <h1
-            className="text-ink"
-            style={{ font: "600 28px/1.2 var(--font-family-base)" }}
-          >
-            위키
-          </h1>
-          <span className="text-muted" style={{ font: "var(--font-body-sm)" }}>
-            {pages.length}개 문서
-          </span>
+    <div className="content library">
+      <section className="hero" data-od-id="wiki-library-header">
+        <div>
+          <p className="eyebrow">COMPILED KNOWLEDGE</p>
+          <h1>위키</h1>
+          <p>팀의 소스에서 컴파일된 지식 문서입니다.</p>
         </div>
-        <p className="text-body" style={{ font: "var(--font-body-md)" }}>
-          팀의 소스에서 컴파일된 지식 문서입니다.
-        </p>
-      </header>
-      <div className="flex flex-col gap-sm">
-        <input
-          aria-label="위키 문서 검색"
-          className="nw-input h-12 px-base text-ink"
-          placeholder="제목이나 내용으로 검색"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <div className="flex flex-wrap gap-xs" aria-label="카테고리 필터">
-          <button
-            type="button"
-            aria-pressed={category === null}
-            className="nw-focus-ring rounded-full border border-hairline px-base py-sm text-ink"
-            onClick={() => setCategory(null)}
-          >
-            전체
-          </button>
-          {categories.map((item) => (
+      </section>
+
+      <section className="stats" aria-label="위키 요약">
+        <div className="stat">
+          <b>{pages.length}</b>
+          <span>전체 문서</span>
+        </div>
+        <div className="stat">
+          <b>
+            {pages.filter((p) => p.verification_status === "verified").length}
+          </b>
+          <span>검증 완료</span>
+        </div>
+      </section>
+
+      <section data-od-id="wiki-library-list">
+        <div className="toolbar">
+          {/* 카테고리는 탭이 아니라 토글 필터다 — 상호 배타적 뷰 전환이 아니므로
+              role="tab" 을 쓰지 않고 aria-pressed 로 표현한다. */}
+          <div className="chips" role="group" aria-label="카테고리 필터">
             <button
-              key={item}
               type="button"
-              aria-pressed={category === item}
-              className="nw-focus-ring rounded-full border border-hairline px-base py-sm text-ink"
-              onClick={() => setCategory(category === item ? null : item)}
+              aria-pressed={category === null}
+              className="chip"
+              onClick={() => setCategory(null)}
             >
-              {labels[item]}
+              전체
             </button>
-          ))}
-        </div>
-      </div>
-      {visible.length ? (
-        <ul className="divide-y divide-hairline border-y border-hairline">
-          {visible.map((page) => (
-            <li key={page.id}>
-              <Link
-                className="nw-focus-ring block py-lg hover:bg-surface-soft"
-                href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+            {categories.map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={category === item}
+                className="chip"
+                onClick={() => setCategory(category === item ? null : item)}
               >
-                <div className="flex flex-wrap items-center gap-sm">
-                  <h2
-                    className="text-ink"
-                    style={{ font: "var(--font-title-md)" }}
-                  >
-                    {page.title}
-                  </h2>
-                  <span
-                    className="text-muted"
-                    style={{ font: "var(--font-caption-sm)" }}
-                  >
+                {labels[item]}
+              </button>
+            ))}
+          </div>
+          <input
+            aria-label="위키 문서 검색"
+            className="field search"
+            placeholder="제목이나 내용으로 검색"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+
+        {visible.length ? (
+          <div className="doc-list">
+            {visible.map((page) => (
+              <Link
+                key={page.id}
+                className="doc"
+                href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                data-od-id={`wiki-document-${page.slug}`}
+              >
+                <div className="doc-body">
+                  <span className="doc-title">{page.title}</span>
+                  <span className="doc-meta">
                     {labels[page.category] ?? page.category} ·{" "}
                     {stateLabel(page)}
                   </span>
+                  <p className="doc-excerpt">{preview(page.content)}</p>
                 </div>
-                <p
-                  className="mt-xs line-clamp-2 text-body"
-                  style={{ font: "var(--font-body-sm)" }}
-                >
-                  {preview(page.content)}
-                </p>
+                <ChevronRight className="nav-icon" aria-hidden="true" />
               </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="rounded-sm bg-surface-soft p-lg text-body" role="status">
-          조건에 맞는 위키 문서가 없습니다.
-        </p>
-      )}
-    </section>
+            ))}
+          </div>
+        ) : (
+          <p className="library-empty" role="status">
+            조건에 맞는 위키 문서가 없습니다.
+          </p>
+        )}
+      </section>
+    </div>
   );
 }
