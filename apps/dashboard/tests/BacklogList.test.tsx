@@ -19,19 +19,36 @@ describe("BacklogList", () => {
     const items: BacklogItem[] = [
       {
         target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
-          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
-          { id: "page-2", slug: "perf-tuning", title: "성능 튜닝" },
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
+          {
+            id: "page-2",
+            slug: "perf-tuning",
+            title: "성능 튜닝",
+            excerpt: null,
+          },
         ],
       },
       {
         target_slug: "인증-흐름",
+        display_title: "인증 흐름",
         impact: 1,
         first_detected_at: "2026-08-16T00:00:00Z",
         referencing_pages: [
-          { id: "page-3", slug: "auth-spec", title: "인증 명세" },
+          {
+            id: "page-3",
+            slug: "auth-spec",
+            title: "인증 명세",
+            excerpt: null,
+          },
         ],
       },
     ];
@@ -72,18 +89,30 @@ describe("BacklogList", () => {
     const items: BacklogItem[] = [
       {
         target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
-          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
         ],
       },
       {
         target_slug: "인증-흐름",
+        display_title: "인증 흐름",
         impact: 1,
         first_detected_at: "2026-08-16T00:00:00Z",
         referencing_pages: [
-          { id: "page-3", slug: "auth-spec", title: "인증 명세" },
+          {
+            id: "page-3",
+            slug: "auth-spec",
+            title: "인증 명세",
+            excerpt: null,
+          },
         ],
       },
     ];
@@ -98,5 +127,210 @@ describe("BacklogList", () => {
 
     fireEvent.change(searchInput, { target: { value: "존재하지않음" } });
     expect(screen.getByText("검색 결과가 없습니다")).toBeInTheDocument();
+  });
+
+  it("행 라벨은 서버가 복원한 원문 표기를 쓰고, 원본 slug는 보조 줄에 병기한다", () => {
+    // add-backlog-topic-context: display_title은 인용 문서 본문의 [[표기]]에서
+    // 복원한 값이라 target_slug의 하이픈 역변환과 다를 수 있다(대소문자·문장부호
+    // 보존). 이 컴포넌트는 표기를 계산하지 않고 서버가 만든 값을 그대로 쓴다.
+    const items: BacklogItem[] = [
+      {
+        target_slug: "rls-정책v2",
+        display_title: "RLS 정책(v2)",
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
+        ],
+      },
+    ];
+
+    render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+    expect(screen.getByText("RLS 정책(v2)")).toBeInTheDocument();
+    expect(screen.getByText("rls-정책v2")).toBeInTheDocument();
+
+    // 소스 추가 동선도 slug가 아니라 표기를 prefill한다.
+    const addSourceLink = screen.getByRole("link", { name: /소스 추가/ });
+    expect(addSourceLink).toHaveAttribute(
+      "href",
+      `/w/ws-1/sources?prefillTitle=${encodeURIComponent("RLS 정책(v2)")}&tab=text`,
+    );
+  });
+
+  it("표기를 복원하지 못한 주제는 slug 역변환으로 폴백한 display_title을 그대로 렌더한다", () => {
+    // 폴백 계산은 page.tsx(서버)가 하고, 이 컴포넌트는 결과 문자열만 소비한다 —
+    // 여기서는 그 계약을 재확인만 한다.
+    const items: BacklogItem[] = [
+      {
+        target_slug: "아직-못-찾은-주제",
+        display_title: "아직 못 찾은 주제",
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [],
+      },
+    ];
+
+    render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+    expect(screen.getByText("아직 못 찾은 주제")).toBeInTheDocument();
+    expect(screen.getByText("아직-못-찾은-주제")).toBeInTheDocument();
+  });
+
+  describe("상세 패널 (add-backlog-topic-context 2.1)", () => {
+    const items: BacklogItem[] = [
+      {
+        target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
+        impact: 3,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
+          {
+            id: "page-2",
+            slug: "perf-tuning",
+            title: "성능 튜닝",
+            excerpt: null,
+          },
+        ],
+      },
+    ];
+
+    it("주제 행을 열면 패널이 표기·최초 감지 시각·인용 위키·소스 추가 동선을 보여준다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(
+        panel.getByRole("heading", { name: "캐시 계층 전략" }),
+      ).toBeInTheDocument();
+      expect(panel.getByText("캐시-계층-전략")).toBeInTheDocument();
+      expect(panel.getByText(/최초 감지/)).toBeInTheDocument();
+
+      // 인용 중인 위키 목록 — 목록 행의 doc-chips와 별개로 패널 안에 또 있다.
+      expect(
+        panel.getByRole("link", { name: "아키텍처 가이드" }),
+      ).toHaveAttribute("href", "/w/ws-1/wiki/arch-guide");
+      expect(panel.getByRole("link", { name: "성능 튜닝" })).toHaveAttribute(
+        "href",
+        "/w/ws-1/wiki/perf-tuning",
+      );
+
+      // 소스 추가는 목록 행과 같은 목적지다.
+      expect(panel.getByRole("link", { name: "소스 추가" })).toHaveAttribute(
+        "href",
+        `/w/ws-1/sources?prefillTitle=${encodeURIComponent("캐시 계층 전략")}&tab=text`,
+      );
+    });
+
+    it("닫기 버튼을 누르면 패널이 사라진다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("인용 문서가 없는 주제는 패널에 안내 문구를 보여준다", () => {
+      const emptyRefsItems: BacklogItem[] = [
+        {
+          target_slug: "고아-주제",
+          display_title: "고아 주제",
+          impact: 1,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={emptyRefsItems} />);
+      fireEvent.click(screen.getByRole("button", { name: /고아 주제/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(panel.getByText("인용 문서 없음")).toBeInTheDocument();
+    });
+  });
+
+  describe("인용 문맥 발췌 (add-backlog-topic-context 3.1)", () => {
+    it("인용 문서마다 서버가 만든 발췌를 하나씩 보여준다", () => {
+      const items: BacklogItem[] = [
+        {
+          target_slug: "캐시-계층-전략",
+          display_title: "캐시 계층 전략",
+          impact: 2,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [
+            {
+              id: "page-1",
+              slug: "arch-guide",
+              title: "아키텍처 가이드",
+              excerpt: "…읽기 경로는 [캐시 계층 전략]을 따라 조회한다…",
+            },
+            {
+              id: "page-2",
+              slug: "perf-tuning",
+              title: "성능 튜닝",
+              excerpt: null,
+            },
+          ],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(
+        panel.getByText("…읽기 경로는 [캐시 계층 전략]을 따라 조회한다…"),
+      ).toBeInTheDocument();
+
+      // 발췌가 없는 문서(excerpt: null)는 링크만 있고 발췌 문단이 없다 —
+      // 문단을 빈 채로 그리지 않는다.
+      const secondPageLink = panel.getByRole("link", { name: "성능 튜닝" });
+      expect(secondPageLink.nextElementSibling).toBeNull();
+    });
+
+    it("발췌는 링크 접근성 이름에 섞이지 않는다 — 별도 문단으로 렌더한다", () => {
+      // 발췌를 <Link> 안에 넣으면 스크린 리더가 링크 이름으로 발췌 전체를
+      // 읽는다. 링크 이름은 문서 제목만이어야 한다.
+      const items: BacklogItem[] = [
+        {
+          target_slug: "캐시-계층-전략",
+          display_title: "캐시 계층 전략",
+          impact: 1,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [
+            {
+              id: "page-1",
+              slug: "arch-guide",
+              title: "아키텍처 가이드",
+              excerpt: "…발췌 문장…",
+            },
+          ],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(
+        panel.getByRole("link", { name: "아키텍처 가이드" }),
+      ).toBeInTheDocument();
+    });
   });
 });
