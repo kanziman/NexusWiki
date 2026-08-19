@@ -25,22 +25,32 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     redirect("/login");
   }
 
-  const [membershipResult, workspaceResult] = await Promise.all([
-    supabase
-      .from("workspace_members")
-      .select("role")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("workspaces")
-      .select("name,slug")
-      .eq("id", workspaceId)
-      .maybeSingle(),
-  ]);
+  const [membershipResult, workspaceResult, publicSettingsResult] =
+    await Promise.all([
+      supabase
+        .from("workspace_members")
+        .select("role")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("workspaces")
+        .select("name,slug")
+        .eq("id", workspaceId)
+        .maybeSingle(),
+      // ⚠️ 이 조회가 없으면 공개 설정 폼이 항상 기본값(꺼짐·빈 문자열)으로 뜬다.
+      // 그 상태에서 저장하면 upsert 가 실제 값을 덮어써 표시명·설명이 null 이 되고
+      // 켜져 있던 공개 공유가 조용히 꺼진다 — 폼이 화면에 보여준 적 없는 값으로.
+      supabase
+        .from("workspace_public_settings")
+        .select("allow_public_sharing,public_display_name,public_description")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle(),
+    ]);
 
   const membership = membershipResult.data;
   const workspace = workspaceResult.data;
+  const publicSettings = publicSettingsResult.data;
   const currentRole = membership?.role ?? "viewer";
 
   return (
@@ -64,6 +74,9 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         currentRole={currentRole}
         workspaceName={workspace?.name ?? ""}
         workspaceSlug={workspace?.slug ?? ""}
+        allowPublicSharing={publicSettings?.allow_public_sharing ?? false}
+        publicDisplayName={publicSettings?.public_display_name ?? ""}
+        publicDescription={publicSettings?.public_description ?? ""}
       />
     </div>
   );

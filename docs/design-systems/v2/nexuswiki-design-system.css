@@ -2177,6 +2177,14 @@ summary:focus-visible {
   vertical-align: middle;
 }
 
+/* ⚠️ WikiPageContent 는 리더(`/wiki/[slug]`)와 인스펙터의 위키 탭이 함께 쓰는
+   컴포넌트라 .reader-layout + .toc 를 그대로 들고 들어온다. 섹션 15 가 목차를
+   감추는 조건은 뷰포트(960px)라 데스크톱 인스펙터에는 걸리지 않는다 — 42% 폭
+   패널 안에 280px 고정 열이 생겨 본문이 짓눌린다. 컨테이너 기준으로 막는다. */
+.inspect .reader-layout { display: block }
+.inspect .toc { display: none }
+.inspect .reader { width: 100%; padding: 0 }
+
 /* 인스펙터의 빈 상태 — 대화에서 인용을 누르기 전의 기본 화면이다.
    이 화면은 대부분의 시간을 이 상태로 보내므로 "덜 그려진 화면"처럼 보이면 안 된다. */
 .inspect-empty { display: grid; gap: 6px; padding: 34px 8px; text-align: center }

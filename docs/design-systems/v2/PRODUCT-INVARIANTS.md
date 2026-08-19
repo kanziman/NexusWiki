@@ -98,6 +98,7 @@
 * **동작 계약**:
   1. **[미구현]** **`workspaces.slug` 가 전역 고유 식별자의 정본**이고, `workspace_public_settings.workspace_slug` 는 트리거로 파생되는 **읽기 전용 복제본**이다 (`checklists.json > decisions.workspace_slug`).
   2. 라우터는 해당 워크스페이스의 마스터 스위치가 ON 이고 발행본(**[미구현]** `wiki_page_publications`)이 있을 때만 렌더링한다.
+     * ⚠️ **공개 라우트는 세션 쿠키를 싣지 않는 `anon` 클라이언트로 조회해야 한다.** 사이드카의 `*_select_public` 정책은 킬스위치를 보지만 `*_select_member` 정책은 보지 않고, 두 정책은 OR 로 결합된다 — `authenticated` 로 실행하면 **멤버에게만 킬스위치가 무력화된다.** `/p/` 는 미들웨어 matcher 밖이라 쿠키가 그대로 실려 오므로, 요청자 세션 클라이언트를 쓰는 순간 오너가 공개를 내리고 자기 브라우저로 확인해도 페이지가 그대로 뜬다. 구현: `apps/dashboard/lib/supabase/public.ts`.
 * 로그인 사용자용 내부 라우트는 `/w/[workspace_slug]/...` 로 공개 경로와 분리한다.
 
 ### [금지] 공개 경로에서 `workspaces` 를 조인하지 않음

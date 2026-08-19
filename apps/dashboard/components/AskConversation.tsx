@@ -279,7 +279,13 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }
 
   return (
-    <main className="conversation" data-od-id="conversation-thread">
+    <section className="conversation" data-od-id="conversation-thread">
+      {/* dashboard-design-consistency 「Consistent workspace page structure」는
+          모든 목적지에 페이지 제목을 요구한다. 이 화면의 프로토타입은 제목 줄을
+          두지 않고 상단바 브레드크럼이 맥락을 지므로, 시각 디자인은 그대로 두고
+          접근성 트리에만 제목을 남긴다. ⚠️ 셸이 이미 <main> 을 쓰므로 여기서
+          <main> 을 또 열지 않는다 — 한 문서에 main 은 하나여야 한다. */}
+      <h1 className="sr-only">질문하기</h1>
       <div className="thread" data-testid="ask-conversation">
         {turns.length === 0 ? (
           <div className="thread-empty">
@@ -417,7 +423,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           </button>
         </div>
       </form>
-    </main>
+    </section>
   );
 }
 

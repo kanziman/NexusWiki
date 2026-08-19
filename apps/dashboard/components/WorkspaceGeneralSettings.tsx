@@ -11,6 +11,9 @@ export type WorkspaceGeneralSettingsProps = {
   initialName: string;
   initialSlug: string;
   isOwner: boolean;
+  allowPublicSharing?: boolean;
+  publicDisplayName?: string;
+  publicDescription?: string;
 };
 
 const SLUG_REGEX = /^[0-9a-z가-힣][0-9a-z가-힣-]*$/;
@@ -20,6 +23,9 @@ export function WorkspaceGeneralSettings({
   initialName,
   initialSlug,
   isOwner,
+  allowPublicSharing = false,
+  publicDisplayName = "",
+  publicDescription = "",
 }: WorkspaceGeneralSettingsProps) {
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
@@ -163,6 +169,9 @@ export function WorkspaceGeneralSettings({
         workspaceId={workspaceId}
         workspaceSlug={slug || initialSlug}
         isOwner={isOwner}
+        initialAllowPublicSharing={allowPublicSharing}
+        initialDisplayName={publicDisplayName}
+        initialDescription={publicDescription}
       />
     </>
   );

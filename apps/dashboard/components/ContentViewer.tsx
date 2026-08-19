@@ -181,6 +181,9 @@ type WikiTabState =
   | { status: "not-found" }
   | {
       status: "ready";
+      // ⚠️ WikiPageRow 에는 slug 가 없다(lib/wiki-lookup.ts). 리더로 넘어가는
+      // 링크가 조회에 쓴 것과 정확히 같은 slug 를 쓰도록 여기 함께 담는다.
+      slug: string;
       page: WikiPageRow;
       links: WikiLinkRow[];
       canVerify: boolean;
@@ -220,7 +223,13 @@ function WikiTab({
         resolveCanVerify(supabase, workspaceId),
       ]);
       if (cancelled) return;
-      setState({ status: "ready", page, links, canVerify });
+      setState({
+        status: "ready",
+        slug: slug as string,
+        page,
+        links,
+        canVerify,
+      });
     }
 
     load();
@@ -246,12 +255,23 @@ function WikiTab({
     );
   }
   return (
-    <WikiPageContent
-      page={state.page}
-      links={state.links}
-      workspaceId={workspaceId}
-      canVerify={state.canVerify}
-    />
+    <>
+      <WikiPageContent
+        page={state.page}
+        links={state.links}
+        workspaceId={workspaceId}
+        canVerify={state.canVerify}
+      />
+      {/* unified-workspace-viewer 「Member opens the full reader from the viewer」.
+          인스펙터는 답변의 근거를 확인하는 곳이고 리더는 문서를 읽는 곳이라,
+          여기서 문서 전체로 넘어갈 길이 없으면 두 화면이 끊긴다. */}
+      <Link
+        className="link"
+        href={`${workspacePath(workspaceId)}/wiki/${state.slug}`}
+      >
+        위키 전체 페이지 읽기 ↗
+      </Link>
+    </>
   );
 }
 

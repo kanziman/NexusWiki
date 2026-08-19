@@ -13,6 +13,9 @@ export type SettingsMembersPanelProps = {
   currentRole: string;
   workspaceName?: string;
   workspaceSlug?: string;
+  allowPublicSharing?: boolean;
+  publicDisplayName?: string;
+  publicDescription?: string;
 };
 
 type TabId = "general" | "members" | "operations";
@@ -31,6 +34,9 @@ export function SettingsMembersPanel({
   currentRole,
   workspaceName = "",
   workspaceSlug = "",
+  allowPublicSharing = false,
+  publicDisplayName = "",
+  publicDescription = "",
 }: SettingsMembersPanelProps) {
   const [refreshToken, setRefreshToken] = useState(0);
   const isOwner = currentRole === "owner";
@@ -99,6 +105,9 @@ export function SettingsMembersPanel({
             initialName={workspaceName}
             initialSlug={workspaceSlug}
             isOwner={isOwner}
+            allowPublicSharing={allowPublicSharing}
+            publicDisplayName={publicDisplayName}
+            publicDescription={publicDescription}
           />
         </section>
       ) : activeTab === "members" ? (

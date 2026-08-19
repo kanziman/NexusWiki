@@ -29,8 +29,18 @@ let mockPub: {
   published_at: string;
 } | null = null;
 
+// ⚠️ 세션 클라이언트가 쓰이면 즉시 실패해야 한다 — 이 회귀가 정확히
+// "테스트는 통과하는데 킬스위치만 조용히 무력화되는" 형태였다.
+const sessionClient = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
+  createClient: (...args: unknown[]) => {
+    sessionClient(...args);
+    throw new Error("공개 라우트가 요청자 세션 클라이언트를 사용했다");
+  },
+}));
+
+vi.mock("@/lib/supabase/public", () => ({
+  createPublicClient: vi.fn(() => ({
     from: (table: string) => ({
       select: () => ({
         eq: () => ({
@@ -55,6 +65,31 @@ vi.mock("@/lib/supabase/server", () => ({
 import PublicWikiPage from "@/app/p/[slug]/[page]/page";
 
 describe("PublicWikiPage route", () => {
+  it("세션 쿠키를 싣지 않는 anon 클라이언트로만 조회한다", async () => {
+    mockSettings = {
+      workspace_id: "ws-1",
+      workspace_slug: "engineering",
+      allow_public_sharing: true,
+      public_display_name: "엔지니어링 팀",
+      public_description: null,
+    };
+    mockPub = {
+      published_slug: "cache-strategy",
+      published_title: "캐시 계층 전략",
+      published_content: "본문",
+      published_citations: [],
+      published_at: "2026-08-17T00:00:00Z",
+    };
+
+    await PublicWikiPage({
+      params: Promise.resolve({ slug: "engineering", page: "cache-strategy" }),
+    });
+
+    // 0016 의 *_select_member 정책은 킬스위치를 보지 않는다. authenticated 로
+    // 실행하는 순간 멤버에게는 킬스위치가 꺼진 페이지도 렌더링된다.
+    expect(sessionClient).not.toHaveBeenCalled();
+  });
+
   it("calls notFound when public sharing is not enabled or workspace is not found", async () => {
     mockSettings = null;
     mockPub = null;

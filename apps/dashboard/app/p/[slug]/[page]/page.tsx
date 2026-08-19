@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
 
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 type PublicWikiPageProps = {
   params: Promise<{ slug: string; page: string }>;
@@ -31,11 +31,16 @@ export default async function PublicWikiPage({ params }: PublicWikiPageProps) {
   const decodedSlug = decodeURIComponent(slug);
   const decodedPage = decodeURIComponent(page);
 
-  const supabase = await createClient();
+  // ⚠️ 요청자 세션 클라이언트를 쓰지 않는다. `/p/` 는 미들웨어 matcher 밖이라
+  // 세션 쿠키가 그대로 실려 오는데, `authenticated` 로 실행하면 0016 의
+  // `*_select_member` 정책이 킬스위치와 무관하게 행을 돌려준다 — 멤버에게만
+  // 킬스위치가 무력화된다. 근거와 실측은 lib/supabase/public.ts 주석에 있다.
+  const supabase = createPublicClient();
 
-  // ⚠️ `allow_public_sharing = true` 를 여기 적지 않는다(PRD §3.1). 양쪽
-  // 테이블의 RLS 가 이미 강제한다 — 앱이 같은 조건을 다시 적으면 "앱이 막고
-  // 있다"는 착각이 생기고, 앱에서 빠뜨린 날 격리가 무너진다. 차단은 DB 가 한다.
+  // ⚠️ `allow_public_sharing = true` 를 여기 적지 않는다(PRD §3.1). anon 으로
+  // 실행되는 한 양쪽 테이블의 RLS 가 이미 강제한다 — 앱이 같은 조건을 다시
+  // 적으면 "앱이 막고 있다"는 착각이 생기고, 앱에서 빠뜨린 날 격리가 무너진다.
+  // 차단은 DB 가 하되, 그 전제(anon 실행)는 위 클라이언트 선택이 보장한다.
   const { data: settingsData } = await supabase
     .from("workspace_public_settings")
     .select(
