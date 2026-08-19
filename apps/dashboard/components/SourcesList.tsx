@@ -217,13 +217,19 @@ export function SourcesList({
         ) : (
           <div className="table-wrap">
             <table className="table" id="sources-library">
+              {/* ⚠️ 프로토타입(26/27/14/15/12/6)에서 의도적으로 벗어난 값이다.
+                  프로토타입의 파이프라인 칸은 정적 레이블 하나지만 앱은 진행률
+                  막대와 취소·재시도 버튼을 함께 싣는다 — 15% 로는 상태 문구가
+                  한 글자씩 세로로 접힌다. 남는 폭은 말줄임이 이미 걸려 있는
+                  두 칸(소스 파일·연결된 위키)에서 가져온다. 액션 칸도 6% 로는
+                  "상세 보기"가 두 줄이 되어 행 높이를 늘린다. */}
               <colgroup>
-                <col style={{ width: "26%" }} />
-                <col style={{ width: "27%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "23%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "25%" }} />
                 <col style={{ width: "12%" }} />
-                <col style={{ width: "6%" }} />
+                <col style={{ width: "10%" }} />
               </colgroup>
               <thead>
                 <tr>

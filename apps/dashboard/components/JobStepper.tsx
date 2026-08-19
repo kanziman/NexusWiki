@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { CheckCircle2, RefreshCw, X, XCircle } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
@@ -169,7 +169,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       <div
         aria-busy="true"
         data-testid="job-stepper-skeleton"
-        className="h-8 animate-pulse rounded-none bg-[var(--nw-rule)]"
+        className="pipe-skeleton animate-pulse"
       />
     );
   }
@@ -204,31 +204,21 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
           ? "처리에 실패했습니다"
           : "처리 상태를 확인하고 있습니다";
 
+  // PRD §3.3 상태 표기 계약 — 색을 직접 지정하지 않고 .status 변형만 고른다
+  // (불변식 §7). 상태 판정은 위에서 이미 끝났으므로 여기서는 이름만 고른다.
+  const statusVariant = allSucceeded
+    ? ""
+    : failedJobs.length > 0
+      ? " failed"
+      : " pending";
+
   return (
-    <div className="flex flex-col gap-sm border-l border-[var(--nw-rule)] pl-base sm:pl-lg">
-      <div className="flex items-center gap-sm" role="status">
-        {allSucceeded ? (
-          <CheckCircle2
-            size={16}
-            aria-hidden="true"
-            className="text-success-text"
-          />
-        ) : failedJobs.length > 0 ? (
-          <XCircle
-            size={16}
-            aria-hidden="true"
-            className="text-primary-error-text"
-          />
-        ) : (
-          <span
-            aria-hidden="true"
-            className="h-3 w-3 rounded-full border-2 border-[var(--nw-ink)] bg-[var(--nw-ink)]"
-          />
-        )}
-        <span
-          className="flex-1 text-[var(--nw-ink)]"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
-        >
+    <div className="pipe">
+      <div className="pipe-line" role="status">
+        {/* 상태 색은 .dot 이 .status 변형에서 상속받는다 — 아이콘 컴포넌트를
+            쓰면 색을 다시 지정해야 하고, 그 순간 표기 계약이 두 곳으로 갈린다. */}
+        <span className={`status${statusVariant}`}>
+          <i className="dot" aria-hidden="true" />
           {statusText} · {progressValue}/5단계 완료
         </span>
         {currentJob ? (
@@ -236,27 +226,23 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
             type="button"
             aria-label="취소"
             onClick={() => setCancelTarget(currentJob)}
-            className="nw-focus-ring flex h-11 w-11 items-center justify-center rounded-sm text-[var(--nw-muted)]"
+            className="nw-focus-ring pipe-action"
           >
-            <X size={18} aria-hidden="true" />
+            <X size={15} aria-hidden="true" />
           </button>
         ) : null}
       </div>
       <progress
         aria-label={`처리 진행률 ${progressValue}/5단계 완료`}
         aria-valuetext={`${progressValue}/5단계 완료`}
-        className="h-1 w-full accent-[var(--nw-ink)]"
+        className="pipe-bar"
         max={5}
         value={progressValue}
       />
 
       {failedJobs.map((job) => (
-        <div key={job.id} className="flex items-start gap-sm">
-          <p
-            role="alert"
-            className="flex-1 text-[var(--nw-danger)]"
-            style={{ font: "var(--font-caption)", fontWeight: 600 }}
-          >
+        <div key={job.id} className="pipe-error">
+          <p role="alert">
             {`${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
               job.last_error,
             )}. 재시도를 눌러 다시 시도하세요.`}
@@ -266,9 +252,9 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
             aria-label="재시도"
             onClick={() => handleRetry(job.id)}
             disabled={retryingId === job.id}
-            className="nw-focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-sm text-primary-error-text disabled:opacity-60"
+            className="nw-focus-ring pipe-action danger"
           >
-            <RefreshCw size={18} aria-hidden="true" />
+            <RefreshCw size={15} aria-hidden="true" />
           </button>
         </div>
       ))}

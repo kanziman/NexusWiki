@@ -29,6 +29,11 @@
  * 1. 토큰
  * -------------------------------------------------------------------------- */
 :root {
+  /* 셸 상단바 높이. ⚠️ 값이 아니라 토큰이어야 한다 — 상단바 구분선을 기준으로
+     정렬하는 곳이 셋이다(LNB 스위처 아래 경계, 리더 목차의 sticky top, 목차
+     높이). 숫자를 세 곳에 흩뿌리면 한 곳만 고쳐 놓고 나머지가 조용히 어긋난다. */
+  --topbar-h: 66px;
+
   --bg: oklch(1 0 0);                     /* 문서·폼·모달의 기본 배경 */
   --surface: oklch(.982 .004 247);        /* LNB, 테이블 헤더, 비활성 보조 영역 */
   --fg: oklch(.208 .033 264);             /* 본문·제목 */
@@ -96,11 +101,15 @@ summary:focus-visible {
    밀어내 페이지 전체에 가로 스크롤이 생긴다. */
 .workspace { min-width: 0 }
 
+/* ⚠️ 상단 여백은 18px 같은 임의 값이 아니라 상단바 높이에서 스위처 높이를 뺀
+   값이다. 스위처 아래 경계와 상단바 구분선은 화면에서 나란히 놓이므로, 3px만
+   어긋나도 사용자에게는 "선이 안 맞은 화면"으로 읽힌다.
+   스위처 높이 45px = 마크 27px + 상하 패딩 8px 2개 + 상하 테두리 1px 2개. */
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 18px 12px;
+  padding: calc(var(--topbar-h) - 45px) 12px 18px;
   background: var(--surface);
   border-right: 1px solid var(--border);
 }
@@ -350,7 +359,7 @@ summary:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 66px;
+  height: var(--topbar-h);
   padding: 0 42px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
@@ -613,7 +622,11 @@ summary:focus-visible {
 }
 
 @media (max-width: 640px) {
-  .topbar { height: 58px; padding: 0 14px }
+  /* 높이를 .topbar 에 직접 쓰지 않고 토큰을 낮춘다 — 상단바에 맞춰 정렬하는
+     쪽(LNB 서랍의 상단 여백 등)이 함께 따라오지 않으면 이 구간에서만 어긋난다. */
+  :root { --topbar-h: 58px }
+
+  .topbar { padding: 0 14px }
   .crumb { font-size: 12px }
   .crumb b, .crumb > span { display: none }
 
@@ -1615,6 +1628,73 @@ summary:focus-visible {
 .selected .doc-chip { background: var(--bg); border-color: oklch(.58 .11 190/.20) }
 .selected .doc-chip::before { box-shadow: 3px -3px 0 -2px var(--bg), 3px -3px 0 -1px currentColor }
 
+/* 파이프라인 상태 셀 — PRD §3.3 의 표기 계약(.status · .status.pending ·
+   .status.failed)을 이 칸의 폭 안에서 쓰기 위한 껍데기다.
+
+   ⚠️ 프로토타입은 이 칸에 정적 레이블 하나만 두지만 앱은 5단계 진행률 막대와
+      취소·재시도 액션을 함께 싣는다. 이식 전 마크업은 셀 안에서 좌측 테두리 +
+      24px 들여쓰기 + 44px 버튼을 썼고, 그 셋이 칸 폭을 다 먹어 상태 문구가 한
+      글자씩 세로로 줄바꿈됐다. 표에서 액션은 28px 로 두고, 44px 터치 영역은
+      행이 카드로 바뀌는 900px 이하에서 확보한다 — responsive-layout-rules.md 의
+      44px 규칙은 카드의 액션 버튼에 대한 것이다. */
+.pipe { display: grid; gap: 6px; min-width: 0 }
+.pipe-line { display: flex; align-items: center; gap: 6px; min-width: 0 }
+
+/* 셀 안에서는 상태 문구가 두 줄로 접히는 편이 잘려 사라지는 것보다 낫다 —
+   .status 가 전역으로 걸어 둔 nowrap 을 이 자리에서만 푼다. */
+.pipe-line .status { flex: 1; min-width: 0; white-space: normal; line-height: 1.45 }
+
+.pipe-action {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.pipe-action:hover { background: var(--surface); color: var(--fg) }
+.pipe-action:disabled { opacity: .6 }
+.pipe-action.danger { color: var(--danger) }
+
+/* 진행률 막대. appearance 를 지우지 않으면 브라우저 기본 위젯이 그대로 나와
+   표 안에서 높이도 색도 제각각이 된다 — 세 엔진의 의사요소를 모두 덮는다. */
+.pipe-bar {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.pipe-bar::-webkit-progress-bar { background: var(--border) }
+.pipe-bar::-webkit-progress-value { background: var(--fg) }
+.pipe-bar::-moz-progress-bar { background: var(--fg) }
+
+.pipe-error { display: flex; align-items: flex-start; gap: 6px }
+
+.pipe-error p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--danger);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* 로드 전 자리를 잡아 둔다 — 높이가 없으면 폴링 첫 응답에서 행 높이가 튄다. */
+.pipe-skeleton { height: 30px; border-radius: 6px; background: var(--surface) }
+
+/* 액션 열은 문구를 접지 않는다. "상세 보기"가 두 줄로 접히면 행 높이가 그
+   칸 하나 때문에 늘어난다. */
+.content.sources .table td:last-child { padding-left: 0; text-align: right; white-space: nowrap }
+
 .content.sources .more {
   width: 28px;
   height: 28px;
@@ -1696,6 +1776,11 @@ summary:focus-visible {
   .table .doc-chip { max-width: min(100%, 300px) }
   .table .sub { margin-top: 1px }
   .content.sources .table .more { width: 32px; height: 32px }
+
+  /* 카드에서는 responsive-layout-rules.md §액션 의 44px 터치 영역을 지킨다.
+     표에서 28px 이었던 것은 칸 폭 때문이지 이 규칙의 예외라서가 아니다. */
+  .pipe-action { width: 44px; height: 44px }
+  .content.sources .table td:last-child { text-align: left }
 }
 
 @media (max-width: 640px) {
@@ -1819,14 +1904,14 @@ summary:focus-visible {
    ⚠️ top:0 / height:100vh 로 두면 안 된다. 이 패널은 앱 셸 안에서 렌더링되고
    셸의 .topbar 는 sticky·66px·z-index:5 다 — 스크롤하면 목차가 상단바 *뒤로*
    미끄러져 들어가 제목과 첫 항목이 가려지고, 100vh 는 화면 아래로 66px 넘쳐
-   마지막 항목에 닿을 수 없다. 상단바 높이만큼 내리고 그만큼 줄인다.
+   마지막 항목에 닿을 수 없다. 상단바 높이(--topbar-h)만큼 내리고 그만큼 줄인다.
    960px 이하에서는 아래 미디어 쿼리가 목차를 감추므로 상단바가 58px 로 줄어드는
    640px 구간은 이 값과 무관하다. */
 .toc {
   position: sticky;
-  top: 66px;
+  top: var(--topbar-h);
   align-self: start;
-  height: calc(100vh - 66px);
+  height: calc(100vh - var(--topbar-h));
   overflow: auto;
   padding: 24px 20px 28px;
   border-left: 1px solid var(--border);
@@ -2221,8 +2306,11 @@ summary:focus-visible {
 .thread-empty span { color: var(--muted); font-size: 13px }
 
 /* 프롬프트 템플릿 칩. 선택 상태는 aria-pressed 를 그대로 선택자로 쓴다 —
-   .active 클래스를 따로 붙이면 시각 상태와 접근성 상태가 갈라질 수 있다. */
-.conversation .chips { margin-top: 0; padding: 0 clamp(20px, 4vw, 54px) }
+   .active 클래스를 따로 붙이면 시각 상태와 접근성 상태가 갈라질 수 있다.
+   ⚠️ 아래 여백은 장식이 아니다. 칩 바로 다음 형제가 .composer 이고 그 위쪽
+   테두리가 입력 영역을 가르는 구분선이다 — 여백이 0 이면 알약이 구분선에
+   붙어, 칩이 입력 영역에 속한 것처럼 읽힌다(실제로는 스레드 쪽 도구다). */
+.conversation .chips { margin-top: 0; margin-bottom: 14px; padding: 0 clamp(20px, 4vw, 54px) }
 .conversation .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); color: var(--accent) }
 
 @media (max-width: 900px) {
