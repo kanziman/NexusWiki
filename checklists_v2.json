@@ -840,7 +840,7 @@
     {
           "id": "OD-08",
           "title": "백로그 상세 패널 · 원문 표기 제목",
-          "description": "backlog-management-prd.md §3.3(행 클릭 시 우측 슬라이드아웃: 인용 문맥 발췌)과 §6-2 권고안 (c)(target_slug 역변환 대신 from_wiki_id 본문에서 원문 [[표기]]를 찾아 제목으로 쓴다). 둘 다 같은 조회 경로(§4.3)를 쓴다 — from_wiki_id 의 content 를 읽어 [[target]] 주변을 잘라낸다. ⚠️ 본문 전체를 클라이언트로 내려보내지 않는다. 서버에서 발췌해 스니펫만 응답한다. 새 사용자 동작이라 backlog-ask 스펙에 없다 — OpenSpec change 로 제안한 뒤 구현한다.",
+          "description": "backlog-management-prd.md §3.3(행 클릭 시 우측 슬라이드아웃: 인용 문맥 발췌)과 §6-2 권고안 (c)(target_slug 역변환 대신 from_wiki_id 본문에서 원문 [[표기]]를 찾아 제목으로 쓴다). 둘 다 같은 조회 경로(§4.3)를 쓴다 — from_wiki_id 의 content 를 읽어 [[target]] 주변을 잘라낸다. ⚠️ 본문 전체를 클라이언트로 내려보내지 않는다. 서버에서 발췌해 스니펫만 응답한다. 새 사용자 동작이라 backlog-ask 스펙에 없었다. 2026-08-19 계획 완료 — GitHub Issue #37(umbrella, OPEN) · #38 · #39 · #40, OpenSpec change openspec/changes/add-backlog-topic-context/. 구현은 /opsx:apply 로 별도 진행한다.",
           "blocking": [],
           "blocking_level": "deferred"
     },
