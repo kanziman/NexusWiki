@@ -81,4 +81,38 @@ describe("WorkspaceSwitcher", () => {
 
     expect(push).not.toHaveBeenCalled();
   });
+
+  it("소속 워크스페이스가 3개 미만이면 /w/new로 가는 생성 링크를 보여준다", async () => {
+    const user = userEvent.setup();
+    render(
+      <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId="ws-1" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /워크스페이스 하나/ }));
+
+    const createLink = await screen.findByRole("menuitem", {
+      name: /새 워크스페이스 생성/,
+    });
+    expect(createLink).toHaveAttribute("href", "/w/new");
+  });
+
+  it("소속 워크스페이스가 3개면 생성 링크를 보여주지 않는다", async () => {
+    const user = userEvent.setup();
+    const threeWorkspaces = [
+      ...workspaces,
+      { id: "ws-3", name: "워크스페이스 셋" },
+    ];
+    render(
+      <WorkspaceSwitcher
+        workspaces={threeWorkspaces}
+        currentWorkspaceId="ws-1"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /워크스페이스 하나/ }));
+
+    expect(
+      screen.queryByRole("menuitem", { name: /새 워크스페이스 생성/ }),
+    ).not.toBeInTheDocument();
+  });
 });

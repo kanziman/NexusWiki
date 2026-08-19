@@ -120,15 +120,17 @@ export function WorkspaceSwitcher({
 
             <div className="my-1 border-t border-[var(--border)]" />
 
-            <DropdownMenu.Item asChild>
-              <Link
-                href="/"
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--fg)] outline-none hover:bg-[var(--surface)] transition-colors"
-              >
-                <Plus size={13} aria-hidden="true" />
-                <span>새 워크스페이스 생성</span>
-              </Link>
-            </DropdownMenu.Item>
+            {workspaces.length < 3 ? (
+              <DropdownMenu.Item asChild>
+                <Link
+                  href="/w/new"
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--fg)] outline-none hover:bg-[var(--surface)] transition-colors"
+                >
+                  <Plus size={13} aria-hidden="true" />
+                  <span>새 워크스페이스 생성</span>
+                </Link>
+              </DropdownMenu.Item>
+            ) : null}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>

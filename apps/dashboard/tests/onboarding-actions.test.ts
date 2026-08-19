@@ -7,12 +7,14 @@ const state = vi.hoisted(() => ({
     data: { id: string } | null;
     error: { code?: string } | null;
   }>,
+  existingWorkspaces: [] as Array<{ id: string }>,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },
     from: () => ({
+      select: async () => ({ data: state.existingWorkspaces, error: null }),
       insert: (record: Record<string, string>) => {
         state.inserts.push(record);
         return {
@@ -33,6 +35,7 @@ describe("createPersonalWorkspace", () => {
     state.user = { id: "user-1" };
     state.inserts = [];
     state.results = [];
+    state.existingWorkspaces = [];
   });
 
   it("personal workspace를 요청자 owner로 생성한다", async () => {
@@ -72,6 +75,15 @@ describe("createPersonalWorkspace", () => {
     });
     await expect(createPersonalWorkspace("가".repeat(101))).resolves.toEqual({
       error: "이름은 1~100자여야 합니다.",
+    });
+    expect(state.inserts).toEqual([]);
+  });
+
+  it("이미 3개 소속이면 생성하지 않고 상한 오류를 반환한다", async () => {
+    state.existingWorkspaces = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+    await expect(createPersonalWorkspace("나의 위키")).resolves.toEqual({
+      error: "워크스페이스는 최대 3개까지 만들 수 있습니다.",
     });
     expect(state.inserts).toEqual([]);
   });
