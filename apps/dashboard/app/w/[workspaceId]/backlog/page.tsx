@@ -1,5 +1,5 @@
 import { BacklogItem, BacklogList } from "@/components/BacklogList";
-import { firstWikiLinkSpelling } from "@/lib/wiki-links";
+import { firstWikiLinkExcerpt, firstWikiLinkSpelling } from "@/lib/wiki-links";
 import { createClient } from "@/lib/supabase/server";
 
 type BacklogPageProps = {
@@ -156,7 +156,23 @@ export default async function BacklogPage({ params }: BacklogPageProps) {
         resolveDisplayTitle(item.target_slug, pages, contentByPageId) ??
         deslugify(item.target_slug);
 
-      return { ...item, referencing_pages: pages, display_title: displayTitle };
+      // 3.1: 인용 문서마다 발췌를 하나씩 붙인다. 본문(content) 자체는 여기서
+      // 소비되고 끝난다 — BacklogItem 은 display_title/excerpt 같은 계산된
+      // 문자열만 들고 클라이언트로 나간다(design.md "위키 본문 전문이
+      // 클라이언트로 전달되지 않는다").
+      const referencingPages = pages.map((page) => {
+        const content = contentByPageId.get(page.id);
+        const excerpt = content
+          ? firstWikiLinkExcerpt(content, item.target_slug)
+          : null;
+        return { ...page, excerpt };
+      });
+
+      return {
+        ...item,
+        referencing_pages: referencingPages,
+        display_title: displayTitle,
+      };
     })
     .sort(
       (a, b) =>

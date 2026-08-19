@@ -35,7 +35,7 @@ Issue: https://github.com/kanziman/NexusWiki/issues/39
 
 Issue: https://github.com/kanziman/NexusWiki/issues/40
 
-- [ ] 3.1 패널이 인용 문서마다 링크 주변 발췌를 보여준다.
+- [x] 3.1 패널이 인용 문서마다 링크 주변 발췌를 보여준다.
   - Given: 인용 문서 본문에 결손 주제로의 링크가 포함돼 있다.
   - When: 멤버가 그 주제의 패널을 연다.
   - Then: 인용 문서마다 링크 등장 지점 주변을 자른 스니펫이 하나씩 표시되고, 잘린 쪽에 말줄임이 붙는다.

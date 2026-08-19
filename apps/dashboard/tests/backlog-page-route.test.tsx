@@ -73,7 +73,12 @@ type RenderedProps = {
     target_slug: string;
     display_title: string;
     impact: number;
-    referencing_pages: { id: string; slug: string; title: string }[];
+    referencing_pages: {
+      id: string;
+      slug: string;
+      title: string;
+      excerpt: string | null;
+    }[];
   }[];
 };
 
@@ -238,5 +243,73 @@ describe("BacklogPage route", () => {
     const props = await renderBacklogPage();
 
     expect(props.initialItems[0].display_title).toBe("아직 작성 안된 주제");
+  });
+
+  it("인용 문서마다 링크 주변 인용 문맥 발췌를 붙인다 (3.1)", async () => {
+    fixtures.links = [
+      {
+        id: "l1",
+        target_slug: baseSlug("캐시 계층 전략"),
+        from_wiki_id: "wiki-a",
+        created_at: "2026-08-15T00:00:00Z",
+      },
+    ];
+    fixtures.pages = [
+      { id: "wiki-a", slug: "arch-guide", title: "아키텍처 가이드" },
+    ];
+    fixtures.contents = {
+      "wiki-a": "읽기 경로는 [[캐시 계층 전략]]을 따라 조회한다.",
+    };
+
+    const props = await renderBacklogPage();
+
+    const [page] = props.initialItems[0].referencing_pages;
+    expect(page.excerpt).not.toBeNull();
+    expect(page.excerpt).toContain("캐시 계층 전략");
+    // 서버가 만든 발췌에는 브래킷이 남지 않는다.
+    expect(page.excerpt).not.toContain("[[");
+  });
+
+  it("본문에서 이 주제를 찾지 못한 인용 문서는 excerpt가 null이다", async () => {
+    fixtures.links = [
+      {
+        id: "l1",
+        target_slug: "아직-작성-안된-주제",
+        from_wiki_id: "wiki-a",
+        created_at: "2026-08-15T00:00:00Z",
+      },
+    ];
+    fixtures.pages = [
+      { id: "wiki-a", slug: "arch-guide", title: "아키텍처 가이드" },
+    ];
+    fixtures.contents = { "wiki-a": "이 문서는 다른 내용만 담고 있다." };
+
+    const props = await renderBacklogPage();
+
+    expect(props.initialItems[0].referencing_pages[0].excerpt).toBeNull();
+  });
+
+  it("위키 본문 전문을 클라이언트 props로 넘기지 않는다 — 계산된 문자열만 나간다", async () => {
+    fixtures.links = [
+      {
+        id: "l1",
+        target_slug: baseSlug("캐시 계층 전략"),
+        from_wiki_id: "wiki-a",
+        created_at: "2026-08-15T00:00:00Z",
+      },
+    ];
+    fixtures.pages = [
+      { id: "wiki-a", slug: "arch-guide", title: "아키텍처 가이드" },
+    ];
+    const fullBody =
+      "이 문서는 매우 긴 본문이다. ".repeat(50) + "[[캐시 계층 전략]]";
+    fixtures.contents = { "wiki-a": fullBody };
+
+    const props = await renderBacklogPage();
+
+    const serialized = JSON.stringify(props);
+    // 발췌는 window 로 잘려 있으므로 원문 전체가 그대로 실려 있으면 안 된다.
+    expect(serialized).not.toContain(fullBody);
+    expect(serialized).not.toContain("content");
   });
 });

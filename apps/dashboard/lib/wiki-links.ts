@@ -154,3 +154,65 @@ export function firstWikiLinkSpelling(
   }
   return null;
 }
+
+const EXCERPT_CONTEXT_CHARS = 80;
+const EXCERPT_ELLIPSIS = "…";
+
+/**
+ * `content` 안에서 `targetSlug`로 슬러그화되는 첫 `[[표기]]` 주변을 잘라낸
+ * 평문 발췌를 만든다. 없으면 `null`.
+ *
+ * add-backlog-topic-context 3.1: 상세 패널이 인용 문서마다 보여주는 인용
+ * 문맥이다. 두 규칙을 함께 지킨다:
+ * 1. 같은 문서에 같은 링크가 여러 번 나오면 첫 등장만 쓴다
+ *    (`firstWikiLinkSpelling`과 같은 규칙).
+ * 2. 발췌 안에 다른 `[[...]]`가 섞여 있어도 브래킷을 노출하지 않는다.
+ *
+ * 원문을 문자 단위로 그냥 잘라내지 않는 이유: 자르는 위치가 다른 `[[...]]`
+ * 쌍의 중간이면 짝 잃은 `[[`만 남아 새 나간다. 그래서 본문 전체를 먼저
+ * 완전한 평문으로 펼친 뒤(모든 `[[...]]` 를 안쪽 표기로 치환) 그 평문 위에서
+ * 대상 표기의 위치를 기준으로 window 를 자른다 — 이 평문에는 애초 브래킷이
+ * 없으므로 어디를 잘라도 브래킷이 새 나갈 수 없다.
+ */
+export function firstWikiLinkExcerpt(
+  content: string,
+  targetSlug: string,
+  contextChars: number = EXCERPT_CONTEXT_CHARS,
+): string | null {
+  let plain = "";
+  let targetStart = -1;
+  let targetEnd = -1;
+  let lastIndex = 0;
+  let foundTarget = false;
+
+  for (const match of content.matchAll(WIKI_LINK_PATTERN)) {
+    const matchIndex = match.index ?? 0;
+    plain += content.slice(lastIndex, matchIndex);
+
+    const title = match[1].trim();
+    const isTarget = !foundTarget && baseSlug(title) === targetSlug;
+    if (isTarget) {
+      foundTarget = true;
+      targetStart = plain.length;
+    }
+
+    plain += title;
+
+    if (isTarget) {
+      targetEnd = plain.length;
+    }
+
+    lastIndex = matchIndex + match[0].length;
+  }
+  plain += content.slice(lastIndex);
+
+  if (targetStart === -1) return null;
+
+  const windowStart = Math.max(0, targetStart - contextChars);
+  const windowEnd = Math.min(plain.length, targetEnd + contextChars);
+
+  const prefix = windowStart > 0 ? EXCERPT_ELLIPSIS : "";
+  const suffix = windowEnd < plain.length ? EXCERPT_ELLIPSIS : "";
+
+  return `${prefix}${plain.slice(windowStart, windowEnd).trim()}${suffix}`;
+}

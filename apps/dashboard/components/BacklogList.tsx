@@ -12,6 +12,10 @@ export type BacklogReferencingPage = {
   id: string;
   slug: string;
   title: string;
+  // add-backlog-topic-context 3.1: 서버가 만든 인용 문맥 발췌 — 이 문서
+  // 본문에서 이 주제를 인용한 [[표기]] 주변을 잘라낸 평문. 본문 자체는
+  // 여기 오지 않는다.
+  excerpt: string | null;
 };
 
 export type BacklogItem = {
@@ -274,6 +278,16 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
                           >
                             {page.title}
                           </Link>
+                          {/* 3.1: 이 문서가 이 주제를 인용한 지점 주변의
+                              문맥. 링크 밖에 둔다 — 안에 넣으면 스크린
+                              리더가 발췌 전체를 링크 접근성 이름으로 읽는다.
+                              서버가 이미 평문으로 펼쳐 보냈으므로 여기서는
+                              그대로 렌더만 한다. */}
+                          {page.excerpt ? (
+                            <p className="backlog-panel-excerpt">
+                              {page.excerpt}
+                            </p>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

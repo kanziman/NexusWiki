@@ -23,8 +23,18 @@ describe("BacklogList", () => {
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
-          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
-          { id: "page-2", slug: "perf-tuning", title: "성능 튜닝" },
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
+          {
+            id: "page-2",
+            slug: "perf-tuning",
+            title: "성능 튜닝",
+            excerpt: null,
+          },
         ],
       },
       {
@@ -33,7 +43,12 @@ describe("BacklogList", () => {
         impact: 1,
         first_detected_at: "2026-08-16T00:00:00Z",
         referencing_pages: [
-          { id: "page-3", slug: "auth-spec", title: "인증 명세" },
+          {
+            id: "page-3",
+            slug: "auth-spec",
+            title: "인증 명세",
+            excerpt: null,
+          },
         ],
       },
     ];
@@ -78,7 +93,12 @@ describe("BacklogList", () => {
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
-          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
         ],
       },
       {
@@ -87,7 +107,12 @@ describe("BacklogList", () => {
         impact: 1,
         first_detected_at: "2026-08-16T00:00:00Z",
         referencing_pages: [
-          { id: "page-3", slug: "auth-spec", title: "인증 명세" },
+          {
+            id: "page-3",
+            slug: "auth-spec",
+            title: "인증 명세",
+            excerpt: null,
+          },
         ],
       },
     ];
@@ -115,7 +140,12 @@ describe("BacklogList", () => {
         impact: 1,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
-          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
         ],
       },
     ];
@@ -160,8 +190,18 @@ describe("BacklogList", () => {
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
-          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
-          { id: "page-2", slug: "perf-tuning", title: "성능 튜닝" },
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
+          {
+            id: "page-2",
+            slug: "perf-tuning",
+            title: "성능 튜닝",
+            excerpt: null,
+          },
         ],
       },
     ];
@@ -222,6 +262,75 @@ describe("BacklogList", () => {
 
       const panel = within(screen.getByRole("dialog"));
       expect(panel.getByText("인용 문서 없음")).toBeInTheDocument();
+    });
+  });
+
+  describe("인용 문맥 발췌 (add-backlog-topic-context 3.1)", () => {
+    it("인용 문서마다 서버가 만든 발췌를 하나씩 보여준다", () => {
+      const items: BacklogItem[] = [
+        {
+          target_slug: "캐시-계층-전략",
+          display_title: "캐시 계층 전략",
+          impact: 2,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [
+            {
+              id: "page-1",
+              slug: "arch-guide",
+              title: "아키텍처 가이드",
+              excerpt: "…읽기 경로는 [캐시 계층 전략]을 따라 조회한다…",
+            },
+            {
+              id: "page-2",
+              slug: "perf-tuning",
+              title: "성능 튜닝",
+              excerpt: null,
+            },
+          ],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(
+        panel.getByText("…읽기 경로는 [캐시 계층 전략]을 따라 조회한다…"),
+      ).toBeInTheDocument();
+
+      // 발췌가 없는 문서(excerpt: null)는 링크만 있고 발췌 문단이 없다 —
+      // 문단을 빈 채로 그리지 않는다.
+      const secondPageLink = panel.getByRole("link", { name: "성능 튜닝" });
+      expect(secondPageLink.nextElementSibling).toBeNull();
+    });
+
+    it("발췌는 링크 접근성 이름에 섞이지 않는다 — 별도 문단으로 렌더한다", () => {
+      // 발췌를 <Link> 안에 넣으면 스크린 리더가 링크 이름으로 발췌 전체를
+      // 읽는다. 링크 이름은 문서 제목만이어야 한다.
+      const items: BacklogItem[] = [
+        {
+          target_slug: "캐시-계층-전략",
+          display_title: "캐시 계층 전략",
+          impact: 1,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [
+            {
+              id: "page-1",
+              slug: "arch-guide",
+              title: "아키텍처 가이드",
+              excerpt: "…발췌 문장…",
+            },
+          ],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(
+        panel.getByRole("link", { name: "아키텍처 가이드" }),
+      ).toBeInTheDocument();
     });
   });
 });

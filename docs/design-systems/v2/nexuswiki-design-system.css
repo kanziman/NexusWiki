@@ -2477,6 +2477,18 @@ button.topic:hover b { color: var(--accent) }
 
 .backlog-panel-refs a:hover { border-color: var(--border-strong); background: var(--surface) }
 
+/* 인용 문맥 발췌(add-backlog-topic-context 3.1). 링크 라벨과 위계가 달라야
+   한다 — 문서 제목이 아니라 그 안의 한 문장이라는 것을 색과 줄바꿈으로
+   보여준다. */
+.backlog-panel-excerpt {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 @media (max-width: 900px) {
   .content.backlog { padding: 30px 20px }
   .content.backlog .stats { grid-template-columns: 1fr }
