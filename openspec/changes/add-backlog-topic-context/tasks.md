@@ -23,7 +23,7 @@ Issue: https://github.com/kanziman/NexusWiki/issues/38
 
 Issue: https://github.com/kanziman/NexusWiki/issues/39
 
-- [ ] 2.1 행을 열면 주제 상세가 패널로 열린다.
+- [x] 2.1 행을 열면 주제 상세가 패널로 열린다.
   - Given: 백로그 목록에 주제가 하나 이상 있다.
   - When: 멤버가 주제 행을 연다.
   - Then: 패널이 표기, 최초 감지 시각, 인용 중인 위키 목록, 소스 추가 동선을 보여준다.

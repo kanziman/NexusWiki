@@ -151,4 +151,77 @@ describe("BacklogList", () => {
     expect(screen.getByText("아직 못 찾은 주제")).toBeInTheDocument();
     expect(screen.getByText("아직-못-찾은-주제")).toBeInTheDocument();
   });
+
+  describe("상세 패널 (add-backlog-topic-context 2.1)", () => {
+    const items: BacklogItem[] = [
+      {
+        target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
+        impact: 3,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [
+          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
+          { id: "page-2", slug: "perf-tuning", title: "성능 튜닝" },
+        ],
+      },
+    ];
+
+    it("주제 행을 열면 패널이 표기·최초 감지 시각·인용 위키·소스 추가 동선을 보여준다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(
+        panel.getByRole("heading", { name: "캐시 계층 전략" }),
+      ).toBeInTheDocument();
+      expect(panel.getByText("캐시-계층-전략")).toBeInTheDocument();
+      expect(panel.getByText(/최초 감지/)).toBeInTheDocument();
+
+      // 인용 중인 위키 목록 — 목록 행의 doc-chips와 별개로 패널 안에 또 있다.
+      expect(
+        panel.getByRole("link", { name: "아키텍처 가이드" }),
+      ).toHaveAttribute("href", "/w/ws-1/wiki/arch-guide");
+      expect(panel.getByRole("link", { name: "성능 튜닝" })).toHaveAttribute(
+        "href",
+        "/w/ws-1/wiki/perf-tuning",
+      );
+
+      // 소스 추가는 목록 행과 같은 목적지다.
+      expect(panel.getByRole("link", { name: "소스 추가" })).toHaveAttribute(
+        "href",
+        `/w/ws-1/sources?prefillTitle=${encodeURIComponent("캐시 계층 전략")}&tab=text`,
+      );
+    });
+
+    it("닫기 버튼을 누르면 패널이 사라진다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /캐시 계층 전략/ }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("인용 문서가 없는 주제는 패널에 안내 문구를 보여준다", () => {
+      const emptyRefsItems: BacklogItem[] = [
+        {
+          target_slug: "고아-주제",
+          display_title: "고아 주제",
+          impact: 1,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={emptyRefsItems} />);
+      fireEvent.click(screen.getByRole("button", { name: /고아 주제/ }));
+
+      const panel = within(screen.getByRole("dialog"));
+      expect(panel.getByText("인용 문서 없음")).toBeInTheDocument();
+    });
+  });
 });
