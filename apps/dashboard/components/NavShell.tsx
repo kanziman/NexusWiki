@@ -36,11 +36,11 @@ export function NavShell({
   const base = workspacePath(currentWorkspaceId);
 
   return (
-    <header className="border-b border-[var(--nw-rule)] bg-[var(--nw-canvas)]">
+    <header className="border-b border-[var(--border)] bg-[var(--bg)]">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-xl gap-y-sm px-base py-base sm:px-xl">
         <Link
           href={base}
-          className="nw-focus-ring shrink-0 text-[15px] font-semibold tracking-[-0.04em] text-[var(--nw-ink)]"
+          className="nw-focus-ring shrink-0 text-[15px] font-semibold tracking-[-0.04em] text-[var(--fg)]"
         >
           Nexus
         </Link>
@@ -63,7 +63,7 @@ export function NavShell({
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 data-active={isActive ? "true" : undefined}
-                className="nw-focus-ring shrink-0 border-b-2 border-transparent px-sm py-sm text-sm font-semibold text-[var(--nw-muted)] data-[active=true]:border-[var(--nw-ink)] data-[active=true]:text-[var(--nw-ink)]"
+                className="nw-focus-ring shrink-0 border-b-2 border-transparent px-sm py-sm text-sm font-semibold text-[var(--muted)] data-[active=true]:border-[var(--fg)] data-[active=true]:text-[var(--fg)]"
               >
                 {route.label}
               </Link>

@@ -59,12 +59,12 @@ export default async function SourceDetailRoute({
       />
       <dl className="grid gap-sm text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-[var(--nw-muted)]">유형</dt>
-          <dd className="mt-xs text-[var(--nw-ink)]">{source.source_type}</dd>
+          <dt className="text-[var(--muted)]">유형</dt>
+          <dd className="mt-xs text-[var(--fg)]">{source.source_type}</dd>
         </div>
         <div>
-          <dt className="text-[var(--nw-muted)]">등록일</dt>
-          <dd className="mt-xs text-[var(--nw-ink)]">
+          <dt className="text-[var(--muted)]">등록일</dt>
+          <dd className="mt-xs text-[var(--fg)]">
             {formatDate(source.created_at)}
           </dd>
         </div>

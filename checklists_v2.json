@@ -5,7 +5,7 @@
   "depends_on_v1": "checklists.json (Phase 3+ 백엔드 API 완성 시 바인딩)",
   "created_at": "2026-08-17T15:48:00+09:00",
   "updated_at": "2026-08-19",
-  "revision": 2,
+  "revision": 3,
   "_notes": [
     "v2 PRD 7종(workspace-home · workspace-settings · source-management · wiki-document-reader · backlog-management · public-sharing · auth-google)에서 도출된 구현 체크리스트.",
     "auth-google PRD는 PR #20으로 구현 완료되어 이 체크리스트에서는 잔여 작업만 포함한다.",
@@ -850,27 +850,26 @@
     {
       "id": "CLEAN-01",
       "title": "docs/design-systems/design-tokens.css·.json 옛 Airbnb 팔레트 정리",
-      "description": "v2는 청록 oklch(.58 .11 190) 체계. 2026-08-19 육안 확인 후 globals.css 의 --nw-* 색 토큰을 v2 :root 토큰으로 재배선했다(--nw-ink→--fg 등). 값은 정리됐지만 이름은 9개 파일에 36+회 남아 있다 — 남은 일은 그 참조를 v2 이름으로 바꾸는 것이다. ⚠️ --nw-action/-hover/--nw-focus 는 재배선하지 않았다: #171717 은 아카이브된 unify-primary-action-color change 가 정한 값이라 v2 --accent 로 바꾸면 그 결정을 뒤집는다."
+      "description": "v2는 청록 oklch(.58 .11 190) 체계. 2026-08-19 육안 확인 후 globals.css 의 --nw-* 색 토큰을 v2 :root 토큰으로 재배선했다(--nw-ink→--fg 등). 값은 정리됐지만 이름은 9개 파일에 36+회 남아 있다 — 남은 일은 그 참조를 v2 이름으로 바꾸는 것이다. ⚠️ --nw-action/-hover/--nw-focus 는 재배선하지 않았다: #171717 은 아카이브된 unify-primary-action-color change 가 정한 값이라 v2 --accent 로 바꾸면 그 결정을 뒤집는다.",
+      "status": "finished"
     },
     {
       "id": "CLEAN-02",
       "title": "프로토타입 LNB 카테고리 표시명 정정",
-      "description": "시안 '대상'→'엔티티', '지도'→'맵'. 코드와 PRD는 이미 맞춰짐."
+      "description": "시안 '대상'→'엔티티', '지도'→'맵'. 코드와 PRD는 이미 맞춰짐.",
+      "status": "finished"
     },
     {
       "id": "CLEAN-03",
       "title": "source-management 프로토타입 PRD 정합",
-      "description": "시안이 아직 SQL·CSV 파일과 포맷 탭 5개를 보여줌. PRD는 3종으로 확정."
+      "description": "시안이 아직 SQL·CSV 파일과 포맷 탭 5개를 보여줌. PRD는 3종으로 확정.",
+      "status": "finished"
     },
     {
       "id": "CLEAN-04",
       "title": "workspace-settings 프로토타입 정정 11건",
-      "description": "목록은 workspace-settings-prd.md §5 표. 'EDITOR … 위키 재컴파일' 문구는 불변식 §2 직접 위반."
-    },
-    {
-      "id": "CLEAN-05",
-      "title": "미커밋 OpenSpec 산출물 정리",
-      "description": "2026-08-19 확인 결과 해소됨 — 해당 파일들은 커밋 2efe345/8ca4f78 로 이미 추적 중이고 작업 트리에 untracked OpenSpec 산출물이 없다. 다음 원장 정리 시 이 항목을 제거한다."
+      "description": "목록은 workspace-settings-prd.md §5 표. 'EDITOR … 위키 재컴파일' 문구는 불변식 §2 직접 위반.",
+      "status": "finished"
     }
   ]
 }

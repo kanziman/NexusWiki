@@ -13,39 +13,39 @@ export function WorkspaceEntryChooser({
 }: WorkspaceEntryChooserProps) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center px-base py-xl sm:px-xl">
-      <div className="border-y border-[var(--nw-rule)] py-xl sm:py-xxl">
+      <div className="border-y border-[var(--border)] py-xl sm:py-xxl">
         <p
-          className="text-[var(--nw-muted)]"
+          className="text-[var(--muted)]"
           style={{ font: "var(--font-caption)", fontWeight: 600 }}
         >
           NEXUSWIKI
         </p>
         <h1
-          className="mt-sm text-[var(--nw-ink)]"
+          className="mt-sm text-[var(--fg)]"
           style={{ font: "var(--font-display-lg)" }}
         >
           워크스페이스 선택
         </h1>
         <p
-          className="mt-base text-[var(--nw-muted)]"
+          className="mt-base text-[var(--muted)]"
           style={{ font: "var(--font-body-md)" }}
         >
           계속할 워크스페이스를 선택하세요.
         </p>
 
-        <ul className="mt-xl border-y border-[var(--nw-rule)]">
+        <ul className="mt-xl border-y border-[var(--border)]">
           {workspaces.map((workspace) => (
             <li
               key={workspace.id}
-              className="border-b border-[var(--nw-rule)] last:border-b-0"
+              className="border-b border-[var(--border)] last:border-b-0"
             >
               <Link
                 href={workspacePath(workspace.id)}
-                className="nw-focus-ring flex min-h-14 items-center justify-between gap-base px-base py-sm text-[var(--nw-ink)] transition-colors hover:bg-[var(--nw-surface-soft)]"
+                className="nw-focus-ring flex min-h-14 items-center justify-between gap-base px-base py-sm text-[var(--fg)] transition-colors hover:bg-[var(--surface)]"
                 style={{ font: "var(--font-body-md)", fontWeight: 600 }}
               >
                 <span className="min-w-0 truncate">{workspace.name}</span>
-                <span aria-hidden="true" className="text-[var(--nw-muted)]">
+                <span aria-hidden="true" className="text-[var(--muted)]">
                   →
                 </span>
               </Link>

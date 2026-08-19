@@ -39,7 +39,7 @@ export function AccountMenu({ email }: AccountMenuProps) {
         <button
           type="button"
           aria-label="계정 메뉴"
-          className="nw-focus-ring ml-auto flex h-11 min-w-11 items-center justify-center text-[var(--nw-ink)] sm:ml-0"
+          className="nw-focus-ring ml-auto flex h-11 min-w-11 items-center justify-center text-[var(--fg)] sm:ml-0"
         >
           <UserRound size={19} aria-hidden="true" />
         </button>
@@ -48,22 +48,22 @@ export function AccountMenu({ email }: AccountMenuProps) {
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="w-64 rounded-md border border-[var(--nw-rule)] bg-[var(--nw-surface)] p-xs shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
+          className="w-64 rounded-md border border-[var(--border)] bg-[var(--bg)] p-xs shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
         >
           <p
-            className="truncate px-sm py-xs text-[var(--nw-muted)]"
+            className="truncate px-sm py-xs text-[var(--muted)]"
             style={{ font: "var(--font-caption)" }}
           >
             {email}
           </p>
-          <DropdownMenu.Separator className="my-xs h-px bg-[var(--nw-rule)]" />
+          <DropdownMenu.Separator className="my-xs h-px bg-[var(--border)]" />
           <DropdownMenu.Item
             disabled={signingOut}
             onSelect={(event) => {
               event.preventDefault();
               void handleSignOut();
             }}
-            className="nw-focus-ring flex cursor-pointer items-center gap-sm px-sm py-sm text-[var(--nw-ink)] outline-none data-[highlighted]:bg-[var(--nw-canvas)] data-[disabled]:cursor-wait data-[disabled]:opacity-60"
+            className="nw-focus-ring flex cursor-pointer items-center gap-sm px-sm py-sm text-[var(--fg)] outline-none data-[highlighted]:bg-[var(--bg)] data-[disabled]:cursor-wait data-[disabled]:opacity-60"
             style={{ font: "var(--font-caption)", fontWeight: 600 }}
           >
             <LogOut size={16} aria-hidden="true" />

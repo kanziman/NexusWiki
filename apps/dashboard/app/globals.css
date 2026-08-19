@@ -71,21 +71,6 @@
   --color-primary: var(--nw-action);
   --color-primary-active: var(--nw-action-hover);
   --color-primary-disabled: color-mix(in srgb, var(--nw-action) 42%, white);
-  /* v1 색 토큰을 v2 팔레트로 재배선한다. ⚠️ 아직 9개 파일이 이 이름들을
-     직접 참조하므로(--nw-ink 만 36회) 값을 여기서 한 번 바꾸는 편이 파일을
-     전부 고치는 것보다 안전하다 — 이름 정리는 checklists_v2.json >
-     cleanup_tasks CLEAN-01 이 소유한다.
-     불변식 §7.1 "색은 토큰이 정본이다" — 여기서 hex 를 새로 적지 않고
-     디자인 시스템의 :root 토큰을 가리키기만 한다. */
-  --nw-canvas: var(--bg);
-  --nw-surface: var(--bg);
-  --nw-surface-soft: var(--surface);
-  --nw-ink: var(--fg);
-  --nw-body: var(--fg);
-  --nw-muted: var(--muted);
-  --nw-rule: var(--border);
-  --nw-rule-strong: var(--border-strong);
-  --nw-danger: var(--danger);
 
   /* ⚠️ 액션 색 셋은 재배선하지 않는다. #171717 은 아카이브된
      unify-primary-action-color change 가 정한 값이고 v2 --accent(청록)와
@@ -128,13 +113,13 @@
 }
 
 .nw-input {
-  border: 1px solid var(--nw-rule-strong);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: var(--nw-surface);
+  background: var(--bg);
 }
 
 .nw-input:focus {
-  border-color: var(--nw-ink);
+  border-color: var(--fg);
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nw-ink) 12%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fg) 12%, transparent);
 }

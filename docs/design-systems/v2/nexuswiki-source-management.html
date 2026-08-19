@@ -42,10 +42,9 @@
 .file b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .file span,.sub{display:block;margin-top:2px;color:var(--muted);font-size:10px}
 .format{min-width:42px;height:26px;display:grid;place-items:center;padding:0 7px;border:1px solid var(--border);border-radius:999px;background:var(--bg);font:700 9px/1 var(--font-mono);letter-spacing:.04em;text-align:center;color:var(--muted);flex:none}
-.format.sql{background:var(--soft);border-color:oklch(.58 .11 190/.35);color:var(--accent)}
+.format.txt{background:var(--soft);border-color:oklch(.58 .11 190/.35);color:var(--accent)}
 .format.pdf{background:oklch(.95 .015 255);border-color:oklch(.78 .025 255);color:oklch(.42 .06 255)}
 .format.md{background:var(--surface);color:var(--fg)}
-.format.csv{background:oklch(.95 .025 155);border-color:oklch(.76 .06 155);color:oklch(.42 .09 155)}
 
 /* 인용 위키 칩 — 공용 .chip(제안 질문 알약)과 다른 물건이라 이름을 분리한다 */
 .doc-chips{display:flex;gap:4px;flex-wrap:wrap}
@@ -173,9 +172,9 @@
 
       <div class="nav-label"><span>카테고리</span></div>
       <button class="nav-item" data-category="concepts" aria-label="개념"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>개념 <span class="count">07</span></button>
-      <button class="nav-item" data-category="entities" aria-label="대상"><svg class="nav-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/><path d="M11 7.5h4a2 2 0 0 1 2 2V13"/></svg>대상 <span class="count">05</span></button>
+      <button class="nav-item" data-category="entities" aria-label="엔티티"><svg class="nav-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/><path d="M11 7.5h4a2 2 0 0 1 2 2V13"/></svg>엔티티 <span class="count">05</span></button>
       <button class="nav-item" data-category="guides" aria-label="가이드"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5Z"/></svg>가이드 <span class="count">04</span></button>
-      <button class="nav-item" data-category="maps" aria-label="지도"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 3 6-2.5v-13L15 7Z"/><path d="M9 4v13m6-10v13"/></svg>지도 <span class="count">02</span></button>
+      <button class="nav-item" data-category="maps" aria-label="맵"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 3 6-2.5v-13L15 7Z"/><path d="M9 4v13m6-10v13"/></svg>맵 <span class="count">02</span></button>
 
       <div class="nav-label"><span>팀 관리</span></div>
       <button class="nav-item" aria-label="팀원 & 역할 관리"><svg class="nav-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M17 11a3 3 0 0 0 0-6m2 15v-1a6 6 0 0 0-3-5.2"/></svg>팀원 &amp; 역할 관리 <span class="count">08</span></button>
@@ -210,11 +209,9 @@
       <section data-od-id="source-table-section">
         <div class="toolbar">
           <nav class="tabs" aria-label="파일 형식 필터">
-            <button class="tab active" data-filter="all">전체 18</button>
-            <button class="tab" data-filter="sql">SQL 스크립트 8</button>
-            <button class="tab" data-filter="pdf">PDF 문서 5</button>
-            <button class="tab" data-filter="md">마크다운 3</button>
-            <button class="tab" data-filter="data">CSV/JSON 2</button>
+            <button class="tab active" data-filter="all">전체 4</button>
+            <button class="tab" data-filter="pdf">PDF 2</button>
+            <button class="tab" data-filter="text">텍스트/마크다운 2</button>
           </nav>
           <input class="field search" id="search" placeholder="파일명으로 검색" aria-label="파일명으로 검색">
         </div>
@@ -224,10 +221,10 @@
             <colgroup><col style="width:26%"><col style="width:27%"><col style="width:14%"><col style="width:15%"><col style="width:12%"><col style="width:6%"></colgroup>
             <thead><tr><th>소스 파일</th><th>연결된 위키 문서</th><th>청크 및 좌표</th><th>파이프라인 상태</th><th>업로드</th><th></th></tr></thead>
             <tbody id="sourceRows">
-              <tr class="selected" data-kind="sql" data-source="0004_rls_security_spine.sql"><td><div class="file"><span class="format sql">SQL</span><div><b>0004_rls_security_spine.sql</b><span>18.4 KB · SQL DDL</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">테넌트 격리 및 RLS 보안 스파인</span><span class="doc-chip">복합 외래키 전파 규칙</span></div></td><td><b class="mono">12 청크</b><span class="sub">1,420–18,392 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>1시간 전</td><td><button class="more" data-delete="0004_rls_security_spine.sql" aria-label="더보기">···</button></td></tr>
+              <tr class="selected" data-kind="text" data-source="0004_rls_security_spine_notes.txt"><td><div class="file"><span class="format txt">TXT</span><div><b>0004_rls_security_spine_notes.txt</b><span>18.4 KB · 텍스트 노트</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">테넌트 격리 및 RLS 보안 스파인</span><span class="doc-chip">복합 외래키 전파 규칙</span></div></td><td><b class="mono">12 청크</b><span class="sub">1,420–18,392 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>1시간 전</td><td><button class="more" data-delete="0004_rls_security_spine_notes.txt" aria-label="더보기">···</button></td></tr>
               <tr data-kind="pdf" data-source="tenant_architecture_v2.pdf"><td><div class="file"><span class="format pdf">PDF</span><div><b>tenant_architecture_v2.pdf</b><span>2.8 MB · 시스템 설계</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">테넌트 격리 및 RLS 보안 스파인</span></div></td><td><b class="mono">16 청크</b><span class="sub">0–42,711 char</span></td><td><span class="status"><i class="dot"></i>인덱싱 완료</span></td><td>어제</td><td><button class="more" data-delete="tenant_architecture_v2.pdf" aria-label="더보기">···</button></td></tr>
-              <tr data-kind="md" data-source="backfill-runbook.md"><td><div class="file"><span class="format md">MD</span><div><b>backfill-runbook.md</b><span>9.1 KB · 운영 가이드</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">마이그레이션 롤백 운영 원칙</span></div></td><td><b class="mono">07 청크</b><span class="sub">220–8,914 char</span></td><td><span class="status pending"><i class="dot"></i>처리 중</span></td><td>12분 전</td><td><button class="more" data-delete="backfill-runbook.md" aria-label="더보기">···</button></td></tr>
-              <tr data-kind="data" data-source="legacy_tenant_map.csv"><td><div class="file"><span class="format csv">CSV</span><div><b>legacy_tenant_map.csv</b><span>642 KB · 마이그레이션 맵</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">DB 샤딩 로드맵</span></div></td><td><b class="mono">07 청크</b><span class="sub">0–82,021 char</span></td><td><span class="status failed"><i class="dot"></i>인덱싱 실패</span></td><td>3일 전</td><td><button class="more" data-delete="legacy_tenant_map.csv" aria-label="더보기">···</button></td></tr>
+              <tr data-kind="text" data-source="backfill-runbook.md"><td><div class="file"><span class="format md">MD</span><div><b>backfill-runbook.md</b><span>9.1 KB · 운영 가이드</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">마이그레이션 롤백 운영 원칙</span></div></td><td><b class="mono">07 청크</b><span class="sub">220–8,914 char</span></td><td><span class="status pending"><i class="dot"></i>처리 중</span></td><td>12분 전</td><td><button class="more" data-delete="backfill-runbook.md" aria-label="더보기">···</button></td></tr>
+              <tr data-kind="pdf" data-source="db_sharding_roadmap_v1.pdf"><td><div class="file"><span class="format pdf">PDF</span><div><b>db_sharding_roadmap_v1.pdf</b><span>642 KB · 마이그레이션 계획서</span></div></div></td><td><div class="doc-chips"><span class="doc-chip">DB 샤딩 로드맵</span></div></td><td><b class="mono">07 청크</b><span class="sub">0–82,021 char</span></td><td><span class="status failed"><i class="dot"></i>인덱싱 실패</span></td><td>3일 전</td><td><button class="more" data-delete="db_sharding_roadmap_v1.pdf" aria-label="더보기">···</button></td></tr>
             </tbody>
           </table>
         </div>
@@ -238,11 +235,11 @@
 
 <aside class="inspector" id="inspector" data-od-id="chunk-inspector">
   <div class="inspect-head">
-    <div><p class="eyebrow">CHUNK INSPECTOR</p><h2 id="inspectTitle">0004_rls_security_spine.sql</h2></div>
+    <div><p class="eyebrow">CHUNK INSPECTOR</p><h2 id="inspectTitle">0004_rls_security_spine_notes.txt</h2></div>
     <button class="close" id="closeInspector" aria-label="인스펙터 닫기">×</button>
   </div>
   <div class="info">
-    <div><small>파일 형식</small><b>SQL</b></div>
+    <div><small>파일 형식</small><b>TXT</b></div>
     <div><small>연결된 위키</small><b>02</b></div>
     <div><small>전체 청크</small><b>12</b></div>
     <div><small>파이프라인</small><b class="text-good">완료</b></div>
@@ -253,19 +250,17 @@
     <button class="chunk"><b>청크 #02</b><span>1,891–3,202 char · 188 tokens</span></button>
     <button class="chunk"><b>청크 #03</b><span>3,203–4,009 char · 116 tokens</span></button>
   </div>
-  <pre class="code" id="codeView"><em>-- row level security</em>
-create policy tenant_isolation
-on app.documents
-using (tenant_id = current_setting(
-  'app.tenant_id', true
-)::uuid);</pre>
+  <pre class="code" id="codeView"><em>row level security</em>
+RLS 정책 tenant_isolation 은 app.documents 테이블에 적용된다.
+current_setting('app.tenant_id', true) 값과 tenant_id 컬럼이
+일치하는 행만 조회 결과에 노출된다.</pre>
 </aside>
 
 <div class="modal-backdrop" id="uploadModal" data-od-id="source-upload-modal">
   <div class="modal">
     <h2>원문 소스 업로드</h2>
     <p>업로드 후 청킹과 5채널 인덱싱 큐가 자동으로 시작됩니다.</p>
-    <div class="drop"><b>파일을 여기로 끌어오세요</b><span>.sql · .pdf · .md · .csv · .json · .zip · 최대 50MB</span><button class="button">파일 선택</button></div>
+    <div class="drop"><b>파일을 여기로 끌어오세요</b><span>PDF · 텍스트 · 마크다운, 최대 20MB</span><button class="button">파일 선택</button></div>
     <div class="fields">
       <!-- raw_sources.source_type CHECK 값과 1:1. 2계층이므로 프로젝트/그룹 선택은 없다. -->
       <select aria-label="소스 종류">
@@ -293,7 +288,7 @@ using (tenant_id = current_setting(
 </div>
 
 <script>
-const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);let selected='0004_rls_security_spine.sql';
+const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);let selected='0004_rls_security_spine_notes.txt';
 function openModal(id){$(id).classList.add('open')}function closeModals(){$$('.modal-backdrop').forEach(x=>x.classList.remove('open'))}
 $('#uploadOpen').onclick=()=>openModal('#uploadModal');$$('.close-modal').forEach(b=>b.onclick=closeModals);$$('.modal-backdrop').forEach(m=>m.onclick=e=>{if(e.target===m)closeModals()});
 function setInspector(open){$('#inspector').classList.toggle('open',open);document.body.classList.toggle('inspector-open',open)}

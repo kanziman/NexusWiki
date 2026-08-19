@@ -317,7 +317,7 @@ export function GraphCanvas({
       <div
         ref={containerRef}
         data-testid="graph-canvas-container"
-        className="rounded-sm bg-[var(--nw-canvas)]"
+        className="rounded-sm bg-[var(--bg)]"
         style={{ width: "100%", height: "640px" }}
       />
     </div>
