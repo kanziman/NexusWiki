@@ -839,13 +839,6 @@
       "blocking_level": "non-critical"
     },
     {
-          "id": "OD-08",
-          "title": "백로그 상세 패널 · 원문 표기 제목",
-          "description": "backlog-management-prd.md §3.3(행 클릭 시 우측 슬라이드아웃: 인용 문맥 발췌)과 §6-2 권고안 (c)(target_slug 역변환 대신 from_wiki_id 본문에서 원문 [[표기]]를 찾아 제목으로 쓴다). 둘 다 같은 조회 경로(§4.3)를 쓴다 — from_wiki_id 의 content 를 읽어 [[target]] 주변을 잘라낸다. ⚠️ 본문 전체를 클라이언트로 내려보내지 않는다. 서버에서 발췌해 스니펫만 응답한다. 새 사용자 동작이라 backlog-ask 스펙에 없었다. 2026-08-19 계획 완료 — GitHub Issue #37(umbrella, OPEN) · #38 · #39 · #40, OpenSpec change openspec/changes/add-backlog-topic-context/. 구현은 /opsx:apply 로 별도 진행한다.",
-          "blocking": [],
-          "blocking_level": "deferred"
-    },
-    {
           "id": "OD-09",
           "title": "Ask 인용 인스펙터 드래그 스플리터",
           "description": "nexuswiki-ask-conversation.html 의 .split — 대화와 인스펙터 사이 폭을 포인터로 조절한다. 섹션 16 에서 의도적으로 이식하지 않았다: 폭 조절은 CSS 만으로 끝나지 않는 새 상호작용 계약이고 unified-workspace-viewer 스펙에 없다. 동작 없는 손잡이만 그리면 눌러도 아무 일이 없는 어포던스가 된다. ⚠️ 되살린다면 프로토타입의 포인터 전용 구현을 그대로 옮기지 않는다 — role=\"separator\" + aria-valuenow + 방향키 이동이 없으면 키보드 사용자에게는 조절 수단이 아예 없다.",
