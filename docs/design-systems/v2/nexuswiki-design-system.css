@@ -34,6 +34,12 @@
      높이). 숫자를 세 곳에 흩뿌리면 한 곳만 고쳐 놓고 나머지가 조용히 어긋난다. */
   --topbar-h: 66px;
 
+  /* 셸 하단 푸터 밴드 높이 — LNB 의 계정 행과 Ask 의 입력 영역이 공유한다.
+     ⚠️ 둘 다 화면 맨 아래에 붙고 각각 위쪽 구분선을 갖는다. 높이를 내용에
+     맡기면 두 선이 3px 어긋난 채로 나란히 놓여, 사용자에게는 "선이 안 맞은
+     화면"으로 읽힌다. 내용이 아니라 이 값이 선의 위치를 정한다. */
+  --shell-footer-h: 68px;
+
   --bg: oklch(1 0 0);                     /* 문서·폼·모달의 기본 배경 */
   --surface: oklch(.982 .004 247);        /* LNB, 테이블 헤더, 비활성 보조 영역 */
   --fg: oklch(.208 .033 264);             /* 본문·제목 */
@@ -109,7 +115,7 @@ summary:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: calc(var(--topbar-h) - 45px) 12px 18px;
+  padding: calc(var(--topbar-h) - 45px) 12px 0;
   background: var(--surface);
   border-right: 1px solid var(--border);
 }
@@ -306,12 +312,14 @@ summary:focus-visible {
 /* -----------------------------------------------------------------------------
  * 5. 프로필 블록
  * -------------------------------------------------------------------------- */
+/* 계정 행. 높이를 내용이 아니라 --shell-footer-h 가 정한다 — 이 위쪽 테두리가
+   Ask 입력 영역의 구분선과 한 줄로 이어져야 하기 때문이다(토큰 주석 참조). */
 .profile {
   display: flex;
   align-items: center;
   gap: 9px;
+  height: var(--shell-footer-h);
   margin-top: auto;
-  padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 
@@ -937,8 +945,12 @@ summary:focus-visible {
   background: var(--surface);
 }
 
-.source-line b { display: block; font-size: 12px }
-.source-line span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px }
+/* ⚠️ 자식 선택자를 반드시 유지한다. 무스코프 `.source-line span` 은 오른쪽
+   버튼 안의 <span>소스 연결</span> 까지 잡아 accent 배경 위에 --muted 회색을
+   칠했다 — 글자가 배경에 묻혀 버튼이 비어 보였다. 이 두 규칙은 왼쪽 설명
+   블록의 것이다. */
+.source-line > div > b { display: block; font-size: 12px }
+.source-line > div > span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px }
 
 @media (max-width: 900px) {
   .content { padding: 32px 20px }
@@ -1585,6 +1597,11 @@ summary:focus-visible {
   color: var(--muted);
   font: 700 9px/1 var(--font-mono);
   letter-spacing: .04em;
+  /* 자간은 마지막 글자 *뒤에도* 붙는다 — 가운데 정렬하면 그만큼 왼쪽으로
+     밀려 보이므로 같은 값을 들여쓰기로 되돌린다. 세로 1px 은 내림 글자가 없는
+     대문자 전용 라벨의 시각 중심 보정이다(선 높이 중심 ≠ 글자 중심). */
+  text-indent: .04em;
+  padding-top: 1px;
   text-align: center;
 }
 
@@ -1594,14 +1611,18 @@ summary:focus-visible {
 /* 인용 위키 칩 — 공용 .chip(제안 질문 알약)과 다른 물건이라 이름을 분리한다 */
 .doc-chips { display: flex; gap: 4px; flex-wrap: wrap }
 
+/* ⚠️ inline-flex 가 아니라 inline-block 이어야 한다. flex 컨테이너에서는 글자가
+   익명 flex 항목이 되어 text-overflow 가 적용되지 않는다 — 말줄임 없이 글자가
+   그대로 잘려 나가 "센터KPI IVI 시각화 플랫폼 — 기" 처럼 끝난다.
+   max-width 도 100% 를 함께 물린다. 열 폭이 158px 보다 좁아지면 칩이 칸 밖으로
+   비어져 나오기 때문이다. */
 .doc-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 158px;
+  display: inline-block;
+  max-width: min(158px, 100%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: middle;
   padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -1615,9 +1636,11 @@ summary:focus-visible {
    길어질수록 노드 수가 그만큼 늘어난다. */
 .doc-chip::before {
   content: "";
+  display: inline-block;
+  vertical-align: middle;
   width: 7px;
   height: 7px;
-  flex: none;
+  margin-right: 6px;
   border: 1.5px solid currentColor;
   border-radius: 2px;
   box-shadow: 3px -3px 0 -2px var(--surface), 3px -3px 0 -1px currentColor;
@@ -2053,13 +2076,13 @@ summary:focus-visible {
  *   - .mobile — 앱 셸의 .mobile-nav-button 이 이미 그 역할을 한다(섹션 11).
  * -------------------------------------------------------------------------- */
 
-/* 대화 | 인스펙터 2열. 상단바(66px)를 뺀 높이를 채워 대화 스레드만 스크롤시킨다.
+/* 대화 | 인스펙터 2열. 상단바(--topbar-h)를 뺀 높이를 채워 대화 스레드만 스크롤시킨다.
    min-height 가 아니라 height 여야 한다 — min-height 면 안쪽 overflow:auto 가
    기준 높이를 못 잡아 스레드 대신 페이지가 늘어난다. */
 .ask-layout {
   display: grid;
   grid-template-columns: minmax(420px, 1fr) minmax(360px, 42%);
-  height: calc(100vh - 66px);
+  height: calc(100vh - var(--topbar-h));
   min-width: 0;
 }
 
@@ -2147,8 +2170,17 @@ summary:focus-visible {
 .answer.notice p { color: var(--danger); margin-bottom: 0 }
 .answer.notice .button { margin-top: 12px }
 
-/* 입력 composer */
-.composer { padding: 14px 24px 18px; border-top: 1px solid var(--border) }
+/* 입력 composer. 높이는 --shell-footer-h 가 정한다 — 이 위쪽 테두리는 LNB 의
+   계정 행 구분선과 같은 y 에 놓여야 한다(토큰 주석 참조). */
+.composer {
+  display: flex;
+  align-items: center;
+  height: var(--shell-footer-h);
+  padding: 0 24px;
+  border-top: 1px solid var(--border);
+}
+
+.composer .compose-inner { flex: 1 }
 
 .compose-inner {
   display: flex;
@@ -2335,7 +2367,9 @@ summary:focus-visible {
   .answer h1 { font-size: 17px }
   .answer p, .rules { font-size: 12px }
   .user { font-size: 13px }
-  .composer { position: sticky; bottom: 0; padding: 11px 12px 16px; background: var(--bg) }
+  /* 사이드바가 서랍으로 바뀌어 나란히 놓이는 구분선이 없다 — 높이 고정을 풀고
+     내용에 맡긴다. */
+  .composer { position: sticky; bottom: 0; height: auto; padding: 11px 12px 16px; background: var(--bg) }
 }
 
 /* -----------------------------------------------------------------------------

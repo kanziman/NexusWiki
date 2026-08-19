@@ -83,7 +83,6 @@ export function WikiPageContent({
   canVerify,
 }: WikiPageContentProps) {
   const [status, setStatus] = useState(page.verification_status);
-  const [verifiedBy, setVerifiedBy] = useState(page.verified_by);
   const [verifiedAt, setVerifiedAt] = useState(page.verified_at);
   const [expiresAt, setExpiresAt] = useState(page.expires_at);
   const [disputed, setDisputed] = useState(page.disputed);
@@ -101,7 +100,6 @@ export function WikiPageContent({
         { method: "PATCH", body: { verification_status: "verified" } },
       );
       setStatus(result.verification_status);
-      setVerifiedBy(result.verified_by);
       setVerifiedAt(result.verified_at);
       setExpiresAt(result.expires_at);
       setDisputed(result.disputed);
@@ -153,7 +151,6 @@ export function WikiPageContent({
           ) : (
             <VerificationCallout
               status={status}
-              verifiedBy={verifiedBy}
               verifiedAt={verifiedAt}
               expiresAt={expiresAt}
               isExpired={isExpired}
@@ -314,28 +311,30 @@ function DocumentBody({
 
 type VerificationCalloutProps = {
   status: string;
-  verifiedBy: string | null;
   verifiedAt: string | null;
   expiresAt: string | null;
   isExpired: boolean;
 };
 
+// ⚠️ verifiedBy(계정 UUID)는 의도적으로 prop에서 받지 않는다. 이 컴포넌트에는
+// UUID를 표시명으로 바꿀 조회 경로가 없어, 넘겨받아도 화면에는 못 쓴다 — 안
+// 쓰는 prop을 시그니처에 남겨 두면 다음 사람이 "표시할 수 있는데 안 하나?"로
+// 헷갈린다.
 function VerificationCallout({
   status,
-  verifiedBy,
   verifiedAt,
   expiresAt,
   isExpired,
 }: VerificationCalloutProps) {
   if (status === "verified" && !isExpired) {
-    // UI-SPEC Copywriting Contract "Verified callout" — {verifier}/{verified_at
-    // 날짜}는 실제 값으로 치환한다. 계정 삭제로 verified_by가 null이 된 경우를
-    // 대비한 방어적 폴백("알 수 없음")이 있다 — 0007 verified_by 컬럼 주석 참조.
-    const verifierLabel = verifiedBy ?? "알 수 없음";
+    // ⚠️ 검증자를 표시하지 않는다. `verified_by`는 auth 사용자 UUID이고 이
+    // 라우트에는 그것을 이름으로 바꿀 조회 경로가 없다 — 그대로 찍으면 화면에
+    // 36자짜리 식별자가 남아 정작 읽어야 할 검증 날짜를 밀어낸다. 사람이 읽을
+    // 이름을 붙이려면 표시명 조회가 먼저 필요하고, 그건 이 화면 밖의 일이다.
     const dateLabel = verifiedAt !== null ? formatDate(verifiedAt) : "";
     return (
       <span className="badge verified">
-        {`검증됨 · ${verifierLabel}${dateLabel ? ` · ${dateLabel}` : ""}`}
+        {`검증됨${dateLabel ? ` · ${dateLabel}` : ""}`}
       </span>
     );
   }
