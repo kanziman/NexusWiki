@@ -50,6 +50,27 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
+// 리더 진입점 테스트만 조회 결과가 필요하다 — 나머지 테스트는 위 목을 그대로 쓴다.
+vi.mock("@/lib/wiki-lookup", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/wiki-lookup")>();
+  return {
+    ...actual,
+    lookupWikiPage: async () => ({
+      id: "wiki-1",
+      title: "테넌트 격리 스파인",
+      content: "본문",
+      category: "concepts",
+      verification_status: "verified",
+      verified_by: null,
+      verified_at: null,
+      expires_at: null,
+      disputed: false,
+    }),
+    lookupWikiLinks: async () => [],
+    resolveCanVerify: async () => false,
+  };
+});
+
 import { ContentViewer } from "@/components/ContentViewer";
 
 describe("ContentViewer", () => {
@@ -62,6 +83,22 @@ describe("ContentViewer", () => {
     render(<ContentViewer workspaceId="ws-1" />);
 
     expect(screen.getByText("위키 문서를 선택하세요")).toBeInTheDocument();
+  });
+
+  it("위키 탭에서 전체 리더로 가는 진입점을 조회에 쓴 slug 그대로 렌더링한다", async () => {
+    // unified-workspace-viewer 「Member opens the full reader from the viewer」.
+    // 인스펙터는 근거 확인용이고 리더는 문서를 읽는 곳이라, 여기서 전체 문서로
+    // 넘어갈 길이 없으면 두 화면이 끊긴다.
+    currentParams = new URLSearchParams("tab=wiki&slug=tenant-isolation-rls");
+    render(<ContentViewer workspaceId="ws-1" />);
+
+    const readerLink = await screen.findByRole("link", {
+      name: /위키 전체 페이지 읽기/,
+    });
+    expect(readerLink).toHaveAttribute(
+      "href",
+      "/w/ws-1/wiki/tenant-isolation-rls",
+    );
   });
 
   it("switching tabs pushes the updated tab query param, preserving the pane", async () => {

@@ -11,6 +11,7 @@
     "auth-google PRD는 PR #20으로 구현 완료되어 이 체크리스트에서는 잔여 작업만 포함한다.",
     "v1 checklists.json과 관심사가 다르다: v1은 백엔드 파이프라인(수직 의존), v2는 프론트엔드 화면(수평 병렬).",
     "백엔드 API가 필요한 태스크는 depends_on에 v1 태스크 ID를 명시한다.",
+    "2026-08-19 리뷰 게이트에서 드러난 것: restore-standalone-wiki-reader 아카이브는 델타 spec 시나리오 4개에 tasks.md task 3개로 닫혔다. 대응 task 없이 추가된 시나리오(unified-workspace-viewer 「Member opens the full reader from the viewer」)가 구현 없이 메인 스펙으로 넘어갔고, 이번 라운드에서야 잡혔다. ⚠️ 델타 spec에 시나리오를 추가할 때 대응 task 존재를 확인하는 단계가 /opsx:propose~/opsx:apply 사이에 없다 — 워크플로 수정은 별도 change 사안이다. 아카이브 자체는 정정하지 않는다: 아카이브는 그때 무엇을 했다고 주장했는가의 기록이고 사후 편집은 증거를 고치는 것이다.",
     "2026-08-18 재검증: Phase 1 태스크가 전부 completed였으나 화면은 스타일 없이 렌더링됐다. 원인은 프로토타입 HTML의 <style> 블록에만 있던 페이지 레벨 CSS가 앱으로 이식되지 않은 것 — 앱은 nexuswiki-design-system.css 하나만 임포트한다. ⚠️ Vitest는 CSS를 보지 않으므로 이 부류의 실패는 테스트로 잡히지 않는다. 화면 태스크의 verification에는 CSS 적용 확인을 포함해야 한다."
   ],
   "phases": [

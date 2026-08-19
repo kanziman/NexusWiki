@@ -1979,6 +1979,23 @@ summary:focus-visible {
   overflow: hidden;
 }
 
+/* 대화 열의 제목 프레임. ⚠️ 프로토타입에는 제목 줄이 없고 상단바 브레드크럼이
+   맥락을 지지만, dashboard-design-consistency 는 모든 목적지가 가시 제목을 갖는
+   페이지 프레임을 유지할 것을 요구한다 — 나머지 다섯 화면이 전부 .hero 안에
+   <h1> 을 갖는데 여기만 없으면 위계가 화면마다 달라진다.
+   .hero 를 그대로 쓰지 않는 이유는 이 열이 100vh 고정에 폭이 좁아서다 —
+   42px 여백과 30px 제목이 스레드가 쓸 세로 공간을 먹는다. */
+.conversation-head {
+  flex: none;
+  padding: 20px clamp(20px, 4vw, 54px) 0;
+}
+
+.conversation-head h1 {
+  margin: 4px 0 0;
+  font: 800 19px/1.3 var(--font-display);
+  letter-spacing: -.5px;
+}
+
 .thread {
   flex: 1;
   display: grid;
@@ -2215,6 +2232,7 @@ summary:focus-visible {
      절반 높이로 눌려 둘 다 못 읽는 화면이 된다. */
   .ask-layout { display: block; height: auto }
   .conversation { min-height: calc(100vh - 58px); overflow: visible }
+  .conversation-head { padding: 16px 16px 0 }
   .thread { padding: 22px 16px; gap: 17px }
   .inspect { min-height: 560px; border-left: 0; border-top: 1px solid var(--border) }
   .inspect-head { padding: 16px 16px 0 }

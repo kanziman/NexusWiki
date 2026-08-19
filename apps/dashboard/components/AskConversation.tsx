@@ -281,11 +281,15 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   return (
     <section className="conversation" data-od-id="conversation-thread">
       {/* dashboard-design-consistency 「Consistent workspace page structure」는
-          모든 목적지에 페이지 제목을 요구한다. 이 화면의 프로토타입은 제목 줄을
-          두지 않고 상단바 브레드크럼이 맥락을 지므로, 시각 디자인은 그대로 두고
-          접근성 트리에만 제목을 남긴다. ⚠️ 셸이 이미 <main> 을 쓰므로 여기서
-          <main> 을 또 열지 않는다 — 한 문서에 main 은 하나여야 한다. */}
-      <h1 className="sr-only">질문하기</h1>
+          모든 목적지가 가시 제목을 담은 페이지 프레임을 유지할 것을 요구한다.
+          프로토타입에는 제목 줄이 없지만 나머지 다섯 화면이 전부 .hero 안에
+          <h1> 을 갖는다 — 여기만 빼면 위계가 화면마다 달라진다.
+          ⚠️ 셸이 이미 <main> 을 쓰므로 여기서 <main> 을 또 열지 않는다 —
+          한 문서에 main 은 하나여야 한다. */}
+      <header className="conversation-head">
+        <p className="eyebrow">ASK · DUAL CITATION</p>
+        <h1>질문하기</h1>
+      </header>
       <div className="thread" data-testid="ask-conversation">
         {turns.length === 0 ? (
           <div className="thread-empty">

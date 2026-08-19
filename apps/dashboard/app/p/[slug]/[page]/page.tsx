@@ -31,8 +31,8 @@ export default async function PublicWikiPage({ params }: PublicWikiPageProps) {
   const decodedSlug = decodeURIComponent(slug);
   const decodedPage = decodeURIComponent(page);
 
-  // ⚠️ 요청자 세션 클라이언트를 쓰지 않는다. `/p/` 는 미들웨어 matcher 밖이라
-  // 세션 쿠키가 그대로 실려 오는데, `authenticated` 로 실행하면 0016 의
+  // ⚠️ 요청자 세션 클라이언트를 쓰지 않는다. `/p/` 에도 세션 쿠키는 그대로
+  // 실려 오는데, `authenticated` 로 실행하면 0016 의
   // `*_select_member` 정책이 킬스위치와 무관하게 행을 돌려준다 — 멤버에게만
   // 킬스위치가 무력화된다. 근거와 실측은 lib/supabase/public.ts 주석에 있다.
   const supabase = createPublicClient();
