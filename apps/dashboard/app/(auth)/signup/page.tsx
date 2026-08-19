@@ -1,11 +1,22 @@
+import Image from "next/image";
+
 import { LoginForm } from "@/components/LoginForm";
 
 export default function SignupPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-xxl p-lg">
-      <h1 className="m-0 text-ink" style={{ font: "var(--font-display-xl)" }}>
-        NexusWiki 가입
-      </h1>
+      <div className="flex items-center gap-sm">
+        <Image
+          src="/nexuswiki-mark.png"
+          alt=""
+          width={38}
+          height={38}
+          priority
+        />
+        <h1 className="m-0 text-ink" style={{ font: "var(--font-display-xl)" }}>
+          NexusWiki 가입
+        </h1>
+      </div>
       <div className="flex w-full max-w-[360px] flex-col gap-base">
         <LoginForm />
         <p
