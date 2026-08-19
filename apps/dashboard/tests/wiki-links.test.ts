@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { baseSlug, resolveWikiLinks } from "@/lib/wiki-links";
+import {
+  baseSlug,
+  firstWikiLinkSpelling,
+  resolveWikiLinks,
+} from "@/lib/wiki-links";
 
 describe("wiki-links", () => {
   // packages/core/src/nexuswiki_core/slug.py._base_slug의 실제 출력과 대조한
@@ -110,6 +114,36 @@ describe("wiki-links", () => {
       expect(resolveWikiLinks(content, [])).toEqual([
         { type: "text", value: content },
       ]);
+    });
+  });
+
+  describe("firstWikiLinkSpelling", () => {
+    it("targetSlug로 슬러그화되는 첫 [[표기]]를 원문 그대로 반환한다", () => {
+      const content = "본문 [[캐시 계층 전략]] 이어지는 설명";
+
+      expect(firstWikiLinkSpelling(content, baseSlug("캐시 계층 전략"))).toBe(
+        "캐시 계층 전략",
+      );
+    });
+
+    it("같은 링크가 여러 번 나오면 첫 등장의 표기만 쓴다", () => {
+      const content = "[[RLS 정책(v2)]] ... 나중에 다시 [[rls 정책(v2)]]";
+
+      expect(firstWikiLinkSpelling(content, baseSlug("RLS 정책(v2)"))).toBe(
+        "RLS 정책(v2)",
+      );
+    });
+
+    it("targetSlug와 매치되는 [[...]]가 없으면 null을 반환한다", () => {
+      const content = "[[다른 주제]] 뿐인 본문";
+
+      expect(firstWikiLinkSpelling(content, baseSlug("찾는 주제"))).toBeNull();
+    });
+
+    it("[[...]] 자체가 없는 본문에서는 null을 반환한다", () => {
+      expect(
+        firstWikiLinkSpelling("WikiLink가 없다", baseSlug("아무거나")),
+      ).toBeNull();
     });
   });
 });

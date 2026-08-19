@@ -19,6 +19,7 @@ describe("BacklogList", () => {
     const items: BacklogItem[] = [
       {
         target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
@@ -28,6 +29,7 @@ describe("BacklogList", () => {
       },
       {
         target_slug: "인증-흐름",
+        display_title: "인증 흐름",
         impact: 1,
         first_detected_at: "2026-08-16T00:00:00Z",
         referencing_pages: [
@@ -72,6 +74,7 @@ describe("BacklogList", () => {
     const items: BacklogItem[] = [
       {
         target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
         impact: 3,
         first_detected_at: "2026-08-15T00:00:00Z",
         referencing_pages: [
@@ -80,6 +83,7 @@ describe("BacklogList", () => {
       },
       {
         target_slug: "인증-흐름",
+        display_title: "인증 흐름",
         impact: 1,
         first_detected_at: "2026-08-16T00:00:00Z",
         referencing_pages: [
@@ -98,5 +102,53 @@ describe("BacklogList", () => {
 
     fireEvent.change(searchInput, { target: { value: "존재하지않음" } });
     expect(screen.getByText("검색 결과가 없습니다")).toBeInTheDocument();
+  });
+
+  it("행 라벨은 서버가 복원한 원문 표기를 쓰고, 원본 slug는 보조 줄에 병기한다", () => {
+    // add-backlog-topic-context: display_title은 인용 문서 본문의 [[표기]]에서
+    // 복원한 값이라 target_slug의 하이픈 역변환과 다를 수 있다(대소문자·문장부호
+    // 보존). 이 컴포넌트는 표기를 계산하지 않고 서버가 만든 값을 그대로 쓴다.
+    const items: BacklogItem[] = [
+      {
+        target_slug: "rls-정책v2",
+        display_title: "RLS 정책(v2)",
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [
+          { id: "page-1", slug: "arch-guide", title: "아키텍처 가이드" },
+        ],
+      },
+    ];
+
+    render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+    expect(screen.getByText("RLS 정책(v2)")).toBeInTheDocument();
+    expect(screen.getByText("rls-정책v2")).toBeInTheDocument();
+
+    // 소스 추가 동선도 slug가 아니라 표기를 prefill한다.
+    const addSourceLink = screen.getByRole("link", { name: /소스 추가/ });
+    expect(addSourceLink).toHaveAttribute(
+      "href",
+      `/w/ws-1/sources?prefillTitle=${encodeURIComponent("RLS 정책(v2)")}&tab=text`,
+    );
+  });
+
+  it("표기를 복원하지 못한 주제는 slug 역변환으로 폴백한 display_title을 그대로 렌더한다", () => {
+    // 폴백 계산은 page.tsx(서버)가 하고, 이 컴포넌트는 결과 문자열만 소비한다 —
+    // 여기서는 그 계약을 재확인만 한다.
+    const items: BacklogItem[] = [
+      {
+        target_slug: "아직-못-찾은-주제",
+        display_title: "아직 못 찾은 주제",
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [],
+      },
+    ];
+
+    render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+    expect(screen.getByText("아직 못 찾은 주제")).toBeInTheDocument();
+    expect(screen.getByText("아직-못-찾은-주제")).toBeInTheDocument();
   });
 });

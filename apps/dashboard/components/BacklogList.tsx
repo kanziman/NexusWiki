@@ -14,6 +14,7 @@ export type BacklogReferencingPage = {
 
 export type BacklogItem = {
   target_slug: string;
+  display_title: string;
   impact: number;
   first_detected_at: string;
   referencing_pages: BacklogReferencingPage[];
@@ -26,17 +27,6 @@ export type BacklogListProps = {
 
 const EMPTY_HEADING = "작성 대기 중인 백로그가 없습니다";
 const EMPTY_BODY = "모든 위키 링크가 정상적으로 연결되어 있습니다.";
-
-/**
- * ⚠️ 표시용 제목은 slug 의 하이픈을 공백으로 되돌린 근사값이다. 원문 표기
- * (`[[캐시 계층 전략]]`)는 저장되지 않는다 — link_sync 가 slugify 한 값만 넣는다.
- * backlog-management-prd.md §6-2 의 미해결 결정이며, 정확한 표기를 얻으려면
- * from_wiki_id 본문에서 찾아야 한다(권고안 (c), 별도 change).
- * 그래서 원본 slug 를 title/aria-label 과 보조 줄에 함께 남긴다.
- */
-function displayTopic(slug: string): string {
-  return slug.replace(/-/g, " ");
-}
 
 /**
  * UI-06 작성 대기 백로그 — 미해결 레드링크(`to_wiki_id IS NULL`)를 target_slug
@@ -58,11 +48,12 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
   const filteredItems = items.filter((item) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
+    const matchesTitle = item.display_title.toLowerCase().includes(query);
     const matchesSlug = item.target_slug.toLowerCase().includes(query);
     const matchesPage = item.referencing_pages.some((page) =>
       page.title.toLowerCase().includes(query),
     );
-    return matchesSlug || matchesPage;
+    return matchesTitle || matchesSlug || matchesPage;
   });
 
   // ⚠️ PRD §3.1: 주제 수는 distinct target_slug 로 센다. wiki_links 는
@@ -158,18 +149,11 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
               </thead>
               <tbody>
                 {filteredItems.map((item) => {
-                  const topic = displayTopic(item.target_slug);
-
                   return (
                     <tr key={item.target_slug}>
                       <td>
                         <div className="topic">
-                          <b
-                            title={item.target_slug}
-                            aria-label={item.target_slug}
-                          >
-                            {topic}
-                          </b>
+                          <b title={item.display_title}>{item.display_title}</b>
                           <span>{item.target_slug}</span>
                         </div>
                       </td>
@@ -214,7 +198,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
                             일괄 해소한다. RedLinkCta 와 같은 목적지다. */}
                         <Link
                           href={`${workspacePath(workspaceId)}/sources?prefillTitle=${encodeURIComponent(
-                            topic,
+                            item.display_title,
                           )}&tab=text`}
                           className="button compact"
                         >

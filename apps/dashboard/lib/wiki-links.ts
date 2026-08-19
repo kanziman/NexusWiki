@@ -132,3 +132,25 @@ export function resolveWikiLinks(
 
   return parts;
 }
+
+/**
+ * `content` 안에서 `targetSlug`로 슬러그화되는 첫 `[[표기]]`를 찾아 원문 그대로
+ * 반환한다. 없으면 `null`.
+ *
+ * add-backlog-topic-context: 백로그 표시 제목은 `target_slug`의 하이픈 역변환이
+ * 아니라 이 함수로 복원한 인용 문서의 원문 표기를 우선한다(design.md "표기
+ * 결정 규칙"). 같은 문서에 같은 링크가 여러 번 나오면 **첫 등장만** 쓴다 —
+ * 그래야 한 문서가 내는 표기가 렌더마다 흔들리지 않는다.
+ */
+export function firstWikiLinkSpelling(
+  content: string,
+  targetSlug: string,
+): string | null {
+  for (const match of content.matchAll(WIKI_LINK_PATTERN)) {
+    const title = match[1].trim();
+    if (baseSlug(title) === targetSlug) {
+      return title;
+    }
+  }
+  return null;
+}
