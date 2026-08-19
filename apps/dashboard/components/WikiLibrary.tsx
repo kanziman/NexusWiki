@@ -16,6 +16,14 @@ export type WikiLibraryPage = {
   disputed: boolean;
 };
 
+// UI-SPEC Copywriting Contract "Empty wiki (no pages yet)" — 문구를 한 글자도
+// 바꾸지 않는다. ⚠️ 필터 결과 0건(아래 NO_MATCH_*)과 다른 상태다: 이쪽은
+// "아직 만들어지지 않았다", 저쪽은 "있지만 조건에 안 맞는다"이고 사용자가 할
+// 일도 다르다(소스 추가 vs 검색어 변경).
+const EMPTY_HEADING = "아직 컴파일된 위키 페이지가 없습니다";
+const EMPTY_BODY = "소스를 추가하면 자동으로 위키 페이지가 생성됩니다.";
+const NO_MATCH_BODY = "조건에 맞는 위키 문서가 없습니다.";
+
 const categories = ["concepts", "entities", "guides", "maps"];
 const labels: Record<string, string> = {
   concepts: "개념",
@@ -74,6 +82,8 @@ export function WikiLibrary({
     [category, pages, query],
   );
 
+  const isEmpty = pages.length === 0;
+
   return (
     <div className="content library">
       <section className="hero" data-od-id="wiki-library-header">
@@ -98,38 +108,42 @@ export function WikiLibrary({
       </section>
 
       <section data-od-id="wiki-library-list">
-        <div className="toolbar">
-          {/* 카테고리는 탭이 아니라 토글 필터다 — 상호 배타적 뷰 전환이 아니므로
+        {/* 문서가 하나도 없으면 툴바를 그리지 않는다 — 걸러낼 대상이 없는
+            검색창과 필터는 눌러도 아무 일이 없는 어포던스다. */}
+        {isEmpty ? null : (
+          <div className="toolbar">
+            {/* 카테고리는 탭이 아니라 토글 필터다 — 상호 배타적 뷰 전환이 아니므로
               role="tab" 을 쓰지 않고 aria-pressed 로 표현한다. */}
-          <div className="chips" role="group" aria-label="카테고리 필터">
-            <button
-              type="button"
-              aria-pressed={category === null}
-              className="chip"
-              onClick={() => setCategory(null)}
-            >
-              전체
-            </button>
-            {categories.map((item) => (
+            <div className="chips" role="group" aria-label="카테고리 필터">
               <button
-                key={item}
                 type="button"
-                aria-pressed={category === item}
+                aria-pressed={category === null}
                 className="chip"
-                onClick={() => setCategory(category === item ? null : item)}
+                onClick={() => setCategory(null)}
               >
-                {labels[item]}
+                전체
               </button>
-            ))}
+              {categories.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={category === item}
+                  className="chip"
+                  onClick={() => setCategory(category === item ? null : item)}
+                >
+                  {labels[item]}
+                </button>
+              ))}
+            </div>
+            <input
+              aria-label="위키 문서 검색"
+              className="field search"
+              placeholder="제목이나 내용으로 검색"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
-          <input
-            aria-label="위키 문서 검색"
-            className="field search"
-            placeholder="제목이나 내용으로 검색"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+        )}
 
         {visible.length ? (
           <div className="doc-list">
@@ -153,9 +167,16 @@ export function WikiLibrary({
             ))}
           </div>
         ) : (
-          <p className="library-empty" role="status">
-            조건에 맞는 위키 문서가 없습니다.
-          </p>
+          <div className="library-empty" role="status">
+            {isEmpty ? (
+              <>
+                <b>{EMPTY_HEADING}</b>
+                <span>{EMPTY_BODY}</span>
+              </>
+            ) : (
+              NO_MATCH_BODY
+            )}
+          </div>
         )}
       </section>
     </div>

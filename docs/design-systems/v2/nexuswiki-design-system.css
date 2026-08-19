@@ -2492,6 +2492,10 @@ summary:focus-visible {
 }
 
 .library-empty {
+  display: grid;
+  gap: 5px;
+  place-content: center;
+  min-height: 148px;
   padding: 40px 16px;
   border: 1px dashed var(--border-strong);
   border-radius: 12px;
@@ -2500,6 +2504,8 @@ summary:focus-visible {
   text-align: center;
   font-size: 12px;
 }
+
+.library-empty b { font: 800 14px var(--font-display); color: var(--fg) }
 
 @media (max-width: 900px) {
   .content.library { padding: 30px 20px }
