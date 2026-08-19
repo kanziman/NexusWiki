@@ -1,7 +1,10 @@
-import { redirect } from "next/navigation";
-
-import { lookupWikiPage, WIKI_PAGE_NOT_FOUND_HEADING } from "@/lib/wiki-lookup";
-import { workspacePath } from "@/lib/workspace-path";
+import { WikiPageContent } from "@/components/WikiPageContent";
+import {
+  WIKI_PAGE_NOT_FOUND_HEADING,
+  lookupWikiLinks,
+  lookupWikiPage,
+  resolveCanVerify,
+} from "@/lib/wiki-lookup";
 import { createClient } from "@/lib/supabase/server";
 
 type WikiPageRouteProps = {
@@ -10,14 +13,15 @@ type WikiPageRouteProps = {
 
 /**
  * UI-05 위키 상세 라우트 — Server Component로 요청자 세션(RLS)을 통해
- * 페이지 존재를 확인한 뒤, 통합 워크스페이스 뷰어(`/ask`)로 리다이렉트한다
- * (openspec/changes/archive/2026-08-14-add-unified-workspace-viewer,
- * wiki-page-routing 스펙의 "Legacy wiki route redirects into the unified
- * viewer" 시나리오). 존재 확인 자체는 리다이렉트 이전에 반드시 실행해야
- * malformed/cross-workspace 시나리오가 기존과 동일하게 유지된다 — 확인 없이
- * 무조건 리다이렉트하면 없는 페이지도 통합 뷰로 넘어가 버린다.
+ * 페이지를 읽고 이 라우트에서 리더를 직접 렌더링한다.
  *
- * 관련 태스크: 06-07-PLAN.md Task 3
+ * ⚠️ 예전에는 여기서 `/ask?slug=…&tab=wiki`로 리다이렉트했다. 그러면
+ * wiki-document-reader-prd.md §2.4가 요구하는 우측 목차 패널이 들어갈 자리가
+ * 통합 뷰어에 없어, 리더 화면 자체가 앱에 존재하지 않게 된다 —
+ * openspec/changes/restore-standalone-wiki-reader 참조. 통합 뷰어의 위키 탭은
+ * 그대로 남는다: 그쪽은 답변의 근거를 확인하는 자리고, 여기는 문서를 읽는
+ * 자리다.
+ *
  * 설계 근거: supabase/migrations/0004_rls_policies.sql 섹션 6/7
  *            (wiki_pages_select_member, wiki_links_select_member)
  */
@@ -40,8 +44,18 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
     return <WikiPageNotFound />;
   }
 
-  redirect(
-    `${workspacePath(workspaceId)}/ask?slug=${encodeURIComponent(normalizedSlug)}&tab=wiki`,
+  const [links, canVerify] = await Promise.all([
+    lookupWikiLinks(supabase, page.id),
+    resolveCanVerify(supabase, workspaceId),
+  ]);
+
+  return (
+    <WikiPageContent
+      page={page}
+      links={links}
+      workspaceId={workspaceId}
+      canVerify={canVerify}
+    />
   );
 }
 
@@ -54,9 +68,5 @@ function normalizeRouteSlug(slug: string): string | null {
 }
 
 function WikiPageNotFound() {
-  return (
-    <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
-      {WIKI_PAGE_NOT_FOUND_HEADING}
-    </p>
-  );
+  return <p className="reader">{WIKI_PAGE_NOT_FOUND_HEADING}</p>;
 }

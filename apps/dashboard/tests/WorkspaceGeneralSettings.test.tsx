@@ -25,6 +25,31 @@ describe("WorkspaceGeneralSettings", () => {
     updateMock.mockClear();
   });
 
+  it("저장된 공개 설정을 폼에 반영한다", () => {
+    // ⚠️ 이 프롭 체인이 끊겨 있으면 폼이 항상 기본값(꺼짐·빈 문자열)으로 뜬다.
+    // 그 상태에서 저장하면 upsert 가 실제 값을 덮어써 표시명·설명이 null 이 되고
+    // 켜져 있던 공개 공유가 조용히 꺼진다 — 화면이 보여준 적 없는 값으로.
+    render(
+      <WorkspaceGeneralSettings
+        workspaceId="ws-1"
+        initialName="내 워크스페이스"
+        initialSlug="my-workspace"
+        isOwner={true}
+        allowPublicSharing={true}
+        publicDisplayName="엔지니어링 팀"
+        publicDescription="엔지니어링 지식 베이스"
+      />,
+    );
+
+    expect(
+      screen.getByRole("checkbox", { name: "공개 공유 마스터 킬스위치 토글" }),
+    ).toBeChecked();
+    expect(screen.getByDisplayValue("엔지니어링 팀")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue("엔지니어링 지식 베이스"),
+    ).toBeInTheDocument();
+  });
+
   it("renders disabled inputs and role note for non-owners", () => {
     render(
       <WorkspaceGeneralSettings

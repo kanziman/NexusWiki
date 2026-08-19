@@ -13,6 +13,19 @@ export type SettingsMembersPanelProps = {
   currentRole: string;
   workspaceName?: string;
   workspaceSlug?: string;
+  allowPublicSharing?: boolean;
+  publicDisplayName?: string;
+  publicDescription?: string;
+};
+
+type TabId = "general" | "members" | "operations";
+
+// 라벨에 이모지를 붙이지 않는다 — 불변식 §7.2 Zero Emojis
+// (workspace-settings-prd.md §3.1, 프로토타입 정정 12번).
+const TAB_LABELS: Record<TabId, string> = {
+  general: "일반",
+  members: "멤버",
+  operations: "운영 현황",
 };
 
 export function SettingsMembersPanel({
@@ -21,15 +34,16 @@ export function SettingsMembersPanel({
   currentRole,
   workspaceName = "",
   workspaceSlug = "",
+  allowPublicSharing = false,
+  publicDisplayName = "",
+  publicDescription = "",
 }: SettingsMembersPanelProps) {
   const [refreshToken, setRefreshToken] = useState(0);
   const isOwner = currentRole === "owner";
   const canViewOperations = currentRole === "owner" || currentRole === "editor";
-  const [activeTab, setActiveTab] = useState<
-    "general" | "members" | "operations"
-  >("general");
+  const [activeTab, setActiveTab] = useState<TabId>("general");
 
-  const availableTabs: ("general" | "members" | "operations")[] = [
+  const availableTabs: TabId[] = [
     "general",
     "members",
     ...(canViewOperations ? (["operations"] as const) : []),
@@ -59,122 +73,81 @@ export function SettingsMembersPanel({
   }
 
   return (
-    <div className="flex flex-col gap-xl" style={{ maxWidth: "640px" }}>
-      <div
-        role="tablist"
-        aria-label="설정"
-        className="flex gap-xs border-b border-[var(--border)] bg-[var(--surface)] p-1 rounded-lg"
-      >
-        <button
-          id="settings-tab-general"
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "general"}
-          aria-controls="settings-panel-general"
-          tabIndex={activeTab === "general" ? 0 : -1}
-          onClick={() => setActiveTab("general")}
-          onKeyDown={handleTabKeyDown}
-          className={`min-h-9 cursor-pointer rounded-md px-3 text-xs font-semibold outline-none transition-colors ${
-            activeTab === "general"
-              ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-              : "text-[var(--muted)] hover:text-[var(--fg)]"
-          }`}
-        >
-          일반
-        </button>
-
-        <button
-          id="settings-tab-members"
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "members"}
-          aria-controls="settings-panel-members"
-          tabIndex={activeTab === "members" ? 0 : -1}
-          onClick={() => setActiveTab("members")}
-          onKeyDown={handleTabKeyDown}
-          className={`min-h-9 cursor-pointer rounded-md px-3 text-xs font-semibold outline-none transition-colors ${
-            activeTab === "members"
-              ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-              : "text-[var(--muted)] hover:text-[var(--fg)]"
-          }`}
-        >
-          멤버
-        </button>
-
-        {canViewOperations ? (
+    <>
+      <nav className="tabs" role="tablist" aria-label="설정">
+        {availableTabs.map((tab) => (
           <button
-            id="settings-tab-operations"
+            key={tab}
+            id={`settings-tab-${tab}`}
             type="button"
             role="tab"
-            aria-selected={activeTab === "operations"}
-            aria-controls="settings-panel-operations"
-            tabIndex={activeTab === "operations" ? 0 : -1}
-            onClick={() => setActiveTab("operations")}
+            aria-selected={activeTab === tab}
+            aria-controls={`settings-panel-${tab}`}
+            tabIndex={activeTab === tab ? 0 : -1}
+            onClick={() => setActiveTab(tab)}
             onKeyDown={handleTabKeyDown}
-            className={`min-h-9 cursor-pointer rounded-md px-3 text-xs font-semibold outline-none transition-colors ${
-              activeTab === "operations"
-                ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-                : "text-[var(--muted)] hover:text-[var(--fg)]"
-            }`}
+            className={`tab ${activeTab === tab ? "active" : ""}`}
           >
-            운영 현황
+            {TAB_LABELS[tab]}
           </button>
-        ) : null}
-      </div>
+        ))}
+      </nav>
 
       {activeTab === "general" ? (
-        <div
+        <section
           id="settings-panel-general"
           role="tabpanel"
           aria-labelledby="settings-tab-general"
+          className="panel active"
         >
           <WorkspaceGeneralSettings
             workspaceId={workspaceId}
             initialName={workspaceName}
             initialSlug={workspaceSlug}
             isOwner={isOwner}
+            allowPublicSharing={allowPublicSharing}
+            publicDisplayName={publicDisplayName}
+            publicDescription={publicDescription}
           />
-        </div>
+        </section>
       ) : activeTab === "members" ? (
-        <div
+        <section
           id="settings-panel-members"
           role="tabpanel"
           aria-labelledby="settings-tab-members"
-          className="flex flex-col gap-xl"
+          className="panel active"
         >
-          <section className="flex flex-col gap-base">
-            <h2 className="text-ink" style={{ font: "var(--font-title-md)" }}>
-              멤버
-            </h2>
-            <MembersList
-              key={refreshToken}
-              workspaceId={workspaceId}
-              currentUserId={currentUserId}
-            />
-          </section>
+          <div className="section-head">
+            <div>
+              <h2>멤버 관리</h2>
+              <p>워크스페이스에 접근할 수 있는 사용자와 역할입니다.</p>
+            </div>
+          </div>
+
+          <MembersList
+            key={refreshToken}
+            workspaceId={workspaceId}
+            currentUserId={currentUserId}
+          />
 
           {/* SETTINGS-03: 초대 폼은 owner에게만 노출 (버그 수정) */}
           {isOwner && (
-            <section className="flex flex-col gap-base">
-              <h2 className="text-ink" style={{ font: "var(--font-title-md)" }}>
-                멤버 초대
-              </h2>
-              <InviteForm
-                workspaceId={workspaceId}
-                onInvited={() => setRefreshToken((token) => token + 1)}
-              />
-            </section>
+            <InviteForm
+              workspaceId={workspaceId}
+              onInvited={() => setRefreshToken((token) => token + 1)}
+            />
           )}
-        </div>
+        </section>
       ) : canViewOperations ? (
-        <div
+        <section
           id="settings-panel-operations"
           role="tabpanel"
           aria-labelledby="settings-tab-operations"
+          className="panel active"
         >
           <OperationsPanel workspaceId={workspaceId} />
-        </div>
+        </section>
       ) : null}
-    </div>
+    </>
   );
 }

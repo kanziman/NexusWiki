@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
-import { Menu, Plus, Sparkles, X } from "lucide-react";
+import { Menu, Plus, X } from "lucide-react";
 
 import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
 import { workspacePath } from "@/lib/workspace-path";
@@ -68,7 +68,6 @@ export function WorkspaceShell({
               className="button primary"
               data-od-id="ask-top-button"
             >
-              <Sparkles size={14} aria-hidden="true" />
               <span>질문 시작</span>
             </Link>
             <button

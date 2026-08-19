@@ -5,11 +5,6 @@ type WikiIndexPageProps = {
   params: Promise<{ workspaceId: string }>;
 };
 
-// UI-SPEC Copywriting Contract "Empty wiki (no pages yet)" — 문구를 한 글자도
-// 바꾸지 않는다.
-const EMPTY_HEADING = "아직 컴파일된 위키 페이지가 없습니다";
-const EMPTY_BODY = "소스를 추가하면 자동으로 위키 페이지가 생성됩니다.";
-
 /**
  * UI-05 위키 인덱스 라우트 — `NavShell`의 "위키" 링크가 가리키는 목록 화면.
  * Server Component가 요청자 세션(RLS `wiki_pages_select_member`)으로 직접
@@ -29,18 +24,10 @@ export default async function WikiIndexPage({ params }: WikiIndexPageProps) {
 
   const pages = data ?? [];
 
-  if (pages.length === 0) {
-    return (
-      <div className="flex flex-col gap-xs">
-        <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
-          {EMPTY_HEADING}
-        </p>
-        <p className="text-muted" style={{ font: "var(--font-body-sm)" }}>
-          {EMPTY_BODY}
-        </p>
-      </div>
-    );
-  }
-
+  // ⚠️ 빈 상태를 여기서 가로채지 않는다. 예전에는 pages.length === 0 일 때
+  // 라우트가 자체 마크업을 반환해 WikiLibrary 에 아예 도달하지 않았고, 그래서
+  // 화면이 페이지 프레임 없이 문장 두 줄로만 렌더링됐다 — v2 이식 후에도 그
+  // 분기만 v1 로 남아 있었다. 빈 상태도 이 화면의 상태 중 하나이므로
+  // 컴포넌트가 함께 소유한다.
   return <WikiLibrary pages={pages} workspaceId={workspaceId} />;
 }

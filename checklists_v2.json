@@ -4,13 +4,15 @@
   "source_prds": "docs/design-systems/v2/*.md",
   "depends_on_v1": "checklists.json (Phase 3+ 백엔드 API 완성 시 바인딩)",
   "created_at": "2026-08-17T15:48:00+09:00",
-  "updated_at": "2026-08-17",
-  "revision": 1,
+  "updated_at": "2026-08-19",
+  "revision": 2,
   "_notes": [
     "v2 PRD 7종(workspace-home · workspace-settings · source-management · wiki-document-reader · backlog-management · public-sharing · auth-google)에서 도출된 구현 체크리스트.",
     "auth-google PRD는 PR #20으로 구현 완료되어 이 체크리스트에서는 잔여 작업만 포함한다.",
     "v1 checklists.json과 관심사가 다르다: v1은 백엔드 파이프라인(수직 의존), v2는 프론트엔드 화면(수평 병렬).",
-    "백엔드 API가 필요한 태스크는 depends_on에 v1 태스크 ID를 명시한다."
+    "백엔드 API가 필요한 태스크는 depends_on에 v1 태스크 ID를 명시한다.",
+    "2026-08-19 리뷰 게이트에서 드러난 것: restore-standalone-wiki-reader 아카이브는 델타 spec 시나리오 4개에 tasks.md task 3개로 닫혔다. 대응 task 없이 추가된 시나리오(unified-workspace-viewer 「Member opens the full reader from the viewer」)가 구현 없이 메인 스펙으로 넘어갔고, 이번 라운드에서야 잡혔다. ⚠️ 델타 spec에 시나리오를 추가할 때 대응 task 존재를 확인하는 단계가 /opsx:propose~/opsx:apply 사이에 없다 — 워크플로 수정은 별도 change 사안이다. 아카이브 자체는 정정하지 않는다: 아카이브는 그때 무엇을 했다고 주장했는가의 기록이고 사후 편집은 증거를 고치는 것이다.",
+    "2026-08-18 재검증: Phase 1 태스크가 전부 completed였으나 화면은 스타일 없이 렌더링됐다. 원인은 프로토타입 HTML의 <style> 블록에만 있던 페이지 레벨 CSS가 앱으로 이식되지 않은 것 — 앱은 nexuswiki-design-system.css 하나만 임포트한다. ⚠️ Vitest는 CSS를 보지 않으므로 이 부류의 실패는 테스트로 잡히지 않는다. 화면 태스크의 verification에는 CSS 적용 확인을 포함해야 한다."
   ],
   "phases": [
     {
@@ -168,6 +170,12 @@
               "Next.js build, lint, TypeScript, Vitest 135개 전체 테스트 통과",
               "OpenSpec workspace-shell-layout 제안·구현·spec sync·archive 완료"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": ".content · .workspace-main 미정의 — 본문 캔버스 폭·여백·반응형 패딩이 적용되지 않았다.",
+            "results": ["nexuswiki-design-system.css 섹션 12에 워크스페이스 홈 본문 레이아웃 이식 (.content, .workspace-main, 900px·640px 미디어 쿼리)", "640px에서 .crumb strong 말줄임 규칙 추가 — 섹션 11의 .crumb b 는 앱의 <strong> 을 잡지 못해 긴 이름이 탑바를 밀어냈다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 빌드된 CSS 번들에서 22개 클래스 정의 존재 확인"
           }
         },
         {
@@ -186,6 +194,12 @@
           "verification_result": {
             "date": "2026-08-17",
             "results": ["CategoryLensFilter 컴포넌트 구현 및 5종 렌즈 탭/카운트 뱃지 지원", "선택 시 위키 목록 필터링 동작 및 단위 테스트 통과"]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "CategoryLensFilter.tsx 는 테스트에서만 임포트되는 고아 컴포넌트다. 실제 렌즈는 WorkspaceSidebar 가 nav-item 으로 구현한다.",
+            "results": ["PRD §3.1이 LNB 렌즈를 명시하므로 기능 요구사항 자체는 WorkspaceSidebar 로 충족됨을 확인", "⚠️ CategoryLensFilter.tsx 와 그 테스트는 어떤 화면에도 렌더링되지 않는다 — 존치 여부 미결"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 빌드된 CSS 번들에서 22개 클래스 정의 존재 확인"
           }
         },
         {
@@ -205,6 +219,12 @@
           "verification_result": {
             "date": "2026-08-17",
             "results": ["AskHero 컴포넌트 구현 (다중 라인 질문창, 스코프 메뉴, 스타터 칩 3종, /ask 라우팅)", "단위 테스트 통과"]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": ".ask · .ask-main · .ask-bottom · .scope 계열 5종 · .chips 미정의 — 질문 카드가 테두리·그림자·레이아웃 없이 렌더링됐다.",
+            "results": ["질문 입력 카드와 스코프 팝오버 CSS 이식 (.ask, .ask-main, .ask-bottom, .scope-wrap/-menu/-option/-dot, .chips)", ".scope-menu 의 display:none + .open 토글 계약을 프로토타입과 동일하게 유지 — 앱은 조건부 렌더링이지만 .open 을 함께 붙인다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 빌드된 CSS 번들에서 22개 클래스 정의 존재 확인"
           }
         },
         {
@@ -223,6 +243,12 @@
           "verification_result": {
             "date": "2026-08-17",
             "results": ["KnowledgeGrid 컴포넌트 구현 (검증 완료 뱃지, 카테고리 표시, 미해결 백로그 및 소스 연결 CTA)", "단위 테스트 및 빌드 통과"]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": ".sections · .section-head · .doc 계열 4종 · .backlog · .source-line 미정의 — 2열 그리드가 무너져 단일 흐름으로 렌더링됐다.",
+            "results": ["2열 지식 그리드와 백로그 CSS 이식 (.sections, .section-head, .doc-list, .doc, .doc-body/-title/-meta, .backlog, .source-line)", "⚠️ 이 태스크의 description('우측: 최근 수집 소스 피드')은 stale 하다. PRD §3.3은 '작성 대기 백로그'이며 구현이 PRD를 따랐다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 빌드된 CSS 번들에서 22개 클래스 정의 존재 확인"
           }
         },
         {
@@ -296,6 +322,12 @@
               "SettingsMembersPanel 3탭(일반, 멤버, 운영 현황) 구조 개편",
               "키보드 로빙 포커스 및 탭 전환 단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "v2 디자인 시스템 클래스를 하나도 쓰지 않았다 — 탭·패널이 전부 Tailwind 임의값이고 토큰도 v1(text-ink · --font-title-md)이었다.",
+            "results": ["nexuswiki-design-system.css 섹션 13에 설정 본문 레이아웃 이식 (.hero, .role-note, .tabs, .tab, .panel, 900px·640px 미디어 쿼리)", "settings/page.tsx 를 .content.settings + .hero + 현재 역할 배지(.role-note) 구조로 교체", "SettingsMembersPanel 을 .tabs/.tab.active/.panel.active 계약으로 교체. 키보드 로빙 포커스와 aria 속성은 그대로 보존", "⚠️ 탭 3종(일반·멤버·운영 현황)을 유지했다. PRD §3.1 은 2종을 명시하지만 그 판정은 슬러그 편집(SETTINGS-02)과 외부 공개(PUB-03) 이전에 쓰였다 — 사용자 승인 사항", "탭 라벨은 PRD §3.1 을 따라 '멤버'로 둔다(프로토타입의 '멤버 관리'는 섹션 h2 로만 쓴다)"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 41개 클래스 정의 존재 확인"
           }
         },
         {
@@ -317,6 +349,12 @@
               "WorkspaceGeneralSettings 컴포넌트 구현 (이름·슬러그 유효성 검사, owner 수정 및 저장)",
               "비-owner 비활성화 및 안내 문구 노출 단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "프로토타입에 대응 마크업이 없는 화면이라 v1 Tailwind 그대로 남아 있었다.",
+            "results": [".settings-card · .settings-form · .settings-field · .settings-actions 신설 — 설정 프로토타입은 이름·슬러그 편집을 그리지 않는다(슬러그가 나중에 생겼다)", ".invite 카드 관용구를 따르되 클래스명은 재사용하지 않는다 — 초대 카드 여백을 바꿀 때 여기가 함께 움직이면 안 된다", "UPDATE 0행을 실패로 매핑하는 기존 로직에 근거 주석 추가(RLS USING 차단은 예외가 아니라 0행)"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 41개 클래스 정의 존재 확인"
           }
         },
         {
@@ -341,6 +379,12 @@
               "SettingsMembersPanel에서 canInvite = currentRole === 'owner' 게이트 적용",
               "viewer/editor에게 초대 폼 미노출 버그 수정 및 단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "멤버 목록이 <ul> + 이메일 나열이었다. 프로토타입의 표·아바타·역할 뱃지·가입일·행 액션 구조가 없었다.",
+            "results": ["MembersList 를 .member-shell > .member-table 구조로 교체 — 아바타, 이름/이메일 2단, .role.owner/.editor/.viewer 뱃지, 가입일, 행 제거 버튼(.more)", "본인 행에 .you 표식 추가", "InviteForm 을 .invite 카드 + .invite-form 3열 그리드(.field 입력 · 역할 Select · .button.primary)로 교체", "⚠️ Radix Select 팝오버에는 .menu 를 쓰지 않는다 — .menu 의 position/right 가 Radix 의 인라인 위치 계산과 싸운다. 생김새만 맞췄다", "프로토타입에 없는 라벨을 sr-only 로 유지 — 라벨 없는 입력은 스크린 리더에 \"편집 텍스트\"로만 읽힌다", "제거 확인 문구·초대 실패 4종 문구·aria-label 은 한 글자도 바꾸지 않았다(UI-SPEC 카피 계약)"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 41개 클래스 정의 존재 확인"
           }
         },
         {
@@ -362,6 +406,12 @@
               "OperationsPanel 예산 micro-dollars 변환 및 5단계 파이프라인 적체 모니터링 연동",
               "새로고침 및 단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "예산·파이프라인이 일반 Tailwind 카드와 표였다. 프로토타입의 2단 예산 카드와 그리드 파이프라인이 없었다.",
+            "results": ["OperationsPanel 을 .budget(.budget-main + .progress + .budget-aside) 과 .pipeline(.pipeline-head + .pipeline-row + .metric) 구조로 교체", ".metric.dead 는 dead > 0 일 때만 붙인다 — 0건을 위험색으로 그리면 정상 상태가 사고로 읽힌다", "⚠️ 프로토타입의 RLS 상태 위젯(.rls)은 구현하지 않는다. PRD §3.3.3 이 삭제를 지정했다 — 응답에 정책 필드가 없고, 검증하지 않은 초록 뱃지는 실제 사고 때 판단을 늦춘다", "⚠️ .budget-aside 에는 응답에 실재하는 값(사용액·남은 금액·월 상한)만 둔다. 프로토타입의 일 평균 사용액·다음 초기화일·예산 상태 뱃지는 파생 규칙이 정의되지 않았다(PRD §3.3.1)", "640px 이하에서 파이프라인이 카드로 접히므로 가로 스크롤이 생기지 않는다(불변식 §7.3)"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 41개 클래스 정의 존재 확인"
           }
         }
       ]
@@ -392,6 +442,12 @@
               "Dropzone 컴포넌트 3종 포맷(PDF/MD/TXT, 20MiB 제한) 업로드 지원",
               "단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "업로드가 화면에 상시 펼쳐진 인라인 드롭존이었다. PRD §3.5 는 업로드 모달을 명시한다.",
+            "results": ["Dropzone 로직은 그대로 두고 프로토타입의 업로드 모달 셸(.modal + .modal-head) 안으로 옮겼다", "히어로의 [소스 업로드] primary 버튼이 모달을 연다", "⚠️ RedLinkCta 가 심는 prefillTitle/tab 쿼리 파라미터로 진입하면 모달을 자동으로 연다 — 닫힌 채 도착하면 그 링크가 아무 일도 안 한 것처럼 보인다", ".drop · .fields CSS 이식"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 소스 관리 클래스 정의 존재 확인"
           }
         },
         {
@@ -414,6 +470,12 @@
               "JobStepper 컴포넌트 5단계 파이프라인 상태 폴링 및 에러/재시도 UX 지원",
               "단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "잡 스테퍼 자체는 동작했으나 행 안에 배치될 자리가 없어 목록 아래로 밀려 있었다.",
+            "results": ["테이블 4번째 열(파이프라인 상태)로 이동. 폴링·취소·재시도 로직과 계약 문구는 그대로 보존", ".status/.dot 프리미티브는 섹션 8 이 이미 소유하므로 다시 정의하지 않았다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 소스 관리 클래스 정의 존재 확인"
           }
         },
         {
@@ -436,6 +498,12 @@
               "SourcesList 3종 MIME 필터 탭(전체, PDF, 텍스트/마크다운) 구현",
               "sources/page.tsx mime_type 쿼리 연동 및 단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "v2 디자인 시스템 클래스를 하나도 쓰지 않았다. PRD §3.3 의 6열 테이블 대신 <ul> 목록이었고 통계·검색·인용 관계가 전부 없었다.",
+            "results": ["nexuswiki-design-system.css 섹션 14 에 소스 관리 레이아웃 이식 (.content.sources 로 스코프, .toolbar, .table-wrap, .table, .file, .format, .doc-chips, 900px 카드 전환)", "⚠️ .tabs/.tab 은 프로토타입 셋이 서로 다른 값으로 정의한다 — 섹션 13(설정)과 14(소스)를 각각 .content.settings / .content.sources 로 스코프했다. 스코프를 풀면 한쪽이 다른 쪽을 덮는다", "PRD §3.3 6열 테이블 구현: 소스 파일(.format 배지 + title + byte_size) · 연결된 위키 문서(.doc-chips) · 청크 및 좌표 · 파이프라인 상태 · 업로드 · 상세 보기", "PRD §3.1 통계 3종 추가. ⚠️ 프로토타입의 \"5채널 인덱싱 100% 정상\"은 쓰지 않는다 — 실패 잡 여부는 이 조회에 없다. 셀 수 있는 값(청크 생성 완료 소스 수)만 센다", "파일명 검색(.search) 추가", "⚠️ 청크 집계와 역인용은 소스별 조회 대신 화면에 보이는 id 집합으로 한 번씩만 읽고 JS 에서 매핑한다 — PRD §4.1 이 요구하는 역인용 인덱스가 아직 없어(마이그레이션 미적용) N+1 을 피하는 쪽을 택했다", "업로드 열은 상대 시간 + .sub 절대 날짜를 함께 표기한다 — PRD §3.3 은 상대 시간을, 승인된 테스트 계약은 절대 날짜 문자열을 요구한다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 소스 관리 클래스 정의 존재 확인"
           }
         },
         {
@@ -459,6 +527,12 @@
               "WikiPageContent 읽기 전용 배너, 검증/충돌 상태 콜아웃, 마크다운 렌더링",
               "단위 테스트 및 빌드 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "라우트가 화면을 그리지 않고 /ask 로 리다이렉트했다 — 리더 화면 자체가 앱에 존재하지 않았다. 프로토타입이 요구하는 우측 목차 패널은 통합 뷰어에 자리가 없다.",
+            "results": ["OpenSpec change restore-standalone-wiki-reader 로 처리(승인된 스펙 2건을 뒤집는 변경) — 제안·구현·검증·spec sync·archive 완료", "/w/[workspaceId]/wiki/[slug] 가 리다이렉트를 멈추고 WikiPageContent 를 직접 렌더링한다", "nexuswiki-design-system.css 섹션 15 에 리더 조판 이식 (.reader-layout, .reader, .article, .governance, .cite, .toc, .drawer, .code mark)", "⚠️ 목차를 앱 셸의 3번째 그리드 열로 만들지 않았다 — .app 그리드는 WorkspaceShell 이 소유하고 모든 라우트가 공유하므로, 리더 하나 때문에 열을 늘리면 나머지 라우트가 없는 열을 위해 자리를 비운다. 리더 라우트 안에서 2열 + sticky 목차로 처리했다", "⚠️ 통합 뷰어(/ask)의 위키 탭은 지우지 않았다. 지우면 unified-workspace-viewer 의 \"Citation click integrates with the viewer\" 가 함께 깨져 대화에서 인용을 눌렀을 때 갈 곳이 없어진다", "읽기 전용 배너·충돌 콜아웃·검증 문구 4종·검증 액션 라벨은 그대로 보존"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 번들 CSS에서 리더 클래스 정의 존재 확인, openspec validate --all --strict 23건 통과"
           }
         },
         {
@@ -481,6 +555,12 @@
               "resolveWikiLinks 및 RedLinkCta 컴포넌트 미해결 링크 소스 생성 유도",
               "단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "WikiLink 라우팅 로직은 정상이었으나 링크가 v1 토큰(text-primary underline)으로 그려져 인용 마커와 구분되지 않았다.",
+            "results": ["해결된 WikiLink 를 .cite 마커로 교체 — 위키 인용과 원문 인용(.cite.source)을 색으로 구분한다", "RedLinkCta 의 미해결 링크 처리와 소스 연결 CTA 는 그대로 두었다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 번들 CSS에서 리더 클래스 정의 존재 확인, openspec validate --all --strict 23건 통과"
           }
         },
         {
@@ -505,6 +585,12 @@
               "CitationMarker 및 CitationSidePanel 원문 청크 대조 서랍 및 좌표 하이라이트 지원",
               "단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "이중 Citation 의 원문 하이라이트를 그릴 CSS(.code mark)가 앱에 없었다.",
+            "results": [".drawer · .code · .code mark 이식 — char_start–char_end 구간을 --good 좌측 보더로 표시한다", "⚠️ 인용 드로어를 실제로 여는 표면은 통합 뷰어의 CitationSidePanel 이 계속 담당한다. 리더 쪽 드로어 연결은 이번 범위에 넣지 않았다 — 스타일만 준비된 상태다"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과, next build 성공, 번들 CSS에서 리더 클래스 정의 존재 확인, openspec validate --all --strict 23건 통과"
           }
         }
       ]
@@ -537,6 +623,21 @@
               "상단 통계(미해결 백로그, 영향받는 위키), 검색 필터, 소스 추가 CTA 연동",
               "단위 테스트 및 빌드 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-19",
+            "finding": "v2 디자인 시스템 클래스를 하나도 쓰지 않았다 — 전부 Tailwind 임의값이고 토큰도 v1(--nw-rule · --nw-ink · --font-title-sm)이었다. 이 화면만 v2 프로토타입이 없어 이식할 <style> 블록도 없었다.",
+            "results": [
+              "nexuswiki-design-system.css 섹션 17 신설 — 출처가 프로토타입이 아니라 PRD §3.1~3.2 와 섹션 14(소스 관리)의 관용구다. 두 화면 모두 '집계 + 표 + 행 액션' 구조라 .hero/.stats/.toolbar/.table 을 그대로 재사용한다",
+              "BacklogList 를 .content.backlog + .hero + .stats(2종) + .toolbar + .table(5열) 구조로 교체. 목록이 <ul> 카드에서 PRD §3.2 의 표(백로그 주제 · 인용 중인 위키 · 인용 빈도 · 최초 감지 · 액션)로 바뀌었다",
+              "⚠️ 섹션 14 의 @media 900px/640px 안에 있던 .table td:nth-child(N) 열 배치를 .content.sources 로 스코프했다. 무스코프였던 탓에 td:nth-child(5){display:none} 이 열 수가 다른 표에 그대로 적용된다 — 백로그의 액션 열이 900px 이하에서 조용히 사라졌을 것이다. 소스 화면 동작은 불변",
+              "인용 빈도를 StatusBadge('참조 N회')에서 정렬 축 열로 옮겼다. 이에 따라 BacklogList.test.tsx 를 수정했다 — 요약 통계 숫자와 인용 빈도 숫자가 화면에서 겹치므로 within() 으로 영역을 좁히고, 인용 빈도 내림차순 정렬 자체를 검증하는 단언을 추가했다",
+              "⚠️ 화면 제목은 PRD §3.1 의 '작성 대기 백로그'가 아니라 LNB 와 같은 '미완성 백로그'로 둔다. LNB 라벨은 프로토타입과 WorkspaceSidebar.test.tsx 양쪽의 계약이며, 화면이 진입 경로와 다른 이름을 갖는 편이 더 나쁘다",
+              "⚠️ PRD §3.3 상세 슬라이드아웃과 §6-2 원문 표기 제목은 구현하지 않았다. 둘 다 from_wiki_id 본문을 서버에서 발췌해야 하는 새 사용자 동작이라 backlog-ask 스펙에 없다 — 별도 OpenSpec change 로 다룬다. 표시용 제목은 slug 역변환(근사값)을 유지하고 원본 slug 를 보조 줄·title·aria-label 로 함께 남겼다",
+              "PRD §3.2 대로 필터 탭은 '전체' 하나만 둔다. '높은 인용 빈도'·'신규 감지'는 정렬로 충분하고 '소스 삭제 결손'은 경로 자체가 없다(§2.4)",
+              "formatDate/formatRelativeTime 을 lib/relative-time.ts 로 분리 — 소스 관리와 백로그 두 소비자가 생겼다. 복제해 두면 한쪽만 고쳐져 같은 앱에 두 상대 시간 기준이 생긴다"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(BacklogList.test.tsx 1건 수정), next build 성공, 빌드된 CSS 번들에서 .content.backlog · .topic · .impact 및 스코프된 nth-child 규칙 존재 확인"
           }
         },
         {
@@ -560,6 +661,24 @@
               "AskConversation 컴포넌트 meta -> delta* -> citations -> done 이벤트 스트림 및 인라인 마커 렌더링",
               "단위 테스트 및 빌드 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-19",
+            "finding": "SSE 상태 기계는 정상이었으나 화면이 v1 이었다 — PageHeader + Tailwind 임의값이고, 프로토타입의 스레드·답변 카드·composer·인용 인스펙터 레이아웃이 전부 미정의였다.",
+            "results": [
+              "nexuswiki-design-system.css 섹션 16 신설 — nexuswiki-ask-conversation.html <style> 이식 (.ask-layout, .conversation, .thread, .user, .answer, .composer, .inspect 계열)",
+              "⚠️ 이 프로토타입이 이름 충돌을 가장 많이 들고 온다. .tabs · .tab · .card · .tag · .code · .meta · .link · .index · .user · .dot 을 전부 .conversation / .inspect 로 스코프했다. 스코프를 풀면 섹션 13(설정)·14(소스)·15(리더)가 조용히 덮인다",
+              "반대로 .cite / .cite.source 와 .panel / .panel.active 는 다시 정의하지 않았다 — 섹션 15·13 이 같은 값·같은 계약으로 이미 소유한다. 인용 마커는 리더와 대화가 같은 물건을 가리키므로 두 화면이 갈라지면 안 된다",
+              "⚠️ 프로토타입은 .app 을 4열(264px · 대화 · 6px 스플리터 · 인스펙터)로 바꾸고 height:100vh 를 건다. 섹션 15 와 같은 판정으로 .app 을 건드리지 않았다 — WorkspaceShell 이 소유하고 모든 라우트가 공유한다. 라우트 안에서 .ask-layout 2열로 배치한다",
+              "AskConversation 을 .thread 스레드 구조로 교체 — 사용자 발화 버블(.user), 답변 카드(.answer + .answer-head), 하단 고정 composer(.compose-inner + .send). 계약 문구 5종·data-testid·role=alert·data-variant·재시도 버튼은 그대로 보존했다",
+              "no-evidence · error · dropped 카드는 .answer.notice 로 통일하되 좌측 굵은 띠로 구분한다 — 색만으로 구분하면 색각 이상에서 일반 답변과 같아진다(CITE-04/D-11 은 '시각적으로 구분'을 요구한다)",
+              "ContentViewer 를 .inspect 인용 인스펙터로 교체 — .inspect-head + .tabs/.tab + .inspect-body + .panel.active. role=tablist/tab/tabpanel, aria-controls/labelledby, roving tabIndex, 방향키 이동은 전부 보존했다(테스트 수정 없음)",
+              "CitationMarker 를 공용 .cite / .cite.source 로 교체. 해소 전 placeholder 는 .cite 를 쓰지 않고 .cite-pending 을 새로 둔다 — T-06-18 은 citations 프레임 도착 전 앵커가 링크처럼 보이지 않을 것을 요구한다",
+              "전송 버튼의 접근 가능한 이름을 '질문하기'로 고정했다(aria-label). 화살표 글리프만 남기면 스크린 리더에 '위쪽 화살표 버튼'으로 읽힌다",
+              "⚠️ 드래그 스플리터(.split)는 이식하지 않았다. 폭 조절은 새 상호작용 계약이라 CSS 만으로 끝나지 않고 unified-workspace-viewer 스펙에도 없다 — 동작 없는 손잡이만 그리면 눌러도 아무 일이 없는 어포던스가 된다. 별도 change 로 다룬다",
+              "⚠️ 프로토타입의 가짜 그래프 미리보기(.graph · .node · .map)도 이식하지 않았다. 앱은 같은 자리에 GraphCanvas(cytoscape)를 렌더한다"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(AskConversation·ContentViewer·CitationMarker 테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 섹션 16 클래스 24종 정의 및 .inspect/.conversation 스코프 존재 확인"
           }
         }
       ]
@@ -589,6 +708,15 @@
               "0016_public_sharing.sql 사이드카 테이블 2종, 킬스위치 RLS, 트리거 게이트 작성",
               "anon 및 authenticated GRANT 적용"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-19",
+            "finding": "결손 없음. 마이그레이션은 PRD §6 실측 기록과 일치한다.",
+            "results": [
+              "0016_public_sharing.sql 재확인 — 사이드카 2종, 복합 FK(wiki_page_id, workspace_id), 검증 게이트 트리거(42501), 슬러그 파생·추종 트리거, anon/authenticated GRANT 가 전부 실재한다. 변경 없음",
+              "Phase 1~5 중 결손이 없었던 유일한 태스크다. 화면이 아닌 DDL 이라, Vitest 가 보지 못하는 CSS 와 달리 실측 기록(PRD §6 ①~⑨)으로 이미 검증돼 있었다"
+            ],
+            "verification": "0016_public_sharing.sql 대조 — 사이드카 2종·복합 FK·검증 게이트·슬러그 트리거·GRANT 실재 확인. 변경 없음"
           }
         },
         {
@@ -610,6 +738,23 @@
               "/p/[slug]/[page] 공개 위키 뷰어 라우트 작성 및 킬스위치 OFF 404 처리",
               "단위 테스트 및 빌드 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-19",
+            "finding": "정의되지 않은 CSS 변수 2종과 미설치 Tailwind 플러그인 클래스에 의존하고 있었고, PRD §3.1 이 금지한 킬스위치 조건이 앱 쿼리에 중복돼 있었다.",
+            "results": [
+              "nexuswiki-design-system.css 섹션 18 신설 — 공개 위키 리더. v2 프로토타입이 없어(PRD §7-5) 조판은 섹션 15(내부 리더)를 그대로 재사용한다. 공개본은 내부 문서와 '같은 문서'를 보여주는 화면이라 두 리더가 다르게 생기면 그 자체가 버그다",
+              "⚠️ 정의되지 않은 변수 2종을 쓰고 있었다 — var(--surface-soft) 와 var(--font-title-lg) 는 v2·v1 어느 토큰 파일에도 없다. 전자는 '공개 위키' 배지와 인용 카드의 배경을 투명으로 만들었고, 후자는 font 축약 속성 전체를 무효화해 h1 이 브라우저 기본값으로 렌더링됐다",
+              "⚠️ prose · prose-neutral 을 쓰고 있었으나 @tailwindcss/typography 가 설치돼 있지 않다 — 본문 조판 규칙이 통째로 no-op 였다. 섹션 15 의 .article 로 교체했다",
+              "⚠️ PRD §3.1 이 금지한 allow_public_sharing 조건을 앱 쿼리가 다시 적고 있었다. 제거했다 — 양쪽 테이블의 RLS 가 이미 강제한다. 앱이 같은 조건을 중복하면 '앱이 막고 있다'는 착각이 생기고, 앱에서 빠뜨린 날 격리가 무너진다. 차단은 DB 가 한다",
+              "발행 본문의 [[문서명]] 표기를 평문으로 펼친다. 회귀 테스트 1건 추가(브래킷 부재 + /w/ 링크 0개). ⚠️ 근거는 PRODUCT-INVARIANTS.md §4 「공개 표면에서 내부 라우트로 링크하지 않음」이 소유한다 — 이번 작업에서 신설했다",
+              "목차를 추가했다 — PRD §5 권한 매트릭스가 게스트에게 '본문·목차'를 허용한다. 새 데이터도 새 라우트도 필요 없고 내부 리더와 같은 extractHeadings 규칙을 쓴다",
+              "⚠️ 섹션 15 의 .toc 는 top:0 · height:100vh 다. 공개 페이지에는 자체 상단바(56px)가 있어 그대로 두면 목차 첫 항목이 상단바 뒤로 숨는다 — .public-shell .toc 로 상단바 높이만큼 내렸다",
+              "그동안 조회만 하고 쓰지 않던 public_description 을 푸터에 표시한다",
+              "404 동일성은 그대로 유지했다 — 킬스위치 OFF · 미발행 · 없는 슬러그가 전부 구분 불가능한 같은 404 다(PRD §3.1)",
+              "인용 원문 드로어(.drawer)는 이식하지 않았다. left:264px 이 앱 셸 사이드바를 전제하고, 무엇보다 anon 은 원문 청크에 정책도 GRANT 도 없다 — 공개 페이지가 여는 것은 승인된 스니펫뿐이다"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 158테스트 통과(회귀 테스트 1건 추가), next build 성공, 빌드된 CSS 번들에서 섹션 18 클래스 10종 정의 및 --surface-soft·--font-title-lg 미참조 확인"
           }
         },
         {
@@ -632,6 +777,12 @@
               "PublicSharingSettings 컴포넌트 마스터 킬스위치 및 공개 정보 제어",
               "WorkspaceGeneralSettings 연동 및 단위 테스트 통과"
             ]
+          },
+          "re_verification": {
+            "date": "2026-08-18",
+            "finding": "설정 화면 안에 있으면서 혼자 v1 Tailwind 토글이라 한 화면에 두 톤이 섞여 있었다. Phase 2 작업 범위에 포함하기로 사용자와 합의.",
+            "results": ["PublicSharingSettings 를 .public-share(.public-share-head + .share-state + .toggle + .public-share-body + .public-field + .public-route + .share-note) 구조로 교체", "⚠️ 토글은 프로토타입의 <button role=\"switch\"> 가 아니라 시각적으로 감춘 체크박스 + .toggle 스팬으로 그린다 — 체크박스라야 키보드·스크린 리더 동작을 브라우저 기본 구현으로 얻는다. CSS 는 aria-checked 판과 형제 선택자 판을 모두 유지한다", "킬스위치 ON/OFF 안내 문구와 공개 URL 프리뷰 문자열은 그대로 보존"],
+            "verification": "pnpm typecheck · lint 통과, Vitest 44파일 157테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에서 41개 클래스 정의 존재 확인"
           }
         }
       ]
@@ -686,13 +837,27 @@
       "description": "GitHub Issue #18 (OPEN). GCP Client ID/Secret을 Supabase Cloud 대시보드에 등록.",
       "blocking": [],
       "blocking_level": "non-critical"
+    },
+    {
+          "id": "OD-08",
+          "title": "백로그 상세 패널 · 원문 표기 제목",
+          "description": "backlog-management-prd.md §3.3(행 클릭 시 우측 슬라이드아웃: 인용 문맥 발췌)과 §6-2 권고안 (c)(target_slug 역변환 대신 from_wiki_id 본문에서 원문 [[표기]]를 찾아 제목으로 쓴다). 둘 다 같은 조회 경로(§4.3)를 쓴다 — from_wiki_id 의 content 를 읽어 [[target]] 주변을 잘라낸다. ⚠️ 본문 전체를 클라이언트로 내려보내지 않는다. 서버에서 발췌해 스니펫만 응답한다. 새 사용자 동작이라 backlog-ask 스펙에 없었다. 2026-08-19 계획 완료 — GitHub Issue #37(umbrella, OPEN) · #38 · #39 · #40, OpenSpec change openspec/changes/add-backlog-topic-context/. 구현은 /opsx:apply 로 별도 진행한다.",
+          "blocking": [],
+          "blocking_level": "deferred"
+    },
+    {
+          "id": "OD-09",
+          "title": "Ask 인용 인스펙터 드래그 스플리터",
+          "description": "nexuswiki-ask-conversation.html 의 .split — 대화와 인스펙터 사이 폭을 포인터로 조절한다. 섹션 16 에서 의도적으로 이식하지 않았다: 폭 조절은 CSS 만으로 끝나지 않는 새 상호작용 계약이고 unified-workspace-viewer 스펙에 없다. 동작 없는 손잡이만 그리면 눌러도 아무 일이 없는 어포던스가 된다. ⚠️ 되살린다면 프로토타입의 포인터 전용 구현을 그대로 옮기지 않는다 — role=\"separator\" + aria-valuenow + 방향키 이동이 없으면 키보드 사용자에게는 조절 수단이 아예 없다.",
+          "blocking": [],
+          "blocking_level": "deferred"
     }
   ],
   "cleanup_tasks": [
     {
       "id": "CLEAN-01",
       "title": "docs/design-systems/design-tokens.css·.json 옛 Airbnb 팔레트 정리",
-      "description": "v2는 청록 oklch(.58 .11 190) 체계. globals.css 참조 여부 확인 후 판단."
+      "description": "v2는 청록 oklch(.58 .11 190) 체계. 2026-08-19 육안 확인 후 globals.css 의 --nw-* 색 토큰을 v2 :root 토큰으로 재배선했다(--nw-ink→--fg 등). 값은 정리됐지만 이름은 9개 파일에 36+회 남아 있다 — 남은 일은 그 참조를 v2 이름으로 바꾸는 것이다. ⚠️ --nw-action/-hover/--nw-focus 는 재배선하지 않았다: #171717 은 아카이브된 unify-primary-action-color change 가 정한 값이라 v2 --accent 로 바꾸면 그 결정을 뒤집는다."
     },
     {
       "id": "CLEAN-02",
@@ -712,7 +877,7 @@
     {
       "id": "CLEAN-05",
       "title": "미커밋 OpenSpec 산출물 정리",
-      "description": "untracked 6개 파일 (feature-planning-workflow, pull-request-workflow, create-pr command 등). 다음 PR 시 함께 커밋."
+      "description": "2026-08-19 확인 결과 해소됨 — 해당 파일들은 커밋 2efe345/8ca4f78 로 이미 추적 중이고 작업 트리에 untracked OpenSpec 산출물이 없다. 다음 원장 정리 시 이 항목을 제거한다."
     }
   ]
 }

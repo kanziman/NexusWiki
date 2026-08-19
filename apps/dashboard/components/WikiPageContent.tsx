@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Fragment, useState } from "react";
 
 import { RedLinkCta } from "@/components/RedLinkCta";
-import { DetailHeader } from "@/components/DashboardPrimitives";
 import { apiFetch } from "@/lib/api-client";
 import { workspacePath } from "@/lib/workspace-path";
 import { resolveWikiLinks } from "@/lib/wiki-links";
@@ -16,6 +15,14 @@ const DISPUTED_CALLOUT =
   "충돌 감지됨 — 상충하는 정보가 있습니다. 원문을 확인하세요.";
 const VERIFY_ACTION_LABEL = "검증됨으로 표시";
 const VERIFY_FAILURE_MESSAGE = "검증 처리에 실패했습니다. 다시 시도해주세요.";
+
+// workspace-home-prd.md 카테고리 표시명 매핑 — wiki_pages.category CHECK 4종 고정.
+const CATEGORY_LABELS: Record<string, string> = {
+  concepts: "개념",
+  entities: "엔티티",
+  guides: "가이드",
+  maps: "맵",
+};
 
 type WikiPage = {
   id: string;
@@ -76,7 +83,6 @@ export function WikiPageContent({
   canVerify,
 }: WikiPageContentProps) {
   const [status, setStatus] = useState(page.verification_status);
-  const [verifiedBy, setVerifiedBy] = useState(page.verified_by);
   const [verifiedAt, setVerifiedAt] = useState(page.verified_at);
   const [expiresAt, setExpiresAt] = useState(page.expires_at);
   const [disputed, setDisputed] = useState(page.disputed);
@@ -94,7 +100,6 @@ export function WikiPageContent({
         { method: "PATCH", body: { verification_status: "verified" } },
       );
       setStatus(result.verification_status);
-      setVerifiedBy(result.verified_by);
       setVerifiedAt(result.verified_at);
       setExpiresAt(result.expires_at);
       setDisputed(result.disputed);
@@ -121,134 +126,120 @@ export function WikiPageContent({
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-xl">
-      <DetailHeader
-        libraryHref={`${workspacePath(workspaceId)}/wiki`}
-        libraryLabel="위키 목록"
-        navigationLabel="위키 탐색 경로"
-        breadcrumb={`위키 / ${page.category}`}
-        kind={page.category}
-        title={page.title}
-      />
-      {/* 1. 읽기전용 배너 */}
-      <p
-        className="rounded-md bg-surface-soft px-base py-sm text-ink"
-        style={{ font: "var(--font-body-sm)" }}
-      >
-        {READ_ONLY_BANNER}
-      </p>
-
-      {/* 2/3. 충돌 콜아웃(항상 최우선) 또는 검증 상태 콜아웃 — 이 블록은 항상
-          아래 본문 렌더 블록보다 파일/DOM 순서상 먼저 나온다. */}
-      {disputed ? (
-        <p
-          className="text-primary-error-text"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
-        >
-          {DISPUTED_CALLOUT}
-        </p>
-      ) : (
-        <VerificationCallout
-          status={status}
-          verifiedBy={verifiedBy}
-          verifiedAt={verifiedAt}
-          expiresAt={expiresAt}
-          isExpired={isExpired}
-        />
-      )}
-
-      {/* 4. 페이지 제목 — Display(28px/600), UI-SPEC 2-weight cap 개정 반영 */}
-      {/* 5. 검증 액션 — editor 이상만(canVerify는 page.tsx가 서버에서 계산해
-          내려준다; 이 버튼의 노출 여부는 UX 편의일 뿐, 실제 권한 경계는
-          wiki.py의 RLS 기반 UPDATE 정책이다, T-06-21). */}
-      {canVerify ? (
-        <div className="flex flex-col gap-xs">
-          <button
-            type="button"
-            onClick={handleVerify}
-            disabled={submitting}
-            className="h-12 self-start rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-            style={{ font: "var(--font-button-sm)", fontWeight: 600 }}
-          >
-            {VERIFY_ACTION_LABEL}
-          </button>
-          {verifyError !== null ? (
-            <p
-              role="alert"
-              className="text-primary-error-text"
-              style={{ font: "var(--font-caption)", fontWeight: 600 }}
-            >
-              {verifyError}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {headings.length ? (
-        <nav
-          aria-label="이 문서에서"
-          className="rounded-sm bg-surface-soft p-base"
-        >
-          <p className="text-ink" style={{ font: "var(--font-caption)" }}>
-            이 문서에서
-          </p>
-          <ul className="mt-xs flex flex-wrap gap-x-base gap-y-xs">
-            {headings.map((heading) => (
-              <li key={heading.id}>
-                <a
-                  className="nw-focus-ring text-primary underline"
-                  href={`#${heading.id}`}
-                >
-                  {heading.title}
-                </a>
-              </li>
-            ))}
-          </ul>
+    <div className="reader-layout">
+      <article className="reader">
+        <nav aria-label="위키 탐색 경로" className="eyebrow">
+          위키 / {page.category}
         </nav>
-      ) : null}
 
-      {/* 6. 본문 — 전체 컴파일 문서를 자르지 않고 그대로 자연스럽게 흘려보낸다
-          ("read the whole page" 표면, UI-SPEC overflow/wiki-page-content). */}
-      <div
-        className="text-body"
-        style={{
-          font: "var(--font-body-md)",
-          whiteSpace: "pre-wrap",
-          maxWidth: "72ch",
-        }}
-      >
-        <DocumentBody
-          content={page.content}
-          links={links}
-          workspaceId={workspaceId}
-        />
-      </div>
-      {relatedLinks.length ? (
-        <section
-          className="border-t border-hairline pt-lg"
-          aria-labelledby="related-wiki-heading"
-        >
-          <h2
-            id="related-wiki-heading"
-            className="text-ink"
-            style={{ font: "var(--font-title-md)" }}
+        <div className="title-row">
+          <h1>{page.title}</h1>
+        </div>
+
+        {/* 1. 읽기전용 배너 + 상태 배지. 문구는 UI-SPEC 카피 계약이라
+            한 글자도 바꾸지 않는다. */}
+        <div className="governance">
+          <span className="tag">
+            {CATEGORY_LABELS[page.category] ?? page.category}
+          </span>
+          {/* 2/3. 충돌 콜아웃(항상 최우선) 또는 검증 상태 콜아웃 — 이 블록은
+              항상 아래 본문 렌더 블록보다 파일/DOM 순서상 먼저 나온다. */}
+          {disputed ? (
+            <span className="badge" style={{ color: "var(--danger)" }}>
+              {DISPUTED_CALLOUT}
+            </span>
+          ) : (
+            <VerificationCallout
+              status={status}
+              verifiedAt={verifiedAt}
+              expiresAt={expiresAt}
+              isExpired={isExpired}
+            />
+          )}
+        </div>
+
+        <p className="mt-[14px] mb-0 text-[11px] text-[var(--muted)]">
+          {READ_ONLY_BANNER}
+        </p>
+
+        {/* 5. 검증 액션 — editor 이상만(canVerify는 page.tsx가 서버에서 계산해
+            내려준다; 이 버튼의 노출 여부는 UX 편의일 뿐, 실제 권한 경계는
+            wiki.py의 RLS 기반 UPDATE 정책이다, T-06-21). */}
+        {canVerify ? (
+          <div className="mt-4 flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={handleVerify}
+              disabled={submitting}
+              className="button primary self-start"
+            >
+              {VERIFY_ACTION_LABEL}
+            </button>
+            {verifyError !== null ? (
+              <p role="alert" className="invite-feedback error show">
+                {verifyError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* 6. 본문 — 전체 컴파일 문서를 자르지 않고 그대로 자연스럽게 흘려보낸다
+            ("read the whole page" 표면, UI-SPEC overflow/wiki-page-content). */}
+        <div className="article mt-7">
+          <DocumentBody
+            content={page.content}
+            links={links}
+            workspaceId={workspaceId}
+          />
+        </div>
+
+        {relatedLinks.length ? (
+          <section
+            className="mt-9 border-t border-[var(--border)] pt-6"
+            aria-labelledby="related-wiki-heading"
           >
-            관련 문서
-          </h2>
-          <ul className="mt-sm flex flex-wrap gap-sm">
-            {relatedLinks.map((link) => (
-              <li key={link.target_slug}>
-                <Link
-                  className="nw-focus-ring text-primary underline"
-                  href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
-                >
-                  {link.target_slug.replace(/-/g, " ")}
-                </Link>
-              </li>
+            <h2
+              id="related-wiki-heading"
+              className="m-0 text-[15px] font-extrabold"
+            >
+              관련 문서
+            </h2>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {relatedLinks.map((link) => (
+                <li key={link.target_slug}>
+                  <Link
+                    className="doc-chip"
+                    href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
+                  >
+                    {link.target_slug.replace(/-/g, " ")}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </article>
+
+      {/* 우측 목차 패널. 960px 이하에서는 CSS 가 감춘다 — 본문을 좁히지 않는다
+          (openspec/changes/restore-standalone-wiki-reader 의 목차 요구사항). */}
+      <aside className="toc">
+        <div className="toc-heading">
+          <h2>목차</h2>
+        </div>
+        {headings.length ? (
+          <nav aria-label="이 문서에서" className="toc-list">
+            {headings.map((heading) => (
+              <a key={heading.id} href={`#${heading.id}`}>
+                {heading.title}
+              </a>
             ))}
-          </ul>
-        </section>
-      ) : null}
+          </nav>
+        ) : (
+          <p className="m-0 text-[11px] text-[var(--muted)]">
+            제목이 없는 문서입니다.
+          </p>
+        )}
+      </aside>
     </div>
   );
 }
@@ -281,7 +272,7 @@ function DocumentBody({
             <Link
               key={partIndex}
               href={`${workspacePath(workspaceId)}/wiki/${part.slug}`}
-              className="text-primary underline"
+              className="cite"
             >
               {part.title}
             </Link>
@@ -302,12 +293,7 @@ function DocumentBody({
                 ? "h3"
                 : "h4";
           return (
-            <Tag
-              key={index}
-              id={`section-${index}`}
-              className="scroll-mt-xl pt-base text-ink"
-              style={{ font: "var(--font-title-md)" }}
-            >
+            <Tag key={index} id={`section-${index}`} className="scroll-mt-6">
               {children}
             </Tag>
           );
@@ -325,32 +311,31 @@ function DocumentBody({
 
 type VerificationCalloutProps = {
   status: string;
-  verifiedBy: string | null;
   verifiedAt: string | null;
   expiresAt: string | null;
   isExpired: boolean;
 };
 
+// ⚠️ verifiedBy(계정 UUID)는 의도적으로 prop에서 받지 않는다. 이 컴포넌트에는
+// UUID를 표시명으로 바꿀 조회 경로가 없어, 넘겨받아도 화면에는 못 쓴다 — 안
+// 쓰는 prop을 시그니처에 남겨 두면 다음 사람이 "표시할 수 있는데 안 하나?"로
+// 헷갈린다.
 function VerificationCallout({
   status,
-  verifiedBy,
   verifiedAt,
   expiresAt,
   isExpired,
 }: VerificationCalloutProps) {
   if (status === "verified" && !isExpired) {
-    // UI-SPEC Copywriting Contract "Verified callout" — {verifier}/{verified_at
-    // 날짜}는 실제 값으로 치환한다. 계정 삭제로 verified_by가 null이 된 경우를
-    // 대비한 방어적 폴백("알 수 없음")이 있다 — 0007 verified_by 컬럼 주석 참조.
-    const verifierLabel = verifiedBy ?? "알 수 없음";
+    // ⚠️ 검증자를 표시하지 않는다. `verified_by`는 auth 사용자 UUID이고 이
+    // 라우트에는 그것을 이름으로 바꿀 조회 경로가 없다 — 그대로 찍으면 화면에
+    // 36자짜리 식별자가 남아 정작 읽어야 할 검증 날짜를 밀어낸다. 사람이 읽을
+    // 이름을 붙이려면 표시명 조회가 먼저 필요하고, 그건 이 화면 밖의 일이다.
     const dateLabel = verifiedAt !== null ? formatDate(verifiedAt) : "";
     return (
-      <p
-        className="text-success-text"
-        style={{ font: "var(--font-caption)", fontWeight: 600 }}
-      >
-        {`검증됨 · ${verifierLabel}${dateLabel ? ` · ${dateLabel}` : ""}`}
-      </p>
+      <span className="badge verified">
+        {`검증됨${dateLabel ? ` · ${dateLabel}` : ""}`}
+      </span>
     );
   }
 
@@ -360,26 +345,16 @@ function VerificationCallout({
     // prop 시그니처가 string | null이라 렌더 시점에 한 번 더 널가드한다.
     const dateLabel = expiresAt !== null ? formatDate(expiresAt) : "";
     return (
-      <p
-        className="text-warning-text"
-        style={{ font: "var(--font-caption)", fontWeight: 600 }}
-      >
+      <span className="badge" style={{ color: "var(--danger)" }}>
         {`검증 만료됨${dateLabel ? ` · ${dateLabel} 이후 재검증 필요` : " · 재검증 필요"}`}
-      </p>
+      </span>
     );
   }
 
   if (status === "partial") {
     // UI-SPEC에 partial 전용 문구가 없다 — expired-style(warning-text) 처리를
     // 이 컴포넌트의 합리적 확장으로 채택한다(06-07-PLAN.md Task 2 <action>).
-    return (
-      <p
-        className="text-warning-text"
-        style={{ font: "var(--font-caption)", fontWeight: 600 }}
-      >
-        부분 검증됨 · 재검증이 필요합니다
-      </p>
-    );
+    return <span className="badge">부분 검증됨 · 재검증이 필요합니다</span>;
   }
 
   // "unverified" — UI-SPEC은 중립 기본 상태로 명시적 콜아웃을 요구하지 않는다.

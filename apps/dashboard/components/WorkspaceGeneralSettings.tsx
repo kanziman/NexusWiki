@@ -11,6 +11,9 @@ export type WorkspaceGeneralSettingsProps = {
   initialName: string;
   initialSlug: string;
   isOwner: boolean;
+  allowPublicSharing?: boolean;
+  publicDisplayName?: string;
+  publicDescription?: string;
 };
 
 const SLUG_REGEX = /^[0-9a-z가-힣][0-9a-z가-힣-]*$/;
@@ -20,6 +23,9 @@ export function WorkspaceGeneralSettings({
   initialName,
   initialSlug,
   isOwner,
+  allowPublicSharing = false,
+  publicDisplayName = "",
+  publicDescription = "",
 }: WorkspaceGeneralSettingsProps) {
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
@@ -55,6 +61,8 @@ export function WorkspaceGeneralSettings({
     setSuccessMessage(null);
 
     const supabase = createClient();
+    // RLS USING 에 막힌 UPDATE 는 예외가 아니라 0행이다 — .select() 로 되받은
+    // 행 수를 확인해야 "차단됨"과 "성공"이 구분된다(CLAUDE.md 불변 규칙).
     const { data, error } = await supabase
       .from("workspaces")
       .update({ name: trimmedName, slug: trimmedSlug })
@@ -74,114 +82,97 @@ export function WorkspaceGeneralSettings({
   }
 
   return (
-    <section className="flex flex-col gap-base" aria-label="기본 설정">
-      <div>
-        <h2 className="text-ink" style={{ font: "var(--font-title-md)" }}>
-          기본 정보
-        </h2>
-        <p className="text-sm text-[var(--muted)]">
-          워크스페이스 이름과 식별용 슬러그를 관리합니다.
-        </p>
+    <>
+      <div className="section-head">
+        <div>
+          <h2>기본 정보</h2>
+          <p>워크스페이스 이름과 식별용 슬러그를 관리합니다.</p>
+        </div>
       </div>
 
       {!isOwner && (
-        <div
-          role="note"
-          className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--muted)]"
-        >
+        <div role="note" className="role-note">
           소유자(Owner)만 워크스페이스 설정을 변경할 수 있습니다.
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-base">
-        <div className="flex flex-col gap-xs">
-          <label
-            htmlFor="workspace-name-input"
-            className="text-xs font-semibold text-[var(--fg)]"
-          >
-            워크스페이스 이름
-          </label>
-          <input
-            id="workspace-name-input"
-            type="text"
-            value={name}
-            disabled={!isOwner || saving}
-            onChange={(e) => {
-              setName(e.target.value);
-              setErrorMessage(null);
-              setSuccessMessage(null);
-            }}
-            placeholder="워크스페이스 이름"
-            className="h-10 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm text-[var(--fg)] outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            required
-            maxLength={100}
-          />
-        </div>
+      <section className="settings-card" aria-label="기본 설정">
+        <h3>워크스페이스 식별</h3>
+        <p>슬러그는 공개 URL 과 공유 링크의 식별자로 쓰입니다.</p>
 
-        <div className="flex flex-col gap-xs">
-          <label
-            htmlFor="workspace-slug-input"
-            className="text-xs font-semibold text-[var(--fg)]"
-          >
-            워크스페이스 슬러그
-          </label>
-          <input
-            id="workspace-slug-input"
-            type="text"
-            value={slug}
-            disabled={!isOwner || saving}
-            onChange={(e) => {
-              setSlug(e.target.value);
-              setErrorMessage(null);
-              setSuccessMessage(null);
-            }}
-            placeholder="workspace-slug"
-            className="h-10 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 font-mono text-sm text-[var(--fg)] outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            required
-            maxLength={80}
-          />
-          <span className="text-[11px] text-[var(--muted)]">
-            URL 및 공유 식별자로 사용됩니다 (영문 소문자, 숫자, 한글, 하이픈).
-          </span>
-        </div>
-
-        {errorMessage && (
-          <div
-            role="alert"
-            className="rounded-md border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-2.5 text-xs text-[var(--danger)]"
-          >
-            {errorMessage}
+        <form onSubmit={handleSubmit} className="settings-form">
+          <div className="settings-field">
+            <label htmlFor="workspace-name-input">워크스페이스 이름</label>
+            <input
+              id="workspace-name-input"
+              type="text"
+              value={name}
+              disabled={!isOwner || saving}
+              onChange={(e) => {
+                setName(e.target.value);
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              }}
+              placeholder="워크스페이스 이름"
+              className="field"
+              required
+              maxLength={100}
+            />
           </div>
-        )}
 
-        {successMessage && (
-          <div
-            role="status"
-            className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-2.5 text-xs text-[var(--accent)]"
-          >
-            {successMessage}
+          <div className="settings-field">
+            <label htmlFor="workspace-slug-input">워크스페이스 슬러그</label>
+            <input
+              id="workspace-slug-input"
+              type="text"
+              value={slug}
+              disabled={!isOwner || saving}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              }}
+              placeholder="workspace-slug"
+              className="field mono"
+              required
+              maxLength={80}
+            />
+            <span className="hint">
+              URL 및 공유 식별자로 사용됩니다 (영문 소문자, 숫자, 한글, 하이픈).
+            </span>
           </div>
-        )}
 
-        {isOwner && (
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-[var(--accent)] px-4 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving && <Loader2 size={13} className="animate-spin" />}
-              <span>저장</span>
-            </button>
-          </div>
-        )}
-      </form>
+          {errorMessage && (
+            <p role="alert" className="invite-feedback error show">
+              {errorMessage}
+            </p>
+          )}
+
+          {successMessage && (
+            <p role="status" className="invite-feedback show">
+              {successMessage}
+            </p>
+          )}
+
+          {isOwner && (
+            <div className="settings-actions">
+              <button type="submit" disabled={saving} className="button">
+                {saving && <Loader2 size={13} className="animate-spin" />}
+                <span>저장</span>
+              </button>
+            </div>
+          )}
+        </form>
+      </section>
 
       <PublicSharingSettings
         workspaceId={workspaceId}
         workspaceSlug={slug || initialSlug}
         isOwner={isOwner}
+        initialAllowPublicSharing={allowPublicSharing}
+        initialDisplayName={publicDisplayName}
+        initialDescription={publicDescription}
       />
-    </section>
+    </>
   );
 }

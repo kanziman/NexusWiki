@@ -1,10 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import { CitationMarker } from "@/components/CitationMarker";
-import { PageHeader } from "@/components/DashboardPrimitives";
 import {
   splitTextWithAnchors,
   type AnchorPart,
@@ -280,39 +279,38 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-xl">
-      <PageHeader
-        title="질문하기"
-        description="등록된 원문과 위키에서 근거를 찾아 답합니다."
-      />
-      {turns.length === 0 ? (
-        <div className="flex flex-col items-center gap-xs py-section text-center">
-          <p className="text-ink" style={{ font: "var(--font-display-xl)" }}>
-            {EMPTY_HEADING}
-          </p>
-          <p className="text-muted" style={{ font: "var(--font-body-md)" }}>
-            {EMPTY_BODY}
-          </p>
-        </div>
-      ) : null}
+    <section className="conversation" data-od-id="conversation-thread">
+      {/* dashboard-design-consistency 「Consistent workspace page structure」는
+          모든 목적지가 가시 제목을 담은 페이지 프레임을 유지할 것을 요구한다.
+          프로토타입에는 제목 줄이 없지만 나머지 다섯 화면이 전부 .hero 안에
+          <h1> 을 갖는다 — 여기만 빼면 위계가 화면마다 달라진다.
+          ⚠️ 셸이 이미 <main> 을 쓰므로 여기서 <main> 을 또 열지 않는다 —
+          한 문서에 main 은 하나여야 한다. */}
+      <header className="conversation-head">
+        <p className="eyebrow">ASK · DUAL CITATION</p>
+        <h1>질문하기</h1>
+      </header>
+      <div className="thread" data-testid="ask-conversation">
+        {turns.length === 0 ? (
+          <div className="thread-empty">
+            <b>{EMPTY_HEADING}</b>
+            <span>{EMPTY_BODY}</span>
+          </div>
+        ) : (
+          <p className="thread-meta">대화 · 원문과 위키 이중 인용</p>
+        )}
 
-      <div className="flex flex-col gap-lg" data-testid="ask-conversation">
         {turns.map((turn, index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-xs"
-            data-testid={`ask-turn-${index}`}
-          >
-            <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
+          <Fragment key={index}>
+            <article className="user" data-testid={`ask-turn-${index}`}>
               {turn.question}
-            </p>
+            </article>
 
             {turn.missingChannelsNotice ? (
               <p
                 role="status"
                 data-testid="missing-channels-notice"
-                className="text-muted"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
+                className="thread-meta"
               >
                 {MISSING_CHANNELS_NOTICE}
               </p>
@@ -320,95 +318,79 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
 
             {turn.status === "no-evidence" ? (
               // CITE-04/D-11: 채팅 버블과 시각적으로 구분되는 경고 카드 — 절대
-              // 일반 답변 버블 스타일로 렌더하지 않는다.
-              <div
+              // 일반 답변 버블 스타일로 렌더하지 않는다. .answer.notice 는
+              // 좌측 굵은 띠로 구분한다(색만으로 구분하면 색각 이상에서 사라진다).
+              <article
                 role="alert"
                 data-variant="warning"
                 data-testid="no-evidence-card"
-                className="rounded-md border border-primary-error-text bg-surface-soft p-base"
+                className="answer notice"
               >
-                <p
-                  className="text-primary-error-text"
-                  style={{ font: "var(--font-body-md)" }}
-                >
-                  {NO_EVIDENCE_MESSAGE}
-                </p>
-              </div>
+                <p>{NO_EVIDENCE_MESSAGE}</p>
+              </article>
             ) : turn.status === "error" ? (
-              <div
+              <article
                 role="alert"
                 data-variant="error"
                 data-testid="ask-error-card"
-                className="flex flex-col gap-xs rounded-md border border-primary-error-text bg-canvas p-base"
+                className="answer notice"
               >
-                <p
-                  className="text-primary-error-text"
-                  style={{ font: "var(--font-body-md)" }}
-                >
-                  {GENERIC_ERROR_MESSAGE}
-                </p>
+                <p>{GENERIC_ERROR_MESSAGE}</p>
                 <button
                   type="button"
+                  className="button compact"
                   onClick={() => void submitQuestion(turn.question)}
-                  className="self-start rounded-sm border border-primary-error-text px-base py-sm text-primary-error-text"
-                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   재시도
                 </button>
-              </div>
+              </article>
             ) : turn.status === "dropped" ? (
-              <div
+              <article
                 role="alert"
                 data-variant="dropped"
                 data-testid="stream-drop-card"
-                className="flex flex-col gap-xs rounded-md border border-primary-error-text bg-canvas p-base"
+                className="answer notice"
               >
-                <p
-                  className="text-primary-error-text"
-                  style={{ font: "var(--font-body-md)" }}
-                >
-                  {STREAM_DROP_MESSAGE}
-                </p>
+                <p>{STREAM_DROP_MESSAGE}</p>
                 <button
                   type="button"
+                  className="button compact"
                   onClick={() => void submitQuestion(turn.question)}
-                  className="self-start rounded-sm border border-primary-error-text px-base py-sm text-primary-error-text"
-                  style={{ font: "var(--font-caption)", fontWeight: 600 }}
                 >
                   재시도
                 </button>
-              </div>
+              </article>
             ) : (
-              <p
-                className="text-ink"
-                style={{ font: "var(--font-body-md)" }}
-                data-testid={`ask-turn-${index}-body`}
-              >
-                {renderSegments(
-                  turn.segments,
-                  turn.status === "resolved",
-                  handleMarkerClick,
-                )}
-              </p>
+              <article className="answer" data-od-id="ai-answer">
+                <div className="answer-head">
+                  <i className="dot" aria-hidden="true" />
+                  <b>넥서스위키 AI 답변</b>
+                  <span>
+                    {turn.status === "streaming" ? "생성 중" : "방금 생성됨"}
+                  </span>
+                </div>
+                <p data-testid={`ask-turn-${index}-body`}>
+                  {renderSegments(
+                    turn.segments,
+                    turn.status === "resolved",
+                    handleMarkerClick,
+                  )}
+                </p>
+              </article>
             )}
-          </div>
+          </Fragment>
         ))}
       </div>
 
       {templates.length > 0 ? (
-        <div className="flex gap-xs" role="group" aria-label="프롬프트 템플릿">
+        <div className="chips" role="group" aria-label="프롬프트 템플릿">
           {templates.map((template) => (
             <button
               key={template.id}
               type="button"
               onClick={() => setTemplateId(template.id)}
               aria-pressed={templateId === template.id}
-              className={`rounded-full border px-base py-xs ${
-                templateId === template.id
-                  ? "border-primary text-primary"
-                  : "border-hairline text-muted"
-              }`}
-              style={{ font: "var(--font-caption)", fontWeight: 600 }}
+              className="chip"
             >
               {template.name}
             </button>
@@ -417,28 +399,35 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
       ) : null}
 
       {/* UI-SPEC Primary Visual Anchor(Ask UI): 입력창이 이 화면의 1차 시각적
-          초점이다 — 전체 폭, 강조 테두리, accent 색 전송 버튼이 붙는다. */}
-      <form onSubmit={handleSubmit} className="flex gap-sm">
+          초점이다 — 스레드 하단에 고정되고 accent 색 전송 버튼이 붙는다. */}
+      <form
+        onSubmit={handleSubmit}
+        className="composer"
+        data-od-id="follow-up-composer"
+      >
         <label htmlFor="ask-question-input" className="sr-only">
           질문
         </label>
-        <input
-          id="ask-question-input"
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          className="h-12 flex-1 rounded-sm border border-border-strong bg-canvas px-base text-ink outline-none focus:border-2 focus:border-ink"
-          style={{ font: "var(--font-body-md)" }}
-        />
-        <button
-          type="submit"
-          disabled={question.trim().length === 0 || submitting}
-          className="h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
-          style={{ font: "var(--font-button-md)", fontWeight: 600 }}
-        >
-          질문하기
-        </button>
+        <div className="compose-inner">
+          <input
+            id="ask-question-input"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="이어서 추가 질문을 입력하세요"
+          />
+          {/* 접근 가능한 이름은 "질문하기"로 고정한다 — 화살표 글리프만 남기면
+              스크린 리더에 "위쪽 화살표 버튼"으로 읽힌다. */}
+          <button
+            type="submit"
+            className="send"
+            aria-label="질문하기"
+            disabled={question.trim().length === 0 || submitting}
+          >
+            <span aria-hidden="true">↑</span>
+          </button>
+        </div>
       </form>
-    </div>
+    </section>
   );
 }
 

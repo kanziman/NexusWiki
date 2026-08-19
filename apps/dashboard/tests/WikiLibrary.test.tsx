@@ -43,6 +43,29 @@ describe("WikiLibrary", () => {
     expect(screen.queryByText("SSO 가이드")).not.toBeInTheDocument();
   });
 
+  it("문서가 하나도 없을 때 UI-SPEC 빈 상태 문구를 페이지 프레임 안에서 렌더링한다", () => {
+    // ⚠️ 예전에는 라우트가 pages.length === 0 을 가로채 자체 마크업을 반환했고,
+    // 그래서 이 문구가 페이지 프레임 없이 v1 조판으로만 떴다.
+    render(<WikiLibrary pages={[]} workspaceId="ws-1" />);
+
+    expect(
+      screen.getByText("아직 컴파일된 위키 페이지가 없습니다"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("소스를 추가하면 자동으로 위키 페이지가 생성됩니다."),
+    ).toBeInTheDocument();
+
+    // 화면 프레임은 유지된다 — 제목이 있어야 다른 목적지와 위계가 같다.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "위키" }),
+    ).toBeInTheDocument();
+
+    // 걸러낼 대상이 없으므로 검색·필터는 그리지 않는다.
+    expect(
+      screen.queryByRole("textbox", { name: "위키 문서 검색" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a distinct no-results state", () => {
     render(<WikiLibrary pages={pages} workspaceId="ws-1" />);
     fireEvent.change(screen.getByRole("textbox", { name: "위키 문서 검색" }), {

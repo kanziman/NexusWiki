@@ -32,7 +32,7 @@ dist/
 *.swp
 .gstack/
 
-# --- 로컬 툴링 (GSD 런타임, 패키지 매니저 캐시) ---
+# --- 로컬 툴링 (GSD 런타임, 패키지 매니저 캐시, 세션 인계) ---
 .agent/
 .agents/
 .codex/
@@ -41,3 +41,4 @@ dist/
 .superpowers/
 .pnpm-store/
 .planning/research/.cache/
+HANDOFF.md

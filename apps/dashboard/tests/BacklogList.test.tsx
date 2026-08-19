@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { BacklogItem, BacklogList } from "@/components/BacklogList";
@@ -38,15 +38,22 @@ describe("BacklogList", () => {
 
     render(<BacklogList workspaceId="ws-1" initialItems={items} />);
 
-    // 상단 통계
-    expect(screen.getByText("2")).toBeInTheDocument(); // 2개 주제
-    expect(screen.getByText("3")).toBeInTheDocument(); // 3개 문서
+    // 상단 통계. ⚠️ 화면 전체에서 "3"을 찾으면 안 된다 — 인용 빈도 열이 같은
+    // 숫자를 렌더하므로 요약 영역 안으로 좁힌다.
+    const summary = within(screen.getByRole("region", { name: "백로그 요약" }));
+    expect(summary.getByText("2")).toBeInTheDocument(); // 2개 주제
+    expect(summary.getByText("3")).toBeInTheDocument(); // 3개 문서
 
-    // 항목 렌더링
+    // 항목 렌더링. 인용 빈도는 배지가 아니라 표의 정렬 축 열이다(PRD §3.2).
+    const table = within(screen.getByRole("table"));
     expect(screen.getByText("캐시 계층 전략")).toBeInTheDocument();
-    expect(screen.getByText("참조 3회")).toBeInTheDocument();
+    expect(table.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("인증 흐름")).toBeInTheDocument();
-    expect(screen.getByText("참조 1회")).toBeInTheDocument();
+    expect(table.getByText("1")).toBeInTheDocument();
+
+    // 인용 빈도 내림차순 — 첫 행이 impact 3 이어야 한다(PRD §3.2 정렬 기본값).
+    const rows = screen.getAllByRole("row").slice(1); // 헤더 행 제외
+    expect(within(rows[0]).getByText("캐시 계층 전략")).toBeInTheDocument();
 
     // 인용 문서 링크
     expect(screen.getByText("아키텍처 가이드")).toBeInTheDocument();
