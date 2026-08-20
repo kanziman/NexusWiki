@@ -2082,20 +2082,19 @@ summary:focus-visible {
  *   - .panel / .panel.active 는 섹션 13 이 같은 계약으로 소유한다.
  *
  * 옮기지 않은 것:
- *   - .split (드래그 스플리터) — 폭 조절은 새 상호작용 계약이라 CSS 만으로
- *     끝나지 않는다. 동작 없는 손잡이만 그리면 눌러도 아무 일이 없는 어포던스가
- *     된다. unified-workspace-viewer 스펙에 없으므로 별도 change 로 다룬다.
  *   - .graph · .node · .map · .a/.b/.c/.d — 프로토타입의 가짜 그래프 미리보기다.
  *     앱은 같은 자리에 GraphCanvas(cytoscape)를 렌더한다.
  *   - .mobile — 앱 셸의 .mobile-nav-button 이 이미 그 역할을 한다(섹션 11).
  * -------------------------------------------------------------------------- */
 
-/* 대화 | 인스펙터 2열. 상단바(--topbar-h)를 뺀 높이를 채워 대화 스레드만 스크롤시킨다.
-   min-height 가 아니라 height 여야 한다 — min-height 면 안쪽 overflow:auto 가
-   기준 높이를 못 잡아 스레드 대신 페이지가 늘어난다. */
+/* 대화 | 스플리터 | 인스펙터 3열. 상단바(--topbar-h)를 뺀 높이를 채워 대화
+   스레드만 스크롤시킨다. min-height 가 아니라 height 여야 한다 — min-height
+   면 안쪽 overflow:auto 가 기준 높이를 못 잡아 스레드 대신 페이지가 늘어난다.
+   가운데 6px 트랙은 AskLayout.tsx가 드래그로 인라인 style을 갈아끼우는
+   자리다(checklists_v2.json UX-05) — 조작 전 기본값은 여기 정의한다. */
 .ask-layout {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) minmax(360px, 42%);
+  grid-template-columns: minmax(420px, 1fr) 6px minmax(360px, 42%);
   height: calc(100vh - var(--topbar-h));
   min-width: 0;
 }
@@ -2222,6 +2221,40 @@ summary:focus-visible {
 
 .send:hover { background: var(--accent-active) }
 .send:disabled { background: var(--border-strong); cursor: not-allowed }
+
+/* 대화 · 인용 인스펙터 사이 드래그 스플리터(AskLayout.tsx, checklists_v2.json
+   UX-05). role="separator" + 방향키 이동은 CSS가 아니라 컴포넌트가 진다 —
+   여기서는 시각 상태만 그린다. 출처: nexuswiki-ask-conversation.html .split,
+   970px 이하에서 .ask-layout이 통째로 block으로 바뀌므로(아래 미디어 쿼리)
+   그 지점에서 숨긴다. */
+.ask-splitter {
+  position: relative;
+  background: var(--border);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.ask-splitter::after {
+  content: "";
+  position: absolute;
+  top: 48%;
+  left: 1px;
+  width: 4px;
+  height: 48px;
+  border-radius: 4px;
+  background: var(--muted);
+  opacity: .34;
+}
+
+.ask-splitter:hover,
+.ask-splitter[data-dragging="true"] {
+  background: var(--accent);
+}
+
+.ask-splitter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 
 /* 인용 인스펙터 */
 .inspect {
@@ -2361,7 +2394,7 @@ summary:focus-visible {
 
 @media (max-width: 900px) {
   /* 상단바가 58px 로 줄기 전 구간. 사이드바가 사라져 대화 폭이 넓어진다. */
-  .ask-layout { grid-template-columns: minmax(0, 1fr) minmax(330px, 43%) }
+  .ask-layout { grid-template-columns: minmax(0, 1fr) 6px minmax(330px, 43%) }
   .thread { padding: 26px 22px }
   .inspect-head { padding: 13px 12px 0 }
   .inspect-body { padding: 12px }
@@ -2369,8 +2402,11 @@ summary:focus-visible {
 
 @media (max-width: 650px) {
   /* 2열을 포기하고 세로로 쌓는다. height 고정을 풀지 않으면 두 열이 각각
-     절반 높이로 눌려 둘 다 못 읽는 화면이 된다. */
+     절반 높이로 눌려 둘 다 못 읽는 화면이 된다. 스플리터는 조절할 트랙이
+     없어지므로 숨긴다 — display:block에서 6px 짜리 가로 막대로 끼어들면
+     의미 없는 어포던스가 된다. */
   .ask-layout { display: block; height: auto }
+  .ask-splitter { display: none }
   .conversation { min-height: calc(100vh - 58px); overflow: visible }
   .conversation-head { padding: 16px 16px 0 }
   .thread { padding: 22px 16px; gap: 17px }

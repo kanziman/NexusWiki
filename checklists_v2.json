@@ -5,7 +5,7 @@
   "depends_on_v1": "checklists.json (Phase 3+ 백엔드 API 완성 시 바인딩)",
   "created_at": "2026-08-17T15:48:00+09:00",
   "updated_at": "2026-08-20",
-  "revision": 5,
+  "revision": 6,
   "_notes": [
     "v2 PRD 7종(workspace-home · workspace-settings · source-management · wiki-document-reader · backlog-management · public-sharing · auth-google)에서 도출된 구현 체크리스트.",
     "auth-google PRD는 PR #20으로 구현 완료되어 이 체크리스트에서는 잔여 작업만 포함한다.",
@@ -993,14 +993,15 @@
           "description": "nexuswiki-ask-conversation.html의 .split — AskConversation과 CitationSidePanel 사이 폭을 조절하는 바(구 OD-09). 섹션 16에서 의도적으로 이식하지 않았던 항목 — 폭 조절은 CSS만으로 끝나지 않는 새 상호작용 계약이라 unified-workspace-viewer 스펙에 없었다. ⚠️ 프로토타입의 포인터 전용 구현을 그대로 옮기지 않는다 — role=\"separator\" + aria-valuenow + 방향키 이동 없이는 키보드 사용자에게 조절 수단이 아예 없다.",
           "target_files": [
             "apps/dashboard/app/w/[workspaceId]/ask/page.tsx",
-            "apps/dashboard/components/AskConversation.tsx",
-            "apps/dashboard/components/CitationSidePanel.tsx"
+            "apps/dashboard/components/AskLayout.tsx",
+            "apps/dashboard/components/PreviewWorkspace.tsx",
+            "docs/design-systems/v2/nexuswiki-design-system.css"
           ],
           "depends_on": ["ASK-01"],
           "priority": "P2",
           "estimate": "1d",
-          "status": "planned",
-          "verification": "포인터 드래그로 폭 조절, role=separator 키보드(방향키) 조절 동작, aria-valuenow 갱신 확인"
+          "status": "done",
+          "verification": "pnpm typecheck · lint 통과, Vitest 51파일 233테스트 통과(AskLayout.test.tsx 9건 신설), next build 성공, openspec validate --all --strict 24/24 통과. /code-review 4라운드 — 확정 결함 4건 수정(뷰포트 좁아짐 시 고정폭 오버플로, pointercancel로 dragging 고착, PreviewWorkspace의 3열 그리드 자동배치 붕괴, 문서 주석 불일치). 계획 이탈: CitationSidePanel.tsx는 unified-workspace-viewer(2026-08-14) 이후 죽은 코드라 실제 타깃이 아니었다 — 인용 마커 클릭이 이미 ContentViewer 탭 전환으로 대체됨(AskConversation.tsx 기존 주석 참고). 스플리터는 AskConversation이 아니라 신설한 AskLayout.tsx가 소유"
         }
       ]
     }
