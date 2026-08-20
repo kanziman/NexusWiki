@@ -14,6 +14,10 @@ vi.mock("@/components/WorkspaceSwitcher", () => ({
   ),
 }));
 
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({ auth: { signOut: vi.fn() } }),
+}));
+
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 
 describe("WorkspaceShell", () => {
@@ -45,6 +49,18 @@ describe("WorkspaceShell", () => {
       "/w/ws-1/ask",
     );
     expect(screen.getByTestId("test-content")).toBeInTheDocument();
+  });
+
+  it("exposes the account affordance in the header (account-session-control)", () => {
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <div>콘텐츠</div>
+      </WorkspaceShell>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "계정 메뉴" }),
+    ).toBeInTheDocument();
   });
 
   it("toggles mobile menu and closes on scrim click", () => {

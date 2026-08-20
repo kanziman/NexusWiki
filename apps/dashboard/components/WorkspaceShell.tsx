@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { Menu, Plus, X } from "lucide-react";
 
+import { AccountMenu } from "@/components/AccountMenu";
 import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
 import { workspacePath } from "@/lib/workspace-path";
 
@@ -70,6 +71,7 @@ export function WorkspaceShell({
             >
               <span>질문 시작</span>
             </Link>
+            <AccountMenu email={accountEmail} />
             <button
               type="button"
               onClick={toggleMobile}
