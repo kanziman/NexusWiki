@@ -1,6 +1,7 @@
 import { WikiPageContent } from "@/components/WikiPageContent";
 import {
   WIKI_PAGE_NOT_FOUND_HEADING,
+  lookupWikiBookmark,
   lookupWikiLinks,
   lookupWikiPage,
   resolveCanVerify,
@@ -44,9 +45,10 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
     return <WikiPageNotFound />;
   }
 
-  const [links, canVerify] = await Promise.all([
+  const [links, canVerify, bookmarked] = await Promise.all([
     lookupWikiLinks(supabase, page.id),
     resolveCanVerify(supabase, workspaceId),
+    lookupWikiBookmark(supabase, page.id),
   ]);
 
   return (
@@ -55,6 +57,7 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
       links={links}
       workspaceId={workspaceId}
       canVerify={canVerify}
+      initialBookmarked={bookmarked}
     />
   );
 }

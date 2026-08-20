@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Fragment, useState } from "react";
 
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { RedLinkCta } from "@/components/RedLinkCta";
 import { apiFetch } from "@/lib/api-client";
 import { workspacePath } from "@/lib/workspace-path";
@@ -41,6 +42,7 @@ export type WikiPageContentProps = {
   links: { target_slug: string; resolved: boolean }[];
   workspaceId: string;
   canVerify: boolean;
+  initialBookmarked: boolean;
 };
 
 type VerifyResponse = {
@@ -81,6 +83,7 @@ export function WikiPageContent({
   links,
   workspaceId,
   canVerify,
+  initialBookmarked,
 }: WikiPageContentProps) {
   const [status, setStatus] = useState(page.verification_status);
   const [verifiedAt, setVerifiedAt] = useState(page.verified_at);
@@ -134,6 +137,16 @@ export function WikiPageContent({
 
         <div className="title-row">
           <h1>{page.title}</h1>
+          {/* key로 wiki 전환마다 강제 재마운트 — 아니면 같은 컴포넌트
+              인스턴스가 재사용돼(특히 독립 리더 라우트는 페이지 전환 시
+              언마운트를 강제하는 loading 경계가 없다) 이전 문서의
+              bookmarked 상태가 다음 문서로 새면서 그대로 남는다. */}
+          <FavoriteButton
+            key={page.id}
+            wikiId={page.id}
+            workspaceId={workspaceId}
+            initialBookmarked={initialBookmarked}
+          />
         </div>
 
         {/* 1. 읽기전용 배너 + 상태 배지. 문구는 UI-SPEC 카피 계약이라

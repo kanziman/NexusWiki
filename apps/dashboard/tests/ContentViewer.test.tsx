@@ -44,6 +44,8 @@ vi.mock("@/lib/supabase/client", () => ({
       select: () => ({
         eq: () => ({
           eq: () => ({ single: async () => ({ data: null, error: null }) }),
+          // user_wiki_bookmarks 조회(UX-02)는 eq() 한 번 뒤 maybeSingle()이다.
+          maybeSingle: async () => ({ data: null, error: null }),
         }),
       }),
     }),

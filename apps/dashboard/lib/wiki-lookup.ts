@@ -55,6 +55,25 @@ export async function lookupWikiLinks(
 }
 
 /**
+ * 요청자 본인이 이 위키 문서를 즐겨찾기했는지 — wiki/[slug]/page.tsx(서버)와
+ * ContentViewer(클라이언트) 양쪽이 같은 조회를 쓰도록 공유한다. RLS
+ * (user_wiki_bookmarks_select_own)가 본인 행으로만 좁혀 주므로 user_id
+ * 필터는 필요 없다.
+ */
+export async function lookupWikiBookmark(
+  supabase: SupabaseClient,
+  wikiId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("user_wiki_bookmarks")
+    .select("wiki_id")
+    .eq("wiki_id", wikiId)
+    .maybeSingle();
+
+  return data !== null;
+}
+
+/**
  * editor 이상 여부 판정 — RPC 우선, 실패 시 자신의 workspace_members 행을
  * 직접 읽는 폴백. wiki/[slug]/page.tsx의 resolveCanVerify와 동일한 로직을
  * 공유한다 (⚠️ UX 편의 판정일 뿐, 실제 쓰기 권한 경계는 RLS다).

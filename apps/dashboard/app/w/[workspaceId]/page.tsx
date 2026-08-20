@@ -1,5 +1,3 @@
-import { Star } from "lucide-react";
-
 import { AskHero } from "@/components/AskHero";
 import { KnowledgeGrid } from "@/components/KnowledgeGrid";
 import { createClient } from "@/lib/supabase/server";
@@ -97,17 +95,12 @@ export default async function WorkspaceHomePage({
       <section className="context" data-od-id="workspace-header">
         <div>
           <p className="eyebrow">워크스페이스</p>
+          {/* 즐겨찾기는 위키 문서 단위다(user_wiki_bookmarks.wiki_id) — 이
+              페이지에는 특정 wiki_id가 없어 토글할 대상이 없다. 예전 별표
+              버튼은 그래서 눌러도 아무 일도 일어나지 않았다(UX-02). 실제
+              토글은 WikiPageContent(위키 리더)의 title-row로 옮겼다. */}
           <div className="title-row">
             <h1 data-od-id="workspace-title">{workspaceName}</h1>
-            <button
-              type="button"
-              className="star"
-              id="favorite"
-              data-od-id="favorite-control"
-              aria-label="즐겨찾기에 추가"
-            >
-              <Star size={18} aria-hidden="true" />
-            </button>
           </div>
           <p>
             연결한 원문과 컴파일된 위키를 한곳에서 질문하고, 비어 있는 지식을

@@ -2,7 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/w/ws-1"));
-const mockSearchParamsGet = vi.hoisted(() => vi.fn(() => null));
+const mockSearchParamsGet = vi.hoisted(() =>
+  vi.fn<(key: string) => string | null>(() => null),
+);
 
 vi.mock("next/navigation", () => ({
   usePathname: mockUsePathname,
@@ -42,6 +44,10 @@ describe("WorkspaceSidebar", () => {
     expect(
       screen.getByRole("link", { name: /미완성 백로그/ }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /즐겨찾기/ })).toHaveAttribute(
+      "href",
+      "/w/ws-1/wiki?bookmarked=true",
+    );
 
     expect(screen.getByRole("link", { name: "개념" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "엔티티" })).toBeInTheDocument();
@@ -65,6 +71,23 @@ describe("WorkspaceSidebar", () => {
     const sourcesLink = screen.getByRole("link", { name: /원문 소스/ });
     expect(sourcesLink).toHaveAttribute("aria-current", "page");
     expect(sourcesLink.className).toContain("active");
+  });
+
+  it("위키 문서 경로에서 bookmarked=true면 즐겨찾기 링크만 active로 표시한다", () => {
+    mockUsePathname.mockReturnValue("/w/ws-1/wiki");
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "bookmarked" ? "true" : null,
+    );
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    const bookmarkedLink = screen.getByRole("link", { name: /즐겨찾기/ });
+    const wikiLink = screen.getByRole("link", { name: /위키 문서/ });
+    expect(bookmarkedLink).toHaveAttribute("aria-current", "page");
+    expect(bookmarkedLink.className).toContain("active");
+    expect(wikiLink).not.toHaveAttribute("aria-current");
+    expect(wikiLink.className).not.toContain("active");
+
+    mockSearchParamsGet.mockReturnValue(null);
   });
 
   it("calls onCloseMobile when navigation item is clicked", () => {

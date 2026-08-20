@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
 import {
   WIKI_PAGE_NOT_FOUND_HEADING,
+  lookupWikiBookmark,
   lookupWikiLinks,
   lookupWikiPage,
   resolveCanVerify,
@@ -187,6 +188,7 @@ type WikiTabState =
       page: WikiPageRow;
       links: WikiLinkRow[];
       canVerify: boolean;
+      initialBookmarked: boolean;
     };
 
 function WikiTab({
@@ -218,9 +220,10 @@ function WikiTab({
         return;
       }
 
-      const [links, canVerify] = await Promise.all([
+      const [links, canVerify, bookmarked] = await Promise.all([
         lookupWikiLinks(supabase, page.id),
         resolveCanVerify(supabase, workspaceId),
+        lookupWikiBookmark(supabase, page.id),
       ]);
       if (cancelled) return;
       setState({
@@ -229,6 +232,7 @@ function WikiTab({
         page,
         links,
         canVerify,
+        initialBookmarked: bookmarked,
       });
     }
 
@@ -261,6 +265,7 @@ function WikiTab({
         links={state.links}
         workspaceId={workspaceId}
         canVerify={state.canVerify}
+        initialBookmarked={state.initialBookmarked}
       />
       {/* unified-workspace-viewer 「Member opens the full reader from the viewer」.
           인스펙터는 답변의 근거를 확인하는 곳이고 리더는 문서를 읽는 곳이라,
