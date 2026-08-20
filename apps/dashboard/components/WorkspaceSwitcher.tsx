@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Check, ChevronDown, Loader2, Plus } from "lucide-react";
 
+import { createPersonalWorkspace } from "@/app/onboarding-actions";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WorkspaceSwitcherProps = {
@@ -22,6 +22,12 @@ export function WorkspaceSwitcher({
   const [open, setOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // 인라인 생성 폼 상태 — ADR-2: 이 컴포넌트 밖 어디에서도 필요 없다.
+  const [creatingOpen, setCreatingOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isPending && navigatingId !== null) {
@@ -43,9 +49,45 @@ export function WorkspaceSwitcher({
     });
   }
 
+  function resetCreateForm() {
+    setCreatingOpen(false);
+    setNewName("");
+    setCreateError(null);
+  }
+
+  async function handleCreateSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (creating) return;
+
+    setCreating(true);
+    setCreateError(null);
+
+    const result = await createPersonalWorkspace(newName);
+    if ("error" in result) {
+      setCreateError(result.error);
+      setCreating(false);
+      return;
+    }
+
+    setOpen(false);
+    resetCreateForm();
+    setCreating(false);
+    router.push(workspacePath(result.workspaceId));
+  }
+
   return (
     <Tooltip.Provider delayDuration={300}>
-      <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <DropdownMenu.Root
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // 드롭다운이 닫히면(외부 클릭 등) 인라인 폼도 같이 리셋한다 — 다음에
+          // 열었을 때 이전 입력이 남아있지 않도록(스펙: 인라인 폼 취소).
+          if (!next) {
+            resetCreateForm();
+          }
+        }}
+      >
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
@@ -127,16 +169,78 @@ export function WorkspaceSwitcher({
 
             <div className="my-1 border-t border-[var(--border)]" />
 
+            {/* ADR-1: DropdownMenu.Item이 아니라 평범한 div다 — Item은 선택
+                시 메뉴를 자동으로 닫고, roving tabIndex가 안의 input과
+                방향키 내비게이션을 두고 충돌한다. */}
             {workspaces.length < 3 ? (
-              <DropdownMenu.Item asChild>
-                <Link
-                  href="/w/new"
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--fg)] outline-none hover:bg-[var(--surface)] transition-colors"
-                >
-                  <Plus size={13} aria-hidden="true" />
-                  <span>새 워크스페이스 생성</span>
-                </Link>
-              </DropdownMenu.Item>
+              <div className="px-0.5 py-0.5">
+                {!creatingOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setCreatingOpen(true)}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold text-[var(--muted)] outline-none transition-colors hover:bg-[var(--surface)] hover:text-[var(--fg)]"
+                  >
+                    <Plus size={13} aria-hidden="true" />
+                    <span>새 워크스페이스 생성</span>
+                  </button>
+                ) : (
+                  <form
+                    onSubmit={handleCreateSubmit}
+                    className="flex flex-col gap-1.5 px-2 py-1"
+                  >
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newName}
+                      onChange={(event) => setNewName(event.target.value)}
+                      onKeyDown={(event) => {
+                        // Radix DropdownMenu.Content의 typeahead가 이 키
+                        // 입력을 항목 검색으로 가로채지 않도록 전파를 막는다.
+                        event.stopPropagation();
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          resetCreateForm();
+                        }
+                      }}
+                      placeholder="워크스페이스 이름"
+                      disabled={creating}
+                      aria-label="새 워크스페이스 이름"
+                      className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)] disabled:opacity-50"
+                    />
+                    {createError !== null ? (
+                      <p
+                        role="alert"
+                        className="text-[11px] text-[var(--color-primary-error-text)]"
+                      >
+                        {createError}
+                      </p>
+                    ) : null}
+                    <div className="flex items-center gap-1.5">
+                      {/* 빈 문자열 제출을 클라이언트에서 막지 않는다 — 100자
+                          초과와 마찬가지로 서버(createPersonalWorkspace)의
+                          "이름은 1~100자여야 합니다." 오류를 그대로 타서
+                          같은 경로로 폼 안에 표시한다(spec: 인라인 폼 제출
+                          중 검증 오류). 여기서만 막으면 그 경로가 아예
+                          발동하지 않는다. */}
+                      <button
+                        type="submit"
+                        disabled={creating}
+                        className="flex-1 rounded-md bg-[var(--fg)] px-2 py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {creating ? "생성 중…" : "생성"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetCreateForm}
+                        disabled={creating}
+                        className="flex-1 rounded-md border border-[var(--border)] px-2 py-1.5 text-xs font-semibold text-[var(--fg)] transition-colors hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             ) : null}
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
