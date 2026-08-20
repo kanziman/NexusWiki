@@ -72,6 +72,17 @@
   --color-primary-active: var(--nw-action-hover);
   --color-primary-disabled: color-mix(in srgb, var(--nw-action) 42%, white);
 
+  /* nexuswiki-design-system.css의 --font-display/--font-body/--font-mono는
+     Plus Jakarta Sans·Pretendard·JetBrains Mono를 문자열 이름으로만 가리킨다
+     — 브라우저가 실제로 그 서체를 찾으려면 next/font가 app/layout.tsx에서
+     내려주는 CSS 변수(해시된 내부 font-family에 매핑됨)를 앞에 세워야 한다.
+     한 번만 덮어쓰는 이유는 --font-family-base 바로 위 주석과 같다(later
+     unlayered :root가 이긴다). */
+  --font-display: var(--font-jakarta), Pretendard, system-ui, sans-serif;
+  --font-body:
+    var(--font-pretendard), "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
   /* ⚠️ 액션 색 셋은 재배선하지 않는다. #171717 은 아카이브된
      unify-primary-action-color change 가 정한 값이고 v2 --accent(청록)와
      의도적으로 다르다 — 바꾸면 그 결정을 조용히 뒤집는다. */

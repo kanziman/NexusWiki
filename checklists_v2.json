@@ -858,8 +858,28 @@
           "depends_on": [],
           "priority": "P2",
           "estimate": "0.25d",
-          "status": "planned",
-          "verification": "프로토타입 8종과 실제 화면을 나란히 놓고 폰트 렌더링 결과 대조, 불일치 목록화"
+          "status": "completed",
+          "verification": "프로토타입 8종과 실제 화면을 나란히 놓고 폰트 렌더링 결과 대조, 불일치 목록화",
+          "verification_result": {
+            "date": "2026-08-20",
+            "finding": "프로토타입 8종 전부 Google Fonts에서 Plus Jakarta Sans(600/700/800)·JetBrains Mono(500/600)를 로드하고 본문은 Pretendard를 쓰는데, 실제 앱은 app/layout.tsx에서 Inter만 next/font/google로 로드하고 있었다. v2 디자인 시스템 CSS의 --font-display/--font-mono/--font-body 토큰은 세 서체를 문자열 이름으로만 가리킬 뿐 실제로 로드하는 곳이 없어 헤딩·통계 숫자·mono 뱃지(30곳 이상)와 body 전체가 시스템 기본 폰트로 대체 렌더링되고 있었다. 세 폰트 모두 self-host하기로 결정(사용자 확인).",
+            "results": [
+              "app/layout.tsx에 next/font/google로 Plus Jakarta Sans(변수 --font-jakarta)·JetBrains Mono(변수 --font-jetbrains-mono) 추가",
+              "Pretendard는 Google Fonts에 없어 npm pretendard 패키지(SIL OFL)의 가변 폰트(PretendardVariable.woff2)를 next/font/local로 self-host, 변수 --font-pretendard",
+              "globals.css :root에서 --font-display/--font-body/--font-mono를 각 next/font 변수를 앞세우도록 재정의 — --font-family-base 오버라이드와 같은 패턴(뒤에 오는 unlayered :root가 이긴다)",
+              "Playwright로 /login 페이지 실측: body computed font-family가 pretendard, \"pretendard Fallback\", ...로 확인되어 self-host 서체가 실제로 적용됨을 확인. 빌드된 CSS 번들에서 3개 서체 전부 @font-face 존재 확인"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 45파일 193테스트 통과(테스트 수정 없음), next build 성공, 빌드된 CSS 번들에 Plus Jakarta Sans·JetBrains Mono·Pretendard @font-face 존재, Playwright로 /login 페이지 실측(body font-family = pretendard 계열)"
+          },
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "/code-review가 weight 배열을 프로토타입 <link>가 아니라 nexuswiki-design-system.css의 실제 var(--font-mono)/var(--font-display) 사용처와 대조해 잡았다. --font-mono는 500·600·700·800이 전부 쓰이는데(.stat b·.budget-amount 등 700/800 사용처가 실컴포넌트 WikiLibrary·BacklogList·OperationsPanel에 연결돼 있음) 프로토타입 <link>를 그대로 베낀 초기 구현은 500·600만 로드해 700/800 사용처가 폰트 굵기 매칭 알고리즘에 의해 로드된 가장 가까운 굵기(600)로 대체 렌더링되고 있었다. --font-display는 반대로 600을 아무도 안 써서 불필요한 다운로드였다.",
+            "results": [
+              "jetbrainsMono weight를 [\"500\",\"600\",\"700\",\"800\"]으로 확장 — CSS 실사용 4종 전부 커버",
+              "jakarta weight를 [\"700\",\"800\"]으로 축소 — 29개 사용처 전부 800, 유일한 무명시 사용처(.crumb strong)는 strong 기본 bolder→700으로 커버, 600은 사용처 없음"
+            ],
+            "verification": "next build 재실행, 빌드된 CSS의 @font-face font-weight 값을 파싱해 Plus Jakarta Sans 700·800만, JetBrains Mono 500·600·700·800 전부 존재 확인. pnpm typecheck · lint 통과, Vitest 45파일 193테스트 통과"
+          }
         },
         {
           "id": "UX-02",
