@@ -419,6 +419,11 @@ function PreviewAsk() {
           </div>
         </form>
       </section>
+      {/* .ask-layout은 checklists_v2.json UX-05부터 3열(대화 | 스플리터 |
+          인스펙터) 그리드다 — 자식이 2개뿐이면 그리드 자동 배치가 .inspect를
+          6px짜리 가운데 트랙에 욱여넣는다. 이 미리보기는 조작 불가능한
+          정적 목업이라 AskLayout.tsx의 실제 스플리터 대신 자리만 채운다. */}
+      <div className="ask-splitter" aria-hidden="true" />
       <aside className="inspect" aria-label="인용 근거">
         <div className="inspect-head">
           <div className="inspect-title">
