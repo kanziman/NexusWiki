@@ -16,7 +16,7 @@
 
 ## 3. 출시 전 외부 설정 확인
 
-- [ ] 3.1 Google Cloud·Supabase Cloud Provider 설정과 기존 계정 충돌을 운영 체크리스트로 검증한다. (GitHub sub-issue: https://github.com/kanziman/NexusWiki/issues/18)
+- [x] 3.1 Google Cloud·Supabase Cloud Provider 설정과 기존 계정 충돌을 운영 체크리스트로 검증한다. (GitHub sub-issue: https://github.com/kanziman/NexusWiki/issues/18, closed 2026-08-17)
   - Given: 코드와 로컬 설정 검증이 통과했지만 Cloud 자격 증명은 별도 관리된다.
   - When: 권한 있는 운영자가 승인 URI·Provider secret·기존 identity 분포를 확인한다.
   - Then: 실제 Google 로그인 smoke test를 기록하거나, 누락된 자격 증명 때문에 출시가 보류됨을 명시한다.
