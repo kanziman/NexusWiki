@@ -205,6 +205,31 @@ describe("WorkspaceSwitcher", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("빈 문자열을 제출하면(spec: 인라인 폼 제출 중 검증 오류) 서버 검증 오류가 폼 안에 뜬다", async () => {
+    // /code-review·spec-conformance-reviewer 지적: 제출 버튼을 빈 값일 때
+    // disabled로 막으면 handleCreateSubmit 자체가 안 불려 이 시나리오가
+    // 발동하지 않았다. 100자 초과와 같은 서버 왕복 경로를 타야 한다.
+    createPersonalWorkspace.mockResolvedValue({
+      error: "이름은 1~100자여야 합니다.",
+    });
+    const user = userEvent.setup();
+    render(
+      <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId="ws-1" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /워크스페이스 하나/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "새 워크스페이스 생성" }),
+    );
+    await user.click(screen.getByRole("button", { name: "생성" }));
+
+    expect(createPersonalWorkspace).toHaveBeenCalledWith("");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "이름은 1~100자여야 합니다.",
+    );
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("취소하면 입력값을 버리고 진입점으로 되돌리며, 워크스페이스를 생성하지 않는다", async () => {
     const user = userEvent.setup();
     render(

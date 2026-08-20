@@ -216,9 +216,15 @@ export function WorkspaceSwitcher({
                       </p>
                     ) : null}
                     <div className="flex items-center gap-1.5">
+                      {/* 빈 문자열 제출을 클라이언트에서 막지 않는다 — 100자
+                          초과와 마찬가지로 서버(createPersonalWorkspace)의
+                          "이름은 1~100자여야 합니다." 오류를 그대로 타서
+                          같은 경로로 폼 안에 표시한다(spec: 인라인 폼 제출
+                          중 검증 오류). 여기서만 막으면 그 경로가 아예
+                          발동하지 않는다. */}
                       <button
                         type="submit"
-                        disabled={creating || newName.trim().length === 0}
+                        disabled={creating}
                         className="flex-1 rounded-md bg-[var(--fg)] px-2 py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {creating ? "생성 중…" : "생성"}
