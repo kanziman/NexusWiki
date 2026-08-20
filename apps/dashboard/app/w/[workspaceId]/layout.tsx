@@ -44,7 +44,7 @@ export default async function WorkspaceLayout({
   // 없게 된다.
   const { data: workspaces } = await supabase
     .from("workspaces")
-    .select("id,name")
+    .select("id,name,kind")
     .order("name");
 
   return (

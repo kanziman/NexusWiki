@@ -19,7 +19,9 @@ import { WorkspaceShell } from "@/components/WorkspaceShell";
 describe("WorkspaceShell", () => {
   const defaultProps = {
     workspace: { id: "ws-1", name: "우리 팀 워크스페이스" },
-    workspaces: [{ id: "ws-1", name: "우리 팀 워크스페이스" }],
+    workspaces: [
+      { id: "ws-1", name: "우리 팀 워크스페이스", kind: "team" as const },
+    ],
     currentWorkspaceId: "ws-1",
     accountEmail: "tester@example.com",
   };

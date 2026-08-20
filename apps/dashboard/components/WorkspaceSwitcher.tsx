@@ -10,7 +10,7 @@ import { Check, ChevronDown, Loader2, Plus } from "lucide-react";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WorkspaceSwitcherProps = {
-  workspaces: { id: string; name: string }[];
+  workspaces: { id: string; name: string; kind: "personal" | "team" }[];
   currentWorkspaceId: string;
 };
 
@@ -90,7 +90,14 @@ export function WorkspaceSwitcher({
                           : "text-[var(--fg)]"
                       }`}
                     >
-                      <span className="min-w-0 truncate">{workspace.name}</span>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="min-w-0 truncate">
+                          {workspace.name}
+                        </span>
+                        <span className="shrink-0 rounded-full border border-[var(--border)] px-1.5 py-0.5 text-[9px] font-mono font-semibold text-[var(--muted)]">
+                          {workspace.kind === "team" ? "팀" : "개인"}
+                        </span>
+                      </span>
                       {isNavigating ? (
                         <Loader2
                           size={13}

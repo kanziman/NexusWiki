@@ -9,7 +9,7 @@ import { workspacePath } from "@/lib/workspace-path";
 
 export type WorkspaceShellProps = {
   workspace: { id: string; name: string };
-  workspaces: { id: string; name: string }[];
+  workspaces: { id: string; name: string; kind: "personal" | "team" }[];
   currentWorkspaceId: string;
   accountEmail: string;
   children: ReactNode;

@@ -22,7 +22,9 @@ import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
 describe("WorkspaceSidebar", () => {
   const defaultProps = {
     currentWorkspaceId: "ws-1",
-    workspaces: [{ id: "ws-1", name: "테스트 워크스페이스" }],
+    workspaces: [
+      { id: "ws-1", name: "테스트 워크스페이스", kind: "personal" as const },
+    ],
     accountEmail: "developer@nexuswiki.com",
   };
 
