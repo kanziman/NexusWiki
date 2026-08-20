@@ -20,7 +20,7 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WorkspaceSidebarProps = {
-  workspaces: { id: string; name: string }[];
+  workspaces: { id: string; name: string; kind: "personal" | "team" }[];
   currentWorkspaceId: string;
   accountEmail: string;
   isOpenMobile?: boolean;

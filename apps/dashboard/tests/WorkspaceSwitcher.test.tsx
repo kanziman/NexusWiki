@@ -11,9 +11,9 @@ vi.mock("next/navigation", () => ({
 
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 
-const workspaces = [
-  { id: "ws-1", name: "워크스페이스 하나" },
-  { id: "ws-2", name: "워크스페이스 둘" },
+const workspaces: { id: string; name: string; kind: "personal" | "team" }[] = [
+  { id: "ws-1", name: "워크스페이스 하나", kind: "personal" },
+  { id: "ws-2", name: "워크스페이스 둘", kind: "team" },
 ];
 
 describe("WorkspaceSwitcher", () => {
@@ -98,9 +98,9 @@ describe("WorkspaceSwitcher", () => {
 
   it("소속 워크스페이스가 3개면 생성 링크를 보여주지 않는다", async () => {
     const user = userEvent.setup();
-    const threeWorkspaces = [
+    const threeWorkspaces: typeof workspaces = [
       ...workspaces,
-      { id: "ws-3", name: "워크스페이스 셋" },
+      { id: "ws-3", name: "워크스페이스 셋", kind: "personal" },
     ];
     render(
       <WorkspaceSwitcher

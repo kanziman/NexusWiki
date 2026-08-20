@@ -6,7 +6,7 @@ type WikiIndexPageProps = {
 };
 
 /**
- * UI-05 위키 인덱스 라우트 — `NavShell`의 "위키" 링크가 가리키는 목록 화면.
+ * UI-05 위키 인덱스 라우트 — `WorkspaceSidebar`의 "위키 문서" 링크가 가리키는 목록 화면.
  * Server Component가 요청자 세션(RLS `wiki_pages_select_member`)으로 직접
  * 읽는다 — apps/api를 거치지 않는다(sources/page.tsx와 같은 패턴).
  *
