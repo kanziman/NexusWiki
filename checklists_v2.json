@@ -908,6 +908,20 @@
               "⚠️ 남은 갭: bookmarked=true인데 즐겨찾기가 0건이면 WikiLibrary의 스펙 고정 카피(\"아직 컴파일된 위키 페이지가 없습니다\")가 그대로 뜬다 — \"즐겨찾기가 아직 없다\"는 아니라서 문구가 부정확하다. 그 카피는 UI-SPEC Copywriting Contract로 잠겨 있어 이번 범위에서 변경하지 않음"
             ],
             "verification": "pnpm typecheck · lint 통과, Vitest 48파일 206테스트 통과(신규 4개 파일 bookmark-actions/FavoriteButton/wiki-index-route 테스트 + WorkspaceSidebar·WikiPageContent·ContentViewer·wiki-page-route 갱신), next build 성공, 로컬 Supabase DB에 0017 마이그레이션 실제 적용해 테이블·인덱스·RLS 정책 3종 생성 확인"
+          },
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "tenant-isolation-reviewer는 pass(docs/reviews/feat-ux-02-wiki-bookmarks-tenant-isolation-r1.md, 로컬 DB에 시나리오 9건 실측). /code-review는 finder 에이전트 7개가 전부 결과를 냈으나(reuse·conventions·altitude·removed-behavior·cross-file·simplification·line-by-line, 30초~4분 소요) 이후 최종 종합 리포트가 87분 이상 나오지 않았다 — 사용자가 두 차례 확인 요청, task 파일 mtime으로 봐도 정상적인 연속 작업 패턴이 아니라고 판단해 무기한 대기 대신 finder 7개의 원시 결과를 직접 검증·반영했다. 실제 결함 5건 확인",
+            "results": [
+              "toggleWikiBookmark의 read-then-branch-then-write를 setWikiBookmark(wikiId, workspaceId, bookmarked)로 교체 — 클라이언트가 원하는 최종 상태를 upsert(ignoreDuplicates)/delete로 멱등 반영. 두 탭에서 거의 동시에 클릭하면 뒤에 온 탭이 앞 탭의 조작을 되돌리던 경쟁(TOCTOU) 제거",
+              "FavoriteButton.tsx에 낙관적 업데이트 적용(클릭 즉시 상태 반영, 실패 시 되돌림) — router.refresh() 제거: LNB '즐겨찾기'는 정적 링크일 뿐 이 버튼이 갱신할 실시간 목록이 없어 매 클릭마다 불필요한 RSC 전체 재조회를 유발하고 있었다",
+              "WikiPageContent.tsx의 FavoriteButton에 key={page.id} 추가 — 독립 위키 리더 라우트는 페이지 전환 시 언마운트를 강제하는 loading 경계가 없어, key 없이는 이전 문서의 bookmarked 상태가 다음 문서로 새며 남아 있었다",
+              "FavoriteButton의 오류 <p>가 title-row(flex) 안에서 h1·별표와 나란한 형제로 끼어들던 문제 — 버튼+오류를 하나의 relative span으로 감싸고 오류는 absolute top-full로 그 아래 배치",
+              "lib/wiki-lookup.ts에 lookupWikiBookmark 헬퍼 신설 — wiki/[slug]/page.tsx와 ContentViewer.tsx에 중복돼 있던 동일 쿼리를 통합. bookmark-actions.ts 쪽 중복은 upsert/delete 전환으로 자연히 사라짐",
+              "app/w/[workspaceId]/wiki/page.tsx — bookmarked=true일 때 wiki_pages 전체(content 포함)를 읽어 JS에서 걸러내던 것을, 즐겨찾기 wiki_id를 먼저 읽고 그 집합으로만 .in() 조회하도록 변경. 즐겨찾기 0건이면 wiki_pages 조회 자체를 생략(테스트로 실제 미호출 확인)",
+              "보고도 안 고친 것: WorkspaceSidebar의 활성 링크 판정 로직 중복(인스턴스 2개뿐이라 이 프로젝트의 '3줄 반복이 섣부른 추상화보다 낫다' 원칙상 보류), 3개 useState를 status union으로 합치자는 제안(순수 취향, 버그 아님), bookmark 조회 실패 시 .error를 무시하고 '미즐겨찾기'로 폴백하는 경로(낮은 심각도, 쓰기 경로는 이번에 멱등해져 자가치유됨)"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 48파일 207테스트 통과, next build 성공"
           }
         },
         {

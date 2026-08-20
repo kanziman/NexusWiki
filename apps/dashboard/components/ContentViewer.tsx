@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
 import {
   WIKI_PAGE_NOT_FOUND_HEADING,
+  lookupWikiBookmark,
   lookupWikiLinks,
   lookupWikiPage,
   resolveCanVerify,
@@ -219,14 +220,10 @@ function WikiTab({
         return;
       }
 
-      const [links, canVerify, bookmark] = await Promise.all([
+      const [links, canVerify, bookmarked] = await Promise.all([
         lookupWikiLinks(supabase, page.id),
         resolveCanVerify(supabase, workspaceId),
-        supabase
-          .from("user_wiki_bookmarks")
-          .select("wiki_id")
-          .eq("wiki_id", page.id)
-          .maybeSingle(),
+        lookupWikiBookmark(supabase, page.id),
       ]);
       if (cancelled) return;
       setState({
@@ -235,7 +232,7 @@ function WikiTab({
         page,
         links,
         canVerify,
-        initialBookmarked: bookmark.data !== null,
+        initialBookmarked: bookmarked,
       });
     }
 

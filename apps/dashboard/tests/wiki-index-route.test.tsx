@@ -13,16 +13,29 @@ const fixtures = vi.hoisted(() => ({
   bookmarks: [] as { wiki_id: string }[],
 }));
 
+const state = vi.hoisted(() => ({
+  wikiPagesQueried: false,
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     from: (table: string) => {
+      let inIds: string[] | null = null;
       const query = {
         select: () => query,
         eq: () => query,
+        in: (_column: string, ids: string[]) => {
+          inIds = ids;
+          return query;
+        },
         order: () => query,
         then: (resolve: (value: { data: unknown; error: null }) => unknown) => {
           if (table === "wiki_pages") {
-            return resolve({ data: fixtures.pages, error: null });
+            state.wikiPagesQueried = true;
+            const rows = inIds
+              ? fixtures.pages.filter((p) => inIds!.includes(p.id))
+              : fixtures.pages;
+            return resolve({ data: rows, error: null });
           }
           if (table === "user_wiki_bookmarks") {
             return resolve({ data: fixtures.bookmarks, error: null });
@@ -74,6 +87,7 @@ describe("WikiIndexPage route", () => {
       },
     ];
     fixtures.bookmarks = [];
+    state.wikiPagesQueried = false;
   });
 
   it("bookmarked 파라미터가 없으면 전체 위키 목록을 그대로 넘긴다", async () => {
@@ -81,17 +95,18 @@ describe("WikiIndexPage route", () => {
     expect(props.pages.map((p) => p.id)).toEqual(["wiki-1", "wiki-2"]);
   });
 
-  it("bookmarked=true면 즐겨찾기한 위키만 남긴다", async () => {
+  it("bookmarked=true면 즐겨찾기한 위키만 wiki_pages에서 in()으로 좁혀 조회한다", async () => {
     fixtures.bookmarks = [{ wiki_id: "wiki-2" }];
 
     const props = await renderWikiIndexPage("true");
     expect(props.pages.map((p) => p.id)).toEqual(["wiki-2"]);
   });
 
-  it("bookmarked=true인데 즐겨찾기가 없으면 빈 목록을 넘긴다", async () => {
+  it("bookmarked=true인데 즐겨찾기가 없으면 wiki_pages 조회 자체를 생략한다", async () => {
     fixtures.bookmarks = [];
 
     const props = await renderWikiIndexPage("true");
     expect(props.pages).toEqual([]);
+    expect(state.wikiPagesQueried).toBe(false);
   });
 });

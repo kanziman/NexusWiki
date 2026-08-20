@@ -27,29 +27,47 @@ export default async function WikiIndexPage({
   const bookmarkedOnly = resolvedSearchParams.bookmarked === "true";
   const supabase = await createClient();
 
-  const [pagesResult, bookmarksResult] = await Promise.all([
-    supabase
-      .from("wiki_pages")
-      .select("id,slug,title,category,content,verification_status,disputed")
-      .eq("workspace_id", workspaceId)
-      .order("title"),
-    bookmarkedOnly
-      ? supabase
-          .from("user_wiki_bookmarks")
-          .select("wiki_id")
-          .eq("workspace_id", workspaceId)
-      : Promise.resolve({ data: null }),
-  ]);
+  const pageColumns =
+    "id,slug,title,category,content,verification_status,disputed";
+  let pages: {
+    id: string;
+    slug: string;
+    title: string;
+    category: string;
+    content: string;
+    verification_status: string;
+    disputed: boolean;
+  }[];
 
-  const allPages = pagesResult.data ?? [];
-  const pages = bookmarkedOnly
-    ? (() => {
-        const bookmarkedIds = new Set(
-          (bookmarksResult.data ?? []).map((b) => b.wiki_id),
-        );
-        return allPages.filter((page) => bookmarkedIds.has(page.id));
-      })()
-    : allPages;
+  if (bookmarkedOnly) {
+    // 즐겨찾기 개수만큼만 wiki_pages를 읽는다 — 전체를 읽어와 content까지
+    // 내려받은 뒤 JS에서 걸러내면, 즐겨찾기가 소수여도 워크스페이스 전체
+    // 문서 본문을 매번 통째로 전송하게 된다.
+    const { data: bookmarks } = await supabase
+      .from("user_wiki_bookmarks")
+      .select("wiki_id")
+      .eq("workspace_id", workspaceId);
+    const bookmarkedIds = (bookmarks ?? []).map((b) => b.wiki_id);
+
+    if (bookmarkedIds.length === 0) {
+      pages = [];
+    } else {
+      const { data } = await supabase
+        .from("wiki_pages")
+        .select(pageColumns)
+        .eq("workspace_id", workspaceId)
+        .in("id", bookmarkedIds)
+        .order("title");
+      pages = data ?? [];
+    }
+  } else {
+    const { data } = await supabase
+      .from("wiki_pages")
+      .select(pageColumns)
+      .eq("workspace_id", workspaceId)
+      .order("title");
+    pages = data ?? [];
+  }
 
   // ⚠️ 빈 상태를 여기서 가로채지 않는다. 예전에는 pages.length === 0 일 때
   // 라우트가 자체 마크업을 반환해 WikiLibrary 에 아예 도달하지 않았고, 그래서

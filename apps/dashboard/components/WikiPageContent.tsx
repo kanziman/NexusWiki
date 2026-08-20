@@ -137,7 +137,12 @@ export function WikiPageContent({
 
         <div className="title-row">
           <h1>{page.title}</h1>
+          {/* key로 wiki 전환마다 강제 재마운트 — 아니면 같은 컴포넌트
+              인스턴스가 재사용돼(특히 독립 리더 라우트는 페이지 전환 시
+              언마운트를 강제하는 loading 경계가 없다) 이전 문서의
+              bookmarked 상태가 다음 문서로 새면서 그대로 남는다. */}
           <FavoriteButton
+            key={page.id}
             wikiId={page.id}
             workspaceId={workspaceId}
             initialBookmarked={initialBookmarked}
