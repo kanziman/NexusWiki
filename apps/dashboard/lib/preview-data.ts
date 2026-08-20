@@ -114,6 +114,21 @@ export const previewBacklog = [
   },
 ] as const;
 
+export const previewGraph = {
+  nodes: [
+    { id: "double-citation", label: "이중 인용", kind: "개념" },
+    { id: "hybrid-retrieval", label: "하이브리드 검색", kind: "엔티티" },
+    { id: "source-pipeline", label: "소스 컴파일 파이프라인", kind: "맵" },
+    { id: "workspace-boundary", label: "워크스페이스 경계", kind: "가이드" },
+  ],
+  links: [
+    { source: "double-citation", target: "hybrid-retrieval" },
+    { source: "double-citation", target: "source-pipeline" },
+    { source: "hybrid-retrieval", target: "workspace-boundary" },
+    { source: "source-pipeline", target: "workspace-boundary" },
+  ],
+} as const;
+
 export const previewMembers = [
   { name: "민서 김", email: "minseo@nexuswiki.local", role: "소유자" },
   { name: "도윤 이", email: "doyun@nexuswiki.local", role: "편집자" },

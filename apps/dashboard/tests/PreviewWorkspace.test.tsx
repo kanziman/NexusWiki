@@ -19,6 +19,8 @@ describe("PreviewWorkspace", () => {
       "href",
       "/preview/wiki/double-citation",
     );
+    expect(screen.getByText("지식 그래프")).toBeInTheDocument();
+    expect(screen.getByText("4개 노드 · 4개 연결")).toBeInTheDocument();
   });
 
   it("shows deterministic Ask evidence without a network request", () => {

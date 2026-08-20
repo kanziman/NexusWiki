@@ -18,6 +18,7 @@ import {
 import {
   previewAskAnswer,
   previewBacklog,
+  previewGraph,
   previewMembers,
   previewSources,
   previewUser,
@@ -225,6 +226,22 @@ function PreviewHome() {
             >
               {label}
             </button>
+          ))}
+        </div>
+      </section>
+      <section className="source-line mb-lg" aria-label="지식 그래프 요약">
+        <div>
+          <b>지식 그래프</b>
+          <span>
+            {previewGraph.nodes.length}개 노드 · {previewGraph.links.length}개
+            연결
+          </span>
+        </div>
+        <div className="flex flex-wrap justify-end gap-xs">
+          {previewGraph.nodes.map((node) => (
+            <span key={node.id} className="doc-chip">
+              {node.label}
+            </span>
           ))}
         </div>
       </section>
