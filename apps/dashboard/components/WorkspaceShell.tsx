@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Menu, Plus, X } from "lucide-react";
 
 import { AccountMenu } from "@/components/AccountMenu";
@@ -16,6 +16,8 @@ export type WorkspaceShellProps = {
   children: ReactNode;
 };
 
+const LNB_COLLAPSED_STORAGE_KEY = "nexuswiki-lnb-collapsed";
+
 export function WorkspaceShell({
   workspace,
   workspaces,
@@ -24,7 +26,18 @@ export function WorkspaceShell({
   children,
 }: WorkspaceShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // 서버 렌더와 하이드레이션이 항상 "펼침"으로 일치하도록 기본값은 false로
+  // 두고, sessionStorage 값은 마운트 후에만 반영한다 — 초기 렌더에서 바로
+  // 읽으면 서버(sessionStorage 없음)와 클라이언트가 갈라져 하이드레이션
+  // 경고가 난다.
+  const [collapsed, setCollapsed] = useState(false);
   const base = workspacePath(currentWorkspaceId);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(LNB_COLLAPSED_STORAGE_KEY) === "true") {
+      setCollapsed(true);
+    }
+  }, []);
 
   function toggleMobile() {
     setMobileOpen((prev) => !prev);
@@ -34,14 +47,27 @@ export function WorkspaceShell({
     setMobileOpen(false);
   }
 
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      sessionStorage.setItem(LNB_COLLAPSED_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
+
   return (
-    <div className="app min-h-screen" data-od-id="nexuswiki-workspace">
+    <div
+      className={`app min-h-screen${collapsed ? " sidebar-collapsed" : ""}`}
+      data-od-id="nexuswiki-workspace"
+    >
       <WorkspaceSidebar
         workspaces={workspaces}
         currentWorkspaceId={currentWorkspaceId}
         accountEmail={accountEmail}
         isOpenMobile={mobileOpen}
         onCloseMobile={closeMobile}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
       />
 
       <div

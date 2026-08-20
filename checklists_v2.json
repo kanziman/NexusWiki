@@ -936,8 +936,30 @@
           "depends_on": ["HOME-01", "UX-02"],
           "priority": "P2",
           "estimate": "0.5d",
-          "status": "planned",
-          "verification": "토글 클릭 시 LNB 접힘/펼침, 상태가 세션 내 유지, 키보드로 토글 가능"
+          "status": "completed",
+          "verification": "토글 클릭 시 LNB 접힘/펼침, 상태가 세션 내 유지, 키보드로 토글 가능",
+          "verification_result": {
+            "date": "2026-08-20",
+            "finding": "nexuswiki-design-system.css는 이미 .sidebar.collapsed 전체 조판(아이콘 레일, 호버 툴팁, 44px 폭)을 갖고 있었지만 §4b 도입부 주석이 스스로 '.app의 grid-template-columns 첫 트랙(264px)도 같이 줄여야 실제로 좁아진다'고 적어둔 짝이 빠져 있었다 — CSS만으로는 사이드바가 시각적으로 좁아지지 않는 상태였다(구현 안 됨, 프로토타입에도 토글 버튼 자체가 없었다).",
+            "results": [
+              "nexuswiki-design-system.css에 .app.sidebar-collapsed { grid-template-columns: 72px minmax(0,1fr) } 추가 — §4b가 예고했던 누락 짝",
+              "WorkspaceShell.tsx에 collapsed state 추가. sessionStorage(nexuswiki-lnb-collapsed)로 지속 — 초기 렌더는 항상 펼침으로 시작해 서버/클라이언트 하이드레이션이 갈라지지 않게 하고, sessionStorage 값은 마운트 후 useEffect에서만 반영",
+              "WorkspaceSidebar.tsx에 PanelLeftClose/PanelLeftOpen 토글 버튼(.icon-btn) 추가, collapsed 클래스를 .sidebar에 반영",
+              "모든 nav-item Link에 aria-label 추가 — .sidebar.collapsed의 호버 툴팁이 content: attr(aria-label)로 그려지는데, 기존 Link들은 텍스트만 있고 aria-label이 없어 접힌 상태에서 툴팁이 빈 칸으로 뜰 상황이었다",
+              "네이티브 <button>이라 키보드(Tab+Enter/Space)로 기본 지원됨 — 별도 keydown 핸들러 불필요"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 48파일 210테스트 통과(WorkspaceShell·WorkspaceSidebar에 토글·sessionStorage 지속·마운트 시 복원 테스트 추가), next build 성공, 빌드된 CSS 번들에서 .app.sidebar-collapsed{grid-template-columns:72px minmax(0,1fr)} 정의 확인"
+          },
+          "re_verification": {
+            "date": "2026-08-20",
+            "finding": "/code-review가 검증 에이전트 2개를 띄웠다. (1) WorkspaceShell.tsx의 무가드 sessionStorage 접근 — refuted(이 앱은 최상위 대시보드 탭이라 샌드박스 iframe throw 시나리오가 적용 안 되고, 현대 브라우저 시크릿 모드는 Web Storage를 백업하지 지우지 않으며, 이미 테스트 파일도 같은 방식으로 무가드 접근 중이라 이 코드베이스의 기존 관행). (2) CSS 그리드 specificity 버그 — confirmed: .app.sidebar-collapsed(0,2,0)가 900px 이하 미디어 쿼리의 .app(0,1,0)보다 명시도가 높아, 데스크톱에서 접은 채로 그 폭까지 리사이즈하면 .sidebar는 display:none으로 숨어도 그리드 첫 트랙 72px은 그대로 남아 본문(.workspace)이 그 72px 안에 눌려 들어간다. 부수적으로 모바일 서랍(.sidebar.mobile-open)을 연 채 collapsed 클래스까지 같이 걸리면 서랍 안에서 라벨 없는 아이콘 레일만 보이는 혼란도 발견",
+            "results": [
+              "900px 이하 미디어 쿼리에 .app.sidebar-collapsed를 함께 걸어 grid-template-columns: 1fr로 재설정 — 명시도를 desktop 규칙과 맞춰 미디어 쿼리(파일상 더 뒤)가 이기도록 함",
+              "WorkspaceSidebar.tsx의 className 조합에서 collapsed && !isOpenMobile로 변경 — 모바일 서랍이 열려 있으면 데스크톱 collapsed 상태와 무관하게 항상 라벨 있는 전체 조판으로 렌더링",
+              "접기 토글 버튼도 !isOpenMobile일 때만 렌더링 — 모바일 폭에서는 어차피 그리드가 항상 1fr로 리셋되므로 토글을 눌러도 시각적 효과가 없는 죽은 버튼이 되는 상황 방지"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 48파일 211테스트 통과(모바일 서랍+collapsed 동시 상태 테스트 추가), next build 성공"
+          }
         },
         {
           "id": "UX-04",
