@@ -66,7 +66,10 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className={`sidebar ${isOpenMobile ? "mobile-open" : ""}${collapsed ? " collapsed" : ""}`}
+      // collapsed와 mobile-open을 동시에 걸지 않는다 — 모바일 서랍은 폭이
+      // 이미 고정(position:fixed)이라 collapsed의 아이콘 레일 조판이 필요
+      // 없고, 같이 걸면 서랍 안에서 라벨 없는 아이콘만 보이는 혼란을 만든다.
+      className={`sidebar ${isOpenMobile ? "mobile-open" : ""}${collapsed && !isOpenMobile ? " collapsed" : ""}`}
       data-od-id="primary-navigation"
     >
       <div className="w-full">
@@ -76,7 +79,7 @@ export function WorkspaceSidebar({
         />
       </div>
 
-      {onToggleCollapsed ? (
+      {onToggleCollapsed && !isOpenMobile ? (
         <button
           type="button"
           onClick={onToggleCollapsed}

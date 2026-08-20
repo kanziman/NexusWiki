@@ -127,6 +127,24 @@ describe("WorkspaceSidebar", () => {
     expect(screen.getByRole("complementary").className).toContain("collapsed");
   });
 
+  it("모바일 서랍이 열려 있으면 collapsed=true여도 collapsed 클래스나 접기 토글을 그리지 않는다 (/code-review 지적)", () => {
+    render(
+      <WorkspaceSidebar
+        {...defaultProps}
+        collapsed={true}
+        onToggleCollapsed={vi.fn()}
+        isOpenMobile={true}
+      />,
+    );
+
+    const aside = screen.getByRole("complementary");
+    expect(aside.className).toContain("mobile-open");
+    expect(aside.className).not.toContain("collapsed");
+    expect(
+      screen.queryByRole("button", { name: /메뉴 접기|메뉴 펼치기/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("calls onCloseMobile when navigation item is clicked", () => {
     const onCloseMobile = vi.fn();
     render(
