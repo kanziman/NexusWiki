@@ -972,8 +972,19 @@
           "depends_on": ["HOME-05"],
           "priority": "P2",
           "estimate": "1d (OpenSpec change 포함)",
-          "status": "planned",
-          "verification": "인라인 입력에서 이름 제출 시 기존 createPersonalWorkspace 서버 액션과 동일하게 3개 상한·중복 slug 처리, openspec validate --strict 통과"
+          "status": "completed",
+          "verification": "인라인 입력에서 이름 제출 시 기존 createPersonalWorkspace 서버 액션과 동일하게 3개 상한·중복 slug 처리, openspec validate --strict 통과",
+          "verification_result": {
+            "date": "2026-08-20",
+            "finding": "결정: /w/new 라우트는 유지하고 인라인 폼을 두 번째 진입점으로 추가(사용자 확인) — additional-workspace-creation의 '전용 라우트' 요구사항은 건드리지 않고, 상한 재검증·죽은 링크 방지 요구사항에 인라인 시나리오를 추가하는 MODIFIED + 인라인 폼 자체의 ADDED 요구사항으로 OpenSpec change(inline-workspace-creation) 진행. 리뷰 게이트(spec-conformance-reviewer) 1라운드에서 실결함 발견: 빈 문자열 제출 시 버튼이 disabled라 서버 왕복 자체가 안 일어나 스펙이 요구하는 '폼 안 오류 표시'가 발생하지 않음(100자 초과는 정상 동작)",
+            "results": [
+              "WorkspaceSwitcher.tsx의 '새 워크스페이스 생성'을 DropdownMenu.Item+Link에서 평범한 button/인라인 form으로 교체 — Item은 선택 시 메뉴를 자동으로 닫고 roving tabIndex가 input의 방향키와 충돌해서 못 씀",
+              "인라인 폼도 기존 createPersonalWorkspace 서버 액션을 그대로 호출 — 검증·slug 재시도·3개 상한 재검증 로직 중복 없음",
+              "빈 문자열 disabled 조건 제거 — 100자 초과와 동일하게 서버 검증 오류로 왕복하는 경로로 통일(리뷰 2라운드에서 수정 확인)",
+              "openspec/specs/additional-workspace-creation/spec.md에 델타 동기화 완료, change는 2026-08-20-inline-workspace-creation으로 아카이브"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 48파일 218테스트 통과, next build 성공, openspec validate --all --strict 23/23 통과. 리뷰 게이트: tenant-isolation-reviewer pass(r1), spec-conformance-reviewer pass(r2, 8개 시나리오 전체 재확인)"
+          }
         },
         {
           "id": "UX-05",
