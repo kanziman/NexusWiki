@@ -187,6 +187,7 @@ type WikiTabState =
       page: WikiPageRow;
       links: WikiLinkRow[];
       canVerify: boolean;
+      initialBookmarked: boolean;
     };
 
 function WikiTab({
@@ -218,9 +219,14 @@ function WikiTab({
         return;
       }
 
-      const [links, canVerify] = await Promise.all([
+      const [links, canVerify, bookmark] = await Promise.all([
         lookupWikiLinks(supabase, page.id),
         resolveCanVerify(supabase, workspaceId),
+        supabase
+          .from("user_wiki_bookmarks")
+          .select("wiki_id")
+          .eq("wiki_id", page.id)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
       setState({
@@ -229,6 +235,7 @@ function WikiTab({
         page,
         links,
         canVerify,
+        initialBookmarked: bookmark.data !== null,
       });
     }
 
@@ -261,6 +268,7 @@ function WikiTab({
         links={state.links}
         workspaceId={workspaceId}
         canVerify={state.canVerify}
+        initialBookmarked={state.initialBookmarked}
       />
       {/* unified-workspace-viewer 「Member opens the full reader from the viewer」.
           인스펙터는 답변의 근거를 확인하는 곳이고 리더는 문서를 읽는 곳이라,

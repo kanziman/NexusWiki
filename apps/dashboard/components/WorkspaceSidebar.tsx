@@ -12,6 +12,7 @@ import {
   Map,
   Settings,
   Sparkles,
+  Star,
   Upload,
   Users,
 } from "lucide-react";
@@ -45,6 +46,9 @@ export function WorkspaceSidebar({
   const searchParams = useSearchParams();
   const base = workspacePath(currentWorkspaceId);
   const currentCategory = searchParams.get("category");
+  const isBookmarkedFilterActive =
+    pathname.startsWith(`${base}/wiki`) &&
+    searchParams.get("bookmarked") === "true";
 
   const initial = accountEmail ? accountEmail.charAt(0).toUpperCase() : "W";
 
@@ -105,9 +109,11 @@ export function WorkspaceSidebar({
           href={`${base}/wiki`}
           onClick={handleItemClick}
           aria-current={
-            pathname.startsWith(`${base}/wiki`) ? "page" : undefined
+            pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive
+              ? "page"
+              : undefined
           }
-          className={`nav-item ${pathname.startsWith(`${base}/wiki`) ? "active" : ""}`}
+          className={`nav-item ${pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive ? "active" : ""}`}
         >
           <FileText className="nav-icon" aria-hidden="true" />
           <span>위키 문서</span>
@@ -123,6 +129,16 @@ export function WorkspaceSidebar({
         >
           <CircleAlert className="nav-icon" aria-hidden="true" />
           <span>미완성 백로그</span>
+        </Link>
+
+        <Link
+          href={`${base}/wiki?bookmarked=true`}
+          onClick={handleItemClick}
+          aria-current={isBookmarkedFilterActive ? "page" : undefined}
+          className={`nav-item ${isBookmarkedFilterActive ? "active" : ""}`}
+        >
+          <Star className="nav-icon" aria-hidden="true" />
+          <span>즐겨찾기</span>
         </Link>
 
         <div className="nav-label" aria-hidden="true">

@@ -1,5 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+vi.mock("@/app/bookmark-actions", () => ({
+  toggleWikiBookmark: vi.fn(),
+}));
 
 import { WikiPageContent } from "@/components/WikiPageContent";
 
@@ -9,6 +17,7 @@ describe("WikiPageContent", () => {
       <WikiPageContent
         workspaceId="ws-1"
         canVerify={false}
+        initialBookmarked={false}
         page={{
           id: "one",
           title: "문서",
@@ -32,5 +41,31 @@ describe("WikiPageContent", () => {
     expect(screen.getByRole("region", { name: "관련 문서" })).toHaveTextContent(
       "관련 문서",
     );
+  });
+
+  it("exposes a favorite toggle in the title row (UX-02)", () => {
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        canVerify={false}
+        initialBookmarked={true}
+        page={{
+          id: "one",
+          title: "문서",
+          category: "guides",
+          content: "본문",
+          verification_status: "unverified",
+          verified_by: null,
+          verified_at: null,
+          expires_at: null,
+          disputed: false,
+        }}
+        links={[]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "즐겨찾기 해제" }),
+    ).toBeInTheDocument();
   });
 });

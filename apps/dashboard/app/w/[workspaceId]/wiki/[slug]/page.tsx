@@ -44,9 +44,14 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
     return <WikiPageNotFound />;
   }
 
-  const [links, canVerify] = await Promise.all([
+  const [links, canVerify, bookmark] = await Promise.all([
     lookupWikiLinks(supabase, page.id),
     resolveCanVerify(supabase, workspaceId),
+    supabase
+      .from("user_wiki_bookmarks")
+      .select("wiki_id")
+      .eq("wiki_id", page.id)
+      .maybeSingle(),
   ]);
 
   return (
@@ -55,6 +60,7 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
       links={links}
       workspaceId={workspaceId}
       canVerify={canVerify}
+      initialBookmarked={bookmark.data !== null}
     />
   );
 }
