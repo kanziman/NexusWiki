@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/w/ws-1",
@@ -29,6 +29,10 @@ describe("WorkspaceShell", () => {
     currentWorkspaceId: "ws-1",
     accountEmail: "tester@example.com",
   };
+
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
 
   it("renders topbar actions, breadcrumb, and children content", () => {
     render(
@@ -91,5 +95,49 @@ describe("WorkspaceShell", () => {
       screen.getByRole("button", { name: "메뉴 열기" }),
     ).toBeInTheDocument();
     expect(aside.className).not.toContain("mobile-open");
+  });
+
+  it("toggles LNB collapse and persists the choice to sessionStorage (UX-03)", () => {
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <div>콘텐츠</div>
+      </WorkspaceShell>,
+    );
+
+    function getApp() {
+      const el = document.querySelector('[data-od-id="nexuswiki-workspace"]');
+      if (!el) throw new Error("app root not found");
+      return el;
+    }
+
+    expect(getApp().className).not.toContain("sidebar-collapsed");
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 접기" }));
+
+    expect(getApp().className).toContain("sidebar-collapsed");
+    expect(screen.getByRole("complementary").className).toContain("collapsed");
+    expect(
+      screen.getByRole("button", { name: "메뉴 펼치기" }),
+    ).toBeInTheDocument();
+    expect(sessionStorage.getItem("nexuswiki-lnb-collapsed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 펼치기" }));
+
+    expect(getApp().className).not.toContain("sidebar-collapsed");
+    expect(sessionStorage.getItem("nexuswiki-lnb-collapsed")).toBe("false");
+  });
+
+  it("restores a collapsed LNB from sessionStorage on mount", () => {
+    sessionStorage.setItem("nexuswiki-lnb-collapsed", "true");
+
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <div>콘텐츠</div>
+      </WorkspaceShell>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "메뉴 펼치기" }),
+    ).toBeInTheDocument();
   });
 });

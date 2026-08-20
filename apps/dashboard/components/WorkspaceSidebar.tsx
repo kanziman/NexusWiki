@@ -10,6 +10,8 @@ import {
   HelpCircle,
   Layers,
   Map,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   Sparkles,
   Star,
@@ -26,6 +28,8 @@ export type WorkspaceSidebarProps = {
   accountEmail: string;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 };
 
 const CATEGORIES = [
@@ -41,6 +45,8 @@ export function WorkspaceSidebar({
   accountEmail,
   isOpenMobile = false,
   onCloseMobile,
+  collapsed = false,
+  onToggleCollapsed,
 }: WorkspaceSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -60,7 +66,7 @@ export function WorkspaceSidebar({
 
   return (
     <aside
-      className={`sidebar ${isOpenMobile ? "mobile-open" : ""}`}
+      className={`sidebar ${isOpenMobile ? "mobile-open" : ""}${collapsed ? " collapsed" : ""}`}
       data-od-id="primary-navigation"
     >
       <div className="w-full">
@@ -70,10 +76,27 @@ export function WorkspaceSidebar({
         />
       </div>
 
+      {onToggleCollapsed ? (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          className="icon-btn"
+          data-od-id="lnb-collapse-toggle"
+          aria-label={collapsed ? "메뉴 펼치기" : "메뉴 접기"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="nav-icon" aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="nav-icon" aria-hidden="true" />
+          )}
+        </button>
+      ) : null}
+
       <nav className="nav-stack" aria-label="주요 메뉴">
         <Link
           href={base}
           onClick={handleItemClick}
+          aria-label="홈 대시보드"
           aria-current={
             pathname === base && !currentCategory ? "page" : undefined
           }
@@ -86,6 +109,7 @@ export function WorkspaceSidebar({
         <Link
           href={`${base}/sources`}
           onClick={handleItemClick}
+          aria-label="원문 소스"
           aria-current={
             pathname.startsWith(`${base}/sources`) ? "page" : undefined
           }
@@ -98,6 +122,7 @@ export function WorkspaceSidebar({
         <Link
           href={`${base}/ask`}
           onClick={handleItemClick}
+          aria-label="질문하기"
           aria-current={pathname.startsWith(`${base}/ask`) ? "page" : undefined}
           className={`nav-item ${pathname.startsWith(`${base}/ask`) ? "active" : ""}`}
         >
@@ -108,6 +133,7 @@ export function WorkspaceSidebar({
         <Link
           href={`${base}/wiki`}
           onClick={handleItemClick}
+          aria-label="위키 문서"
           aria-current={
             pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive
               ? "page"
@@ -122,6 +148,7 @@ export function WorkspaceSidebar({
         <Link
           href={`${base}/backlog`}
           onClick={handleItemClick}
+          aria-label="미완성 백로그"
           aria-current={
             pathname.startsWith(`${base}/backlog`) ? "page" : undefined
           }
@@ -134,6 +161,7 @@ export function WorkspaceSidebar({
         <Link
           href={`${base}/wiki?bookmarked=true`}
           onClick={handleItemClick}
+          aria-label="즐겨찾기"
           aria-current={isBookmarkedFilterActive ? "page" : undefined}
           className={`nav-item ${isBookmarkedFilterActive ? "active" : ""}`}
         >
@@ -173,6 +201,7 @@ export function WorkspaceSidebar({
         <Link
           href={`${base}/settings`}
           onClick={handleItemClick}
+          aria-label="팀원 & 역할 관리"
           aria-current={
             pathname.startsWith(`${base}/settings`) ? "page" : undefined
           }

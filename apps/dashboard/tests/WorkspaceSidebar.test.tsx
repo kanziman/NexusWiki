@@ -90,6 +90,43 @@ describe("WorkspaceSidebar", () => {
     mockSearchParamsGet.mockReturnValue(null);
   });
 
+  it("접기 토글은 onToggleCollapsed가 있을 때만 렌더링되고, collapsed 상태를 sidebar 클래스에 반영한다 (UX-03)", () => {
+    const onToggleCollapsed = vi.fn();
+    const { rerender } = render(<WorkspaceSidebar {...defaultProps} />);
+
+    expect(
+      screen.queryByRole("button", { name: /메뉴 접기|메뉴 펼치기/ }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <WorkspaceSidebar
+        {...defaultProps}
+        collapsed={false}
+        onToggleCollapsed={onToggleCollapsed}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", { name: "메뉴 접기" });
+    fireEvent.click(toggle);
+    expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("complementary").className).not.toContain(
+      "collapsed",
+    );
+
+    rerender(
+      <WorkspaceSidebar
+        {...defaultProps}
+        collapsed={true}
+        onToggleCollapsed={onToggleCollapsed}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "메뉴 펼치기" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary").className).toContain("collapsed");
+  });
+
   it("calls onCloseMobile when navigation item is clicked", () => {
     const onCloseMobile = vi.fn();
     render(

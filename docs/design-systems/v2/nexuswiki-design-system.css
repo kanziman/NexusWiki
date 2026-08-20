@@ -309,6 +309,11 @@ summary:focus-visible {
 
 .sidebar.collapsed .profile { width: 44px; justify-content: center }
 
+/* 이 파일이 위(4b 도입부)에서 스스로 예고한 짝 — .sidebar.collapsed만으로는
+   실제로 좁아지지 않는다. .app의 grid-template-columns 첫 트랙(264px)도
+   같이 줄여야 사이드바 옆 여백이 진짜로 사라진다(UX-03). */
+.app.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr) }
+
 /* -----------------------------------------------------------------------------
  * 5. 프로필 블록
  * -------------------------------------------------------------------------- */

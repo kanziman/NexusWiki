@@ -936,8 +936,20 @@
           "depends_on": ["HOME-01", "UX-02"],
           "priority": "P2",
           "estimate": "0.5d",
-          "status": "planned",
-          "verification": "토글 클릭 시 LNB 접힘/펼침, 상태가 세션 내 유지, 키보드로 토글 가능"
+          "status": "completed",
+          "verification": "토글 클릭 시 LNB 접힘/펼침, 상태가 세션 내 유지, 키보드로 토글 가능",
+          "verification_result": {
+            "date": "2026-08-20",
+            "finding": "nexuswiki-design-system.css는 이미 .sidebar.collapsed 전체 조판(아이콘 레일, 호버 툴팁, 44px 폭)을 갖고 있었지만 §4b 도입부 주석이 스스로 '.app의 grid-template-columns 첫 트랙(264px)도 같이 줄여야 실제로 좁아진다'고 적어둔 짝이 빠져 있었다 — CSS만으로는 사이드바가 시각적으로 좁아지지 않는 상태였다(구현 안 됨, 프로토타입에도 토글 버튼 자체가 없었다).",
+            "results": [
+              "nexuswiki-design-system.css에 .app.sidebar-collapsed { grid-template-columns: 72px minmax(0,1fr) } 추가 — §4b가 예고했던 누락 짝",
+              "WorkspaceShell.tsx에 collapsed state 추가. sessionStorage(nexuswiki-lnb-collapsed)로 지속 — 초기 렌더는 항상 펼침으로 시작해 서버/클라이언트 하이드레이션이 갈라지지 않게 하고, sessionStorage 값은 마운트 후 useEffect에서만 반영",
+              "WorkspaceSidebar.tsx에 PanelLeftClose/PanelLeftOpen 토글 버튼(.icon-btn) 추가, collapsed 클래스를 .sidebar에 반영",
+              "모든 nav-item Link에 aria-label 추가 — .sidebar.collapsed의 호버 툴팁이 content: attr(aria-label)로 그려지는데, 기존 Link들은 텍스트만 있고 aria-label이 없어 접힌 상태에서 툴팁이 빈 칸으로 뜰 상황이었다",
+              "네이티브 <button>이라 키보드(Tab+Enter/Space)로 기본 지원됨 — 별도 keydown 핸들러 불필요"
+            ],
+            "verification": "pnpm typecheck · lint 통과, Vitest 48파일 210테스트 통과(WorkspaceShell·WorkspaceSidebar에 토글·sessionStorage 지속·마운트 시 복원 테스트 추가), next build 성공, 빌드된 CSS 번들에서 .app.sidebar-collapsed{grid-template-columns:72px minmax(0,1fr)} 정의 확인"
+          }
         },
         {
           "id": "UX-04",
