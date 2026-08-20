@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
 import "./globals.css";
@@ -13,6 +14,30 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+// v2 디자인 시스템(nexuswiki-design-system.css)의 --font-display/--font-body/
+// --font-mono가 가리키는 실제 서체 3종. 프로토타입 HTML은 Google Fonts
+// <link>로 이 중 둘(Plus Jakarta Sans, JetBrains Mono)만 불러오고
+// Pretendard는 아무 데서도 로드하지 않는다 — self-host로 통일한다.
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-jakarta",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  variable: "--font-jetbrains-mono",
+});
+
+// Pretendard는 Google Fonts에 없다 — npm pretendard 패키지(SIL OFL)의 가변
+// 폰트 파일을 next/font/local로 self-host한다.
+const pretendard = localFont({
+  src: "../node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2",
+  variable: "--font-pretendard",
+  weight: "45 920",
+});
+
 export const metadata: Metadata = {
   title: "NexusWiki",
   description: "출처까지 추적할 수 있는 살아 있는 위키",
@@ -22,7 +47,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="ko" className={inter.variable}>
+    <html
+      lang="ko"
+      className={`${inter.variable} ${jakarta.variable} ${jetbrainsMono.variable} ${pretendard.variable}`}
+    >
       <body>{children}</body>
     </html>
   );
