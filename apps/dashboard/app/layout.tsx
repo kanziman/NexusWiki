@@ -18,15 +18,22 @@ const inter = Inter({
 // --font-mono가 가리키는 실제 서체 3종. 프로토타입 HTML은 Google Fonts
 // <link>로 이 중 둘(Plus Jakarta Sans, JetBrains Mono)만 불러오고
 // Pretendard는 아무 데서도 로드하지 않는다 — self-host로 통일한다.
+//
+// weight는 프로토타입 <link>가 아니라 nexuswiki-design-system.css의 실제
+// var(--font-display)/var(--font-mono) 사용처를 센 값이다 — 둘이 어긋난다.
+// display는 29곳 전부 800(예외 1곳은 strong 기본 bolder→700)이라 600은
+// 아무도 안 쓴다. mono는 500·600·700·800이 전부 쓰이는데 프로토타입
+// <link>는 500·600만 요청해 700/800 사용처(.stat b, .budget-amount 등)가
+// 로드 안 된 굵기로 폴백하고 있었다.
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: ["700", "800"],
   variable: "--font-jakarta",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["500", "600"],
+  weight: ["500", "600", "700", "800"],
   variable: "--font-jetbrains-mono",
 });
 
