@@ -4,8 +4,8 @@
   "source_prds": "docs/design-systems/v2/*.md",
   "depends_on_v1": "checklists.json (Phase 3+ 백엔드 API 완성 시 바인딩)",
   "created_at": "2026-08-17T15:48:00+09:00",
-  "updated_at": "2026-08-19",
-  "revision": 3,
+  "updated_at": "2026-08-20",
+  "revision": 4,
   "_notes": [
     "v2 PRD 7종(workspace-home · workspace-settings · source-management · wiki-document-reader · backlog-management · public-sharing · auth-google)에서 도출된 구현 체크리스트.",
     "auth-google PRD는 PR #20으로 구현 완료되어 이 체크리스트에서는 잔여 작업만 포함한다.",
@@ -882,13 +882,6 @@
       "title": "역할 변경 UI",
       "description": "workspace_members_update_owner 정책은 있고 화면이 없다. owner 자기 강등은 protect_owner_membership이 막는다.",
       "blocking": ["SETTINGS-03"],
-      "blocking_level": "non-critical"
-    },
-    {
-      "id": "OD-07",
-      "title": "Supabase Cloud Google Provider 활성화",
-      "description": "GitHub Issue #18 (OPEN). GCP Client ID/Secret을 Supabase Cloud 대시보드에 등록.",
-      "blocking": [],
       "blocking_level": "non-critical"
     },
     {
