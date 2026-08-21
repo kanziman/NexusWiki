@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NexusWiki — DB 접근 구조</title>
+<title>NexusWiki — DB 접근 구조 (2026-08-01 스냅샷)</title>
 <style>
   :root {
     --bg: #1a1a1a;
@@ -70,6 +70,11 @@
     padding: 14px 18px; margin: 20px 0; border-radius: 0 6px 6px 0;
   }
   .warn strong { color: var(--accent); }
+  .snapshot {
+    border: 1px solid var(--blue); background: rgba(108,155,209,.09);
+    padding: 14px 18px; margin: 20px 0; border-radius: 6px;
+  }
+  .snapshot strong { color: var(--blue); }
   .danger { border-left-color: var(--red); background: rgba(209,102,102,.07); }
   .danger strong { color: var(--red); }
   ul { padding-left: 22px; }
@@ -87,7 +92,7 @@
 <div class="wrap">
 
 <header>
-  <h1>NexusWiki — DB 접근 구조</h1>
+  <h1>NexusWiki — DB 접근 구조 (2026-08-01 스냅샷)</h1>
   <div class="sub">
     누가 어떤 자격으로 DB에 접근하고, 질문 하나가 어떤 경로로 답변이 되는가.
     <br>기준: 마이그레이션 <code>0001</code>~<code>0006</code> (2026-08-01)
@@ -97,6 +102,11 @@
     <span class="k-svc">설계 확정 — 앱 레이어(Phase 2) 미구현</span>
   </div>
 </header>
+
+<div class="snapshot">
+  <strong>역사적 설계 스냅샷:</strong> 이 문서는 2026-08-01의 <code>0001</code>~<code>0006</code> 상태를 보존한다.
+  현재 구조는 <code>docs/reference/architecture.md</code>, 현재 제품 계약은 <code>openspec/specs/</code>를 기준으로 한다.
+</div>
 
 <p class="lead">
   이 프로젝트의 핵심은 <strong>"원문 + 위키 이중 출처"</strong>입니다.
@@ -623,9 +633,9 @@ graph LR
 </p>
 
 <footer>
-  근거 문서 — <code>HANDOFF.md</code> (세션 핸드오프) ·
-  <code>checklists.json</code> (32개 태스크 · 확정 결정 · 각 태스크의 원안 대비 변경 사유) ·
-  <code>supabase/migrations/</code> (실제 DDL과 주석)
+  역사 근거 — <code>checklists.json</code> (GSD 작업 스냅샷) ·
+  당시 DDL — <code>supabase/migrations/0001</code>~<code>0006</code> ·
+  현재 참조 — <code>docs/reference/architecture.md</code> · <code>openspec/specs/</code>
 </footer>
 
 </div>

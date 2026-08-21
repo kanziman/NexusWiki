@@ -1,6 +1,6 @@
 # 넥서스위키(NexusWiki) 제품 핵심 불변식 (Product Invariants)
 
-> 이 문서는 모든 화면 설계(PRD), 데이터베이스 DDL, 비동기 파이프라인, UI 프로토타입이 **위반할 수 없는 단일 진실 공급원**입니다. PRD 와 이 문서가 어긋나면 이 문서가 이깁니다.
+> 이 문서는 모든 화면 설계(PRD), 데이터베이스 DDL, 비동기 파이프라인, UI 프로토타입이 공유하는 제품 불변식 요약입니다. 현재 제품 동작 계약의 정본은 `openspec/specs/`이며, 충돌하면 canonical OpenSpec이 우선합니다.
 
 ## 이 문서를 읽는 법
 
@@ -8,7 +8,7 @@
 
 ⚠️ **PRD 에서 [미구현] 객체를 SQL 계약으로 적을 때는 반드시 그 표시를 함께 적습니다.** 지금까지 반복된 실패가 정확히 이것입니다 — PRD 가 존재하지 않는 테이블·컬럼을 "확정(Validated)" 딱지와 함께 기술해 두면, 읽는 사람이 구현된 것으로 믿고 그 위에 다음 설계를 쌓습니다.
 
-현재 마이그레이션은 `0001`~`0014`, RLS 정책 27개입니다.
+현재 마이그레이션은 `0001`~`0017`, RLS 정책 37개입니다.
 
 ---
 
@@ -18,7 +18,7 @@
 
 * **원칙**: 넥서스위키의 정보구조는 **`워크스페이스 > 위키 페이지` 2계층**이다. `프로젝트`, `지식 그룹`, 폴더, 컬렉션 같은 중간 계층은 **스키마에도 UI 에도 존재하지 않는다.**
 * **[구현됨]** `wiki_pages` 는 `workspace_id` 만 가지며 `UNIQUE (workspace_id, slug)` 로 고유하다. `projects` · `wiki_groups` 테이블도, `wiki_pages.project_id` · `group_id` 컬럼도 없다.
-* **[금지]** 라우트에 중간 계층을 넣지 않는다. `/w/[workspace_slug]/[project_slug]/[group_slug]` 형태는 금지.
+* **[금지]** 라우트에 중간 계층을 넣지 않는다. `/w/[workspaceId]/[project_slug]/[group_slug]` 형태는 금지.
 
 ### 계층 대신 쓰는 것 — 전부 [구현됨]
 
@@ -51,7 +51,7 @@
 계층은 없애되 **사용자가 이름 붙여 만드는 평면 컬렉션은 마일스톤2에 넣는다.** "이 문서들은 한 묶음"이라는 선언은 검색이 대신해 줄 수 없는 저작 의도이고, Ask 스코프 축소·공개 발행 단위·컴파일 의도 세 곳이 이것을 필요로 한다.
 
 * **평면이다.** 컬렉션 안에 컬렉션을 두지 않는다. 한 문서가 여러 컬렉션에 속할 수 있다. 위계가 아니므로 "어느 부모에 넣지?" 질문이 생기지 않는다.
-* **[미구현]** 스키마·UI 설계는 아직이다. 현재 테이블 10개 중 사용자 생성 묶음을 받쳐주는 것은 없다(`raw_sources.collection_purpose` 는 자유 텍스트 메모지 묶음이 아니다).
+* **[미구현]** 스키마·UI 설계는 아직이다. 현재 테이블 13개 중 사용자 생성 묶음을 받쳐주는 것은 없다(`raw_sources.collection_purpose` 는 자유 텍스트 메모지 묶음이 아니다).
 * 설계 전까지 프로토타입 LNB 에 컬렉션 구획과 `[+]` 를 그리지 않는다. 없는 것을 그려두면 또 같은 문제가 반복된다.
 
 ### Ask 스코프는 계층 없이 좁힌다
@@ -96,10 +96,10 @@
 * **원칙**: 위키 슬러그는 워크스페이스 안에서만 고유하다(`UNIQUE (workspace_id, slug)`). 서로 다른 워크스페이스가 같은 `tenant-isolation-rls` 슬러그를 공개할 수 있으므로 전역 평면 URL 은 라우팅 충돌을 일으킨다.
 * **공개 URL 표준 규격**: `https://nexuswiki.io/p/[workspace_slug]/[page_slug]`
 * **동작 계약**:
-  1. **[미구현]** **`workspaces.slug` 가 전역 고유 식별자의 정본**이고, `workspace_public_settings.workspace_slug` 는 트리거로 파생되는 **읽기 전용 복제본**이다 (`checklists.json > decisions.workspace_slug`).
-  2. 라우터는 해당 워크스페이스의 마스터 스위치가 ON 이고 발행본(**[미구현]** `wiki_page_publications`)이 있을 때만 렌더링한다.
+  1. **[구현됨]** **`workspaces.slug` 가 전역 고유 식별자의 정본**이고, `workspace_public_settings.workspace_slug` 는 트리거로 파생되는 **읽기 전용 복제본**이다 (`0015_workspace_slug.sql` · `0016_public_sharing.sql`).
+  2. **[구현됨]** 라우터는 해당 워크스페이스의 마스터 스위치가 ON 이고 `wiki_page_publications` 발행본이 있을 때만 렌더링한다 (`apps/dashboard/app/p/[slug]/[page]/page.tsx`).
      * ⚠️ **공개 라우트는 세션 쿠키를 싣지 않는 `anon` 클라이언트로 조회해야 한다.** 사이드카의 `*_select_public` 정책은 킬스위치를 보지만 `*_select_member` 정책은 보지 않고, 두 정책은 OR 로 결합된다 — `authenticated` 로 실행하면 **멤버에게만 킬스위치가 무력화된다.** `/p/` 에도 세션 쿠키는 same-origin 이라 그대로 실려 오고, 미들웨어가 걸러 주지도 않는다(matcher 는 `/w/:path*` 와 `/login` 뿐이다). ⚠️ 그렇다고 `/p/` 를 matcher 에 넣는 것은 해결이 아니다 — 미들웨어는 쿠키를 지우지 않는다. 요청자 세션 클라이언트를 쓰는 순간 오너가 공개를 내리고 자기 브라우저로 확인해도 페이지가 그대로 뜬다. 구현: `apps/dashboard/lib/supabase/public.ts`.
-* 로그인 사용자용 내부 라우트는 `/w/[workspace_slug]/...` 로 공개 경로와 분리한다.
+* 로그인 사용자용 내부 라우트는 UUID 기반 `/w/[workspaceId]/...` 로 공개 경로와 분리한다.
 
 ### [금지] 공개 경로에서 `workspaces` 를 조인하지 않음
 
@@ -122,7 +122,7 @@
 ## 5. 1:1 사이드카 테넌트 격리 & 물리적 킬스위치 불변식
 
 1. **테넌트 격리 복합 FK — [구현됨] 관행**: 모든 자식·사이드카 테이블은 `FOREIGN KEY (parent_id, workspace_id) REFERENCES parent_table (id, workspace_id)` 를 강제해, RLS 를 우회하는 `service_role` 경로에서도 테넌트 교차를 원천 차단한다.
-2. **사이드카 테이블 분리 — 둘 다 [미구현]**:
+2. **사이드카 테이블 분리 — 둘 다 [구현됨]** (`0016_public_sharing.sql`):
    * `workspace_public_settings`: 워크스페이스 공개 마스터 스위치, 공개 메타데이터, 그리고 `workspaces.slug` 의 복제본(§4). 민감 컬럼과 물리적으로 분리해 `anon` 이 이 테이블 전체를 봐도 안전하게 만든다.
    * `wiki_page_publications`: 사람이 검토 승인한 공개 발행본 1건 (본문 전문 + 승인된 인용 스니펫 JSONB).
 3. **물리적 킬스위치**: `workspace_public_settings.allow_public_sharing` 이 `false` 면 RLS 엔진 레벨에서 모든 공개 조회가 0건(404)으로 일괄 차단된다.

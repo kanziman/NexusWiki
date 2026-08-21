@@ -42,20 +42,20 @@
 
 ## 파일 헤더
 
-- **작업 ID를 인용한다** (`P1-DB-03`) — 그리고 원장의 결정 키를 함께 인용한다
+- **GitHub Issue와 OpenSpec change를 인용한다** — 현재 작업과 구현 근거를 같은 추적 단위로 연결한다
 - **결정의 수명이 인용 계층을 정한다**
-  - 프로젝트 수명 전체의 스택 · 배포 · DB 접근 결정 → `checklists.json > decisions.<key>`
+  - 프로젝트 수명 전체의 제품 · workflow 계약 → `openspec/specs/<capability>/spec.md`
   - 하나의 change 안에서만 유효한 결정 → 해당 OpenSpec change의 `design.md`
   - 같은 근거를 두 계층에 되풀이하지 않는다
 - 결정의 근거를 인라인으로 다시 쓰지 않는다. 원장을 가리킨다
-- 하위 소비자를 작업 ID로 지목해 누가 이 객체에 의존하는지 드러낸다
+- 하위 소비자를 Issue 또는 change 이름으로 지목해 누가 이 객체에 의존하는지 드러낸다
 - 파일이 상태 기계를 인코딩하면 ASCII 상태/흐름도를 헤더에 둔다 (`supabase/migrations/0003_jobs.sql`)
 
 ## 주석
 
 - 자명하지 않은 모든 DDL 선택에 **"안 그러면 뭐가 깨지는지"** 주석을 단다
 - `⚠️`는 무시하면 데이터나 보안이 **조용히** 망가지는 함정에 붙인다
-- 계획에서 벗어난 부분은 파일 안에 주석으로 남기고 **동시에** `checklists.json`의 `<task>.deviations_from_plan`에 기록한다. 둘은 함께 갱신한다
+- 계획에서 벗어난 부분은 해당 OpenSpec change의 `design.md`와 `tasks.md`에 반영하고, 추적 상태는 GitHub Issue에 갱신한다
 - 공개 함수에는 계약과 호출자 제한을 설명하는 `comment on function ... is '...'`를 단다
 - 자리표시자/경로 규칙은 그 값을 저장하는 컬럼 자리에 문서화한다 (예: `{workspace_id}/{raw_source_id}/{filename}`)
 
@@ -74,16 +74,15 @@
 
 - scope: `db` · `api` · `worker` · `web` · `config` · `docs`
 - 마이그레이션 커밋은 제목에 번호를 앞세운다 — `fix(db): 0015 워크스페이스 슬러그 마이그레이션 기록`
-- 하나의 작업 = 하나의 커밋. 커밋은 작업 ID와 1:1로 대응한다
+- commit 범위와 PR 발행 안전 규칙은 `openspec/specs/pull-request-workflow/spec.md`를 따른다
 
-## 작업 원장
+## 작업 추적과 역사 기록
 
-- `status`를 갱신한다 — `pending` → `in_progress` → `done`
-- `verification_result`에 `date` · `method` · 통과 진술 배열 `results`를 기록한다
-- DDL/설계 이탈은 이유와 함께 `deviations_from_plan`에 남긴다
-- 근거를 두 번째 장소에 다시 쓰지 않는다 — `decisions.<key>`를 링크한다
-- 파생/요약 필드를 만들지 않는다(즉시 stale이 된다). `$schema`도 넣지 않는다
-- `checklists.json`은 v1 백엔드, `checklists_v2.json`은 마일스톤 2 대시보드 작업을 담는다
+- 현재 작업 상태와 우선순위는 **GitHub Issues + `kanziman` Project #1**에서 관리한다
+- 현재 제품·workflow 계약은 `openspec/specs/`, 변경 단위 계획·결정·검증은 `openspec/changes/<change>/`에서 관리한다
+- 세부 원장 계약은 `openspec/specs/feature-planning-workflow/spec.md`를 인용하고 이 문서에 복제하지 않는다
+- `checklists.json`과 `checklists_v2.json`의 phase/task 상태는 GSD 작업 당시의 역사적 스냅샷이다. 현재 진행 상태처럼 갱신하지 않는다
+- 과거 결정의 배경을 인용할 때는 checklist의 `document_status.as_of`를 함께 밝혀 현재 계약과 구분한다
 
 ## 오류 처리
 

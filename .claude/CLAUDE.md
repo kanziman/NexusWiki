@@ -16,8 +16,8 @@
 | 커밋 메시지 형식 · AC 인수 조건 (정본) | `docs/reference/commit.md` |
 | 배포 · 벤치마크 · 마이그레이션 검증 실측 기록 | `docs/ops/` |
 | 테넌트 격리 증명 | `docs/ops/tenant-isolation-proof.md` |
-| 현재 작업 상태 · 다음 단계 | `HANDOFF.md` |
-| 작업 · 결정 원장 | `checklists.json` (v1 백엔드) · `checklists_v2.json` (마일스톤 2) |
+| 현재 작업 상태 · 우선순위 | GitHub Issues · `kanziman` Project #1 |
+| 변경 단위 계획 · 결정 | `openspec/changes/<change>/` |
 | 기능 계약 (스펙) | `openspec/specs/` |
 
 ⚠️ 개수 · 버전 · 상태는 이 파일에 쓰지 않는다. 그것들이 이 문서를 stale하게 만든 원인이다 — 참조 문서나 코드를 가리킨다.
@@ -90,9 +90,9 @@ Postgres 기본 파서는 한국어를 토큰화하지 못한다. 생성 컬럼�
 - **모든 주석 · 커밋 메시지 · PR 제목과 본문 · 문서는 한국어다.** squash merge가 PR 제목을 `main`의 커밋 제목으로 만들기 때문에 PR 제목도 같은 규칙을 받는다. 식별자 · 키워드 · 파일명은 영문/ASCII를 유지한다. 한국어 코드베이스에 영문 식별자는 사고가 아니라 하우스 스타일이다.
 - SQL은 전부 소문자다 — 키워드도 포함(`create table`, `on delete cascade`).
 - 자명하지 않은 모든 DDL 선택에 **"안 그러면 뭐가 깨지는지"** 주석을 단다. `⚠️`는 무시하면 데이터나 보안이 조용히 망가지는 함정에만 붙인다.
-- **근거를 두 곳에 쓰지 않는다.** 프로젝트 수명 전체의 결정은 `checklists.json > decisions.<key>`를, 하나의 change 안에서만 유효한 결정은 그 change의 `design.md`를 인용한다.
-- 커밋 메시지 형식은 `docs/reference/commit.md`가 정본이다 — 쓰기 전에 읽는다. 하나의 작업 = 하나의 커밋.
-- 계획에서 벗어나면 파일 주석과 `checklists.json`의 `deviations_from_plan`을 **함께** 갱신한다.
+- **근거를 두 곳에 쓰지 않는다.** 현재 프로젝트 계약은 `openspec/specs/`를, 하나의 change 안에서만 유효한 결정은 그 change의 `design.md`를 인용한다. `checklists*.json`은 GSD 시기의 역사적 근거이며 현재 계약이 아니다.
+- 커밋 메시지 형식은 `docs/reference/commit.md`, commit 범위와 PR 안전 규칙은 `openspec/specs/pull-request-workflow/spec.md`가 정본이다.
+- 계획 이탈과 결정 기록은 `openspec/specs/feature-planning-workflow/spec.md`의 원장 계약을 따른다.
 
 ## Agent Workflow
 

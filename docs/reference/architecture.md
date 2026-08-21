@@ -8,17 +8,19 @@
 | --- | --- | --- |
 | 코어 스키마 | workspaces · membership · raw_sources · wiki_pages · prompt_templates. 테이블 생성과 동시에 RLS 활성화 | `supabase/migrations/0001_core_schema.sql` |
 | 검색 스키마 | source_chunks · wiki_embeddings · wiki_links · `wiki_pages.search_tsv`, HNSW + GIN | `supabase/migrations/0002_search_schema.sql` |
-| 작업 큐 | `jobs` + `claim_job`/`complete_job`/`fail_job`/`reap_stale_jobs` (SKIP LOCKED) | `supabase/migrations/0003_jobs.sql` |
+| 작업 큐 | `jobs` + claim/완료/실패/reap/chain/release/dead-letter/cancel 함수 (SKIP LOCKED) | `supabase/migrations/0003_jobs.sql` · `0007_search_and_queue_extensions.sql` · `0009_pipeline_ops.sql` |
 | 테넌트 격리 | 전 테이블 RLS 정책 + `SECURITY DEFINER` 멤버십 헬퍼 + owner 보호 트리거 | `supabase/migrations/0004_rls_policies.sql` |
 | Storage 버킷 | 비공개 `sources` 버킷, 멤버십 기반 정책 | `supabase/migrations/0005_storage.sql` |
 | 프롬프트 시드 | 전역 템플릿 (`workspace_id IS NULL`) | `supabase/migrations/0006_seed_prompts.sql` |
 | 공개 공유 사이드카 | `workspace_public_settings` · `wiki_page_publications`, 킬스위치 RLS | `supabase/migrations/0016_public_sharing.sql` |
+| 사용자 즐겨찾기 | `user_wiki_bookmarks`, 사용자 본인 행만 허용하는 RLS | `supabase/migrations/0017_wiki_bookmarks.sql` |
 | API 서비스 | JWT 인증 · 워크스페이스 컨텍스트 · 읽기 API · ask · ingest | `apps/api/` |
 | Worker 서비스 | 큐 폴링 · 파싱/청킹 · LLM 컴파일 · 임베딩 · 링크 동기화 | `apps/worker/` |
 | 공유 코어 | 구조화 로깅 등 API·worker 공용 모듈 | `packages/core/` |
 | Dashboard | 인증 · 업로드 · ask UI · 그래프 캔버스 · 위키 뷰어 · 공개 뷰어 | `apps/dashboard/` |
-| 작업 원장 | 작업 · 결정 · 검증 기록 | `checklists.json` · `checklists_v2.json` |
-| 세션 인계 | 현재 상태 · 이탈 사항 · 함정 | `HANDOFF.md` |
+| 현재 작업 추적 | 상태 · 우선순위 · 이슈 계층 | GitHub Issues · `kanziman` Project #1 |
+| 제품·workflow 계약 | 현재 요구사항과 변경 단위 결정 | `openspec/specs/` · `openspec/changes/` |
+| GSD 역사 기록 | 과거 작업 · 결정 · 검증 스냅샷 | `checklists.json` · `checklists_v2.json` |
 | 운영 기록 | 배포 · 벤치마크 · 마이그레이션 검증 기록 | `docs/ops/` |
 
 ## 지배적 패턴
@@ -27,7 +29,7 @@
 - **하이브리드 DB 접근.** 사용자 요청 경로는 요청자 JWT를 쓰고 RLS가 격리를 강제한다. `service_role`은 워커와 마이그레이션 전용이다.
 - **복합 FK가 테넌트를 나른다.** `raw_sources`와 `wiki_pages`는 `(id, workspace_id)` UNIQUE를 가지므로 자식 테이블이 복합 FK를 쓴다. RLS를 우회하는 워커도 테넌트를 넘을 수 없다.
 - **한국어 어휘 검색은 애플리케이션 책임이다.** `search_tsv`는 의도적으로 생성 컬럼이 아니다. 앱이 bigram 토큰화한 `to_tsvector('simple', …)`를 쓰고, `tsv_tokenizer_version`이 어느 토크나이저가 만든 행인지 기록한다.
-- **큐 상태 전이는 함수를 통해서만.** `jobs`를 직접 UPDATE하면 안 된다. 시도 회계와 lock 일관성 CHECK가 네 개 함수 안에 있다.
+- **큐 상태 전이는 함수를 통해서만.** `jobs`를 직접 UPDATE하면 안 된다. 시도 회계와 lock 일관성 CHECK가 여덟 개 함수에 나뉘어 있다.
 
 ## 계층
 
@@ -46,7 +48,7 @@
 
 ### 3. 작업 계층
 - 목적: 수집 요청과 장시간 LLM 작업을 분리
-- 위치: `public.jobs` + 네 함수
+- 위치: `public.jobs` + 여덟 함수
 - 생산자는 ingest API, 소비자는 worker
 
 ### 4. 격리 계층
@@ -67,6 +69,7 @@
 ### 큐 함수
 - `jobs`를 바꾸는 유일한 정식 경로
 - `claim_job(worker_id, types[])` · `complete_job(job_id)` · `fail_job(job_id, error, backoff, max_backoff)` · `reap_stale_jobs(timeout)`
+- `complete_job_and_chain(job_id, next_type, payload)` · `release_job(job_id, worker_id)` · `dead_letter_job(job_id, worker_id, error)` · `cancel_job(job_id, worker_id)`
 - 전부 `service_role` 전용
 
 ### 레드 링크 (`wiki_links`)
