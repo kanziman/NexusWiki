@@ -10,7 +10,7 @@
 | Python 3.12 | FastAPI API · 큐 워커 · 공유 코어 | `apps/api/` · `apps/worker/` · `packages/core/` |
 | TypeScript (`strict`) | Next.js 15 dashboard | `apps/dashboard/` |
 | TOML | 로컬 스택 설정 | `supabase/config.toml` |
-| JSON | 작업 · 결정 원장 | `checklists.json` · `checklists_v2.json` |
+| JSON | GSD 작업 · 결정의 역사적 스냅샷 | `checklists.json` · `checklists_v2.json` |
 
 ## 런타임
 
@@ -43,11 +43,11 @@
 - **GIN tsvector 인덱스** — `wiki_pages_search_tsv_idx`, `source_chunks_search_tsv_idx`. 앱이 생성한 bigram `tsvector('simple', …)` 대상
 - `httpx` — OpenRouter + OpenAI 임베딩 클라이언트
 - `pypdf` — PDF 텍스트 추출
-- **DB 내 작업 큐** — `jobs` 테이블 + `claim_job` / `complete_job` / `fail_job` / `reap_stale_jobs`, `FOR UPDATE SKIP LOCKED` (`supabase/migrations/0003_jobs.sql`). `EXECUTE`는 `anon` · `authenticated`에서 회수됨, `service_role` 전용
+- **DB 내 작업 큐** — `jobs` 테이블 + `claim_job` / `complete_job` / `fail_job` / `reap_stale_jobs` / `complete_job_and_chain` / `release_job` / `dead_letter_job` / `cancel_job`, `FOR UPDATE SKIP LOCKED` (`0003_jobs.sql` · `0007_search_and_queue_extensions.sql` · `0009_pipeline_ops.sql`). `EXECUTE`는 `anon` · `authenticated`에서 회수됨, `service_role` 전용
 
 ## 마이그레이션
 
-`supabase/migrations/`에 `0001` ~ `0016`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 번호 간격은 없다.
+`supabase/migrations/`에 `0001` ~ `0017`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 번호 간격은 없다.
 
 주요 지점만:
 
@@ -55,13 +55,16 @@
 | --- | --- |
 | `0001` | 코어 스키마 — workspaces · membership · raw_sources · wiki_pages · prompt_templates |
 | `0002` | 검색 스키마 — source_chunks · wiki_embeddings · wiki_links · search_tsv · HNSW/GIN |
-| `0003` | 작업 큐 — `jobs` + 4개 함수 |
+| `0003` | 작업 큐 — `jobs` + claim/완료/실패/reap 기본 함수 |
 | `0004` | RLS 정책 + `SECURITY DEFINER` 멤버십 헬퍼 + owner 보호 트리거 |
 | `0005` | Storage — 비공개 `sources` 버킷, 멤버십 기반 정책 |
 | `0006` | 프롬프트 시드 — 전역 템플릿 (`workspace_id IS NULL`) |
+| `0007` | 검색 RPC + 완료 후 체인 생성 · 실행 중 작업 release 함수 |
+| `0009` | usage 회계 + dead-letter · cancel 함수 |
 | `0016` | 공개 공유 사이드카 — `workspace_public_settings` · `wiki_page_publications` |
+| `0017` | 사용자별 위키 즐겨찾기 — `user_wiki_bookmarks` |
 
-현재 테이블 12개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications`
+현재 테이블 13개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks`
 
 ## 설정
 

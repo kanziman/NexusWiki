@@ -1,5 +1,13 @@
 {
   "title": "NexusWiki v2 PRD Implementation Checklists",
+  "document_status": {
+    "lifecycle": "historical_snapshot",
+    "as_of": "2026-08-20",
+    "is_current_work_ledger": false,
+    "current_tracking": "GitHub Issues + kanziman Project #1",
+    "current_contracts": "openspec/specs/",
+    "status_semantics": "phase와 task의 status는 GSD 작업 당시 값이며 현재 진행 상태가 아니다."
+  },
   "project_name": "NexusWiki 마일스톤 2 — 대시보드 화면 구현",
   "source_prds": "docs/design-systems/v2/*.md",
   "depends_on_v1": "checklists.json (Phase 3+ 백엔드 API 완성 시 바인딩)",
