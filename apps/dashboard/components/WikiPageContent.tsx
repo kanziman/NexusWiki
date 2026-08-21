@@ -6,14 +6,19 @@ import { Fragment, useState } from "react";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RedLinkCta } from "@/components/RedLinkCta";
 import { apiFetch } from "@/lib/api-client";
+import { verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
 import { resolveWikiLinks } from "@/lib/wiki-links";
 
 // UI-SPEC Copywriting Contract "Wiki viewer (UI-05)" — 문구를 한 글자도 바꾸지 않는다.
 const READ_ONLY_BANNER =
   "이 페이지는 컴파일됩니다 — 직접 편집할 수 없으며, 소스가 갱신되면 다시 컴파일됩니다.";
-const DISPUTED_CALLOUT =
-  "충돌 감지됨 — 상충하는 정보가 있습니다. 원문을 확인하세요.";
+// ⚠️ 상태 이름은 lib/verification-label.ts 에서 파생한다. 예전에는 여기만
+// "충돌 감지됨"이라 홈·라이브러리의 "충돌 감지"와 갈렸고, 이 문자열이 위
+// Copywriting Contract 의 보호 대상이라 못 고친다고 판단했었다 — 확인해 보니
+// 그 계약 문서는 리포지토리에 없다(`grep -rl "Copywriting Contract" docs/` 0건).
+// 뒤에 붙는 설명은 이 화면 고유의 확장이라 그대로 둔다.
+const DISPUTED_CALLOUT = `${verificationLabel({ disputed: true })} — 상충하는 정보가 있습니다. 원문을 확인하세요.`;
 const VERIFY_ACTION_LABEL = "검증됨으로 표시";
 const VERIFY_FAILURE_MESSAGE = "검증 처리에 실패했습니다. 다시 시도해주세요.";
 
@@ -131,7 +136,11 @@ export function WikiPageContent({
   return (
     <div className="reader-layout">
       <article className="reader">
-        <nav aria-label="위키 탐색 경로" className="eyebrow">
+        {/* ⚠️ .eyebrow 를 쓰지 않는다. 이 프로젝트의 유일하게 남은 맥락 라벨이자
+            장식이 아닌 진짜 탐색 요소다(다른 다섯 화면의 eyebrow 는 제거됐다).
+            .eyebrow 는 대문자 변환·넓은 자간·모노스페이스라 한국어에 맞지 않는다 —
+            uppercase 는 한국어에 무효이고 .11em 자간은 자모를 벌려 읽기 나쁘다. */}
+        <nav aria-label="위키 탐색 경로" className="breadcrumb-path">
           위키 / {page.category}
         </nav>
 
@@ -347,19 +356,24 @@ function VerificationCallout({
     const dateLabel = verifiedAt !== null ? formatDate(verifiedAt) : "";
     return (
       <span className="badge verified">
-        {`검증됨${dateLabel ? ` · ${dateLabel}` : ""}`}
+        {`${verificationLabel({ verification_status: "verified" })}${dateLabel ? ` · ${dateLabel}` : ""}`}
       </span>
     );
   }
 
   if (status === "verified" && isExpired) {
-    // UI-SPEC Copywriting Contract "Expired-verification callout" — verbatim.
     // isExpired가 true인 분기이므로 expiresAt는 사실상 항상 non-null이지만,
     // prop 시그니처가 string | null이라 렌더 시점에 한 번 더 널가드한다.
+    // ⚠️ 상태 이름은 모듈에서 파생한다 — 목록 화면이 같은 문서를 부르는 말과
+    // 갈리면 안 된다. 뒤의 날짜·안내는 이 화면 고유의 확장이다.
     const dateLabel = expiresAt !== null ? formatDate(expiresAt) : "";
+    const stateName = verificationLabel({
+      verification_status: "verified",
+      expires_at: expiresAt ?? "1970-01-01T00:00:00Z",
+    });
     return (
       <span className="badge" style={{ color: "var(--danger)" }}>
-        {`검증 만료됨${dateLabel ? ` · ${dateLabel} 이후 재검증 필요` : " · 재검증 필요"}`}
+        {`${stateName}${dateLabel ? ` · ${dateLabel} 이후 재검증 필요` : " · 재검증 필요"}`}
       </span>
     );
   }
@@ -367,7 +381,15 @@ function VerificationCallout({
   if (status === "partial") {
     // UI-SPEC에 partial 전용 문구가 없다 — expired-style(warning-text) 처리를
     // 이 컴포넌트의 합리적 확장으로 채택한다(06-07-PLAN.md Task 2 <action>).
-    return <span className="badge">부분 검증됨 · 재검증이 필요합니다</span>;
+    // ⚠️ 상태 이름 자체는 lib/verification-label.ts 에서 파생한다. 예전에는
+    // 여기만 "부분 검증됨"이라 홈·라이브러리의 "부분 검증"과 갈렸다. 뒤에
+    // 붙는 안내 문구는 이 화면 고유의 확장이라 그대로 둔다.
+    return (
+      <span className="badge">
+        {verificationLabel({ verification_status: "partial" })} · 재검증이
+        필요합니다
+      </span>
+    );
   }
 
   // "unverified" — UI-SPEC은 중립 기본 상태로 명시적 콜아웃을 요구하지 않는다.

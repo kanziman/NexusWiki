@@ -25,6 +25,7 @@ import {
   previewWikiPages,
   previewWorkspace,
 } from "@/lib/preview-data";
+import { verificationLabel } from "@/lib/verification-label";
 
 type PreviewWorkspaceProps = { path: string[] };
 type Notice = "저장" | "업로드" | "초대" | "로그아웃" | "워크스페이스 생성";
@@ -188,7 +189,6 @@ function PreviewHome() {
     <div className="content">
       <section className="context">
         <div>
-          <p className="eyebrow">WORKSPACE · LOCAL REVIEW</p>
           <div className="title-row">
             <h1>NexusWiki 제품 탐색</h1>
           </div>
@@ -206,7 +206,6 @@ function PreviewHome() {
       </section>
       <section className="ask-hero" aria-labelledby="preview-ask-heading">
         <div>
-          <p className="eyebrow">ASK NEXUSWIKI</p>
           <h2 id="preview-ask-heading">근거와 함께 지식을 탐색하세요</h2>
           <p>질문과 인용 흐름은 목업 답변으로 직접 확인할 수 있습니다.</p>
         </div>
@@ -300,7 +299,6 @@ function PreviewSources({ onAction }: { onAction: (action: Notice) => void }) {
   return (
     <div className="content">
       <PageHero
-        eyebrow="SOURCES · ORIGINAL EVIDENCE"
         title="원문 소스"
         body="위키를 만든 원문 자료와 처리 상태를 확인합니다."
       />
@@ -365,7 +363,6 @@ function PreviewAsk() {
     <div className="ask-layout" data-od-id="preview-ask-screen">
       <section className="conversation">
         <div className="conversation-head">
-          <p className="eyebrow">ASK NEXUSWIKI</p>
           <h1>무엇이든 물어보세요</h1>
           <p>목업 답변과 인용을 통해 검토 흐름을 확인하세요.</p>
         </div>
@@ -500,7 +497,6 @@ function PreviewWiki({ slug }: { slug?: string }) {
   return (
     <div className="content">
       <PageHero
-        eyebrow="WIKI · COMPILED KNOWLEDGE"
         title="위키 문서"
         body="원문에서 컴파일된 지식을 탐색하고 인용 근거를 확인합니다."
       />
@@ -527,9 +523,9 @@ function PreviewWiki({ slug }: { slug?: string }) {
               <span className="doc-title">{page.title}</span>
               <span className="doc-meta">
                 {page.category} ·{" "}
-                {page.verificationStatus === "verified"
-                  ? "검증됨"
-                  : "부분 검증"}
+                {verificationLabel({
+                  verification_status: page.verificationStatus,
+                })}
               </span>
               <p className="doc-excerpt">{page.content[0]}</p>
             </div>
@@ -551,9 +547,12 @@ function PreviewWikiReader({
       <Link href="/preview/wiki" className="text-button">
         ← 위키 문서
       </Link>
-      <p className="eyebrow mt-lg">
+      {/* 한국어 맥락 줄이라 .eyebrow(대문자·넓은 자간·모노스페이스)가 아니라
+          실제 리더와 같은 .breadcrumb-path 를 쓴다. 상태 문구도 앱과 같은
+          어휘를 쓰도록 lib/verification-label.ts 에서 파생한다. */}
+      <p className="breadcrumb-path mt-lg">
         {page.category} ·{" "}
-        {page.verificationStatus === "verified" ? "검증됨" : "부분 검증"}
+        {verificationLabel({ verification_status: page.verificationStatus })}
       </p>
       <h1>{page.title}</h1>
       {page.content.map((paragraph) => (
@@ -578,7 +577,6 @@ function PreviewBacklog({ onAction }: { onAction: (action: Notice) => void }) {
   return (
     <div className="content backlog">
       <PageHero
-        eyebrow="BACKLOG · RED LINKS"
         title="미완성 백로그"
         body="위키에서 참조되었지만 아직 작성되지 않은 지식을 확인합니다."
       />
@@ -627,7 +625,6 @@ function PreviewSettings({ onAction }: { onAction: (action: Notice) => void }) {
   return (
     <div className="content settings">
       <PageHero
-        eyebrow="WORKSPACE CONTROL · RBAC"
         title="워크스페이스 설정"
         body="목업 멤버와 권한 구성을 검토합니다."
       />
@@ -675,19 +672,13 @@ function PreviewSettings({ onAction }: { onAction: (action: Notice) => void }) {
   );
 }
 
-function PageHero({
-  eyebrow,
-  title,
-  body,
-}: {
-  eyebrow: string;
-  title: string;
-  body: string;
-}) {
+// ⚠️ eyebrow 를 받지 않는다. 앱의 여섯 화면이 각각 하나씩 갖고 있던 영문 대문자
+// 맥락 라벨은 dashboard-layout-density 에서 제거됐다 — 프리뷰가 옛 문법을
+// 유지하면 로그인 없이 제품을 검토하는 이 경로가 제품을 잘못 보여준다.
+function PageHero({ title, body }: { title: string; body: string }) {
   return (
     <section className="hero">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
         <p>{body}</p>
       </div>

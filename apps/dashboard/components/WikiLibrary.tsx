@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { isVerified, verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WikiLibraryPage = {
@@ -14,6 +15,7 @@ export type WikiLibraryPage = {
   content: string;
   verification_status: string;
   disputed: boolean;
+  expires_at?: string | null;
 };
 
 // UI-SPEC Copywriting Contract "Empty wiki (no pages yet)" — 문구를 한 글자도
@@ -32,12 +34,9 @@ const labels: Record<string, string> = {
   maps: "맵",
 };
 
-function stateLabel(page: WikiLibraryPage) {
-  if (page.disputed) return "충돌 감지";
-  if (page.verification_status === "verified") return "검증됨";
-  if (page.verification_status === "partial") return "부분 검증";
-  return "검증 필요";
-}
+// 라벨 매핑은 lib/verification-label.ts 가 소유한다 — 홈 대시보드와 같은 말을
+// 쓰기 위해서다. 여기에 문자열을 되돌려 놓지 않는다.
+const stateLabel = verificationLabel;
 
 /**
  * ⚠️ 브래킷을 노출하지 않는다. `[[문서명]]` 은 내부 마크업이므로 표기만 남긴다
@@ -88,7 +87,8 @@ export function WikiLibrary({
     <div className="content library">
       <section className="hero" data-od-id="wiki-library-header">
         <div>
-          <p className="eyebrow">COMPILED KNOWLEDGE</p>
+          {/* eyebrow(`COMPILED KNOWLEDGE`)를 두지 않는다 — 바로 아래 설명문이
+              같은 내용을 한국어로 더 정확히 말한다. */}
           <h1>위키</h1>
           <p>팀의 소스에서 컴파일된 지식 문서입니다.</p>
         </div>
@@ -99,11 +99,15 @@ export function WikiLibrary({
           <b>{pages.length}</b>
           <span>전체 문서</span>
         </div>
+        {/* ⚠️ 술어는 isVerified 다. `verification_status === "verified"` 로 직접
+            세면 충돌(disputed)·만료(expires_at) 문서가 검증 개수에 들어가,
+            바로 아래 목록이 "충돌 감지"·"검증 만료됨"으로 그린 행을 이 숫자가
+            검증으로 센다 — 한 화면 안에서 숫자와 행이 모순된다.
+            라벨도 목록과 같은 말을 쓴다. 예전에는 여기만 "검증 완료"라
+            이번 change 가 없애려던 이중 어휘가 한 화면 안에 남아 있었다. */}
         <div className="stat">
-          <b>
-            {pages.filter((p) => p.verification_status === "verified").length}
-          </b>
-          <span>검증 완료</span>
+          <b>{pages.filter((p) => isVerified(p)).length}</b>
+          <span>검증됨</span>
         </div>
       </section>
 

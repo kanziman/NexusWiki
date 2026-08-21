@@ -40,7 +40,7 @@ describe("KnowledgeGrid", () => {
     );
 
     expect(screen.getByText("테넌트 격리 아키텍처")).toBeInTheDocument();
-    expect(screen.getByText("검증 완료")).toBeInTheDocument();
+    expect(screen.getByText("검증됨")).toBeInTheDocument();
     expect(screen.getByText(/인용 원문 3개/)).toBeInTheDocument();
 
     expect(screen.getByText("cache-layer-strategy")).toBeInTheDocument();

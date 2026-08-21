@@ -140,4 +140,33 @@ describe("WorkspaceShell", () => {
       screen.getByRole("button", { name: "메뉴 펼치기" }),
     ).toBeInTheDocument();
   });
+
+  // dashboard-design-consistency 「Constrained global knowledge actions」의
+  // 회귀 방지. 이 요구사항은 현재 동작을 명문화한 것이라 구현 변경이 없었고,
+  // 그래서 테스트가 없으면 다음 사람이 전역 바에 액션을 하나 더 얹어도
+  // 아무것도 막지 않는다. 계정·모바일 내비는 요구사항이 제외한 항목이다.
+  it("전역 행동 바에 지식 액션은 소스 추가·질문 시작 둘뿐이다", () => {
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <div>콘텐츠</div>
+      </WorkspaceShell>,
+    );
+
+    const topbar = document.querySelector(
+      '[data-od-id="workspace-topbar"]',
+    ) as HTMLElement;
+    // ⚠️ <a> 만 세지 않는다 — 지식 액션이 <button> 으로 추가되면 그것도
+    // 전역 바에 쌓인 것이다. 계정 메뉴·모바일 내비는 요구사항이 제외한
+    // 항목이라 aria-label 로 걸러낸다.
+    const actionLabels = Array.from(
+      topbar.querySelectorAll<HTMLElement>(
+        ".top-actions a, .top-actions > button",
+      ),
+    )
+      .filter((el) => !el.closest("[data-od-id='account-menu']"))
+      .filter((el) => el.getAttribute("aria-label") === null)
+      .map((el) => el.textContent?.trim());
+
+    expect(actionLabels).toEqual(["소스 추가", "질문 시작"]);
+  });
 });

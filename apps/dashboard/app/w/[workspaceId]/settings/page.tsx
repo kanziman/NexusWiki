@@ -57,7 +57,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     <div className="content settings">
       <section className="hero" data-od-id="settings-header">
         <div>
-          <p className="eyebrow">WORKSPACE CONTROL · RBAC</p>
+          {/* eyebrow(`WORKSPACE CONTROL · RBAC`)를 두지 않는다 — "RBAC"는
+              내부 용어이고 h1 이 이미 화면을 설명한다. */}
           <h1>워크스페이스 설정</h1>
           <p>워크스페이스 멤버와 운영 상태를 관리합니다.</p>
         </div>

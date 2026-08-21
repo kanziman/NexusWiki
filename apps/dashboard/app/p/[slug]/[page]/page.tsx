@@ -94,7 +94,9 @@ export default async function PublicWikiPage({ params }: PublicWikiPageProps) {
 
       <div className="reader-layout">
         <article className="reader">
-          <nav aria-label="공개 위키 탐색 경로" className="eyebrow">
+          {/* ⚠️ 내부 리더(WikiPageContent)와 같은 .breadcrumb-path 를 쓴다.
+              섹션 17 주석이 못박듯 두 리더가 다르게 생기면 그 자체가 버그다. */}
+          <nav aria-label="공개 위키 탐색 경로" className="breadcrumb-path">
             {workspaceDisplayName} / 공개 문서
           </nav>
 

@@ -27,8 +27,11 @@ export default async function WikiIndexPage({
   const bookmarkedOnly = resolvedSearchParams.bookmarked === "true";
   const supabase = await createClient();
 
+  // ⚠️ expires_at 을 빼지 않는다 — 빼면 만료된 검증이 목록·통계에서 계속
+  // "검증됨"으로 잡힌다(0007 §5: "만료된 검증을 검증으로 세면 오래된 위키가
+  // 영원히 verified 로 남습니다").
   const pageColumns =
-    "id,slug,title,category,content,verification_status,disputed";
+    "id,slug,title,category,content,verification_status,disputed,expires_at";
   let pages: {
     id: string;
     slug: string;
