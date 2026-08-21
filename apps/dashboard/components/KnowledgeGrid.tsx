@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 
+import {
+  isExpiredVerification,
+  isVerified,
+  verificationLabel,
+} from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WikiPageSummary = {
@@ -11,6 +16,10 @@ export type WikiPageSummary = {
   slug: string;
   category?: string | null;
   verification_status?: string | null;
+  // ⚠️ verification_status 와 독립인 별도 컬럼이다. 이 필드를 빠뜨리면
+  // verificationLabel 의 충돌 우선순위가 조용히 도달 불가능해진다.
+  disputed?: boolean | null;
+  expires_at?: string | null;
   updated_at?: string | null;
   citation_count?: number;
 };
@@ -76,7 +85,27 @@ export function KnowledgeGrid({
               const catLabel = page.category
                 ? (CATEGORY_LABELS[page.category] ?? page.category)
                 : "미분류";
-              const isVerified = page.verification_status === "verified";
+              // 라벨과 판정 모두 lib/verification-label.ts 에서 가져온다 —
+              // 위키 라이브러리와 같은 말을 써야 한다(이전에는 여기만
+              // "검증 완료"라 목적지마다 다른 이름으로 불렸다).
+              const verified = isVerified(page);
+              // ⚠️ 검증을 무너뜨리는 상태(충돌·만료)도 배지로 띄운다. 검증만
+              // 띄우면 그런 문서가 이 화면에서 아무 표식 없이 지나가고,
+              // 라이브러리·리더에서만 경고가 보인다 — 같은 상태가 목적지마다
+              // 다르게 보이는 문제의 다른 얼굴이다.
+              //
+              // workspace-home-prd.md §3.3 은 `.badge.verified` 를
+              // `verification_status='verified'` 에만 쓰라고 한다. 그 규칙은
+              // 지킨다 — 아래 className 이 verified 일 때만 .verified 를 붙이고
+              // (isVerified 는 PRD 조건의 진부분집합이다), 충돌·만료는 중립
+              // .badge 로 그린다.
+              // ⚠️ 같은 항목의 둘째 절("나머지 3종은 뱃지를 달지 않는다")과는
+              // `unverified ∧ disputed=true` 조합에서 문자 그대로 부딪힌다 —
+              // enum 값과 boolean 컬럼은 배타가 아니다(불변식 §3). 무표식으로
+              // 지나가는 쪽이 더 나쁘다고 보고 배지를 택했다. 되돌리려면
+              // design.md Decision 2 의 마지막 문단을 먼저 읽는다.
+              const disputed = Boolean(page.disputed);
+              const expired = isExpiredVerification(page);
               const citations = page.citation_count ?? 0;
 
               return (
@@ -91,10 +120,13 @@ export function KnowledgeGrid({
                     <span className="doc-meta">
                       {catLabel}
                       {citations > 0 && ` · 인용 원문 ${citations}개`}
-                      {isVerified && (
+                      {(verified || disputed || expired) && (
                         <>
                           {" "}
-                          · <b className="badge verified">검증 완료</b>
+                          ·{" "}
+                          <b className={verified ? "badge verified" : "badge"}>
+                            {verificationLabel(page)}
+                          </b>
                         </>
                       )}
                     </span>

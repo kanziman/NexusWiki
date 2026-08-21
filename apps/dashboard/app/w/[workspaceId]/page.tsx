@@ -43,7 +43,15 @@ export default async function WorkspaceHomePage({
         .order("created_at", { ascending: false }),
       supabase
         .from("wiki_pages")
-        .select("id,title,slug,category,verification_status,sources,updated_at")
+        // ⚠️ disputed 를 함께 읽는다. 이게 빠지면 lib/verification-label.ts 의
+        // 충돌 우선순위가 이 화면에서만 도달 불가능해져, 충돌 문서가 위키
+        // 라이브러리에서는 "충돌 감지"인데 여기서는 "검증됨"으로 표시된다 —
+        // 목적지마다 같은 상태를 다르게 부르는 바로 그 문제다.
+        // ⚠️ expires_at 도 함께 읽는다. 없으면 만료된 검증이 목록에서 계속
+        // "검증됨"으로 남는다 — 0007 §5 가 명시적으로 금지한 상태다.
+        .select(
+          "id,title,slug,category,verification_status,disputed,expires_at,sources,updated_at",
+        )
         .eq("workspace_id", workspaceId)
         .order("updated_at", { ascending: false }),
       supabase
@@ -61,6 +69,8 @@ export default async function WorkspaceHomePage({
     slug: p.slug,
     category: p.category,
     verification_status: p.verification_status,
+    disputed: p.disputed,
+    expires_at: p.expires_at,
     updated_at: p.updated_at,
     citation_count: Array.isArray(p.sources) ? p.sources.length : 0,
   }));
@@ -94,7 +104,8 @@ export default async function WorkspaceHomePage({
       {/* 1. 지식 그룹/워크스페이스 히어로 헤더 */}
       <section className="context" data-od-id="workspace-header">
         <div>
-          <p className="eyebrow">워크스페이스</p>
+          {/* eyebrow(`워크스페이스`)를 두지 않는다 — 바로 아래 제목이 이미
+              워크스페이스 이름이라 순수 중복이다. */}
           {/* 즐겨찾기는 위키 문서 단위다(user_wiki_bookmarks.wiki_id) — 이
               페이지에는 특정 wiki_id가 없어 토글할 대상이 없다. 예전 별표
               버튼은 그래서 눌러도 아무 일도 일어나지 않았다(UX-02). 실제

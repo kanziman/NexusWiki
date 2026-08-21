@@ -140,7 +140,8 @@ export function SourcesList({
     <div className="content sources">
       <section className="hero" data-od-id="source-management-header">
         <div>
-          <p className="eyebrow">SOURCE PIPELINE · DATABASE &amp; RLS</p>
+          {/* eyebrow(`SOURCE PIPELINE · DATABASE & RLS`)를 두지 않는다 —
+              "DATABASE & RLS"는 내부 구현 용어라 사용자에게 의미가 없다. */}
           <h1>원문 소스 관리</h1>
           <p>
             등록된 원본의 청킹, 5채널 인덱싱 상태와 위키 인용 관계를 관리합니다.

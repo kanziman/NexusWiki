@@ -79,7 +79,8 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
     <div className="content backlog">
       <section className="hero" data-od-id="backlog-header">
         <div>
-          <p className="eyebrow">BACKLOG · RED LINKS</p>
+          {/* eyebrow(`BACKLOG · RED LINKS`)를 두지 않는다 — h1 과 아래 설명문이
+              이미 같은 내용을 한국어로 더 정확히 말한다. */}
           {/* 라우트 이름은 LNB 와 맞춘다. PRD §3.1 은 브레드크럼을 "작성 대기
               백로그"로 적지만, LNB(프로토타입·테스트 계약)가 "미완성 백로그"라
               화면이 진입 경로와 다른 이름을 갖게 된다. */}

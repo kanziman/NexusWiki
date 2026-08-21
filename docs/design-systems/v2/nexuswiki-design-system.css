@@ -73,7 +73,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 14px/1.45 var(--font-body);
+  font: 15px/1.45 var(--font-body);
 }
 
 button, input, select, textarea { font: inherit }
@@ -476,6 +476,14 @@ summary:focus-visible {
 /* -----------------------------------------------------------------------------
  * 8. 상태 표시와 배지
  * -------------------------------------------------------------------------- */
+/* ⚠️ 영문 대문자 모노스페이스 맥락 라벨. 한때 앱의 일곱 화면이 각각 하나씩
+   갖고 있어 매 화면 반복됐고, 그것이 "모든 화면이 같은 템플릿처럼 보인다"는
+   인상의 큰 축이었다(dashboard-layout-density). 지금은 앱에서도 프리뷰에서도
+   쓰지 않으며 프로토타입 HTML 에만 남는다 — 즉 이 규칙은 현재 사용처가 없다.
+   되살리기 전에 dashboard-design-consistency 의 "contextual supporting labels
+   SHALL appear only where they carry information the page title does not
+   already convey" 를 통과하는지 먼저 따진다. 한국어 텍스트라면 애초에 맞지
+   않는다 — uppercase 는 무효이고 .11em 자간은 자모를 벌린다(.breadcrumb-path). */
 .eyebrow {
   margin: 0 0 10px;
   color: var(--muted);
@@ -484,12 +492,25 @@ summary:focus-visible {
   text-transform: uppercase;
 }
 
-/* 점 + 레이블 형태의 진행/결과 상태 */
+/* 위키 문서 상세의 탐색 경로. .eyebrow 와 달리 한국어 텍스트라 대문자 변환·
+   넓은 자간·모노스페이스를 쓰지 않는다 — 읽으라고 있는 요소다. */
+.breadcrumb-path {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 점 + 레이블 형태의 진행/결과 상태.
+   ⚠️ 크기는 상태 텍스트군(.badge · .tag · .verified · .public-badge …)과 같은
+   12px 로 맞춘다 — 이 텍스트는 장식이 아니라 신뢰·진행 상태를 나르므로
+   dashboard-design-consistency 가 가독 크기를 요구한다. 파이프라인 표의 좁은
+   셀에서 이 값을 다시 줄이고 싶어지면 .pipe-line .status 주석을 먼저 읽는다. */
 .status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -498,7 +519,7 @@ summary:focus-visible {
 .status.pending .dot { background: oklch(.57 .14 255) }
 .status.failed .dot { background: var(--danger) }
 
-/* 테두리형 검증 배지 — 문서 목록의 "검증 완료" 등 */
+/* 테두리형 검증 배지 — 문서 목록의 "검증됨" 등 */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -507,7 +528,7 @@ summary:focus-visible {
   border-radius: 4px;
   background: var(--surface);
   color: var(--muted);
-  font: 600 10px var(--font-mono);
+  font: 600 12px var(--font-mono);
   white-space: nowrap;
 }
 
@@ -716,11 +737,20 @@ summary:focus-visible {
 
 /* 콘텐츠 캔버스
    패딩은 .content.sources/.backlog/.library 와 동일한 42px 균일값으로
-   맞춘다 — 이전 판(46px 42px 58px)은 홈 화면만 유독 비대칭이었다. 폭은
-   화면마다 다르게 두는데(1120/1320/1180), 각 프로토타입에서 그대로
-   옮겨온 값이라 통일할 근거가 없어 그대로 둔다. */
+   맞춘다 — 이전 판(46px 42px 58px)은 홈 화면만 유독 비대칭이었다.
+
+   ⚠️ 폭은 목적지 간 단일값이다. 이전에는 각 프로토타입에서 옮겨온 값을
+   그대로 둬 1120(홈·위키)/1180(설정·백로그)/1320(소스)으로 갈라져 있었고,
+   기본 1120px 는 넓은 화면에서 좌우로 각 268px 씩 비웠다. 목적지마다 폭이
+   다르면 화면을 옮길 때마다 좌우 경계선이 미묘하게 움직여 같은 제품이
+   아닌 것처럼 읽힌다 — dashboard-design-consistency 의 "Destinations that
+   render on the shared content canvas SHALL all use one and the same maximum
+   content width" 요구사항이 그것을 막는다. ⚠️ 자체 레이아웃을 소유한
+   목적지(.ask-layout · .reader)는 이 규칙 밖이며 각자 폭을 유지한다.
+   여기를 고칠 때 .content.settings/.sources/.backlog/.library 에 width 를
+   다시 넣지 않는다. 그 순간 3중 체계로 되돌아간다. */
 .content {
-  width: min(1120px, 100%);
+  width: min(1280px, 100%);
   margin: 0 auto;
   padding: 42px;
 }
@@ -940,7 +970,7 @@ summary:focus-visible {
 .backlog .doc-title:before {
   content: "작성 대기";
   margin-right: 7px;
-  font: 600 9px var(--font-mono);
+  font: 600 12px var(--font-mono);
   letter-spacing: .03em;
   color: var(--danger);
 }
@@ -995,6 +1025,9 @@ summary:focus-visible {
   .top-actions .button.primary { display: none }
   .content { padding: 25px 14px }
   .eyebrow { font-size: 9px; margin-bottom: 8px }
+  /* 브레드크럼은 좁은 화면에서도 크기를 줄이지 않는다 — 읽으라고 있는
+     요소이고 한 줄짜리라 공간을 다투지 않는다. 여백만 좁힌다. */
+  .breadcrumb-path { margin-bottom: 8px }
   .title-row h1 { font-size: 27px; letter-spacing: -1px }
   .context p { font-size: 13px; line-height: 1.6 }
 
@@ -1049,7 +1082,7 @@ summary:focus-visible {
  * 30px + 테두리 변형은 채택하지 않는다 — LNB 가 같은 클래스를 쓴다.
  * -------------------------------------------------------------------------- */
 
-.content.settings { width: min(1180px, 100%); padding: 42px }
+.content.settings { padding: 42px }
 
 /* 헤더 */
 .hero {
@@ -1304,7 +1337,10 @@ summary:focus-visible {
 .pipe-title { font-size: 12px; font-weight: 800 }
 .pipe-title span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; font-weight: 400 }
 .metric { font: 700 12px var(--font-mono) }
-.metric small { display: block; margin-top: 2px; color: var(--muted); font: 500 9px var(--font-mono) }
+/* 잡 상태 문구("대기" · "실행 중" · "실패")다 — 장식이 아니라 상태 텍스트라
+   상태 텍스트군과 같은 12px 하한을 받는다. .metric.dead 에는 danger 색까지
+   붙으므로 색만으로 읽히게 두면 안 된다. */
+.metric small { display: block; margin-top: 2px; color: var(--muted); font: 500 12px var(--font-mono) }
 .metric.running { color: oklch(.42 .06 255) }
 .metric.dead { color: var(--danger) }
 
@@ -1367,12 +1403,14 @@ summary:focus-visible {
 .public-share h3 { margin: 0; font: 800 14px var(--font-display) }
 .public-share p { margin: 4px 0 0; color: var(--muted); font-size: 11px }
 
+/* 공개 여부 상태("ON"/"OFF")다 — 상태 텍스트군과 같은 12px 하한을 받는다.
+   .share-state.on 이 색을 바꾸므로 크기까지 작으면 색에만 의존하게 된다. */
 .share-state {
   display: flex;
   align-items: center;
   gap: 9px;
   color: var(--muted);
-  font: 700 10px var(--font-mono);
+  font: 700 12px var(--font-mono);
   white-space: nowrap;
 }
 
@@ -1548,7 +1586,7 @@ summary:focus-visible {
  * 판단할 수 없게 된다 — 그 화면을 만들 때 함께 옮긴다.
  * -------------------------------------------------------------------------- */
 
-.content.sources { width: min(1320px, 100%); padding: 42px }
+.content.sources { padding: 42px }
 .content.sources .stats { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)) }
 
 /* 필터 툴바 */
@@ -1678,7 +1716,12 @@ summary:focus-visible {
 .pipe-line { display: flex; align-items: center; gap: 6px; min-width: 0 }
 
 /* 셀 안에서는 상태 문구가 두 줄로 접히는 편이 잘려 사라지는 것보다 낫다 —
-   .status 가 전역으로 걸어 둔 nowrap 을 이 자리에서만 푼다. */
+   .status 가 전역으로 걸어 둔 nowrap 을 이 자리에서만 푼다.
+
+   ⚠️ .status 는 상태 텍스트군 통일로 11px → 12px 가 됐다(dashboard-layout-density).
+   이 칸은 원래도 빡빡해서 위 주석의 사고(문구가 한 글자씩 세로로 접힘)가 났던
+   자리다. 여기서 다시 좁아지면 폰트를 줄이지 말고 액션 폭이나 들여쓰기를
+   먼저 의심한다 — 상태 텍스트 가독 크기는 스펙 요구사항이다. */
 .pipe-line .status { flex: 1; min-width: 0; white-space: normal; line-height: 1.45 }
 
 .pipe-action {
@@ -1889,7 +1932,7 @@ summary:focus-visible {
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -2287,7 +2330,7 @@ summary:focus-visible {
 
 .inspect .card { padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg) }
 .inspect .card-top { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 14px }
-.inspect .kicker { color: var(--muted); font: 600 9px var(--font-mono); letter-spacing: .08em }
+.inspect .kicker { color: var(--muted); font: 600 12px var(--font-mono); letter-spacing: .08em }
 .inspect .card h3 { margin: 4px 0 0; font: 800 15px/1.35 var(--font-display) }
 .inspect .card h4 { margin: 16px 0 7px; font-size: 12px }
 .inspect .card p { margin: 0; color: oklch(.34 .025 264); font-size: 12px; line-height: 1.7 }
@@ -2300,7 +2343,7 @@ summary:focus-visible {
   background: oklch(.96 .035 155);
   color: oklch(.44 .12 155);
   white-space: nowrap;
-  font: 600 9px var(--font-mono);
+  font: 600 12px var(--font-mono);
 }
 
 .inspect .meta {
@@ -2348,7 +2391,7 @@ summary:focus-visible {
   border-radius: 4px;
   background: transparent;
   color: var(--muted);
-  font: 600 9px var(--font-mono);
+  font: 600 12px var(--font-mono);
 }
 
 /* 해소 전 인용 마커. ⚠️ .cite 를 쓰지 않는다 — T-06-18 은 citations 프레임이
@@ -2441,7 +2484,7 @@ summary:focus-visible {
  *     정렬로 충분하고, `소스 삭제 결손` 은 그런 경로가 없다(PRD §2.4).
  * -------------------------------------------------------------------------- */
 
-.content.backlog { width: min(1180px, 100%); padding: 42px }
+.content.backlog { padding: 42px }
 .content.backlog .stats { display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)) }
 
 .content.backlog .toolbar {
@@ -2585,7 +2628,7 @@ button.topic:hover b { color: var(--accent) }
  *    빌려 쓰면 셸의 여백 규칙이 바뀔 때 공개 페이지가 함께 흔들린다.
  *
  * 재사용하는 것(다시 정의하지 않는다): .reader · .reader .title-row ·
- * .governance · .tag · .badge · .article · .toc · .toc-list · .eyebrow.
+ * .governance · .tag · .badge · .article · .toc · .toc-list · .breadcrumb-path.
  *
  * 옮기지 않은 것: 인용 원문 드로어(.drawer). left:264px 이 앱 셸 사이드바를
  * 전제하고, 무엇보다 anon 은 원문 청크에 정책도 GRANT 도 없다(불변식 §4~5).
@@ -2624,11 +2667,11 @@ button.topic:hover b { color: var(--accent) }
   border-radius: 999px;
   background: var(--soft);
   color: var(--accent);
-  font: 700 9px var(--font-mono);
+  font: 700 12px var(--font-mono);
   letter-spacing: .06em;
 }
 
-.public-stamp { flex: none; color: var(--muted); font: 600 10px var(--font-mono); letter-spacing: .04em }
+.public-stamp { flex: none; color: var(--muted); font: 600 12px var(--font-mono); letter-spacing: .04em }
 
 /* ⚠️ 섹션 15 의 .toc 는 top:0 · height:100vh 다. 그대로 두면 목차가 이 화면의
    공개 상단바 뒤로 미끄러져 들어가 첫 항목이 가려진다. 상단바 높이만큼 내린다. */
@@ -2695,7 +2738,7 @@ button.topic:hover b { color: var(--accent) }
  *    로 좁힌다 — 무스코프로 두면 세 화면이 서로를 덮는다.
  * -------------------------------------------------------------------------- */
 
-.content.library { width: min(1120px, 100%); padding: 42px }
+.content.library { padding: 42px }
 
 .content.library .toolbar {
   display: flex;

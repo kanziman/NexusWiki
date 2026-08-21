@@ -286,8 +286,12 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           <h1> 을 갖는다 — 여기만 빼면 위계가 화면마다 달라진다.
           ⚠️ 셸이 이미 <main> 을 쓰므로 여기서 <main> 을 또 열지 않는다 —
           한 문서에 main 은 하나여야 한다. */}
+      {/* ⚠️ eyebrow(`ASK · DUAL CITATION`)를 두지 않는다 — "ASK"는 h1 의 중복이고,
+          이중 인용은 장식 라벨이 아니라 답변의 신뢰 요약이 실제로 보여줘야 한다.
+          dashboard-design-consistency 의 "contextual supporting labels SHALL
+          appear only where they carry information the page title does not
+          already convey" 판정이다. */}
       <header className="conversation-head">
-        <p className="eyebrow">ASK · DUAL CITATION</p>
         <h1>질문하기</h1>
       </header>
       <div className="thread" data-testid="ask-conversation">
