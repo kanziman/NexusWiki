@@ -71,6 +71,7 @@ class PipelineHarness:
         self._db: ServiceDb | None = None
         self._settings = WorkerSettings(
             SUPABASE_URL=LOCAL_STACK["url"],
+            SUPABASE_PUBLISHABLE_KEY=LOCAL_STACK["publishable_key"],
             SUPABASE_SECRET_KEY=LOCAL_STACK["admin_key"],
             DATABASE_URL="postgresql://unused",
             OPENROUTER_API_KEY="test-only",

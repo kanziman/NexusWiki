@@ -20,7 +20,7 @@ BENCHMARK_RECORDS = Path("docs/ops/benchmark-records")
 
 
 def _load(path: Path) -> dict[str, object]:
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _sha256(document: dict[str, object]) -> str:
@@ -84,7 +84,7 @@ def test_benchmark_verify_emits_pinned_stamps_and_metrics(tmp_path: Path) -> Non
     )
 
     assert result.returncode == 0, result.stderr
-    payload = json.loads(record.read_text())
+    payload = json.loads(record.read_text(encoding="utf-8"))
     assert payload["policy_version"] == "hybrid-rrf-v1"
     assert payload["corpus_sha256"] == _load(CORPUS)["sha256"]
     assert payload["golden_sha256"] == _load(GOLDEN)["sha256"]
@@ -112,7 +112,7 @@ def test_benchmark_fails_required_hit_rank_and_unlisted_substitution(tmp_path: P
     )
     for index, results in enumerate(bad_result_sets):
         result_file = tmp_path / f"bad-{index}.json"
-        result_file.write_text(json.dumps({"queries": results}))
+        result_file.write_text(json.dumps({"queries": results}), encoding="utf-8")
         completed = subprocess.run(  # noqa: S603 -- fixed repository script and pytest temp input
             [
                 sys.executable,

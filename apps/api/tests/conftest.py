@@ -129,7 +129,7 @@ def _create_actor(client: httpx.Client) -> TenantActor:
         client.post(
             "/rest/v1/workspaces",
             headers=_user_headers(access_token, representation=True),
-            json={"name": name, "owner_id": user["id"]},
+            json={"name": name, "slug": name, "owner_id": user["id"]},
         ),
         what="테스트 워크스페이스 생성",
     )

@@ -33,7 +33,7 @@ class VerificationError(ValueError): pass
 
 
 def _load_json(path: Path) -> dict:
-    try: return json.loads(path.read_text())
+    try: return json.loads(path.read_text(encoding="utf-8"))
     except Exception as error: raise VerificationError(f"unreadable_input:{path}") from error
 
 
@@ -348,7 +348,7 @@ def main() -> int:
                 output = operational(args, corpus, golden)
             if args.output:
                 if args.output.exists(): raise VerificationError("refusing_to_overwrite_prior_record")
-                args.output.parent.mkdir(parents=True, exist_ok=True); args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n")
+                args.output.parent.mkdir(parents=True, exist_ok=True); args.output.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(output, ensure_ascii=False))
     except VerificationError as error: print(error, file=sys.stderr); return 2
     return 0
