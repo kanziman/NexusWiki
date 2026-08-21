@@ -610,9 +610,10 @@ async def local_queue() -> AsyncIterator[LocalQueueStack]:
                 },
                 timeout=httpx.Timeout(10.0),
             ) as user_client:
+                workspace_name = f"queue-it-{uuid.uuid4().hex[:8]}"
                 workspace = await user_client.post(
                     "/workspaces",
-                    json={"name": f"queue-it-{uuid.uuid4().hex[:8]}", "owner_id": user_id},
+                    json={"name": workspace_name, "slug": workspace_name, "owner_id": user_id},
                     headers={"Prefer": "return=representation"},
                 )
                 workspace.raise_for_status()

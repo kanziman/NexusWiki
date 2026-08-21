@@ -15,6 +15,29 @@ NexusWiki는 원시 소스를 LLM이 상호 링크된 위키로 컴파일하고,
 ```bash
 uv sync --frozen
 supabase start
+cp .env.sample .env.local
+cp apps/dashboard/.env.example apps/dashboard/.env.local
+```
+
+서버용 `.env.local`에는 `supabase status`가 표시하는 로컬 URL·키를 채우고, 대시보드용 `apps/dashboard/.env.local`에는 같은 로컬 URL과 publishable key만 채웁니다. 대시보드는 Supabase Kong(`54421`)과 FastAPI(`8000`)를 서로 다른 주소로 사용합니다. `apps/dashboard`에서 실행되는 Next.js는 저장소 루트의 `.env.local`을 자동으로 읽지 않으므로 두 파일을 분리합니다. 개인 `.env.local`과 자격증명은 커밋하지 않습니다.
+
+API, worker, dashboard는 각각 별도 터미널에서 실행합니다.
+
+```bash
+uv run --env-file .env.local python -m api
+```
+
+```bash
+uv run --env-file .env.local python -m worker
+```
+
+```bash
+pnpm --dir apps/dashboard exec next dev
+```
+
+검증 명령은 다음과 같습니다.
+
+```bash
 bash scripts/smoke_tracer.sh
 uv run pytest -q
 pnpm --dir apps/dashboard exec vitest run

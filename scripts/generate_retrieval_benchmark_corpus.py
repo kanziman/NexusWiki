@@ -27,7 +27,7 @@ def canonical_hash(doc: dict) -> str:
 
 
 def load_manifest() -> dict:
-    doc = json.loads(MANIFEST_PATH.read_text())
+    doc = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     if doc.get("sha256") != canonical_hash(doc):
         raise ValueError("benchmark_manifest_hash_mismatch")
     if (doc.get("dimension"), doc.get("target_rows_per_relation"), doc.get("decoy_rows_per_relation")) != (1024, 25000, 25000):
@@ -36,7 +36,7 @@ def load_manifest() -> dict:
 
 
 def load_corpus() -> dict:
-    doc = json.loads(CORPUS_PATH.read_text())
+    doc = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
     if doc.get("sha256") != canonical_hash(doc):
         raise ValueError("benchmark_corpus_hash_mismatch")
     return doc
@@ -121,10 +121,11 @@ def loader_sql(manifest: dict, workspace: UUID, cleanup: bool = False) -> str:
             ]
         )
     marker = manifest["sha256"]
+    workspace_slug = f"benchmark-{workspace}"
     statements = [
         "begin;",
         f"insert into auth.users(id,email) values ({_quote(str(workspace))}::uuid,{_quote('benchmark-' + str(workspace) + '@example.test')}) on conflict do nothing;",
-        f"insert into public.workspaces(id,name,owner_id) values ({_quote(str(workspace))}::uuid,'retrieval benchmark',{_quote(str(workspace))}::uuid) on conflict do nothing;",
+        f"insert into public.workspaces(id,name,slug,owner_id) values ({_quote(str(workspace))}::uuid,'retrieval benchmark',{_quote(workspace_slug)},{_quote(str(workspace))}::uuid) on conflict do nothing;",
     ]
     for row in corpus["source_chunks"]:
         logical = f"source:{row['id']}"; source_id = logical_uuid(manifest, f"raw:{logical}"); chunk_id = mapping[logical]
