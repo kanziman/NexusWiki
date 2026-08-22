@@ -4,7 +4,7 @@
     "lifecycle": "historical_snapshot",
     "as_of": "2026-08-17",
     "is_current_work_ledger": false,
-    "current_tracking": "GitHub Issues + kanziman Project #1",
+    "current_tracking": "GitHub Issues",
     "current_contracts": "openspec/specs/",
     "status_semantics": "phase와 task의 status는 GSD 작업 당시 값이며 현재 진행 상태가 아니다."
   },
