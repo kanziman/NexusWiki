@@ -1,6 +1,7 @@
 import { AskHero } from "@/components/AskHero";
 import { KnowledgeGrid } from "@/components/KnowledgeGrid";
 import { createClient } from "@/lib/supabase/server";
+import { firstWikiLinkExcerpt } from "@/lib/wiki-links";
 
 type Props = {
   params: Promise<{ workspaceId: string }>;
@@ -28,8 +29,7 @@ export default async function WorkspaceHomePage({
   searchParams,
 }: Props) {
   const { workspaceId } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  const activeCategory = resolvedSearchParams.category ?? null;
+  const { category: activeCategory } = (await searchParams) ?? {};
 
   const supabase = await createClient();
 
@@ -50,20 +50,33 @@ export default async function WorkspaceHomePage({
         // ⚠️ expires_at 도 함께 읽는다. 없으면 만료된 검증이 목록에서 계속
         // "검증됨"으로 남는다 — 0007 §5 가 명시적으로 금지한 상태다.
         .select(
-          "id,title,slug,category,verification_status,disputed,expires_at,sources,updated_at",
+          "id,title,slug,category,verification_status,disputed,expires_at,sources,updated_at,content",
         )
         .eq("workspace_id", workspaceId)
         .order("updated_at", { ascending: false }),
       supabase
         .from("wiki_links")
-        .select("target_slug")
+        .select("id,target_slug,from_wiki_id,created_at")
         .eq("workspace_id", workspaceId)
         .eq("resolved", false),
     ]);
 
   const workspaceName = workspaceResult.data?.name ?? "워크스페이스";
   const rawSources = sourcesResult.data ?? [];
-  const wikiPages = (pagesResult.data ?? []).map((p) => ({
+  const rawPages = (pagesResult.data ?? []) as {
+    id: string;
+    title: string;
+    slug: string;
+    category?: string | null;
+    verification_status?: string | null;
+    disputed?: boolean | null;
+    expires_at?: string | null;
+    updated_at?: string | null;
+    sources?: string[] | null;
+    content?: string | null;
+  }[];
+
+  const wikiPages = rawPages.map((p) => ({
     id: p.id,
     title: p.title,
     slug: p.slug,
@@ -75,24 +88,87 @@ export default async function WorkspaceHomePage({
     citation_count: Array.isArray(p.sources) ? p.sources.length : 0,
   }));
 
-  // Group and count unresolved links
-  const unresolvedLinks = linksResult.data ?? [];
-  const backlogCountMap = new Map<string, number>();
+  const pagesMap = new Map(rawPages.map((p) => [p.id, p]));
+
+  // Group and count unresolved links with referencing pages
+  const unresolvedLinks = (linksResult.data ?? []) as {
+    id?: string;
+    target_slug: string;
+    from_wiki_id?: string | null;
+    created_at?: string;
+  }[];
+
+  const itemsMap = new Map<
+    string,
+    {
+      target_slug: string;
+      reference_count: number;
+      first_detected_at: string;
+      referencing_pages: {
+        id: string;
+        slug: string;
+        title: string;
+        excerpt: string | null;
+      }[];
+    }
+  >();
+
   for (const link of unresolvedLinks) {
-    if (link.target_slug) {
-      backlogCountMap.set(
-        link.target_slug,
-        (backlogCountMap.get(link.target_slug) ?? 0) + 1,
-      );
+    if (!link.target_slug) continue;
+    const existing = itemsMap.get(link.target_slug);
+    const referringPage = link.from_wiki_id
+      ? pagesMap.get(link.from_wiki_id)
+      : undefined;
+
+    if (existing) {
+      existing.reference_count += 1;
+      if (
+        link.created_at &&
+        new Date(link.created_at).getTime() <
+          new Date(existing.first_detected_at).getTime()
+      ) {
+        existing.first_detected_at = link.created_at;
+      }
+      if (
+        referringPage &&
+        !existing.referencing_pages.some((p) => p.id === referringPage.id)
+      ) {
+        existing.referencing_pages.push({
+          id: referringPage.id,
+          slug: referringPage.slug,
+          title: referringPage.title,
+          excerpt: referringPage.content
+            ? firstWikiLinkExcerpt(referringPage.content, link.target_slug)
+            : null,
+        });
+      }
+    } else {
+      itemsMap.set(link.target_slug, {
+        target_slug: link.target_slug,
+        reference_count: 1,
+        first_detected_at: link.created_at ?? new Date().toISOString(),
+        referencing_pages: referringPage
+          ? [
+              {
+                id: referringPage.id,
+                slug: referringPage.slug,
+                title: referringPage.title,
+                excerpt: referringPage.content
+                  ? firstWikiLinkExcerpt(
+                      referringPage.content,
+                      link.target_slug,
+                    )
+                  : null,
+              },
+            ]
+          : [],
+      });
     }
   }
 
-  const backlogItems = Array.from(backlogCountMap.entries())
-    .map(([target_slug, reference_count]) => ({
-      target_slug,
-      reference_count,
-    }))
-    .sort((a, b) => b.reference_count - a.reference_count);
+  const backlogItems = Array.from(itemsMap.values()).sort(
+    (a, b) => b.reference_count - a.reference_count,
+  );
 
   const compiledCount = wikiPages.length;
   const sourcesCount = rawSources.length;

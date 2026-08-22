@@ -1,12 +1,12 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
-import { FileText, Plus, Search, X } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import React, { useState } from "react";
 
-import { formatDate, formatRelativeTime } from "@/lib/relative-time";
+import { formatRelativeTime } from "@/lib/relative-time";
 import { workspacePath } from "@/lib/workspace-path";
+import { BacklogDetailModal } from "./BacklogDetailModal";
 
 export type BacklogReferencingPage = {
   id: string;
@@ -244,84 +244,11 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
       </section>
 
       {/* 상세 패널 다이얼로그 */}
-      <Dialog.Root
-        open={openTopic !== null}
-        onOpenChange={(open) => {
-          if (!open) setOpenTopic(null);
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
-          <Dialog.Content className="modal backlog-panel fixed top-1/2 left-1/2 max-h-[86vh] -translate-x-1/2 -translate-y-1/2 overflow-auto">
-            {openTopic ? (
-              <>
-                <div className="modal-head">
-                  <Dialog.Title>{openTopic.display_title}</Dialog.Title>
-                  <Dialog.Close asChild>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label="닫기"
-                    >
-                      <X size={16} aria-hidden="true" />
-                    </button>
-                  </Dialog.Close>
-                </div>
-                <p className="backlog-panel-slug font-mono text-xs text-[var(--muted)] mt-1">
-                  {openTopic.target_slug}
-                </p>
-                <p className="backlog-panel-meta text-xs text-[var(--muted)] mb-4">
-                  최초 감지 · {formatDate(openTopic.first_detected_at)}
-                </p>
-
-                <div className="backlog-panel-refs">
-                  <h3 className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider mb-2">
-                    인용 중인 위키 {openTopic.referencing_pages.length}
-                  </h3>
-                  {openTopic.referencing_pages.length === 0 ? (
-                    <p className="sub text-xs text-[var(--muted)]">
-                      인용 문서 없음
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {openTopic.referencing_pages.map((page) => (
-                        <li
-                          key={page.id}
-                          className="p-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)]/40"
-                        >
-                          <Link
-                            href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                            className="font-semibold text-xs text-[var(--fg)] hover:text-[var(--accent)] transition-colors flex items-center gap-1.5"
-                          >
-                            <FileText size={12} className="opacity-70" />
-                            <span>{page.title}</span>
-                          </Link>
-                          {page.excerpt ? (
-                            <p className="backlog-panel-excerpt text-[11.5px] text-[var(--muted)] mt-1.5 pl-4 border-l-2 border-[var(--border)] leading-relaxed italic">
-                              {page.excerpt}
-                            </p>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                <div className="modal-foot mt-5">
-                  <Link
-                    href={`${workspacePath(workspaceId)}/sources?prefillTitle=${encodeURIComponent(
-                      openTopic.display_title,
-                    )}&tab=text`}
-                    className="button primary"
-                  >
-                    소스 추가
-                  </Link>
-                </div>
-              </>
-            ) : null}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <BacklogDetailModal
+        workspaceId={workspaceId}
+        item={openTopic}
+        onClose={() => setOpenTopic(null)}
+      />
     </div>
   );
 }

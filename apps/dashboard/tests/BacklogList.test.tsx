@@ -295,7 +295,14 @@ describe("BacklogList", () => {
 
       const panel = within(screen.getByRole("dialog"));
       expect(
-        panel.getByText("…읽기 경로는 [캐시 계층 전략]을 따라 조회한다…"),
+        panel.getByText(
+          (_, el) =>
+            el?.textContent ===
+            "…읽기 경로는 [캐시 계층 전략]을 따라 조회한다…",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        panel.getByText("캐시 계층 전략", { selector: "mark" }),
       ).toBeInTheDocument();
 
       // 발췌가 없는 문서(excerpt: null)는 링크만 있고 발췌 문단이 없다 —

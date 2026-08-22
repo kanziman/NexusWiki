@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
+import React, { useState } from "react";
 
 import {
   isExpiredVerification,
@@ -9,6 +10,8 @@ import {
   verificationLabel,
 } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
+import { BacklogDetailModal } from "./BacklogDetailModal";
+import type { BacklogItem, BacklogReferencingPage } from "./BacklogList";
 
 export type WikiPageSummary = {
   id: string;
@@ -27,6 +30,10 @@ export type WikiPageSummary = {
 export type BacklogSummary = {
   target_slug: string;
   reference_count: number;
+  display_title?: string;
+  impact?: number;
+  first_detected_at?: string;
+  referencing_pages?: BacklogReferencingPage[];
 };
 
 export type KnowledgeGridProps = {
@@ -50,6 +57,7 @@ export function KnowledgeGrid({
   activeCategory,
 }: KnowledgeGridProps) {
   const base = workspacePath(workspaceId);
+  const [openTopic, setOpenTopic] = useState<BacklogItem | null>(null);
 
   const filteredPages = activeCategory
     ? wikiPages.filter((p) => p.category === activeCategory)
@@ -161,22 +169,37 @@ export function KnowledgeGrid({
               작성 대기 중인 백로그가 없습니다.
             </div>
           ) : (
-            backlogItems.map((item) => (
-              <div
-                key={item.target_slug}
-                className="doc"
-                data-od-id={`backlog-${item.target_slug}`}
-              >
-                <div className="doc-body">
-                  <span className="doc-title">{item.target_slug}</span>
-                  <span className="doc-meta">
-                    위키 {item.reference_count}곳에서 인용됨 · 원본 소스 연결
-                    필요
-                  </span>
-                </div>
-                <ChevronRight className="nav-icon" aria-hidden="true" />
-              </div>
-            ))
+            backlogItems.map((item) => {
+              const displayTitle = item.display_title || item.target_slug;
+              const count = item.impact ?? item.reference_count;
+              const fullItem: BacklogItem = {
+                target_slug: item.target_slug,
+                display_title: displayTitle,
+                impact: count,
+                first_detected_at:
+                  item.first_detected_at ?? new Date().toISOString(),
+                referencing_pages: item.referencing_pages ?? [],
+              };
+
+              return (
+                <button
+                  key={item.target_slug}
+                  type="button"
+                  onClick={() => setOpenTopic(fullItem)}
+                  className="doc w-full text-left"
+                  data-od-id={`backlog-${item.target_slug}`}
+                  aria-haspopup="dialog"
+                >
+                  <div className="doc-body">
+                    <span className="doc-title">{displayTitle}</span>
+                    <span className="doc-meta">
+                      위키 {count}곳에서 인용됨 · 원본 소스 연결 필요
+                    </span>
+                  </div>
+                  <ChevronRight className="nav-icon" aria-hidden="true" />
+                </button>
+              );
+            })
           )}
         </div>
 
@@ -195,6 +218,13 @@ export function KnowledgeGrid({
           </Link>
         </div>
       </section>
+
+      {/* 3. 백로그 상세 모달 */}
+      <BacklogDetailModal
+        workspaceId={workspaceId}
+        item={openTopic}
+        onClose={() => setOpenTopic(null)}
+      />
     </div>
   );
 }
