@@ -1,7 +1,15 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
-import { Upload } from "lucide-react";
+import {
+  AlertCircle,
+  AlignLeft,
+  FileText,
+  Globe,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api-client";
@@ -9,10 +17,6 @@ import { ApiError, apiFetch } from "@/lib/api-client";
 export type DropzoneProps = {
   workspaceId: string;
   onIngested?: (jobId: string, rawSourceId: string) => void;
-  // RedLinkCta.handleCreate → sources/page.tsx → SourcesList가 이어 넘기는
-  // prefill 값 — 06-REVIEW.md CR-01: 이전에는 이 두 prop이 없어 빨간 링크
-  // CTA의 "지금 생성" 클릭이 빈 File 탭으로만 이동했다. 마운트 시 텍스트
-  // 탭의 제목 필드와 활성 탭을 시드한다.
   prefillTitle?: string;
   initialTab?: TabValue;
 };
@@ -35,8 +39,6 @@ type FileUploadItem = {
 const ALREADY_INGESTED_MESSAGE = "이미 수집됨 — 건너뜀";
 const BUDGET_EXCEEDED_MESSAGE =
   "이번 달 워크스페이스 사용량 한도를 초과했습니다. 관리자에게 문의하거나 다음 달까지 기다려주세요.";
-// sources.py의 unsupported_mime은 받은 Content-Type을 응답에 되비추지 않는다
-// (T-03-34 반사형 노출 회피) — 여기서도 원본 MIME 문자열을 화면에 노출하지 않는다.
 const UNSUPPORTED_MIME_MESSAGE =
   "지원하지 않는 파일 형식입니다. 다른 파일로 다시 시도해주세요.";
 const INVALID_URL_SCHEME_MESSAGE =
@@ -44,9 +46,6 @@ const INVALID_URL_SCHEME_MESSAGE =
 const GENERIC_ERROR_MESSAGE =
   "소스 등록에 실패했습니다. 잠시 후 다시 시도해주세요.";
 
-// sources.py의 _assert_fetchable_url과 같은 허용 스킴 — 서버가 최종 판정자이고
-// 이 사전 검사는 요청을 아예 보내지 않기 위한 UX 편의일 뿐이다 (T-03-* SSRF는
-// 워커 접속 시점 판정, 여기서는 재현하지 않는다).
 const FETCHABLE_SCHEMES = new Set(["http:", "https:"]);
 const FILE_UPLOAD_CONCURRENCY = 3;
 
@@ -58,6 +57,13 @@ const FILE_STATUS_LABEL: Record<FileUploadStatus, string> = {
   completed: "등록 완료",
   failed: "등록 실패",
 };
+
+function formatBytes(bytes?: number | null): string {
+  if (bytes === null || bytes === undefined || bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function deriveFileTitle(filename: string): string {
   const extensionStart = filename.lastIndexOf(".");
@@ -93,22 +99,9 @@ function mapIngestError(error: unknown): string {
       return UNSUPPORTED_MIME_MESSAGE;
     }
   }
-  // 문서화되지 않은 나머지(네트워크 실패, 5xx 등)는 일반 재시도 안내로 뭉갠다 —
-  // Task 1 <action> "anything else ... renders a generic retry-later message".
   return GENERIC_ERROR_MESSAGE;
 }
 
-/**
- * 소스 드롭존 — 파일/URL/텍스트 3개 탭을 하나의 컴포넌트로 통합한다 (D-06).
- *
- * 관련 태스크: 06-05-PLAN.md Task 1
- * 설계 근거: apps/api/src/api/routers/sources.py (세 경로의 정확한 요청 형태),
- *            06-UI-SPEC.md Copywriting Contract "Dropzone (UI-03)"
- *
- * ⚠️ 파일 탭은 FormData/multipart를 절대 쓰지 않는다 — sources.py의 파일 엔드포인트는
- * 원시 바이트 본문을 받는다(D-P11). apiFetch의 `contentType` 이스케이프 해치로 파일
- * 자신의 MIME을 Content-Type으로 실어 보낸다.
- */
 export function Dropzone({
   workspaceId,
   onIngested,
@@ -118,6 +111,7 @@ export function Dropzone({
   const [tab, setTab] = useState<TabValue>(initialTab ?? "file");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,10 +122,8 @@ export function Dropzone({
   const textInputId = useId();
 
   const [fileUploadItems, setFileUploadItems] = useState<FileUploadItem[]>([]);
-
   const [url, setUrl] = useState("");
   const [urlTitle, setUrlTitle] = useState("");
-
   const [textTitle, setTextTitle] = useState(prefillTitle ?? "");
   const [text, setText] = useState("");
 
@@ -223,8 +215,6 @@ export function Dropzone({
 
     setErrorMessage(null);
 
-    // D-06 URL 탭의 클라이언트 사전 검사 — http(s) 외 스킴은 요청을 보내기 전에
-    // 인라인 에러로 거부한다 (요청 자체를 만들지 않는다).
     let scheme: string | null = null;
     try {
       scheme = new URL(trimmedUrl).protocol;
@@ -262,8 +252,6 @@ export function Dropzone({
 
   async function handleTextSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // 백엔드 TextSourceRequest의 min_length=1과 맞춘다 — 빈 본문은 제출 자체가
-    // 비활성화된다 (요청을 보내지 않는다).
     if (
       textTitle.trim().length === 0 ||
       text.trim().length === 0 ||
@@ -298,40 +286,68 @@ export function Dropzone({
     textTitle.trim().length > 0 && text.trim().length > 0 && !submitting;
 
   return (
-    <div className="flex flex-col gap-base border border-[var(--border)] bg-[var(--bg)] p-base sm:p-xl">
-      <Tabs.Root value={tab} onValueChange={switchTab}>
+    <div className="flex flex-col gap-4">
+      <Tabs.Root
+        value={tab}
+        onValueChange={switchTab}
+        className="flex flex-col gap-4"
+      >
+        {/* 세그먼트 탭 헤더 */}
         <Tabs.List
-          className="flex gap-lg border-b border-[var(--border)]"
+          className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1"
           aria-label="소스 등록 방식"
         >
           <Tabs.Trigger
             value="file"
-            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--muted)] data-[state=active]:border-[var(--fg)] data-[state=active]:text-[var(--fg)]"
-            style={{ font: "var(--font-caption)", fontWeight: 600 }}
+            className="nw-focus-ring flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
           >
-            파일
+            <FileText size={14} aria-hidden="true" />
+            <span>파일</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="url"
-            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--muted)] data-[state=active]:border-[var(--fg)] data-[state=active]:text-[var(--fg)]"
-            style={{ font: "var(--font-caption)", fontWeight: 600 }}
+            className="nw-focus-ring flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
           >
-            URL
+            <Globe size={14} aria-hidden="true" />
+            <span>URL</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="text"
-            className="nw-focus-ring border-b-2 border-transparent px-0 py-sm text-[var(--muted)] data-[state=active]:border-[var(--fg)] data-[state=active]:text-[var(--fg)]"
-            style={{ font: "var(--font-caption)", fontWeight: 600 }}
+            className="nw-focus-ring flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
           >
-            텍스트
+            <AlignLeft size={14} aria-hidden="true" />
+            <span>텍스트</span>
           </Tabs.Trigger>
         </Tabs.List>
 
-        <Tabs.Content value="file" className="flex flex-col gap-base pt-base">
-          <form onSubmit={handleFileSubmit} className="flex flex-col gap-base">
+        {/* 1. 파일 탭 */}
+        <Tabs.Content
+          value="file"
+          className="flex flex-col gap-4 pt-1 outline-none"
+        >
+          <form onSubmit={handleFileSubmit} className="flex flex-col gap-4">
             <label
               htmlFor={fileInputId}
               tabIndex={0}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDragging(true);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDragging(false);
+                if (event.dataTransfer.files.length > 0) {
+                  addFiles(event.dataTransfer.files);
+                }
+              }}
               onClick={(event) => {
                 if (event.target === fileInputRef.current) return;
                 event.preventDefault();
@@ -342,26 +358,23 @@ export function Dropzone({
                 event.preventDefault();
                 fileInputRef.current?.click();
               }}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                if (event.dataTransfer.files.length > 0) {
-                  addFiles(event.dataTransfer.files);
-                }
-              }}
-              className="nw-focus-ring flex cursor-pointer flex-col items-center gap-xs border border-dashed border-[var(--border-strong)] bg-[var(--bg)] p-xl text-center"
+              className={`group nw-focus-ring flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-7 text-center transition-all ${
+                isDragging
+                  ? "border-[var(--accent)] bg-[var(--soft)] ring-4 ring-[var(--accent)]/10 scale-[1.01]"
+                  : "border-[var(--border)] bg-[var(--surface)]/30 hover:border-[var(--accent)]/70 hover:bg-[var(--soft)]/30"
+              }`}
             >
-              <Upload
-                size={24}
-                aria-hidden="true"
-                className="text-[var(--muted)]"
-              />
-              <span
-                className="text-[var(--fg)]"
-                style={{ font: "var(--font-body-md)" }}
-              >
-                파일을 드래그하거나 클릭해서 선택하세요
-              </span>
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg)] text-[var(--accent)] shadow-xs transition-transform group-hover:scale-105">
+                <Upload size={20} aria-hidden="true" />
+              </div>
+              <div>
+                <span className="block text-sm font-semibold text-[var(--fg)]">
+                  파일을 드래그하거나 클릭해서 선택하세요
+                </span>
+                <span className="mt-1 block text-xs text-[var(--muted)]">
+                  PDF, Markdown (.md), TXT 파일 지원 (다중 선택 가능)
+                </span>
+              </div>
               <input
                 id={fileInputId}
                 ref={fileInputRef}
@@ -377,151 +390,242 @@ export function Dropzone({
             </label>
 
             {fileUploadItems.length > 0 ? (
-              <ul
-                aria-label="선택한 파일"
-                className="flex flex-col border-y border-[var(--border)]"
-              >
-                {fileUploadItems.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-base border-b border-[var(--border)] py-sm last:border-b-0"
-                  >
-                    <span
-                      className="min-w-0 truncate text-[var(--fg)]"
-                      style={{ font: "var(--font-body-md)" }}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between px-1 text-xs font-semibold text-[var(--muted)]">
+                  <span>선택된 파일 ({fileUploadItems.length})</span>
+                  {fileUploadItems.some((item) => item.status === "queued") && (
+                    <button
+                      type="button"
+                      onClick={() => setFileUploadItems([])}
+                      className="text-[11px] text-[var(--muted)] hover:text-[var(--danger)] transition-colors cursor-pointer"
                     >
-                      {item.file.name}
-                    </span>
-                    <span
-                      className="shrink-0 text-[var(--muted)]"
-                      style={{ font: "var(--font-caption)", fontWeight: 600 }}
-                    >
-                      {item.errorMessage ?? FILE_STATUS_LABEL[item.status]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      전체 비우기
+                    </button>
+                  )}
+                </div>
+                <ul
+                  aria-label="선택한 파일"
+                  className="max-h-44 overflow-y-auto space-y-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/50 p-2"
+                >
+                  {fileUploadItems.map((item) => {
+                    const ext = item.file.name.split(".").pop()?.toLowerCase();
+                    const formatBadgeClass =
+                      ext === "pdf"
+                        ? "format pdf"
+                        : ext === "md"
+                          ? "format md"
+                          : "format txt";
+                    const formatLabel =
+                      ext === "pdf" ? "PDF" : ext === "md" ? "MD" : "TXT";
+
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className={`${formatBadgeClass} scale-90 origin-left`}
+                          >
+                            {formatLabel}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="block truncate text-xs font-medium text-[var(--fg)]">
+                              {item.file.name}
+                            </span>
+                            <span className="block text-[10px] text-[var(--muted)] font-mono">
+                              {formatBytes(item.file.size)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                              item.status === "completed"
+                                ? "bg-[var(--good)]/10 text-[var(--good)]"
+                                : item.status === "uploading" ||
+                                    item.status === "processing"
+                                  ? "bg-[var(--accent)]/10 text-[var(--accent)] animate-pulse"
+                                  : item.status === "failed" ||
+                                      item.status === "duplicate"
+                                    ? "bg-[var(--danger)]/10 text-[var(--danger)]"
+                                    : "bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]"
+                            }`}
+                          >
+                            {item.errorMessage ??
+                              FILE_STATUS_LABEL[item.status]}
+                          </span>
+                          {item.status === "queued" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFileUploadItems((items) =>
+                                  items.filter((i) => i.id !== item.id),
+                                )
+                              }
+                              className="rounded p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--danger)] transition-colors cursor-pointer"
+                              aria-label={`${item.file.name} 제외`}
+                            >
+                              <X size={13} aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             ) : null}
 
-            {/* UI-SPEC Primary Visual Anchor(Dropzone, pre-submit): 이 버튼만
-                accent(--color-primary)를 쓴다. */}
             <button
               type="submit"
               disabled={!canSubmitFile || submitting}
-              className="nw-action nw-focus-ring h-12 self-start px-lg"
-              style={{ font: "var(--font-button-md)", fontWeight: 600 }}
+              className="nw-action nw-focus-ring flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white shadow-xs transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              소스 등록
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>등록 처리 중…</span>
+                </>
+              ) : (
+                <span>소스 등록</span>
+              )}
             </button>
           </form>
         </Tabs.Content>
 
-        <Tabs.Content value="url" className="flex flex-col gap-base pt-base">
-          <form onSubmit={handleUrlSubmit} className="flex flex-col gap-base">
-            <div className="flex flex-col gap-xs">
+        {/* 2. URL 탭 */}
+        <Tabs.Content
+          value="url"
+          className="flex flex-col gap-4 pt-1 outline-none"
+        >
+          <form onSubmit={handleUrlSubmit} className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor={urlInputId}
-                className="text-ink"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
+                className="text-xs font-semibold text-[var(--fg)]"
               >
                 URL 주소
               </label>
               <input
                 id={urlInputId}
+                type="url"
+                placeholder="https://example.com/docs/spec"
                 value={url}
                 onChange={(event) => {
                   setUrl(event.target.value);
                   setErrorMessage(null);
                 }}
-                className="nw-input h-12 px-base text-[var(--fg)]"
-                style={{ font: "var(--font-body-md)" }}
+                className="nw-input h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs text-[var(--fg)] placeholder:text-[var(--muted)]/60 outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 transition-all"
               />
             </div>
-            <div className="flex flex-col gap-xs">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor={urlTitleId}
-                className="text-ink"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
+                className="text-xs font-semibold text-[var(--fg)]"
               >
                 제목 (선택)
               </label>
               <input
                 id={urlTitleId}
+                placeholder="문서 제목을 직접 입력 (미입력 시 웹페이지 타이틀 자동 추출)"
                 value={urlTitle}
                 onChange={(event) => setUrlTitle(event.target.value)}
-                className="nw-input h-12 px-base text-[var(--fg)]"
-                style={{ font: "var(--font-body-md)" }}
+                className="nw-input h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs text-[var(--fg)] placeholder:text-[var(--muted)]/60 outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 transition-all"
               />
             </div>
             <button
               type="submit"
               disabled={!canSubmitUrl}
-              className="nw-action nw-focus-ring h-12 self-start px-lg"
-              style={{ font: "var(--font-button-md)", fontWeight: 600 }}
+              className="nw-action nw-focus-ring mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white shadow-xs transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              소스 등록
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>등록 처리 중…</span>
+                </>
+              ) : (
+                <span>소스 등록</span>
+              )}
             </button>
           </form>
         </Tabs.Content>
 
-        <Tabs.Content value="text" className="flex flex-col gap-base pt-base">
-          <form onSubmit={handleTextSubmit} className="flex flex-col gap-base">
-            <div className="flex flex-col gap-xs">
+        {/* 3. 텍스트 탭 */}
+        <Tabs.Content
+          value="text"
+          className="flex flex-col gap-4 pt-1 outline-none"
+        >
+          <form onSubmit={handleTextSubmit} className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor={textTitleId}
-                className="text-ink"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
+                className="text-xs font-semibold text-[var(--fg)]"
               >
                 제목
               </label>
               <input
                 id={textTitleId}
+                placeholder="문서 또는 메모 제목"
                 value={textTitle}
                 onChange={(event) => setTextTitle(event.target.value)}
-                className="nw-input h-12 px-base text-[var(--fg)]"
-                style={{ font: "var(--font-body-md)" }}
+                className="nw-input h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-xs text-[var(--fg)] placeholder:text-[var(--muted)]/60 outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 transition-all"
               />
             </div>
-            <div className="flex flex-col gap-xs">
-              <label
-                htmlFor={textInputId}
-                className="text-ink"
-                style={{ font: "var(--font-caption)", fontWeight: 600 }}
-              >
-                내용
-              </label>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor={textInputId}
+                  className="text-xs font-semibold text-[var(--fg)]"
+                >
+                  내용
+                </label>
+                <span className="text-[11px] font-mono text-[var(--muted)]">
+                  {text.length.toLocaleString("ko-KR")}자
+                </span>
+              </div>
               <textarea
                 id={textInputId}
+                placeholder="본문 내용을 입력하거나 마크다운을 붙여넣으세요…"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 rows={6}
-                className="nw-input p-base text-[var(--fg)]"
-                style={{ font: "var(--font-body-md)" }}
+                className="nw-input w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-xs leading-relaxed text-[var(--fg)] placeholder:text-[var(--muted)]/60 outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 transition-all font-mono resize-y"
               />
             </div>
             <button
               type="submit"
               disabled={!canSubmitText}
-              className="nw-action nw-focus-ring h-12 self-start px-lg"
-              style={{ font: "var(--font-button-md)", fontWeight: 600 }}
+              className="nw-action nw-focus-ring mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white shadow-xs transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              소스 등록
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>등록 처리 중…</span>
+                </>
+              ) : (
+                <span>소스 등록</span>
+              )}
             </button>
           </form>
         </Tabs.Content>
       </Tabs.Root>
 
+      {/* 에러 피드백 배너 */}
       {errorMessage !== null ? (
-        // D-07: 조용한 성공/실패가 아니라 눈에 띄는 배너 — role="alert"로 스크린
-        // 리더에도 즉시 통지된다.
-        <p
+        <div
           role="alert"
           data-testid="dropzone-error-banner"
-          className="border border-[var(--danger)] bg-[#fff8f6] px-base py-sm text-[var(--danger)]"
-          style={{ font: "var(--font-caption)", fontWeight: 600 }}
+          className="flex items-start gap-2.5 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/5 p-3 text-xs font-medium text-[var(--danger)] leading-snug"
         >
-          {errorMessage}
-        </p>
+          <AlertCircle
+            size={15}
+            className="shrink-0 mt-0.5"
+            aria-hidden="true"
+          />
+          <span>{errorMessage}</span>
+        </div>
       ) : null}
     </div>
   );

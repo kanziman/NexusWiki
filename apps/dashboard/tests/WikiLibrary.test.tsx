@@ -75,4 +75,31 @@ describe("WikiLibrary", () => {
       "조건에 맞는 위키 문서가 없습니다.",
     );
   });
+
+  it("uses the same cleaned markdown wording for previews and search", () => {
+    render(
+      <WikiLibrary
+        workspaceId="ws-1"
+        pages={[
+          {
+            ...pages[0],
+            content:
+              "## 인증 개요\n- **발급사**: [[identity-provider|회사 인증 서버]]",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/인증 개요 발급사: 회사 인증 서버/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\[\[/)).toBeNull();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "위키 문서 검색" }), {
+      target: { value: "회사 인증 서버" },
+    });
+    expect(
+      screen.getByRole("link", { name: /SSO 가이드/ }),
+    ).toBeInTheDocument();
+  });
 });

@@ -1,9 +1,9 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Plus, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import React, { useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
@@ -49,9 +49,6 @@ function formatBytes(bytes?: number | null): string | null {
 
 type MimeFilter = "all" | "pdf" | "text_md";
 
-// PRD §3.2: 탭 축은 mime_type 이다. source_type 은 사용자가 고르는 값이라
-// 포맷과 어긋날 수 있어(url 로 수집했는데 실체는 PDF) 탭 축으로 쓰지 않는다 —
-// 행 안의 메타데이터로만 표시한다.
 function isPdf(source: SourceRow): boolean {
   return (
     source.mime_type === "application/pdf" ||
@@ -74,7 +71,7 @@ function formatLabel(source: SourceRow): { label: string; variant: string } {
   if (source.mime_type === "text/markdown" || source.title.endsWith(".md")) {
     return { label: "MD", variant: "md" };
   }
-  return { label: "TXT", variant: "" };
+  return { label: "TXT", variant: "txt" };
 }
 
 export function SourcesList({
@@ -88,8 +85,6 @@ export function SourcesList({
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
   const [activeMime, setActiveMime] = useState<MimeFilter>("all");
   const [query, setQuery] = useState("");
-  // RedLinkCta 가 심은 prefillTitle/tab 으로 들어오면 업로드 모달이 닫힌 채
-  // 도착한다 — 그러면 그 링크가 아무 일도 하지 않는 것처럼 보인다.
   const [uploadOpen, setUploadOpen] = useState(
     Boolean(prefillTitle) || initialTab === "text",
   );
@@ -138,10 +133,9 @@ export function SourcesList({
 
   return (
     <div className="content sources">
+      {/* 헤더 영역 */}
       <section className="hero" data-od-id="source-management-header">
         <div>
-          {/* eyebrow(`SOURCE PIPELINE · DATABASE & RLS`)를 두지 않는다 —
-              "DATABASE & RLS"는 내부 구현 용어라 사용자에게 의미가 없다. */}
           <h1>원문 소스 관리</h1>
           <p>
             등록된 원본의 청킹, 5채널 인덱싱 상태와 위키 인용 관계를 관리합니다.
@@ -149,7 +143,7 @@ export function SourcesList({
         </div>
         <button
           type="button"
-          className="button primary"
+          className="button primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-xs"
           onClick={() => setUploadOpen(true)}
           data-od-id="upload-open"
         >
@@ -158,6 +152,7 @@ export function SourcesList({
         </button>
       </section>
 
+      {/* 요약 통계 */}
       <section className="stats" data-od-id="pipeline-stats">
         <div className="stat">
           <b>{sources.length}</b>
@@ -167,8 +162,6 @@ export function SourcesList({
           <b>{totalChunks}</b>
           <span>생성된 청크</span>
         </div>
-        {/* ⚠️ "100% 정상" 같은 단정은 쓰지 않는다 — 인덱싱 실패 여부는 잡
-            테이블이 알고 이 조회에는 없다. 셀 수 있는 것만 센다. */}
         <div className="stat">
           <b>
             {indexedCount}/{sources.length}
@@ -177,8 +170,9 @@ export function SourcesList({
         </div>
       </section>
 
+      {/* 툴바 & 테이블 섹션 */}
       <section data-od-id="source-table-section">
-        <div className="toolbar">
+        <div className="toolbar flex-wrap items-center justify-between gap-3">
           <nav className="tabs" role="tablist" aria-label="파일 형식 필터">
             {TABS.map((tab) => (
               <button
@@ -193,58 +187,74 @@ export function SourcesList({
               </button>
             ))}
           </nav>
-          <input
-            className="field search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="파일명으로 검색"
-            aria-label="파일명으로 검색"
-          />
+
+          {/* 검색창 */}
+          <div className="relative flex-1 min-w-[220px] max-w-[340px]">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+            />
+            <input
+              className="field search w-full pr-3 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:border-[var(--accent)] focus:outline-none transition-all"
+              style={{ paddingLeft: "34px" }}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="파일명으로 검색"
+              aria-label="파일명으로 검색"
+            />
+          </div>
         </div>
 
         {filteredSources.length === 0 ? (
-          <div className="table-wrap p-8 text-center">
-            <b className="block text-[13px]">
+          <div className="table-wrap p-12 text-center border border-[var(--border)] rounded-lg bg-[var(--surface)]/30 mt-3">
+            <b className="block text-[14px] text-[var(--fg)]">
               {sources.length === 0
                 ? EMPTY_HEADING
                 : "해당 조건의 소스가 없습니다"}
             </b>
-            <span className="mt-1 block text-[11px] text-[var(--muted)]">
+            <span className="mt-1.5 block text-xs text-[var(--muted)]">
               {sources.length === 0
                 ? EMPTY_BODY
                 : "다른 형식 탭을 선택하거나 검색어를 지우세요."}
             </span>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="table" id="sources-library">
-              {/* ⚠️ 프로토타입(26/27/14/15/12/6)에서 의도적으로 벗어난 값이다.
-                  프로토타입의 파이프라인 칸은 정적 레이블 하나지만 앱은 진행률
-                  막대와 취소·재시도 버튼을 함께 싣는다 — 15% 로는 상태 문구가
-                  한 글자씩 세로로 접힌다. 남는 폭은 말줄임이 이미 걸려 있는
-                  두 칸(소스 파일·연결된 위키)에서 가져온다. 액션 칸도 6% 로는
-                  "상세 보기"가 두 줄이 되어 행 높이를 늘린다. */}
+          <div className="table-wrap overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--bg)] mt-3">
+            <table
+              className="table w-full text-left border-collapse"
+              id="sources-library"
+            >
               <colgroup>
+                <col style={{ width: "24%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "14%" }} />
                 <col style={{ width: "23%" }} />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "25%" }} />
                 <col style={{ width: "12%" }} />
-                <col style={{ width: "10%" }} />
+                <col style={{ width: "9%" }} />
               </colgroup>
               <thead>
-                <tr>
-                  <th scope="col">소스 파일</th>
-                  <th scope="col">연결된 위키 문서</th>
-                  <th scope="col">청크 및 좌표</th>
-                  <th scope="col">파이프라인 상태</th>
-                  <th scope="col">업로드</th>
-                  <th scope="col">
+                <tr className="border-b border-[var(--border)] bg-[var(--surface)]/60 text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
+                  <th scope="col" className="py-2.5 px-4">
+                    소스 파일
+                  </th>
+                  <th scope="col" className="py-2.5 px-4">
+                    연결된 위키 문서
+                  </th>
+                  <th scope="col" className="py-2.5 px-4">
+                    청크 및 좌표
+                  </th>
+                  <th scope="col" className="py-2.5 px-4">
+                    파이프라인 상태
+                  </th>
+                  <th scope="col" className="py-2.5 px-4">
+                    업로드
+                  </th>
+                  <th scope="col" className="py-2.5 px-4 text-right">
                     <span className="sr-only">작업</span>
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-[var(--border)] text-xs">
                 {filteredSources.map((source) => {
                   const format = formatLabel(source);
                   const size = formatBytes(source.byte_size);
@@ -252,17 +262,32 @@ export function SourcesList({
                   const cited = citingPages[source.id] ?? [];
 
                   return (
-                    <tr key={source.id}>
-                      <td>
-                        <div className="file">
-                          <span className={`format ${format.variant}`}>
+                    <tr
+                      key={source.id}
+                      className="hover:bg-[var(--surface)]/40 transition-colors"
+                    >
+                      {/* 소스 파일 */}
+                      <td className="py-3 px-4">
+                        <div className="file flex items-center gap-2.5 min-w-0">
+                          <span
+                            className={`format ${format.variant} flex-none px-1.5 py-0.5 rounded font-mono text-[10px] font-bold uppercase border`}
+                          >
                             {format.label}
                           </span>
-                          <div className="min-w-0">
-                            <b title={source.title} aria-label={source.title}>
-                              {source.title}
-                            </b>
-                            <span>
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`${workspacePath(workspaceId)}/sources/${source.id}`}
+                              className="group block truncate"
+                            >
+                              <b
+                                title={source.title}
+                                aria-label={source.title}
+                                className="text-[13px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] group-hover:underline transition-colors block truncate"
+                              >
+                                {source.title}
+                              </b>
+                            </Link>
+                            <span className="block text-[11px] text-[var(--muted)] truncate mt-0.5">
                               {size ? `${size} · ` : ""}
                               {source.source_type}
                             </span>
@@ -270,11 +295,14 @@ export function SourcesList({
                         </div>
                       </td>
 
-                      <td>
+                      {/* 연결된 위키 문서 */}
+                      <td className="py-3 px-4">
                         {cited.length === 0 ? (
-                          <span className="sub">인용한 위키 없음</span>
+                          <span className="sub text-[11px] text-[var(--muted)] italic">
+                            인용한 위키 없음
+                          </span>
                         ) : (
-                          <div className="doc-chips">
+                          <div className="doc-chips flex flex-wrap gap-1.5">
                             {cited.map((page) => (
                               <Link
                                 key={page.slug}
@@ -282,49 +310,57 @@ export function SourcesList({
                                 className="doc-chip"
                                 title={page.title}
                               >
-                                {page.title}
+                                <span className="truncate">{page.title}</span>
                               </Link>
                             ))}
                           </div>
                         )}
                       </td>
 
-                      <td>
+                      {/* 청크 및 좌표 */}
+                      <td className="py-3 px-4 whitespace-nowrap">
                         {stat ? (
                           <>
-                            <b className="mono text-[12px]">
+                            <b className="mono block text-[12.5px] font-bold text-[var(--fg)]">
                               {stat.count} 청크
                             </b>
-                            <span className="sub">
+                            <span className="sub block text-[10.5px] text-[var(--muted)] font-mono mt-0.5">
                               {stat.charStart.toLocaleString("ko-KR")}–
                               {stat.charEnd.toLocaleString("ko-KR")} char
                             </span>
                           </>
                         ) : (
-                          <span className="sub">청크 없음</span>
+                          <span className="sub text-[11px] text-[var(--muted)]">
+                            청크 없음
+                          </span>
                         )}
                       </td>
 
-                      <td>
+                      {/* 파이프라인 상태 */}
+                      <td className="py-3 px-4">
                         <JobStepper
                           workspaceId={workspaceId}
                           rawSourceId={source.id}
                         />
                       </td>
 
-                      <td>
-                        {formatRelativeTime(source.created_at)}
-                        <span className="sub">
+                      {/* 업로드 일시 */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span className="block text-xs font-medium text-[var(--fg)]">
+                          {formatRelativeTime(source.created_at)}
+                        </span>
+                        <span className="sub block text-[10.5px] text-[var(--muted)] mt-0.5">
                           {formatDate(source.created_at)}
                         </span>
                       </td>
 
-                      <td>
+                      {/* 작업 (상세 보기) */}
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
                         <Link
                           href={`${workspacePath(workspaceId)}/sources/${source.id}`}
-                          className="text-button"
+                          className="text-button inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--accent)] hover:underline"
                         >
-                          상세 보기
+                          <span>상세 보기</span>
                         </Link>
                       </td>
                     </tr>
@@ -336,16 +372,27 @@ export function SourcesList({
         )}
       </section>
 
-      {/* PRD §3.5 업로드 모달. 시작 버튼은 없다 — 업로드 즉시 백그라운드
-          청킹·인덱싱 큐에 진입한다(불변식 §2). */}
+      {/* 업로드 모달 */}
       <Dialog.Root open={uploadOpen} onOpenChange={setUploadOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
-          <Dialog.Content className="modal fixed top-1/2 left-1/2 max-h-[86vh] -translate-x-1/2 -translate-y-1/2 overflow-auto">
-            <div className="modal-head">
-              <Dialog.Title>소스 업로드</Dialog.Title>
+          <Dialog.Overlay className="modal-backdrop fixed inset-0 z-50 bg-black/40 backdrop-blur-xs transition-opacity" />
+          <Dialog.Content className="modal fixed top-1/2 left-1/2 z-50 w-[min(540px,calc(100vw-32px))] max-h-[88vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
+            <div className="modal-head mb-5 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-base font-bold text-[var(--fg)] tracking-tight">
+                  소스 업로드
+                </Dialog.Title>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  파일, 웹 URL 또는 텍스트를 등록하여 위키 지식 베이스를
+                  확장합니다.
+                </p>
+              </div>
               <Dialog.Close asChild>
-                <button type="button" className="icon-btn" aria-label="닫기">
+                <button
+                  type="button"
+                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors"
+                  aria-label="닫기"
+                >
                   <X size={16} aria-hidden="true" />
                 </button>
               </Dialog.Close>

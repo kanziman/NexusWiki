@@ -15,7 +15,13 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/WorkspaceSwitcher", () => ({
   WorkspaceSwitcher: ({ workspaces }: { workspaces: { name: string }[] }) => (
-    <div data-testid="workspace-switcher">{workspaces[0]?.name}</div>
+    <button
+      type="button"
+      data-testid="workspace-switcher"
+      aria-label={workspaces[0]?.name}
+    >
+      {workspaces[0]?.name}
+    </button>
   ),
 }));
 
@@ -125,6 +131,33 @@ describe("WorkspaceSidebar", () => {
       screen.getByRole("button", { name: "메뉴 펼치기" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("complementary").className).toContain("collapsed");
+  });
+
+  it("접힌 상태에서도 내비게이션과 계정 설정을 키보드로 식별하고 조작할 수 있다", () => {
+    render(
+      <WorkspaceSidebar
+        {...defaultProps}
+        collapsed
+        onToggleCollapsed={vi.fn()}
+      />,
+    );
+
+    const home = screen.getByRole("link", { name: "홈 대시보드" });
+    const settings = screen.getByRole("link", { name: "설정" });
+    const switcher = screen.getByRole("button", {
+      name: "테스트 워크스페이스",
+    });
+
+    home.focus();
+    expect(home).toHaveFocus();
+    expect(home).toHaveAttribute("aria-label", "홈 대시보드");
+
+    settings.focus();
+    expect(settings).toHaveFocus();
+    expect(settings).toHaveAttribute("href", "/w/ws-1/settings");
+
+    switcher.focus();
+    expect(switcher).toHaveFocus();
   });
 
   it("모바일 서랍이 열려 있으면 collapsed=true여도 collapsed 클래스나 접기 토글을 그리지 않는다 (/code-review 지적)", () => {

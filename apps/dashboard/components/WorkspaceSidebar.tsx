@@ -215,7 +215,11 @@ export function WorkspaceSidebar({
         </Link>
       </nav>
 
-      <div className="profile" data-od-id="user-profile">
+      <div
+        className="profile"
+        data-od-id="user-profile"
+        aria-label={accountEmail}
+      >
         <div className="avatar">{initial}</div>
         <div className="profile-text">
           <strong className="truncate">{accountEmail.split("@")[0]}</strong>
