@@ -60,7 +60,7 @@ function responseFixture(): RetrievalResponse {
         status: "failed",
         returned: 0,
         elapsed_ms: 1.4,
-        reason: "rpc_unavailable",
+        error_code: "rpc_unavailable",
       },
       source_lexical: {
         status: "ok",

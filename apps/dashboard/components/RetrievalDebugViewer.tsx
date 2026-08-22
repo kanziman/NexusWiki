@@ -30,7 +30,7 @@ type ChannelMeta = {
   returned?: number;
   elapsed_ms?: number;
   raw_hit_ids?: string[];
-  reason?: string;
+  error_code?: string;
 };
 
 export type RetrievalResponse = {
@@ -401,7 +401,8 @@ export function RetrievalDebugViewer({
                             : "반환 결과 0건"}
                         </strong>
                         <span>
-                          {meta.reason ?? `status: ${meta.status ?? "unknown"}`}
+                          {meta.error_code ??
+                            `status: ${meta.status ?? "unknown"}`}
                         </span>
                       </div>
                     ) : (
