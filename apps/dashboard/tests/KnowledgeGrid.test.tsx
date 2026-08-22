@@ -45,9 +45,56 @@ describe("KnowledgeGrid", () => {
 
     expect(screen.getByText("cache-layer-strategy")).toBeInTheDocument();
     expect(screen.getByText(/위키 4곳에서 인용됨/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /소스 연결/ })).toHaveAttribute(
+    expect(
+      screen.getByRole("button", { name: /cache-layer-strategy/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "소스 연결" })).toHaveAttribute(
       "href",
       "/w/ws-1/sources",
+    );
+  });
+
+  it("opens backlog detail modal when a backlog item is clicked", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    render(
+      <KnowledgeGrid
+        workspaceId="ws-1"
+        wikiPages={samplePages}
+        backlogItems={[
+          {
+            target_slug: "cache-layer-strategy",
+            display_title: "캐시 계층 전략",
+            reference_count: 4,
+            impact: 4,
+            first_detected_at: "2026-08-20T00:00:00Z",
+            referencing_pages: [
+              {
+                id: "page-1",
+                slug: "tenant-isolation",
+                title: "테넌트 격리 아키텍처",
+                excerpt: "캐시 계층 전략을 적용한다.",
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /캐시 계층 전략/ });
+    await user.click(button);
+
+    // Dialog Title
+    expect(
+      screen.getByText(
+        (_, el) => el?.textContent === "캐시 계층 전략을 적용한다.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("캐시 계층 전략", { selector: "mark" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "소스 추가" })).toHaveAttribute(
+      "href",
+      "/w/ws-1/sources?prefillTitle=%EC%BA%90%EC%8B%9C%20%EA%B3%84%EC%B8%B5%20%EC%A0%84%EB%9E%B5&tab=text",
     );
   });
 
