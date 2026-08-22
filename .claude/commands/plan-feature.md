@@ -15,7 +15,6 @@ This command is the Claude Code entrypoint for that contract. It owns the gates,
 
 Related contracts:
 
-- Continuous authorization and pause exceptions: `openspec/specs/autonomous-workflow/spec.md`, mirrored in `.claude/CLAUDE.md` 「연속 진행 권한」.
 - Artifact mechanics (creating and revising `proposal.md`, delta specs, `design.md`, `tasks.md`): delegate to `/opsx:propose` and `/opsx:update`. This command never hand-writes artifact formats.
 
 ## Input contract
@@ -32,8 +31,8 @@ Treat the raw command argument as `$ARGUMENTS`.
 - Ask at most **one** unresolved material question at a time, and always include a recommended answer with its rationale.
 - A question is material only when different answers would change the resulting contract — user flow, boundary behavior, or terminology. Decide non-material details yourself and state the decision instead of asking.
 - Never create `spec-fixed.md`, `prd.md`, `issues.md`, or any other parallel source of truth. The four OpenSpec artifacts are the only planning record.
-- Never invent GitHub identifiers. Confirm every issue and Project mutation from command output before reporting it.
-- Stop at each gate and wait for approval, unless continuous authorization applies.
+- Never invent GitHub identifiers. Confirm every issue mutation from command output before reporting it.
+- Stop at each gate and wait for explicit user approval before proceeding.
 - Planning ends at Gate 4. Implementation requires a separate explicit request via `/opsx:apply`.
 
 ## Gates
@@ -74,9 +73,8 @@ Decide first whether a material architecture choice exists — two or more viabl
 On approval:
 
 4. Create one **GitHub sub-issue per slice** under the umbrella issue.
-5. Add the umbrella and every sub-issue to `kanziman` Project #1 with status `Todo`.
-6. Record the returned issue URLs in `tasks.md` next to their slices.
-7. If GitHub or Project metadata is unavailable, or a command does not confirm success, do not guess identifiers and do not report the external transition as complete. Report the verified partial state.
+5. Record the returned issue URLs in `tasks.md` next to their slices.
+6. If GitHub metadata is unavailable, or a command does not confirm success, do not guess identifiers and do not report the external transition as complete. Report the verified partial state.
 
 ## Completion
 

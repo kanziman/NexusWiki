@@ -18,7 +18,7 @@
 | Worker 서비스 | 큐 폴링 · 파싱/청킹 · LLM 컴파일 · 임베딩 · 링크 동기화 | `apps/worker/` |
 | 공유 코어 | 구조화 로깅 등 API·worker 공용 모듈 | `packages/core/` |
 | Dashboard | 인증 · 업로드 · ask UI · 그래프 캔버스 · 위키 뷰어 · 공개 뷰어 | `apps/dashboard/` |
-| 현재 작업 추적 | 상태 · 우선순위 · 이슈 계층 | GitHub Issues · `kanziman` Project #1 |
+| 현재 작업 추적 | 상태 · 우선순위 · 이슈 계층 | GitHub Issues |
 | 제품·workflow 계약 | 현재 요구사항과 변경 단위 결정 | `openspec/specs/` · `openspec/changes/` |
 | GSD 역사 기록 | 과거 작업 · 결정 · 검증 스냅샷 | `checklists.json` · `checklists_v2.json` |
 | 운영 기록 | 배포 · 벤치마크 · 마이그레이션 검증 기록 | `docs/ops/` |

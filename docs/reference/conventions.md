@@ -78,7 +78,7 @@
 
 ## 작업 추적과 역사 기록
 
-- 현재 작업 상태와 우선순위는 **GitHub Issues + `kanziman` Project #1**에서 관리한다
+- 현재 작업 상태와 우선순위는 **GitHub Issues**에서 관리한다
 - 현재 제품·workflow 계약은 `openspec/specs/`, 변경 단위 계획·결정·검증은 `openspec/changes/<change>/`에서 관리한다
 - 세부 원장 계약은 `openspec/specs/feature-planning-workflow/spec.md`를 인용하고 이 문서에 복제하지 않는다
 - `checklists.json`과 `checklists_v2.json`의 phase/task 상태는 GSD 작업 당시의 역사적 스냅샷이다. 현재 진행 상태처럼 갱신하지 않는다

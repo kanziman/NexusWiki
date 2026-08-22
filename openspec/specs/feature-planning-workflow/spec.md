@@ -15,13 +15,13 @@ The agent SHALL keep `proposal.md`, delta specs, `design.md`, and `tasks.md` as 
 
 #### Scenario: Planning artifacts reach an approval boundary
 - **WHEN** requirements, architecture alternatives, final design, or task breakdown are ready for review
-- **THEN** the agent presents the corresponding artifact content and waits at that gate unless continuous authorization applies
+- **THEN** the agent presents the corresponding artifact content and waits at that gate for user approval
 
 ### Requirement: Existing OpenSpec artifact responsibilities
 The agent MUST capture fixed requirements and ubiquitous language in proposal/spec artifacts, ADR decisions and non-goals in design, and implementation slices in tasks. It MUST NOT create parallel `spec-fixed.md`, `prd.md`, or `issues.md` sources of truth.
 
 #### Scenario: Feature planning completes
-- **WHEN** all four planning stages have been approved or validly passed under continuous authorization
+- **WHEN** all four planning stages have been approved
 - **THEN** the complete feature contract exists in the standard OpenSpec artifacts without a duplicate feature-document hierarchy
 
 ### Requirement: Proportional architecture comparison
@@ -42,8 +42,8 @@ Each implementation task SHALL be a dependency-ordered vertical slice that produ
 - **WHEN** a user-visible behavior requires persistence, API, and UI changes
 - **THEN** the task plan groups the minimum cross-layer work into a verifiable behavior slice instead of separate persistence-only, API-only, and UI-only tasks
 
-### Requirement: GitHub issue hierarchy and project tracking
-The workflow MUST use a GitHub umbrella issue for each OpenSpec change and MUST create an approved vertical slice as a sub-issue of that umbrella. It SHALL add the umbrella and sub-issues to `kanziman` Project #1 with `Todo` as the initial status, record issue links in `tasks.md`, close only verified slice issues, and close the umbrella only after successful archive.
+### Requirement: GitHub issue hierarchy
+The workflow MUST use a GitHub umbrella issue for each OpenSpec change and MUST create an approved vertical slice as a sub-issue of that umbrella. It SHALL record issue links in `tasks.md`, close only verified slice issues, and close the umbrella only after successful archive.
 
 #### Scenario: New change planning starts
 - **WHEN** no matching GitHub umbrella issue exists
@@ -51,10 +51,10 @@ The workflow MUST use a GitHub umbrella issue for each OpenSpec change and MUST 
 
 #### Scenario: Vertical tasks are approved
 - **WHEN** Gate 4 approves the task breakdown
-- **THEN** the agent creates one GitHub sub-issue per slice, adds each to Project #1 as `Todo`, and records the returned issue identifiers in `tasks.md`
+- **THEN** the agent creates one GitHub sub-issue per slice and records the returned issue identifiers in `tasks.md`
 
 #### Scenario: External update cannot be confirmed
-- **WHEN** GitHub or Project metadata is unavailable or a command does not confirm success
+- **WHEN** GitHub metadata is unavailable or a command does not confirm success
 - **THEN** the agent does not guess identifiers or report the external transition as complete
 
 ### Requirement: Shared Codex and Claude planning contract

@@ -33,9 +33,9 @@ dist/
 .gstack/
 
 # --- 로컬 툴링 (GSD 런타임, 패키지 매니저 캐시, 세션 인계) ---
-.agent/
-.agents/
-.codex/
+.agent
+.agents
+.codex
 .mcp.json
 .worktrees/
 .superpowers/

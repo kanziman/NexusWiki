@@ -16,7 +16,7 @@
 | 커밋 메시지 형식 · AC 인수 조건 (정본) | `docs/reference/commit.md` |
 | 배포 · 벤치마크 · 마이그레이션 검증 실측 기록 | `docs/ops/` |
 | 테넌트 격리 증명 | `docs/ops/tenant-isolation-proof.md` |
-| 현재 작업 상태 · 우선순위 | GitHub Issues · `kanziman` Project #1 |
+| 현재 작업 상태 · 우선순위 | GitHub Issues |
 | 변경 단위 계획 · 결정 | `openspec/changes/<change>/` |
 | 기능 계약 (스펙) | `openspec/specs/` |
 
@@ -109,7 +109,7 @@ Postgres 기본 파서는 한국어를 토큰화하지 못한다. 생성 컬럼�
 | 리뷰 | 서브에이전트 2종 (아래 「리뷰 게이트」) | `.../reviews/<reviewer>-r<N>.md` |
 | PR | `/create-pr [issue]` | commit + GitHub PR |
 
-- 작업 추적은 **GitHub Issues + `kanziman` Project #1**만 사용한다 — Linear는 쓰지 않는다. 계약: `openspec/specs/feature-planning-workflow/spec.md`
+- 작업 추적은 **GitHub Issues**만 사용한다 — Linear는 쓰지 않는다. 계약: `openspec/specs/feature-planning-workflow/spec.md`
 - 개발 workflow나 검증 계약 자체를 바꾸는 문서·도구 작업도 OpenSpec change로 관리한다.
 - 순수 문서 편집은 범위를 사용자와 확인하고 관련 검증만 실행한다.
 - Codex용 진입점은 `AGENTS.md`다. 두 진입점은 같은 스펙을 인용하며 규칙을 복제하지 않는다.
@@ -132,21 +132,8 @@ Postgres 기본 파서는 한국어를 토큰화하지 못한다. 생성 컬럼�
 - **하나라도 `blocked`** → 진행하지 않는다. 스펙 모호·범위 이탈이거나 테넌트 경계가 뚫리는 경우이므로 사람의 결정이 필요하다
 - ⚠️ **최대 3라운드.** 3라운드에서도 `pass`가 아니면 `blocked`으로 확정하고 사람에게 넘긴다. 리뷰-수정 루프를 무한히 돌지 않는다
 
-서브에이전트의 최종 응답은 사용자에게 표시되지 않는다. 판정 등급과 보고서 경로를 반드시 사용자에게 중계한다.
-
-### 연속 진행 권한
-
-계약: `openspec/specs/autonomous-workflow/spec.md`
-
-- 사용자가 "한번에 진행", "승인없이 계속", "이어서 진행"처럼 연속 진행을 명시하면, 해당 범위의 change를 계획 → 구현 → 검증 → spec sync → archive까지 반복 승인 없이 완료한다.
-- 이 권한은 이미 검증된 task의 완료 처리와 아카이브를 멈추지 않는다. 완료 후에는 다음 미차단 우선순위 이슈로 이동한다.
-- ⚠️ 다음 세 경우에만 중단하고 필요한 후속 조치를 보고한다. 그 외의 사유로 멈추면 권한을 위반한 것이다:
-  1. **외부 권한·자격 증명 부재** — 사용자만 가진 credential이 필요할 때. 독립적으로 가능한 작업은 계속한다
-  2. **material ambiguity** — 해석에 따라 결과 계약(사용자 흐름 · 경계 동작 · 용어)이 달라질 때
-  3. **필수 검증 실패** — 실패한 검증이 있으면 해당 task를 완료 처리하지 않는다
-
 ### 완료 보고 규칙
 
 - 완료를 주장하기 전에 관련 테스트 · typecheck · lint · `openspec validate <change> --strict`를 **새로** 실행한다. 이전 실행 결과를 재사용하지 않는다.
-- 외부 상태 변경(GitHub 이슈·PR·Project 상태)은 명령 응답으로 성공을 확인한 경우에만 완료로 보고한다. 식별자를 추측하지 않는다.
+- 외부 상태 변경(GitHub 이슈·PR 상태)은 명령 응답으로 성공을 확인한 경우에만 완료로 보고한다. 식별자를 추측하지 않는다.
 - task는 명세된 동작이 **전부** 구현됐을 때만 `- [x]` 처리한다. 부분 구현·연기 상태에서는 처리하지 않는다.
