@@ -409,6 +409,7 @@ function PreviewAsk() {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder="예: 이 제품의 핵심 가치는 무엇인가요?"
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none text-xs text-[var(--fg)] placeholder:text-[var(--muted)]"
             />
             <button type="submit" className="send" aria-label="질문하기">
               →

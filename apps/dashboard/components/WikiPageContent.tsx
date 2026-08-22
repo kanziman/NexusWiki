@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RedLinkCta } from "@/components/RedLinkCta";
+import { safeMarkdownHref } from "@/lib/markdown-url";
 import { apiFetch } from "@/lib/api-client";
 import { verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
@@ -13,11 +14,7 @@ import { resolveWikiLinks } from "@/lib/wiki-links";
 // UI-SPEC Copywriting Contract "Wiki viewer (UI-05)" — 문구를 한 글자도 바꾸지 않는다.
 const READ_ONLY_BANNER =
   "이 페이지는 컴파일됩니다 — 직접 편집할 수 없으며, 소스가 갱신되면 다시 컴파일됩니다.";
-// ⚠️ 상태 이름은 lib/verification-label.ts 에서 파생한다. 예전에는 여기만
-// "충돌 감지됨"이라 홈·라이브러리의 "충돌 감지"와 갈렸고, 이 문자열이 위
-// Copywriting Contract 의 보호 대상이라 못 고친다고 판단했었다 — 확인해 보니
-// 그 계약 문서는 리포지토리에 없다(`grep -rl "Copywriting Contract" docs/` 0건).
-// 뒤에 붙는 설명은 이 화면 고유의 확장이라 그대로 둔다.
+// ⚠️ 상태 이름은 lib/verification-label.ts 에서 파생한다.
 const DISPUTED_CALLOUT = `${verificationLabel({ disputed: true })} — 상충하는 정보가 있습니다. 원문을 확인하세요.`;
 const VERIFY_ACTION_LABEL = "검증됨으로 표시";
 const VERIFY_FAILURE_MESSAGE = "검증 처리에 실패했습니다. 다시 시도해주세요.";
@@ -68,20 +65,14 @@ function formatDate(iso: string): string {
   });
 }
 
+type HeadingItem = {
+  id: string;
+  level: number;
+  title: string;
+};
+
 /**
- * 읽기 전용 위키 뷰어 본체 — 읽기전용 배너, 검증/충돌 콜아웃, WikiLink
- * 네비게이션을 렌더링한다. 이 파일 트리 전체에서 유일한 쓰기 경로는 검증
- * 상태 전이 PATCH뿐이며, 페이지 본문을 직접 고치는 어떤 경로도 존재하지
- * 않는다 — v1은 자유 편집을 구조적으로 지원하지 않는다
- * (REQUIREMENTS.md Out of Scope, PROJECT.md Key Decisions).
- *
- * 관련 태스크: 06-07-PLAN.md Task 2
- * 설계 근거: apps/api/src/api/routers/wiki.py (verify 엔드포인트 요청/응답 형태),
- *            06-UI-SPEC.md Color/Typography/Copywriting Contract
- *
- * 렌더 순서(위→아래)가 이 컴포넌트의 안전 계약이다: 충돌 콜아웃은 항상 본문보다
- * 먼저 나온다 — 사용자가 상충 경고를 못 보고 본문을 먼저 읽는 경로를 원천적으로
- * 없앤다(T-06-22 대응, 06-07-PLAN.md must_haves.prohibitions).
+ * 위키 문서 뷰어 본체 — 미니멀 & 클린 에디토리얼 조판
  */
 export function WikiPageContent({
   page,
@@ -96,6 +87,7 @@ export function WikiPageContent({
   const [disputed, setDisputed] = useState(page.disputed);
   const [submitting, setSubmitting] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
 
   async function handleVerify() {
     if (submitting) return;
@@ -112,9 +104,6 @@ export function WikiPageContent({
       setExpiresAt(result.expires_at);
       setDisputed(result.disputed);
     } catch {
-      // 문서화된 오류 형태별 분기가 필요할 만큼 다양한 실패 사유가 없다 —
-      // Dropzone.tsx의 GENERIC_ERROR_MESSAGE 패턴과 동일하게 단일 재시도
-      // 안내로 뭉갠다.
       setVerifyError(VERIFY_FAILURE_MESSAGE);
     } finally {
       setSubmitting(false);
@@ -133,23 +122,52 @@ export function WikiPageContent({
     ).values(),
   ];
 
+  // ScrollSpy: 목차 활성 섹션 감지
+  useEffect(() => {
+    if (headings.length === 0) return;
+
+    function handleScroll() {
+      const scrollPosition = window.scrollY + 100;
+      let currentActive: string | null = null;
+
+      for (const h of headings) {
+        const el = document.getElementById(h.id);
+        if (el) {
+          const top = el.getBoundingClientRect().top + window.scrollY;
+          if (scrollPosition >= top) {
+            currentActive = h.id;
+          }
+        }
+      }
+
+      if (currentActive) {
+        setActiveHeadingId(currentActive);
+      } else if (headings[0]) {
+        setActiveHeadingId(headings[0].id);
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [headings]);
+
+  const categoryLabel = CATEGORY_LABELS[page.category] ?? page.category;
+
   return (
     <div className="reader-layout">
       <article className="reader">
-        {/* ⚠️ .eyebrow 를 쓰지 않는다. 이 프로젝트의 유일하게 남은 맥락 라벨이자
-            장식이 아닌 진짜 탐색 요소다(다른 다섯 화면의 eyebrow 는 제거됐다).
-            .eyebrow 는 대문자 변환·넓은 자간·모노스페이스라 한국어에 맞지 않는다 —
-            uppercase 는 한국어에 무효이고 .11em 자간은 자모를 벌려 읽기 나쁘다. */}
+        {/* 상단 브레드크럼 경로 */}
         <nav aria-label="위키 탐색 경로" className="breadcrumb-path">
           위키 / {page.category}
         </nav>
 
+        {/* 문서 타이틀 + 즐겨찾기 */}
         <div className="title-row">
           <h1>{page.title}</h1>
-          {/* key로 wiki 전환마다 강제 재마운트 — 아니면 같은 컴포넌트
-              인스턴스가 재사용돼(특히 독립 리더 라우트는 페이지 전환 시
-              언마운트를 강제하는 loading 경계가 없다) 이전 문서의
-              bookmarked 상태가 다음 문서로 새면서 그대로 남는다. */}
           <FavoriteButton
             key={page.id}
             wikiId={page.id}
@@ -158,14 +176,9 @@ export function WikiPageContent({
           />
         </div>
 
-        {/* 1. 읽기전용 배너 + 상태 배지. 문구는 UI-SPEC 카피 계약이라
-            한 글자도 바꾸지 않는다. */}
+        {/* 거버넌스 메타데이터 바 */}
         <div className="governance">
-          <span className="tag">
-            {CATEGORY_LABELS[page.category] ?? page.category}
-          </span>
-          {/* 2/3. 충돌 콜아웃(항상 최우선) 또는 검증 상태 콜아웃 — 이 블록은
-              항상 아래 본문 렌더 블록보다 파일/DOM 순서상 먼저 나온다. */}
+          <span className="tag">{categoryLabel}</span>
           {disputed ? (
             <span className="badge" style={{ color: "var(--danger)" }}>
               {DISPUTED_CALLOUT}
@@ -180,33 +193,31 @@ export function WikiPageContent({
           )}
         </div>
 
-        <p className="mt-[14px] mb-0 text-[11px] text-[var(--muted)]">
+        {/* 컴파일 안내 캡션 (담백하고 미니멀한 텍스트) */}
+        <p className="mt-2.5 mb-0 text-[11px] text-[var(--muted)] leading-relaxed">
           {READ_ONLY_BANNER}
         </p>
 
-        {/* 5. 검증 액션 — editor 이상만(canVerify는 page.tsx가 서버에서 계산해
-            내려준다; 이 버튼의 노출 여부는 UX 편의일 뿐, 실제 권한 경계는
-            wiki.py의 RLS 기반 UPDATE 정책이다, T-06-21). */}
+        {/* 검증 액션 버튼 */}
         {canVerify ? (
-          <div className="mt-4 flex flex-col gap-1">
+          <div className="mt-3.5 flex flex-col gap-1">
             <button
               type="button"
               onClick={handleVerify}
               disabled={submitting}
               className="button primary self-start"
             >
-              {VERIFY_ACTION_LABEL}
+              {submitting ? "검증 처리 중..." : VERIFY_ACTION_LABEL}
             </button>
             {verifyError !== null ? (
-              <p role="alert" className="invite-feedback error show">
+              <p role="alert" className="invite-feedback error show mt-1">
                 {verifyError}
               </p>
             ) : null}
           </div>
         ) : null}
 
-        {/* 6. 본문 — 전체 컴파일 문서를 자르지 않고 그대로 자연스럽게 흘려보낸다
-            ("read the whole page" 표면, UI-SPEC overflow/wiki-page-content). */}
+        {/* 본문 렌더링 */}
         <div className="article mt-7">
           <DocumentBody
             content={page.content}
@@ -215,14 +226,15 @@ export function WikiPageContent({
           />
         </div>
 
+        {/* 하단 관련 문서 섹션 */}
         {relatedLinks.length ? (
           <section
-            className="mt-9 border-t border-[var(--border)] pt-6"
+            className="mt-10 border-t border-[var(--border)] pt-6"
             aria-labelledby="related-wiki-heading"
           >
             <h2
               id="related-wiki-heading"
-              className="m-0 text-[15px] font-extrabold"
+              className="m-0 text-[14px] font-bold text-[var(--fg)] tracking-tight"
             >
               관련 문서
             </h2>
@@ -230,7 +242,7 @@ export function WikiPageContent({
               {relatedLinks.map((link) => (
                 <li key={link.target_slug}>
                   <Link
-                    className="doc-chip"
+                    className="doc-chip hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
                     href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
                   >
                     {link.target_slug.replace(/-/g, " ")}
@@ -242,19 +254,41 @@ export function WikiPageContent({
         ) : null}
       </article>
 
-      {/* 우측 목차 패널. 960px 이하에서는 CSS 가 감춘다 — 본문을 좁히지 않는다
-          (openspec/changes/restore-standalone-wiki-reader 의 목차 요구사항). */}
+      {/* 우측 목차 (TOC) 패널 */}
       <aside className="toc">
         <div className="toc-heading">
           <h2>목차</h2>
         </div>
         {headings.length ? (
           <nav aria-label="이 문서에서" className="toc-list">
-            {headings.map((heading) => (
-              <a key={heading.id} href={`#${heading.id}`}>
-                {heading.title}
-              </a>
-            ))}
+            {headings.map((heading) => {
+              const isActive = activeHeadingId === heading.id;
+              const indentClass =
+                heading.level === 3
+                  ? "pl-4"
+                  : heading.level >= 4
+                    ? "pl-6"
+                    : "pl-2";
+
+              return (
+                <a
+                  key={heading.id}
+                  href={`#${heading.id}`}
+                  className={`${isActive ? "active" : ""} ${indentClass} transition-colors block text-[11px] leading-snug py-1`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const target = document.getElementById(heading.id);
+                    if (target) {
+                      target.scrollIntoView({ behavior: "smooth" });
+                      window.history.pushState(null, "", `#${heading.id}`);
+                      setActiveHeadingId(heading.id);
+                    }
+                  }}
+                >
+                  {heading.title}
+                </a>
+              );
+            })}
           </nav>
         ) : (
           <p className="m-0 text-[11px] text-[var(--muted)]">
@@ -266,69 +300,471 @@ export function WikiPageContent({
   );
 }
 
-function extractHeadings(content: string) {
-  return content.split("\n").flatMap((line, index) => {
-    const match = /^(#{1,3})\s+(.+?)\s*$/.exec(line);
-    return match ? [{ id: `section-${index}`, title: match[2] }] : [];
-  });
+/**
+ * 본문에서 목차 항목 추출
+ */
+function extractHeadings(content: string): HeadingItem[] {
+  if (!content) return [];
+  const lines = content.split("\n");
+  const result: HeadingItem[] = [];
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const match = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
+    if (match) {
+      const level = match[1].length;
+      const rawTitle = match[2]
+        .replace(/\[\[(?:[^\]|]+\|)?([^\]]+)\]\]/g, "$1")
+        .replace(/[*_`~]/g, "")
+        .trim();
+      result.push({
+        id: `section-${index}`,
+        level,
+        title: rawTitle,
+      });
+    }
+  }
+
+  return result;
 }
 
-function DocumentBody({
-  content,
-  links,
-  workspaceId,
-}: {
+type DocumentBodyProps = {
   content: string;
   links: { target_slug: string; resolved: boolean }[];
   workspaceId: string;
-}) {
-  return (
-    <>
-      {content.split("\n").map((line, index) => {
-        const heading = /^(#{1,3})\s+(.+?)\s*$/.exec(line);
-        const parts = resolveWikiLinks(heading ? heading[2] : line, links);
-        const children = parts.map((part, partIndex) =>
-          part.type === "text" ? (
-            <Fragment key={partIndex}>{part.value}</Fragment>
-          ) : part.resolved ? (
-            <Link
-              key={partIndex}
-              href={`${workspacePath(workspaceId)}/wiki/${part.slug}`}
-              className="cite"
+};
+
+/**
+ * 위키 문서 본문 마크다운 + WikiLink 렌더러
+ */
+function DocumentBody({ content, links, workspaceId }: DocumentBodyProps) {
+  if (!content) return null;
+
+  const lines = content.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    // 1. 빈 줄
+    if (!trimmed) {
+      index++;
+      continue;
+    }
+
+    // 2. 코드 블록 (``` ... ```)
+    if (trimmed.startsWith("```")) {
+      const lang = trimmed.slice(3).trim();
+      const codeLines: string[] = [];
+      index++;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index++;
+      }
+      if (index < lines.length) {
+        index++;
+      }
+      nodes.push(
+        <div
+          key={`code-${index}`}
+          className="my-4 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]"
+        >
+          {lang ? (
+            <div className="border-b border-[var(--border)] bg-[var(--bg)] px-3.5 py-1.5 font-mono text-[10px] font-semibold text-[var(--muted)]">
+              {lang}
+            </div>
+          ) : null}
+          <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-[var(--fg)]">
+            <code>{codeLines.join("\n")}</code>
+          </pre>
+        </div>,
+      );
+      continue;
+    }
+
+    // 3. 마크다운 테이블 (| ... |)
+    if (trimmed.startsWith("|") && trimmed.includes("|", 1)) {
+      const tableLines: string[] = [];
+      while (
+        index < lines.length &&
+        lines[index].trim().startsWith("|") &&
+        lines[index].trim().includes("|", 1)
+      ) {
+        tableLines.push(lines[index].trim());
+        index++;
+      }
+
+      if (tableLines.length >= 2) {
+        const headerCells = splitTableRow(tableLines[0]);
+        const isDivider = tableLines[1]
+          .split("|")
+          .filter(Boolean)
+          .every((cell) => /^[\s:-]+$/.test(cell));
+
+        const bodyRows = (
+          isDivider ? tableLines.slice(2) : tableLines.slice(1)
+        ).map(splitTableRow);
+
+        nodes.push(
+          <div
+            key={`table-${index}`}
+            className="my-5 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--bg)]"
+          >
+            <table className="w-full border-collapse text-left text-xs">
+              <thead className="border-b border-[var(--border)] bg-[var(--surface)] text-[var(--fg)]">
+                <tr>
+                  {headerCells.map((cell, cIdx) => (
+                    <th
+                      key={cIdx}
+                      className="px-3.5 py-2 font-semibold tracking-tight text-[var(--fg)]"
+                    >
+                      {renderRichText(cell, links, workspaceId)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              {bodyRows.length > 0 ? (
+                <tbody className="divide-y divide-[var(--border)]">
+                  {bodyRows.map((row, rIdx) => (
+                    <tr
+                      key={rIdx}
+                      className="hover:bg-[var(--surface)]/40 transition-colors"
+                    >
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="px-3.5 py-2 text-[var(--fg)]">
+                          {renderRichText(cell, links, workspaceId)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              ) : null}
+            </table>
+          </div>,
+        );
+        continue;
+      }
+    }
+
+    // 4. 헤딩 (#, ##, ###, ####)
+    const headingMatch = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const title = headingMatch[2];
+      const sectionId = `section-${index}`;
+      const renderedTitle = renderRichText(title, links, workspaceId);
+      index++;
+
+      if (level === 1) {
+        nodes.push(
+          <h2
+            key={`h2-${index}`}
+            id={sectionId}
+            className="scroll-mt-20 mt-9 mb-3 pb-1.5 text-lg font-bold tracking-tight text-[var(--fg)] border-b border-[var(--border)]"
+          >
+            {renderedTitle}
+          </h2>,
+        );
+      } else if (level === 2) {
+        nodes.push(
+          <h3
+            key={`h3-${index}`}
+            id={sectionId}
+            className="scroll-mt-20 mt-7 mb-2 text-[15px] font-bold tracking-tight text-[var(--fg)]"
+          >
+            {renderedTitle}
+          </h3>,
+        );
+      } else if (level === 3) {
+        nodes.push(
+          <h4
+            key={`h4-${index}`}
+            id={sectionId}
+            className="scroll-mt-20 mt-5 mb-1.5 text-xs font-bold tracking-tight text-[var(--fg)]"
+          >
+            {renderedTitle}
+          </h4>,
+        );
+      } else {
+        nodes.push(
+          <h5
+            key={`h5-${index}`}
+            id={sectionId}
+            className="scroll-mt-20 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]"
+          >
+            {renderedTitle}
+          </h5>,
+        );
+      }
+      continue;
+    }
+
+    // 5. 구분선 (---, ***)
+    if (/^(\*\*\*|---|___)$/.test(trimmed)) {
+      nodes.push(
+        <hr
+          key={`hr-${index}`}
+          className="my-6 border-t border-[var(--border)]"
+        />,
+      );
+      index++;
+      continue;
+    }
+
+    // 6. 블록 인용구 (> ...)
+    if (trimmed.startsWith(">")) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && lines[index].trim().startsWith(">")) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+        index++;
+      }
+      nodes.push(
+        <blockquote
+          key={`quote-${index}`}
+          className="my-4 border-l-2 border-[var(--accent)] pl-4 pr-3 py-1 text-[13.5px] italic text-[var(--muted)] leading-relaxed break-words"
+        >
+          {quoteLines.map((ql, qIdx) => (
+            <p
+              key={qIdx}
+              className={`${qIdx > 0 ? "mt-1.5" : "my-0"} break-words`}
             >
-              {part.title}
-            </Link>
-          ) : (
-            <RedLinkCta
-              key={partIndex}
-              title={part.title}
-              slug={part.slug}
-              workspaceId={workspaceId}
-            />
-          ),
-        );
-        if (heading) {
-          const Tag =
-            heading[1].length === 1
-              ? "h2"
-              : heading[1].length === 2
-                ? "h3"
-                : "h4";
-          return (
-            <Tag key={index} id={`section-${index}`} className="scroll-mt-6">
-              {children}
-            </Tag>
-          );
-        }
+              {renderRichText(ql, links, workspaceId)}
+            </p>
+          ))}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    // 7. 리스트 (- item, * item, 1. item)
+    if (/^(\s*[-*+]|\s*\d+\.)\s+/.test(line)) {
+      const isOrdered = /^\s*\d+\.\s+/.test(line);
+      const listItems: string[] = [];
+      while (
+        index < lines.length &&
+        /^(\s*[-*+]|\s*\d+\.)\s+/.test(lines[index])
+      ) {
+        const itemLine = lines[index];
+        const text = itemLine.replace(/^(\s*[-*+]|\s*\d+\.)\s+/, "");
+        listItems.push(text);
+        index++;
+      }
+
+      const ListTag = isOrdered ? "ol" : "ul";
+      nodes.push(
+        <ListTag
+          key={`list-${index}`}
+          className={`my-3 space-y-1.5 pl-5 text-[14px] leading-[1.8] text-[var(--fg)] ${
+            isOrdered ? "list-decimal" : "list-disc"
+          }`}
+        >
+          {listItems.map((li, lIdx) => (
+            <li key={lIdx} className="marker:text-[var(--muted)]">
+              {renderRichText(li, links, workspaceId)}
+            </li>
+          ))}
+        </ListTag>,
+      );
+      continue;
+    }
+
+    // 8. 일반 단락
+    const paragraphLines: string[] = [line];
+    index++;
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !lines[index].trim().startsWith("#") &&
+      !lines[index].trim().startsWith("```") &&
+      !lines[index].trim().startsWith(">") &&
+      !lines[index].trim().startsWith("|") &&
+      !/^(\s*[-*+]|\s*\d+\.)\s+/.test(lines[index])
+    ) {
+      paragraphLines.push(lines[index]);
+      index++;
+    }
+
+    nodes.push(
+      <p
+        key={`p-${index}`}
+        className="my-2.5 text-[14px] leading-[1.8] text-[var(--fg)]"
+      >
+        {renderRichText(paragraphLines.join(" "), links, workspaceId)}
+      </p>,
+    );
+  }
+
+  return <>{nodes}</>;
+}
+
+function splitTableRow(rowStr: string): string[] {
+  const trimmed = rowStr.trim();
+  const inner = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
+  const cleaned = inner.endsWith("|") ? inner.slice(0, -1) : inner;
+  return cleaned.split("|").map((cell) => cell.trim());
+}
+
+/**
+ * 인라인 마크다운 서식 + [[WikiLink]] 통합 파싱 함수
+ */
+function renderRichText(
+  text: string,
+  links: { target_slug: string; resolved: boolean }[],
+  workspaceId: string,
+): React.ReactNode {
+  if (!text) return null;
+
+  const wikiParts = resolveWikiLinks(text, links);
+
+  return wikiParts.map((part, pIdx) => {
+    if (part.type === "link") {
+      if (part.resolved) {
         return (
-          <Fragment key={index}>
-            {children}
-            {index < content.split("\n").length - 1 ? "\n" : null}
-          </Fragment>
+          <Link
+            key={pIdx}
+            href={`${workspacePath(workspaceId)}/wiki/${part.slug}`}
+            className="cite inline-flex items-center gap-1 text-[13px] font-medium text-[var(--accent)] hover:opacity-80 transition-opacity align-baseline no-underline"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="flex-none opacity-70"
+              aria-hidden="true"
+            >
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+              <path d="M6 6h10" />
+              <path d="M6 10h10" />
+            </svg>
+            <span>{part.title}</span>
+          </Link>
         );
-      })}
-    </>
-  );
+      }
+      return (
+        <RedLinkCta
+          key={pIdx}
+          title={part.title}
+          slug={part.slug}
+          workspaceId={workspaceId}
+        />
+      );
+    }
+
+    return <Fragment key={pIdx}>{parseInlineMarkdown(part.value)}</Fragment>;
+  });
+}
+
+/**
+ * 인라인 마크다운 파싱: **볼드**, *이탤릭*, `인라인 코드`, ~~취소선~~, [링크](url)
+ */
+function parseInlineMarkdown(text: string): React.ReactNode {
+  if (!text) return null;
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  let safetyCounter = 0;
+  const maxIterations = text.length * 2 + 10;
+
+  while (remaining.length > 0 && safetyCounter++ < maxIterations) {
+    // 1. 인라인 코드: `code`
+    const codeMatch = remaining.match(/^`([^`]+)`/);
+    if (codeMatch) {
+      parts.push(
+        <code
+          key={key++}
+          className="rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[var(--accent)]"
+        >
+          {codeMatch[1]}
+        </code>,
+      );
+      remaining = remaining.slice(codeMatch[0].length);
+      continue;
+    }
+
+    // 2. 링크: [label](url)
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (linkMatch) {
+      const href = safeMarkdownHref(linkMatch[2]);
+      parts.push(
+        href ? (
+          <a
+            key={key++}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[var(--accent)] underline underline-offset-3 hover:opacity-80 transition-opacity"
+          >
+            {linkMatch[1]}
+          </a>
+        ) : (
+          <span key={key++}>{linkMatch[1]}</span>
+        ),
+      );
+      remaining = remaining.slice(linkMatch[0].length);
+      continue;
+    }
+
+    // 3. 볼드: **text** or __text__
+    const boldMatch = remaining.match(/^(\*\*|__)(.+?)\1/);
+    if (boldMatch) {
+      parts.push(
+        <strong key={key++} className="font-bold text-[var(--fg)]">
+          {parseInlineMarkdown(boldMatch[2])}
+        </strong>,
+      );
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
+    }
+
+    // 4. 이탤릭: *text* or _text_
+    const italicMatch = remaining.match(/^(\*|_)(.+?)\1/);
+    if (italicMatch) {
+      parts.push(
+        <em key={key++} className="italic text-[var(--fg)]">
+          {parseInlineMarkdown(italicMatch[2])}
+        </em>,
+      );
+      remaining = remaining.slice(italicMatch[0].length);
+      continue;
+    }
+
+    // 5. 취소선: ~~text~~
+    const strikeMatch = remaining.match(/^~~(.+?)~~/);
+    if (strikeMatch) {
+      parts.push(
+        <del key={key++} className="line-through text-[var(--muted)]">
+          {parseInlineMarkdown(strikeMatch[1])}
+        </del>,
+      );
+      remaining = remaining.slice(strikeMatch[0].length);
+      continue;
+    }
+
+    // 6. 일반 텍스트
+    const nextSpecial = remaining.search(/[`*_~\[]/);
+    if (nextSpecial === -1) {
+      parts.push(remaining);
+      remaining = "";
+      break;
+    } else if (nextSpecial === 0) {
+      parts.push(remaining[0]);
+      remaining = remaining.slice(1);
+    } else {
+      parts.push(remaining.slice(0, nextSpecial));
+      remaining = remaining.slice(nextSpecial);
+    }
+  }
+
+  return parts;
 }
 
 type VerificationCalloutProps = {

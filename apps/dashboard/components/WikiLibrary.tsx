@@ -1,8 +1,16 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  HelpCircle,
+  Map,
+  Search,
+} from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import { isVerified, verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
@@ -18,10 +26,7 @@ export type WikiLibraryPage = {
   expires_at?: string | null;
 };
 
-// UI-SPEC Copywriting Contract "Empty wiki (no pages yet)" — 문구를 한 글자도
-// 바꾸지 않는다. ⚠️ 필터 결과 0건(아래 NO_MATCH_*)과 다른 상태다: 이쪽은
-// "아직 만들어지지 않았다", 저쪽은 "있지만 조건에 안 맞는다"이고 사용자가 할
-// 일도 다르다(소스 추가 vs 검색어 변경).
+// UI-SPEC Copywriting Contract "Empty wiki (no pages yet)" — 문구를 한 글자도 바꾸지 않는다.
 const EMPTY_HEADING = "아직 컴파일된 위키 페이지가 없습니다";
 const EMPTY_BODY = "소스를 추가하면 자동으로 위키 페이지가 생성됩니다.";
 const NO_MATCH_BODY = "조건에 맞는 위키 문서가 없습니다.";
@@ -34,30 +39,49 @@ const labels: Record<string, string> = {
   maps: "맵",
 };
 
-// 라벨 매핑은 lib/verification-label.ts 가 소유한다 — 홈 대시보드와 같은 말을
-// 쓰기 위해서다. 여기에 문자열을 되돌려 놓지 않는다.
+// 라벨 매핑은 lib/verification-label.ts 가 소유한다
 const stateLabel = verificationLabel;
 
 /**
- * ⚠️ 브래킷을 노출하지 않는다. `[[문서명]]` 은 내부 마크업이므로 표기만 남긴다
- * (PRODUCT-INVARIANTS.md §4 가 공개 표면에 대해 못박은 규칙의 내부 화면 판본).
+ * 마크다운 문법(헤딩, 볼드, 코드, 테이블 등)과 브래킷([[...]])을 제거하여
+ * 순수하고 깔끔한 평문 발췌문을 만든다.
  */
-function preview(content: string) {
+function cleanExcerpt(content: string): string {
+  if (!content) return "";
   return content
-    .replace(/\[\[([^\]]+)\]\]/g, "$1")
-    .replace(/\s+/g, " ")
+    .replace(/\[\[(?:[^\]|]+\|)?([^\]]+)\]\]/g, "$1") // [[slug|title]] -> title
+    .replace(/```[\s\S]*?```/g, "") // 코드 블록 제거
+    .replace(/`([^`]+)`/g, "$1") // 인라인 코드
+    .replace(/#{1,6}\s+/g, "") // 헤딩 제거
+    .replace(/(\*\*|__)(.*?)\1/g, "$2") // 볼드 제거
+    .replace(/(\*|_)(.*?)\1/g, "$2") // 이탤릭 제거
+    .replace(/~~(.*?)~~/g, "$1") // 취소선 제거
+    .replace(/^>\s?/gm, "") // 인용구 기호 제거
+    .replace(/^[*-]\s+/gm, "") // 리스트 기호 제거
+    .replace(/^\d+\.\s+/gm, "") // 번호 리스트 기호 제거
+    .replace(/\|/g, " ") // 테이블 파이프 제거
+    .replace(/\s+/g, " ") // 연속 공백/줄바꿈 축약
     .trim()
-    .slice(0, 150);
+    .slice(0, 160);
+}
+
+function getCategoryIcon(category: string) {
+  switch (category) {
+    case "concepts":
+      return <BookOpen size={13} className="opacity-75 flex-none" />;
+    case "entities":
+      return <FileText size={13} className="opacity-75 flex-none" />;
+    case "guides":
+      return <HelpCircle size={13} className="opacity-75 flex-none" />;
+    case "maps":
+      return <Map size={13} className="opacity-75 flex-none" />;
+    default:
+      return <FileText size={13} className="opacity-75 flex-none" />;
+  }
 }
 
 /**
  * 위키 라이브러리 — 컴파일된 문서의 전체 목록이자 리더로 들어가는 진입점이다.
- *
- * 계약: openspec/specs/wiki-library-navigation/spec.md
- *
- * ⚠️ 목록 조판은 홈 대시보드(섹션 12)의 .doc-list 를 그대로 재사용한다. 홈의
- * "컴파일된 위키 문서" 피드와 이 화면은 같은 물건의 요약본과 전체본이므로,
- * 두 곳이 다르게 생기면 사용자가 같은 목록을 두 번 배워야 한다.
  */
 export function WikiLibrary({
   pages,
@@ -74,7 +98,7 @@ export function WikiLibrary({
       pages.filter(
         (page) =>
           (!category || page.category === category) &&
-          `${page.title} ${preview(page.content)}`
+          `${page.title} ${cleanExcerpt(page.content)}`
             .toLocaleLowerCase()
             .includes(query.toLocaleLowerCase()),
       ),
@@ -82,47 +106,39 @@ export function WikiLibrary({
   );
 
   const isEmpty = pages.length === 0;
+  const verifiedCount = pages.filter((p) => isVerified(p)).length;
 
   return (
     <div className="content library">
+      {/* 헤더 영역 */}
       <section className="hero" data-od-id="wiki-library-header">
         <div>
-          {/* eyebrow(`COMPILED KNOWLEDGE`)를 두지 않는다 — 바로 아래 설명문이
-              같은 내용을 한국어로 더 정확히 말한다. */}
           <h1>위키</h1>
           <p>팀의 소스에서 컴파일된 지식 문서입니다.</p>
         </div>
       </section>
 
+      {/* 요약 지표 */}
       <section className="stats" aria-label="위키 요약">
         <div className="stat">
           <b>{pages.length}</b>
           <span>전체 문서</span>
         </div>
-        {/* ⚠️ 술어는 isVerified 다. `verification_status === "verified"` 로 직접
-            세면 충돌(disputed)·만료(expires_at) 문서가 검증 개수에 들어가,
-            바로 아래 목록이 "충돌 감지"·"검증 만료됨"으로 그린 행을 이 숫자가
-            검증으로 센다 — 한 화면 안에서 숫자와 행이 모순된다.
-            라벨도 목록과 같은 말을 쓴다. 예전에는 여기만 "검증 완료"라
-            이번 change 가 없애려던 이중 어휘가 한 화면 안에 남아 있었다. */}
         <div className="stat">
-          <b>{pages.filter((p) => isVerified(p)).length}</b>
+          <b>{verifiedCount}</b>
           <span>검증됨</span>
         </div>
       </section>
 
       <section data-od-id="wiki-library-list">
-        {/* 문서가 하나도 없으면 툴바를 그리지 않는다 — 걸러낼 대상이 없는
-            검색창과 필터는 눌러도 아무 일이 없는 어포던스다. */}
         {isEmpty ? null : (
-          <div className="toolbar">
-            {/* 카테고리는 탭이 아니라 토글 필터다 — 상호 배타적 뷰 전환이 아니므로
-              role="tab" 을 쓰지 않고 aria-pressed 로 표현한다. */}
+          <div className="toolbar flex-wrap gap-3">
+            {/* 카테고리 필터 */}
             <div className="chips" role="group" aria-label="카테고리 필터">
               <button
                 type="button"
                 aria-pressed={category === null}
-                className="chip"
+                className="chip transition-colors"
                 onClick={() => setCategory(null)}
               >
                 전체
@@ -132,46 +148,90 @@ export function WikiLibrary({
                   key={item}
                   type="button"
                   aria-pressed={category === item}
-                  className="chip"
+                  className="chip transition-colors"
                   onClick={() => setCategory(category === item ? null : item)}
                 >
                   {labels[item]}
                 </button>
               ))}
             </div>
-            <input
-              aria-label="위키 문서 검색"
-              className="field search"
-              placeholder="제목이나 내용으로 검색"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+
+            {/* 검색창 — 아이콘과 텍스트가 겹치지 않도록 확실한 좌측 패딩 적용 */}
+            <div className="relative flex-1 min-w-[220px] max-w-[340px]">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+              />
+              <input
+                aria-label="위키 문서 검색"
+                className="field search w-full pr-3 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:border-[var(--accent)] focus:outline-none transition-all"
+                style={{ paddingLeft: "34px" }}
+                placeholder="제목이나 내용으로 검색"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
           </div>
         )}
 
+        {/* 문서 목록 — 과도한 둥근 모서리 카드를 배제하고 명확한 상하 구분선 기반의 정갈한 리스트 */}
         {visible.length ? (
-          <div className="doc-list">
-            {visible.map((page) => (
-              <Link
-                key={page.id}
-                className="doc"
-                href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                data-od-id={`wiki-document-${page.slug}`}
-              >
-                <div className="doc-body">
-                  <span className="doc-title">{page.title}</span>
-                  <span className="doc-meta">
-                    {labels[page.category] ?? page.category} ·{" "}
-                    {stateLabel(page)}
-                  </span>
-                  <p className="doc-excerpt">{preview(page.content)}</p>
-                </div>
-                <ChevronRight className="nav-icon" aria-hidden="true" />
-              </Link>
-            ))}
+          <div className="doc-list mt-2 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
+            {visible.map((page) => {
+              const verified = isVerified(page);
+              const label = stateLabel(page);
+
+              return (
+                <Link
+                  key={page.id}
+                  className="doc group flex items-center justify-between py-3.5 px-3 hover:bg-[var(--surface)] transition-colors rounded-none"
+                  href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                  data-od-id={`wiki-document-${page.slug}`}
+                >
+                  <div className="doc-body flex-1 min-w-0 pr-4">
+                    {/* 상단 메타 뱃지 */}
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+                        {getCategoryIcon(page.category)}
+                        <span>{labels[page.category] ?? page.category}</span>
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-medium ${
+                          page.disputed
+                            ? "text-[var(--danger)]"
+                            : verified
+                              ? "text-[var(--good)]"
+                              : "text-[var(--muted)]"
+                        }`}
+                      >
+                        {verified && <CheckCircle2 size={11} />}
+                        <span>{label}</span>
+                      </span>
+                    </div>
+
+                    {/* 문서 제목 */}
+                    <span className="doc-title text-[14px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
+                      {page.title}
+                    </span>
+
+                    {/* 발췌문 */}
+                    <p className="doc-excerpt text-xs text-[var(--muted)] leading-relaxed mt-1 line-clamp-2">
+                      {cleanExcerpt(page.content)}
+                    </p>
+                  </div>
+
+                  <ChevronRight
+                    className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
+                    size={16}
+                    aria-hidden="true"
+                  />
+                </Link>
+              );
+            })}
           </div>
         ) : (
-          <div className="library-empty" role="status">
+          <div className="library-empty mt-6" role="status">
             {isEmpty ? (
               <>
                 <b>{EMPTY_HEADING}</b>

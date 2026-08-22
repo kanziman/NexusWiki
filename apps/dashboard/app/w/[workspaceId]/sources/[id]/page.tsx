@@ -1,5 +1,4 @@
-import { DetailHeader, StatusBadge } from "@/components/DashboardPrimitives";
-import { workspacePath } from "@/lib/workspace-path";
+import { SourceDetailContent } from "@/components/SourceDetailContent";
 import { createClient } from "@/lib/supabase/server";
 
 type SourceDetailRouteProps = {
@@ -7,24 +6,16 @@ type SourceDetailRouteProps = {
 };
 
 const SOURCE_NOT_FOUND_HEADING = "자료를 찾을 수 없습니다";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
+const SOURCE_LOAD_ERROR_HEADING =
+  "자료를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
 
 /**
- * 자료 상세 라우트 — wiki/[slug]/page.tsx와 같은 패턴(Server Component,
- * workspace_id로 스코프된 단일 행 조회, RLS 실패는 고정 not-found 문구).
+ * 자료 상세 라우트 — Server Component로 요청자 세션(RLS)을 통해
+ * 원문 메타데이터, 추출된 청크, 인용된 위키 문서 목록을 한 번에 조회하여
+ * SourceDetailContent(클라이언트 컴포넌트)로 전달한다.
  *
- * 관련: openspec/changes/archive/2026-08-14-complete-library-selection-layout
- * (library-selection-layout 스펙 — WikiLibrary가 이미 쓰는 "행 → 실제 라우트"
- * 패턴을 Sources 쪽에도 맞춘다).
- * 설계 근거: supabase/migrations/0004_rls_policies.sql 섹션 5
- *            (raw_sources_select_member)
+ * 설계 근거: supabase/migrations/0004_rls_policies.sql 섹션 5/6/7
+ *            (raw_sources_select_member, source_chunks_select_member, wiki_pages_select_member)
  */
 export default async function SourceDetailRoute({
   params,
@@ -33,14 +24,45 @@ export default async function SourceDetailRoute({
 
   const supabase = await createClient();
 
-  const { data: source, error } = await supabase
-    .from("raw_sources")
-    .select("id,title,source_type,created_at")
-    .eq("workspace_id", workspaceId)
-    .eq("id", id)
-    .single();
+  const [sourceResult, chunksResult, wikiResult] = await Promise.all([
+    supabase
+      .from("raw_sources")
+      .select(
+        "id,title,source_type,mime_type,byte_size,content_hash,created_at,content",
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("source_chunks")
+      .select("id,raw_source_id,chunk_index,char_start,char_end,content")
+      .eq("workspace_id", workspaceId)
+      .eq("raw_source_id", id)
+      .order("chunk_index", { ascending: true }),
+    supabase
+      .from("wiki_pages")
+      .select("id,title,slug,category,sources")
+      .eq("workspace_id", workspaceId),
+  ]);
 
-  if (error || !source) {
+  if (sourceResult.error) {
+    console.error("소스 상세 조회 실패", {
+      workspaceId,
+      sourceId: id,
+      error: sourceResult.error,
+    });
+    return (
+      <p
+        role="alert"
+        className="text-ink"
+        style={{ font: "var(--font-title-md)" }}
+      >
+        {SOURCE_LOAD_ERROR_HEADING}
+      </p>
+    );
+  }
+
+  if (!sourceResult.data) {
     return (
       <p className="text-ink" style={{ font: "var(--font-title-md)" }}>
         {SOURCE_NOT_FOUND_HEADING}
@@ -48,27 +70,51 @@ export default async function SourceDetailRoute({
     );
   }
 
+  if (chunksResult.error || wikiResult.error) {
+    console.error("소스 상세 관련 데이터 조회 실패", {
+      workspaceId,
+      sourceId: id,
+      chunksError: chunksResult.error,
+      wikiError: wikiResult.error,
+    });
+    return (
+      <p
+        role="alert"
+        className="text-ink"
+        style={{ font: "var(--font-title-md)" }}
+      >
+        {SOURCE_LOAD_ERROR_HEADING}
+      </p>
+    );
+  }
+
+  const source = sourceResult.data;
+  const chunks = chunksResult.data ?? [];
+
+  const citingPages = (wikiResult.data ?? [])
+    .filter((page) => {
+      if (!Array.isArray(page.sources)) return false;
+      return page.sources.some((entry) => {
+        const rawSourceId =
+          typeof entry === "string"
+            ? entry
+            : ((entry as { raw_source_id?: string })?.raw_source_id ?? null);
+        return rawSourceId === id;
+      });
+    })
+    .map((page) => ({
+      id: page.id,
+      title: page.title,
+      slug: page.slug,
+      category: page.category,
+    }));
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-xl">
-      <DetailHeader
-        libraryHref={`${workspacePath(workspaceId)}/sources`}
-        libraryLabel="자료 목록"
-        kind={source.source_type}
-        title={source.title}
-        meta={<StatusBadge>{formatDate(source.created_at)}</StatusBadge>}
-      />
-      <dl className="grid gap-sm text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-[var(--muted)]">유형</dt>
-          <dd className="mt-xs text-[var(--fg)]">{source.source_type}</dd>
-        </div>
-        <div>
-          <dt className="text-[var(--muted)]">등록일</dt>
-          <dd className="mt-xs text-[var(--fg)]">
-            {formatDate(source.created_at)}
-          </dd>
-        </div>
-      </dl>
-    </div>
+    <SourceDetailContent
+      workspaceId={workspaceId}
+      source={source}
+      chunks={chunks}
+      citingPages={citingPages}
+    />
   );
 }

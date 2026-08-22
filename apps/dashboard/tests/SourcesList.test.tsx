@@ -48,6 +48,10 @@ describe("SourcesList", () => {
     const sourceTitle = screen.getByText(title);
     expect(sourceTitle).toHaveAttribute("title", title);
     expect(sourceTitle).toHaveAttribute("aria-label", title);
+    expect(sourceTitle.closest("a")).toHaveAttribute(
+      "href",
+      "/w/ws-1/sources/source-1",
+    );
     expect(screen.getByText("2026년 8월 12일")).toBeInTheDocument();
   });
 

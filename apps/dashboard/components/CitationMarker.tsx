@@ -50,6 +50,11 @@ export function CitationMarker({
       data-testid="citation-marker-resolved"
       data-kind={part.kind}
       onClick={() => onClick?.(part)}
+      title={
+        part.kind === "source"
+          ? "원문 소스 인용 (클릭 시 원본 청크 확인)"
+          : "위키 문서 인용 (클릭 시 위키 페이지 확인)"
+      }
       className={`cite ${part.kind === "source" ? "source" : ""}`}
     >
       {index + 1}

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 
-import { CitationMarker } from "@/components/CitationMarker";
+import { MarkdownAnswer } from "@/components/MarkdownAnswer";
 import {
   splitTextWithAnchors,
   type AnchorPart,
@@ -65,7 +65,6 @@ async function readAskErrorToken(response: Response): Promise<string> {
     return "unknown_error";
   }
 }
-
 /**
  * Ask UI 대화 상태 기계 — `meta -> delta* -> citations -> done` 이벤트 순서를
  * 그대로 소비한다 (05-CONTEXT.md D-01~D-03, 06-CONTEXT.md D-09~D-11).
@@ -292,7 +291,30 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           appear only where they carry information the page title does not
           already convey" 판정이다. */}
       <header className="conversation-head">
-        <h1>질문하기</h1>
+        <div className="flex w-full items-center justify-between gap-3">
+          <h1>질문하기</h1>
+          <div
+            className="flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1 text-[11px] text-[var(--muted)] shadow-2xs"
+            aria-label="이중 인용 범례"
+          >
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <span
+                className="cite source font-mono font-bold"
+                aria-hidden="true"
+              >
+                1
+              </span>
+              <span>원문 소스</span>
+            </span>
+            <span className="text-[var(--border-strong)] opacity-40">·</span>
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <span className="cite font-mono font-bold" aria-hidden="true">
+                2
+              </span>
+              <span>위키 문서</span>
+            </span>
+          </div>
+        </div>
       </header>
       <div className="thread" data-testid="ask-conversation">
         {turns.length === 0 ? (
@@ -373,13 +395,13 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                     {turn.status === "streaming" ? "생성 중" : "방금 생성됨"}
                   </span>
                 </div>
-                <p data-testid={`ask-turn-${index}-body`}>
-                  {renderSegments(
-                    turn.segments,
-                    turn.status === "resolved",
-                    handleMarkerClick,
-                  )}
-                </p>
+                <div data-testid={`ask-turn-${index}-body`}>
+                  <MarkdownAnswer
+                    segments={turn.segments}
+                    resolved={turn.status === "resolved"}
+                    onMarkerClick={handleMarkerClick}
+                  />
+                </div>
               </article>
             )}
           </Fragment>
@@ -418,6 +440,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             placeholder="이어서 추가 질문을 입력하세요"
+            className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none text-xs text-[var(--fg)] placeholder:text-[var(--muted)]"
           />
           {/* 접근 가능한 이름은 "질문하기"로 고정한다 — 화살표 글리프만 남기면
               스크린 리더에 "위쪽 화살표 버튼"으로 읽힌다. */}
@@ -433,28 +456,4 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
       </form>
     </section>
   );
-}
-
-function renderSegments(
-  segments: (TextPart | AnchorPart)[],
-  resolved: boolean,
-  onMarkerClick: (part: AnchorPart) => void,
-) {
-  let anchorIndex = 0;
-  return segments.map((part, i) => {
-    if (part.type === "text") {
-      return <span key={i}>{part.value}</span>;
-    }
-    const index = anchorIndex;
-    anchorIndex += 1;
-    return (
-      <CitationMarker
-        key={i}
-        part={part}
-        index={index}
-        resolved={resolved}
-        onClick={onMarkerClick}
-      />
-    );
-  });
 }

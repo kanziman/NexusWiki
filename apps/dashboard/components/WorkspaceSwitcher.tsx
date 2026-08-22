@@ -93,6 +93,7 @@ export function WorkspaceSwitcher({
             type="button"
             className="switcher cursor-pointer"
             data-od-id="workspace-switcher"
+            aria-label={current?.name ?? "워크스페이스 선택"}
           >
             <span className="switcher-mark">{initial}</span>
             <span className="switcher-name">
