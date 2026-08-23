@@ -64,6 +64,7 @@ export function WorkspaceSidebar({
   const [recentThreads, setRecentThreads] = useState<AskThreadSummary[]>([]);
 
   useEffect(() => {
+    if (!currentWorkspaceId) return;
     let cancelled = false;
     listAskThreads(currentWorkspaceId)
       .then((rows) => {

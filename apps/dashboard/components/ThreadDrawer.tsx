@@ -125,7 +125,7 @@ export function ThreadDrawer({
                 다시 시도
               </button>
             </div>
-          ) : threads.length === 0 ? (
+          ) : (Array.isArray(threads) ? threads : []).length === 0 ? (
             <div className="py-12 px-4 text-center">
               <p className="thread-list-empty text-xs text-[var(--muted)]">
                 아직 나눈 대화가 없습니다
@@ -137,7 +137,7 @@ export function ThreadDrawer({
               aria-label="대화 목록"
               className="thread-list space-y-1"
             >
-              {threads.map((thread) => {
+              {(Array.isArray(threads) ? threads : []).map((thread) => {
                 const isActive = thread.id === activeThreadId;
                 return (
                   <div
