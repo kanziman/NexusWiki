@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2, User, Users } from "lucide-react";
 
@@ -31,6 +32,7 @@ export function WorkspaceGeneralSettings({
   publicDisplayName = "",
   publicDescription = "",
 }: WorkspaceGeneralSettingsProps) {
+  const router = useRouter();
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
   const [kind, setKind] = useState<"personal" | "team">(initialKind);
@@ -66,6 +68,23 @@ export function WorkspaceGeneralSettings({
     setSuccessMessage(null);
 
     const supabase = createClient();
+
+    // 팀 -> 개인 전환 시 다른 멤버가 참여 중인지 검증 (멤버가 있으면 전환 불가)
+    if (kind === "personal") {
+      const { count, error: countError } = await supabase
+        .from("workspace_members")
+        .select("*", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId);
+
+      if (!countError && typeof count === "number" && count > 1) {
+        setSaving(false);
+        setErrorMessage(
+          `다른 멤버(${count - 1}명)가 참여 중인 워크스페이스는 개인 워크스페이스로 전환할 수 없습니다. 먼저 [멤버] 탭에서 다른 멤버를 모두 내보낸 후 다시 시도하세요.`,
+        );
+        return;
+      }
+    }
+
     // RLS USING 에 막힌 UPDATE 는 예외가 아니라 0행이다 — .select() 로 되받은
     // 행 수를 확인해야 "차단됨"과 "성공"이 구분된다(CLAUDE.md 불변 규칙).
     const { data, error } = await supabase
@@ -85,6 +104,7 @@ export function WorkspaceGeneralSettings({
 
     setSuccessMessage("워크스페이스 정보가 저장되었습니다.");
     onKindChange?.(kind);
+    router.refresh();
   }
 
   return (

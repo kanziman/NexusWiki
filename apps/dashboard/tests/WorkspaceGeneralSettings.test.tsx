@@ -2,19 +2,34 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const updateMock = vi.hoisted(() => vi.fn());
+const state = vi.hoisted(() => ({ memberCount: 1 }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: vi.fn(() => ({
-    from: () => ({
-      update: updateMock.mockReturnValue({
-        eq: () => ({
-          select: async () => ({
-            data: [{ id: "ws-1", name: "새 이름", slug: "new-slug" }],
-            error: null,
+    from: (table: string) => {
+      if (table === "workspace_members") {
+        return {
+          select: () => ({
+            eq: () =>
+              Promise.resolve({ count: state.memberCount, error: null }),
+          }),
+        };
+      }
+      return {
+        update: updateMock.mockReturnValue({
+          eq: () => ({
+            select: async () => ({
+              data: [{ id: "ws-1", name: "새 이름", slug: "new-slug" }],
+              error: null,
+            }),
           }),
         }),
-      }),
-    }),
+      };
+    },
   })),
 }));
 
@@ -23,6 +38,7 @@ import { WorkspaceGeneralSettings } from "@/components/WorkspaceGeneralSettings"
 describe("WorkspaceGeneralSettings", () => {
   beforeEach(() => {
     updateMock.mockClear();
+    state.memberCount = 1;
   });
 
   it("저장된 공개 설정을 폼에 반영한다", () => {
@@ -141,6 +157,34 @@ describe("WorkspaceGeneralSettings", () => {
       kind: "team",
     });
     expect(onKindChange).toHaveBeenCalledWith("team");
+  });
+
+  it("팀에서 개인으로 전환할 때 다른 멤버가 있으면 에러 메시지를 표시하고 저장을 차단한다", async () => {
+    state.memberCount = 3; // 소유자 외 2명 참여 중
+    render(
+      <WorkspaceGeneralSettings
+        workspaceId="ws-1"
+        initialName="우리 팀 워크스페이스"
+        initialSlug="team-workspace"
+        initialKind="team"
+        isOwner={true}
+      />,
+    );
+
+    const personalRadio = screen.getByRole("radio", {
+      name: /개인 워크스페이스/,
+    });
+    fireEvent.click(personalRadio);
+
+    const saveBtn = screen.getByRole("button", { name: "저장" });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/다른 멤버\(2명\)가 참여 중인 워크스페이스는/),
+      ).toBeInTheDocument();
+    });
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("shows error message when slug format is invalid", async () => {

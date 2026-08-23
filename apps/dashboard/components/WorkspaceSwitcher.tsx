@@ -99,6 +99,14 @@ export function WorkspaceSwitcher({
             <span className="switcher-name">
               {current?.name ?? "워크스페이스 선택"}
             </span>
+            {current?.kind ? (
+              <span
+                data-testid="current-workspace-kind-badge"
+                className="shrink-0 rounded-full border border-[var(--border)] px-1.5 py-0.2 text-[9px] font-mono font-semibold text-[var(--muted)]"
+              >
+                {current.kind === "team" ? "팀" : "개인"}
+              </span>
+            ) : null}
             <ChevronDown className="chev" aria-hidden="true" />
           </button>
         </DropdownMenu.Trigger>
