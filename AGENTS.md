@@ -1,6 +1,6 @@
 # NexusWiki Agent Workflow
 
-이 문서는 Codex 등 에이전트가 공유하는 저장소 workflow 계약이다. Claude Code는 `.claude/CLAUDE.md`의 「Agent Workflow」절과 `.claude/commands/opsx/*`를 함께 사용한다. 두 진입점은 같은 OpenSpec 계약을 가리키며, 계약 본문은 `openspec/specs/`에 있다.
+이 문서는 에이전트가 공유하는 저장소 workflow 계약이다. OpenSpec 계약 본문은 `openspec/specs/`에 있다.
 
 ## 기본 원칙
 
@@ -23,18 +23,16 @@
 
 ## 필수 작업 순서
 
-담당 표시: **[Claude]** 코드 탐색 없이 판단 위주인 작업(계획 · 리뷰) · **[Codex]** 구현 · 검증 · 저장소 편집이 필요한 작업 · **[무관]** 어느 세션이 해도 되는 작업. 사용자가 특정 세션을 명시하면 그 지정이 이 표시보다 우선한다.
-
-1. **[무관]** 구현 전에 GitHub umbrella 이슈를 생성하거나 기존 이슈를 확인한다. OpenSpec change를 만들면 이슈 본문에 change 경로를 연결한다.
-2. **[Claude 권장]** `openspec new change "<name>"`으로 change를 만든다. `openspec status --change "<name>" --json`이 지시하는 다음 산출물을 `openspec instructions "<artifact>" --change "<name>" --json`의 안내대로 작성한다. 산출물 순서는 `proposal` → `specs` → `design` → `tasks`이다. 저장소 코드를 거의 읽지 않는 단계라 Claude가 맡는 편이 비용상 유리하다 — 강제는 아니다.
-3. **[무관]** `openspec validate "<name>" --strict`를 통과시킨다.
-4. **[Codex 권장]** 사용자가 명시적으로 apply를 요청한 뒤에만 `openspec instructions apply --change "<name>" --json`의 안내대로 구현한다. 검증된 task는 즉시 완료 처리한다.
-5. **[Codex]** 완료를 주장하기 전에 관련 테스트 · typecheck · lint와 strict validation을 **새로** 실행한다. 실패한 검증이 있으면 해당 task를 완료 처리하지 않는다.
-6. **[Codex]** delta spec이 있는 change는 아카이브 전에 delta를 `openspec/specs/`에 반영하고 `openspec validate --specs --strict`를 실행한다.
-7. **[Codex]** 모든 task와 필요한 산출물이 완료된 뒤에만 `openspec instructions archive --change "<name>" --json`을 확인하고 `openspec archive "<name>"`을 실행한다. ⚠️ 완료 후 **커밋까지만 하고 멈춘다** — push · PR로 진행하지 않는다. 다음 8단계(리뷰 게이트)는 Codex의 몫이 아니다.
-8. **[Claude 전용]** 리뷰 게이트 2종(`spec-conformance-reviewer` · `tenant-isolation-reviewer`)을 실행한다. 판정 기준 · 라운드 상한은 `.claude/CLAUDE.md`의 「리뷰 게이트」가 정본이다 — 여기서 복제하지 않는다. `needs_fix`면 지적 사항만 Codex에게 전달해 4단계부터 다시 돈다. `blocked`이면 사람에게 넘긴다.
-9. **[Codex]** 리뷰가 `pass`로 확정된 뒤에만 `pull-request-workflow` 스펙에 따라 PR을 연다.
-10. **[무관]** PR이 열린 뒤 sub-issue를 닫는다. umbrella 이슈는 PR 머지 이후에만 닫는다.
+1. 구현 전에 GitHub umbrella 이슈를 생성하거나 기존 이슈를 확인한다. OpenSpec change를 만들면 이슈 본문에 change 경로를 연결한다.
+2. `openspec new change "<name>"`으로 change를 만든다. `openspec status --change "<name>" --json`이 지시하는 다음 산출물을 `openspec instructions "<artifact>" --change "<name>" --json`의 안내대로 작성한다. 산출물 순서는 `proposal` → `specs` → `design` → `tasks`이다.
+3. `openspec validate "<name>" --strict`를 통과시킨다.
+4. 사용자가 명시적으로 apply를 요청한 뒤에만 `openspec instructions apply --change "<name>" --json`의 안내대로 구현한다. 검증된 task는 즉시 완료 처리한다.
+5. 완료를 주장하기 전에 관련 테스트 · typecheck · lint와 strict validation을 **새로** 실행한다. 실패한 검증이 있으면 해당 task를 완료 처리하지 않는다.
+6. delta spec이 있는 change는 아카이브 전에 delta를 `openspec/specs/`에 반영하고 `openspec validate --specs --strict`를 실행한다.
+7. 모든 task와 필요한 산출물이 완료된 뒤에만 `openspec instructions archive --change "<name>" --json`을 확인하고 `openspec archive "<name>"`을 실행한다. ⚠️ 완료 후 **커밋까지만 하고 멈춘다** — push · PR로 바로 진행하지 않는다.
+8. 리뷰 게이트 2종(`spec-conformance-reviewer` · `tenant-isolation-reviewer`)을 실행한다. 판정 기준 · 라운드 상한은 `.claude/CLAUDE.md`의 「리뷰 게이트」가 정본이다. `needs_fix`면 지적 사항을 수정하고 4단계부터 다시 검증을 진행한다. `blocked`이면 사람에게 넘긴다.
+9. 리뷰가 `pass`로 확정된 뒤에만 `pull-request-workflow` 스펙에 따라 PR을 연다.
+10. PR이 열린 뒤 sub-issue를 닫는다. umbrella 이슈는 PR 머지 이후에만 닫는다.
 
 ## 외부 상태 제약
 
