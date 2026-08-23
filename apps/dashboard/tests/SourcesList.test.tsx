@@ -112,4 +112,30 @@ describe("SourcesList", () => {
     expect(screen.queryByText("설계문서.pdf")).not.toBeInTheDocument();
     expect(screen.getByText("노트.md")).toBeInTheDocument();
   });
+
+  it("8개 초과의 소스가 등록된 경우 페이지당 8개씩 페이지네이션한다", () => {
+    const manySources = Array.from({ length: 12 }, (_, i) => ({
+      id: `source-${i + 1}`,
+      title: `문서 ${i + 1}.txt`,
+      source_type: "text",
+      mime_type: "text/plain",
+      created_at: "2026-08-12T00:00:00Z",
+      content_hash: `hash-${i + 1}`,
+    }));
+
+    render(<SourcesList workspaceId="ws-1" initialSources={manySources} />);
+
+    // 1페이지 항목(1~8) 확인
+    expect(screen.getByText("문서 1.txt")).toBeInTheDocument();
+    expect(screen.getByText("문서 8.txt")).toBeInTheDocument();
+    expect(screen.queryByText("문서 9.txt")).not.toBeInTheDocument();
+
+    // 2페이지로 이동
+    const page2Button = screen.getByRole("button", { name: "2 페이지" });
+    fireEvent.click(page2Button);
+
+    expect(screen.queryByText("문서 1.txt")).not.toBeInTheDocument();
+    expect(screen.getByText("문서 9.txt")).toBeInTheDocument();
+    expect(screen.getByText("문서 12.txt")).toBeInTheDocument();
+  });
 });

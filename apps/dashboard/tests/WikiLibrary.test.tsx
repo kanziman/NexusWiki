@@ -102,4 +102,31 @@ describe("WikiLibrary", () => {
       screen.getByRole("link", { name: /SSO 가이드/ }),
     ).toBeInTheDocument();
   });
+
+  it("8개 초과의 위키 문서가 있는 경우 페이지당 8개씩 분할하여 페이지네이션을 렌더링한다", () => {
+    const manyPages = Array.from({ length: 15 }, (_, i) => ({
+      id: `page-${i + 1}`,
+      slug: `wiki-${i + 1}`,
+      title: `위키 문서 ${i + 1}`,
+      category: "concepts",
+      content: `내용 ${i + 1}`,
+      verification_status: "verified",
+      disputed: false,
+    }));
+
+    render(<WikiLibrary pages={manyPages} workspaceId="ws-1" />);
+
+    // 1페이지: 위키 문서 1~8 노출
+    expect(screen.getByText("위키 문서 1")).toBeInTheDocument();
+    expect(screen.getByText("위키 문서 8")).toBeInTheDocument();
+    expect(screen.queryByText("위키 문서 9")).not.toBeInTheDocument();
+
+    // 2페이지로 이동
+    const page2Btn = screen.getByRole("button", { name: "2 페이지" });
+    fireEvent.click(page2Btn);
+
+    expect(screen.queryByText("위키 문서 1")).not.toBeInTheDocument();
+    expect(screen.getByText("위키 문서 9")).toBeInTheDocument();
+    expect(screen.getByText("위키 문서 15")).toBeInTheDocument();
+  });
 });

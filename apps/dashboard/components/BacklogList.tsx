@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { workspacePath } from "@/lib/workspace-path";
 import { BacklogDetailModal } from "./BacklogDetailModal";
+import { Pagination } from "./Pagination";
 
 export type BacklogReferencingPage = {
   id: string;
@@ -38,7 +39,10 @@ const EMPTY_BODY = "모든 위키 링크가 정상적으로 연결되어 있습�
 export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
   const [items] = useState<BacklogItem[]>(initialItems);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [openTopic, setOpenTopic] = useState<BacklogItem | null>(null);
+
+  const PAGE_SIZE = 8;
 
   const filteredItems = items.filter((item) => {
     if (!searchQuery.trim()) return true;
@@ -50,6 +54,11 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
     );
     return matchesTitle || matchesSlug || matchesPage;
   });
+
+  const paginatedItems = filteredItems.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   const distinctReferringPages = new Set(
     items.flatMap((item) => item.referencing_pages.map((p) => p.id)),
@@ -103,7 +112,10 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
             <input
               className="field search"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setPage(1);
+              }}
               placeholder="주제 또는 참조 문서로 검색"
               aria-label="백로그 검색"
             />
@@ -154,7 +166,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)] text-xs">
-                {filteredItems.map((item) => {
+                {paginatedItems.map((item) => {
                   return (
                     <tr
                       key={item.target_slug}
@@ -239,6 +251,15 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
               </tbody>
             </table>
           </div>
+        )}
+
+        {filteredItems.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalItems={filteredItems.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+          />
         )}
       </section>
 

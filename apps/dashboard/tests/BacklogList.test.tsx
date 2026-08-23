@@ -339,5 +339,30 @@ describe("BacklogList", () => {
         panel.getByRole("link", { name: "아키텍처 가이드" }),
       ).toBeInTheDocument();
     });
+
+    it("8개 초과의 백로그 항목이 있을 때 페이지당 8개씩 분할하여 페이지네이션한다", () => {
+      const manyItems: BacklogItem[] = Array.from({ length: 14 }, (_, i) => ({
+        target_slug: `backlog-item-${i + 1}`,
+        display_title: `백로그 주제 ${i + 1}`,
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [],
+      }));
+
+      render(<BacklogList workspaceId="ws-1" initialItems={manyItems} />);
+
+      // 1페이지 항목(1~8) 확인
+      expect(screen.getByText("백로그 주제 1")).toBeInTheDocument();
+      expect(screen.getByText("백로그 주제 8")).toBeInTheDocument();
+      expect(screen.queryByText("백로그 주제 9")).not.toBeInTheDocument();
+
+      // 2페이지로 이동
+      const page2Btn = screen.getByRole("button", { name: "2 페이지" });
+      fireEvent.click(page2Btn);
+
+      expect(screen.queryByText("백로그 주제 1")).not.toBeInTheDocument();
+      expect(screen.getByText("백로그 주제 9")).toBeInTheDocument();
+      expect(screen.getByText("백로그 주제 14")).toBeInTheDocument();
+    });
   });
 });
