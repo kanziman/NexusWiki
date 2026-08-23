@@ -62,6 +62,19 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
+vi.mock("@/lib/api-client", () => ({
+  apiFetch: vi.fn().mockResolvedValue([]),
+  ApiError: class ApiError extends Error {
+    status: number;
+    detail: string;
+    constructor(status: number, detail: string) {
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+    }
+  },
+}));
+
 import { AskConversation } from "@/components/AskConversation";
 
 async function* toAsyncGenerator<T>(items: T[]): AsyncGenerator<T> {

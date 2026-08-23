@@ -26,6 +26,7 @@ from uuid import UUID
 import httpx
 
 from api.db.user import UserDb
+from api.errors import DatabaseError, WorkspaceForbidden
 from api.services.retrieval import RetrievalService
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN, ISSUED_ANCHOR_PATTERN
 from nexuswiki_core.rrf import EvidenceHit
@@ -354,6 +355,68 @@ class AskService:
         self._retrieval_service = retrieval_service
         self._llm_client = llm_client
 
+    async def _persist_completed_turn(
+        self,
+        *,
+        user_db: UserDb,
+        workspace_id: UUID,
+        thread_id: UUID | None,
+        client_turn_id: UUID,
+        query: str,
+        answer_text: str,
+        citations: dict[str, Any],
+        status: str,
+    ) -> UUID | None:
+        """citations 조립 후 done 전에 한 논리 턴을 저장한다. 실패하면 done을 보내지 않는다."""
+        stored_citations = {
+            "text": citations.get("text") or "",
+            "resolved": citations.get("resolved") or [],
+        }
+        try:
+            rows = await user_db.rpc(
+                "persist_ask_turn",
+                params={
+                    "p_workspace_id": str(workspace_id),
+                    "p_thread_id": str(thread_id) if thread_id is not None else None,
+                    "p_client_turn_id": str(client_turn_id),
+                    "p_question": query,
+                    "p_answer_text": answer_text,
+                    "p_citations": stored_citations,
+                    "p_status": status,
+                },
+            )
+        except (WorkspaceForbidden, DatabaseError):
+            return None
+        if not rows or not rows[0].get("thread_id"):
+            return None
+        return UUID(str(rows[0]["thread_id"]))
+
+    async def _yield_done_if_persisted(
+        self,
+        *,
+        user_db: UserDb,
+        workspace_id: UUID,
+        thread_id: UUID | None,
+        client_turn_id: UUID,
+        query: str,
+        answer_text: str,
+        citations: dict[str, Any],
+        status: str,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        persisted = await self._persist_completed_turn(
+            user_db=user_db,
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            client_turn_id=client_turn_id,
+            query=query,
+            answer_text=answer_text,
+            citations=citations,
+            status=status,
+        )
+        if persisted is None:
+            return
+        yield "done", {"thread_id": str(persisted)}
+
     async def ask(
         self,
         *,
@@ -362,23 +425,33 @@ class AskService:
         requested_k: int,
         template_id: str | None,
         user_db: UserDb,
+        thread_id: UUID | None,
+        client_turn_id: UUID,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         result = await self._retrieval_service.retrieve(workspace_id, query, requested_k, user_db)
         if not result.evidence:
             # CITE-04 — 근거가 하나도 없으면 provider 호출을 아예 하지 않는다.
             yield "meta", {"no_evidence": True}
-            yield (
-                "citations",
-                {
-                    "text": NO_EVIDENCE_MESSAGE,
-                    "resolved": [],
-                    "cited_anchor_count": 0,
-                    "fabricated_anchor_count": 0,
-                    "dual_citation_rate": 0.0,
-                    "unsourced_sentence_ratio": 0.0,
-                },
-            )
-            yield "done", {}
+            no_evidence_citations = {
+                "text": NO_EVIDENCE_MESSAGE,
+                "resolved": [],
+                "cited_anchor_count": 0,
+                "fabricated_anchor_count": 0,
+                "dual_citation_rate": 0.0,
+                "unsourced_sentence_ratio": 0.0,
+            }
+            yield "citations", no_evidence_citations
+            async for event in self._yield_done_if_persisted(
+                user_db=user_db,
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                client_turn_id=client_turn_id,
+                query=query,
+                answer_text=NO_EVIDENCE_MESSAGE,
+                citations=no_evidence_citations,
+                status="no-evidence",
+            ):
+                yield event
             return
 
         issuance = build_issuance_map(result.evidence)
@@ -391,18 +464,26 @@ class AskService:
         if template is None:
             # 0006 시드가 적용되지 않았다는 뜻 — 진행할 프롬프트 자체가 없다.
             yield "meta", {"template_id": None}
-            yield (
-                "citations",
-                {
-                    "error": "ask_template_unavailable",
-                    "resolved": [],
-                    "cited_anchor_count": 0,
-                    "fabricated_anchor_count": 0,
-                    "dual_citation_rate": 0.0,
-                    "unsourced_sentence_ratio": 0.0,
-                },
-            )
-            yield "done", {}
+            error_citations = {
+                "error": "ask_template_unavailable",
+                "resolved": [],
+                "cited_anchor_count": 0,
+                "fabricated_anchor_count": 0,
+                "dual_citation_rate": 0.0,
+                "unsourced_sentence_ratio": 0.0,
+            }
+            yield "citations", error_citations
+            async for event in self._yield_done_if_persisted(
+                user_db=user_db,
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                client_turn_id=client_turn_id,
+                query=query,
+                answer_text="",
+                citations=error_citations,
+                status="error",
+            ):
+                yield event
             return
 
         wiki_context, source_context = _context_blocks(result.evidence, issuance, content_by_id)
@@ -431,18 +512,26 @@ class AskService:
                 ],
             ) as upstream:
                 if upstream.status_code >= 400:
-                    yield (
-                        "citations",
-                        {
-                            "error": _error_token(upstream.status_code),
-                            "resolved": [],
-                            "cited_anchor_count": 0,
-                            "fabricated_anchor_count": 0,
-                            "dual_citation_rate": 0.0,
-                            "unsourced_sentence_ratio": 0.0,
-                        },
-                    )
-                    yield "done", {}
+                    error_citations = {
+                        "error": _error_token(upstream.status_code),
+                        "resolved": [],
+                        "cited_anchor_count": 0,
+                        "fabricated_anchor_count": 0,
+                        "dual_citation_rate": 0.0,
+                        "unsourced_sentence_ratio": 0.0,
+                    }
+                    yield "citations", error_citations
+                    async for event in self._yield_done_if_persisted(
+                        user_db=user_db,
+                        workspace_id=workspace_id,
+                        thread_id=thread_id,
+                        client_turn_id=client_turn_id,
+                        query=query,
+                        answer_text="",
+                        citations=error_citations,
+                        status="error",
+                    ):
+                        yield event
                     return
                 async for line in upstream.aiter_lines():
                     if not line.startswith("data: ") or line == "data: [DONE]":
@@ -459,31 +548,47 @@ class AskService:
             raise
         except (RuntimeError, httpx.HTTPError):
             # 설정 부재(RuntimeError) 또는 전송 계층 실패 — 둘 다 provider 미가용으로 다룬다.
-            yield (
-                "citations",
-                {
-                    "error": "llm_unavailable",
-                    "resolved": [],
-                    "cited_anchor_count": 0,
-                    "fabricated_anchor_count": 0,
-                    "dual_citation_rate": 0.0,
-                    "unsourced_sentence_ratio": 0.0,
-                },
-            )
-            yield "done", {}
+            error_citations = {
+                "error": "llm_unavailable",
+                "resolved": [],
+                "cited_anchor_count": 0,
+                "fabricated_anchor_count": 0,
+                "dual_citation_rate": 0.0,
+                "unsourced_sentence_ratio": 0.0,
+            }
+            yield "citations", error_citations
+            async for event in self._yield_done_if_persisted(
+                user_db=user_db,
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                client_turn_id=client_turn_id,
+                query=query,
+                answer_text="",
+                citations=error_citations,
+                status="error",
+            ):
+                yield event
             return
 
         full_text = "".join(accumulated)
         resolution = resolve_citations(full_text, issuance)
-        yield (
-            "citations",
-            {
-                "text": resolution.rendered_text,
-                "resolved": resolution.resolved,
-                "cited_anchor_count": resolution.cited_anchor_count,
-                "fabricated_anchor_count": resolution.fabricated_anchor_count,
-                "dual_citation_rate": resolution.dual_citation_rate,
-                "unsourced_sentence_ratio": resolution.unsourced_sentence_ratio,
-            },
-        )
-        yield "done", {}
+        success_citations = {
+            "text": resolution.rendered_text,
+            "resolved": resolution.resolved,
+            "cited_anchor_count": resolution.cited_anchor_count,
+            "fabricated_anchor_count": resolution.fabricated_anchor_count,
+            "dual_citation_rate": resolution.dual_citation_rate,
+            "unsourced_sentence_ratio": resolution.unsourced_sentence_ratio,
+        }
+        yield "citations", success_citations
+        async for event in self._yield_done_if_persisted(
+            user_db=user_db,
+            workspace_id=workspace_id,
+            thread_id=thread_id,
+            client_turn_id=client_turn_id,
+            query=query,
+            answer_text=resolution.rendered_text,
+            citations=success_citations,
+            status="resolved",
+        ):
+            yield event
