@@ -114,8 +114,8 @@ export function InviteForm({
             </strong>
             <span>
               팀원을 초대하여 함께 지식을 관리하려면 <strong>[일반]</strong>{" "}
-              설정 탭에서 워크스페이스 유형을 <strong>'팀 워크스페이스'</strong>
-              로 변경하세요.
+              설정 탭에서 워크스페이스 유형을{" "}
+              <strong>&apos;팀 워크스페이스&apos;</strong>로 변경하세요.
             </span>
           </div>
         </div>

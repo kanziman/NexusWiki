@@ -1,4 +1,4 @@
-import { ChevronRight, Plus, Sparkles } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import React from "react";

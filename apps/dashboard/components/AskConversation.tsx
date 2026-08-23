@@ -97,6 +97,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     if (!trimmed || autoSubmittedRef.current) return;
     autoSubmittedRef.current = true;
     void submitQuestion(trimmed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
   useEffect(() => {

@@ -33,35 +33,32 @@ export default async function WorkspaceHomePage({
 
   const supabase = await createClient();
 
-  const [workspaceResult, sourcesResult, pagesResult, linksResult] =
-    await Promise.all([
-      supabase.from("workspaces").select("name").eq("id", workspaceId).single(),
-      supabase
-        .from("raw_sources")
-        .select("id,title,source_type,created_at")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("wiki_pages")
-        // ⚠️ disputed 를 함께 읽는다. 이게 빠지면 lib/verification-label.ts 의
-        // 충돌 우선순위가 이 화면에서만 도달 불가능해져, 충돌 문서가 위키
-        // 라이브러리에서는 "충돌 감지"인데 여기서는 "검증됨"으로 표시된다 —
-        // 목적지마다 같은 상태를 다르게 부르는 바로 그 문제다.
-        // ⚠️ expires_at 도 함께 읽는다. 없으면 만료된 검증이 목록에서 계속
-        // "검증됨"으로 남는다 — 0007 §5 가 명시적으로 금지한 상태다.
-        .select(
-          "id,title,slug,category,verification_status,disputed,expires_at,sources,updated_at,content",
-        )
-        .eq("workspace_id", workspaceId)
-        .order("updated_at", { ascending: false }),
-      supabase
-        .from("wiki_links")
-        .select("id,target_slug,from_wiki_id,created_at")
-        .eq("workspace_id", workspaceId)
-        .eq("resolved", false),
-    ]);
+  const [sourcesResult, pagesResult, linksResult] = await Promise.all([
+    supabase
+      .from("raw_sources")
+      .select("id,title,source_type,created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("wiki_pages")
+      // ⚠️ disputed 를 함께 읽는다. 이게 빠지면 lib/verification-label.ts 의
+      // 충돌 우선순위가 이 화면에서만 도달 불가능해져, 충돌 문서가 위키
+      // 라이브러리에서는 "충돌 감지"인데 여기서는 "검증됨"으로 표시된다 —
+      // 목적지마다 같은 상태를 다르게 부르는 바로 그 문제다.
+      // ⚠️ expires_at 도 함께 읽는다. 없으면 만료된 검증이 목록에서 계속
+      // "검증됨"으로 남는다 — 0007 §5 가 명시적으로 금지한 상태다.
+      .select(
+        "id,title,slug,category,verification_status,disputed,expires_at,sources,updated_at,content",
+      )
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("wiki_links")
+      .select("id,target_slug,from_wiki_id,created_at")
+      .eq("workspace_id", workspaceId)
+      .eq("resolved", false),
+  ]);
 
-  const workspaceName = workspaceResult.data?.name ?? "워크스페이스";
   const rawSources = sourcesResult.data ?? [];
   const rawPages = (pagesResult.data ?? []) as {
     id: string;
