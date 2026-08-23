@@ -7,6 +7,7 @@ const mockSearchParamsGet = vi.hoisted(() =>
 );
 
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: mockUsePathname,
   useSearchParams: () => ({
     get: mockSearchParamsGet,
@@ -172,7 +173,7 @@ describe("WorkspaceSidebar", () => {
     );
 
     const home = screen.getByRole("link", { name: "홈 대시보드" });
-    const settings = screen.getByRole("link", { name: "설정" });
+    const settings = screen.getByRole("link", { name: "팀원 & 역할 관리" });
     const switcher = screen.getByRole("button", {
       name: "테스트 워크스페이스",
     });

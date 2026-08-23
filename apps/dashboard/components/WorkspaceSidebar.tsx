@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   BookOpen,
   CircleAlert,
@@ -13,23 +12,35 @@ import {
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Plus,
   Settings,
   Sparkles,
   Star,
+  Trash2,
   Upload,
   Users,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
-import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
-import { listAskThreads, type AskThreadSummary } from "@/lib/ask-threads";
+import {
+  deleteAskThread,
+  listAskThreads,
+  renameAskThread,
+  type AskThreadSummary,
+} from "@/lib/ask-threads";
 import { workspacePath } from "@/lib/workspace-path";
+import {
+  WorkspaceSwitcher,
+  type WorkspaceSwitcherProps,
+} from "./WorkspaceSwitcher";
 
 export type WorkspaceSidebarProps = {
-  workspaces: { id: string; name: string; kind: "personal" | "team" }[];
+  workspaces: WorkspaceSwitcherProps["workspaces"];
   currentWorkspaceId: string;
-  accountEmail: string;
+  accountEmail?: string;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
   collapsed?: boolean;
@@ -46,12 +57,13 @@ const CATEGORIES = [
 export function WorkspaceSidebar({
   workspaces,
   currentWorkspaceId,
-  accountEmail,
+  accountEmail = "developer@nexuswiki.com",
   isOpenMobile = false,
   onCloseMobile,
   collapsed = false,
   onToggleCollapsed,
 }: WorkspaceSidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const base = workspacePath(currentWorkspaceId);
@@ -62,6 +74,15 @@ export function WorkspaceSidebar({
     searchParams.get("bookmarked") === "true";
 
   const [recentThreads, setRecentThreads] = useState<AskThreadSummary[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<AskThreadSummary | null>(
+    null,
+  );
+  const [renameTarget, setRenameTarget] = useState<AskThreadSummary | null>(
+    null,
+  );
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspaceId) return;
@@ -91,242 +112,414 @@ export function WorkspaceSidebar({
   const isAskSectionActive = pathname.startsWith(`${base}/ask`);
 
   return (
-    <aside
-      // collapsed와 mobile-open을 동시에 걸지 않는다 — 모바일 서랍은 폭이
-      // 이미 고정(position:fixed)이라 collapsed의 아이콘 레일 조판이 필요
-      // 없고, 같이 걸면 서랍 안에서 라벨 없는 아이콘만 보이는 혼란을 만든다.
-      className={`sidebar ${isOpenMobile ? "mobile-open" : ""}${collapsed && !isOpenMobile ? " collapsed" : ""}`}
-      data-od-id="primary-navigation"
-    >
-      <div className="w-full">
-        <WorkspaceSwitcher
-          workspaces={workspaces}
-          currentWorkspaceId={currentWorkspaceId}
-        />
-      </div>
+    <>
+      <aside
+        className={`sidebar ${isOpenMobile ? "mobile-open" : ""}${collapsed && !isOpenMobile ? " collapsed" : ""}`}
+        data-od-id="primary-navigation"
+      >
+        <div className="w-full">
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            currentWorkspaceId={currentWorkspaceId}
+          />
+        </div>
 
-      {onToggleCollapsed && !isOpenMobile ? (
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className="icon-btn"
-          data-od-id="lnb-collapse-toggle"
-          aria-label={collapsed ? "메뉴 펼치기" : "메뉴 접기"}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="nav-icon" aria-hidden="true" />
-          ) : (
-            <PanelLeftClose className="nav-icon" aria-hidden="true" />
-          )}
-        </button>
-      ) : null}
+        {onToggleCollapsed && !isOpenMobile ? (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="icon-btn"
+            data-od-id="lnb-collapse-toggle"
+            aria-label={collapsed ? "메뉴 펼치기" : "메뉴 접기"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="nav-icon" aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="nav-icon" aria-hidden="true" />
+            )}
+          </button>
+        ) : null}
 
-      <nav className="nav-stack" aria-label="주요 메뉴">
-        <Link
-          href={base}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="홈 대시보드"
-          aria-current={
-            pathname === base && !currentCategory ? "page" : undefined
-          }
-          className={`nav-item ${pathname === base && !currentCategory ? "active" : ""}`}
-        >
-          <Compass className="nav-icon" aria-hidden="true" />
-          <span>홈 대시보드</span>
-        </Link>
-
-        <Link
-          href={`${base}/sources`}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="원문 소스"
-          aria-current={
-            pathname.startsWith(`${base}/sources`) ? "page" : undefined
-          }
-          className={`nav-item ${pathname.startsWith(`${base}/sources`) ? "active" : ""}`}
-        >
-          <Upload className="nav-icon" aria-hidden="true" />
-          <span>원문 소스</span>
-        </Link>
-
-        {/* 질문하기 + 새 대화 액션 */}
-        <div className="group/ask flex items-center justify-between">
+        <nav className="nav-stack" aria-label="주요 메뉴">
           <Link
-            href={`${base}/ask`}
+            href={base}
             prefetch={true}
             onClick={handleItemClick}
-            aria-label="질문하기"
+            aria-label="홈 대시보드"
             aria-current={
-              isAskSectionActive && !activeThreadId ? "page" : undefined
+              pathname === base && !currentCategory ? "page" : undefined
             }
-            className={`nav-item flex-1 ${
-              isAskSectionActive && !activeThreadId ? "active" : ""
-            }`}
+            className={`nav-item ${pathname === base && !currentCategory ? "active" : ""}`}
           >
-            <HelpCircle className="nav-icon" aria-hidden="true" />
-            <span>질문하기</span>
+            <Compass className="nav-icon" aria-hidden="true" />
+            <span>홈 대시보드</span>
           </Link>
-          {!collapsed && (
+
+          <Link
+            href={`${base}/sources`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="원문 소스"
+            aria-current={
+              pathname.startsWith(`${base}/sources`) ? "page" : undefined
+            }
+            className={`nav-item ${pathname.startsWith(`${base}/sources`) ? "active" : ""}`}
+          >
+            <Upload className="nav-icon" aria-hidden="true" />
+            <span>원문 소스</span>
+          </Link>
+
+          {/* 질문하기 + 새 대화 액션 */}
+          <div className="group/ask flex items-center justify-between">
             <Link
               href={`${base}/ask`}
               prefetch={true}
               onClick={handleItemClick}
-              className="opacity-0 group-hover/ask:opacity-100 hover:text-[var(--fg)] text-[var(--muted)] p-1 mr-2 rounded-md hover:bg-[var(--surface)] transition-all"
-              title="새 대화 시작"
-              aria-label="새 대화 시작"
+              aria-label="질문하기"
+              aria-current={
+                isAskSectionActive && !activeThreadId ? "page" : undefined
+              }
+              className={`nav-item flex-1 ${
+                isAskSectionActive && !activeThreadId ? "active" : ""
+              }`}
             >
-              <Plus size={13} aria-hidden="true" />
+              <HelpCircle className="nav-icon" aria-hidden="true" />
+              <span>질문하기</span>
             </Link>
-          )}
-        </div>
-
-        {/* ChatGPT 스타일: LNB 최근 대화 이력 목록 */}
-        {!collapsed && recentThreads.length > 0 && (
-          <div
-            className="pl-3 pr-1 py-1 my-0.5 space-y-0.5 border-l border-[var(--border)] ml-4.5"
-            data-testid="sidebar-recent-threads"
-          >
-            <div className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wider px-2 py-0.5">
-              최근 대화
-            </div>
-            {recentThreads.map((thread) => {
-              const isThreadActive =
-                isAskSectionActive && activeThreadId === thread.id;
-              return (
-                <Link
-                  key={thread.id}
-                  href={`${base}/ask?thread=${thread.id}`}
-                  prefetch={true}
-                  onClick={handleItemClick}
-                  title={thread.title}
-                  aria-current={isThreadActive ? "page" : undefined}
-                  className={`group flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] transition-colors truncate ${
-                    isThreadActive
-                      ? "bg-[var(--surface)] text-[var(--accent)] font-semibold shadow-2xs"
-                      : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)]/60 font-normal"
-                  }`}
-                >
-                  <MessageSquare
-                    size={11.5}
-                    className={`flex-none opacity-60 group-hover:opacity-100 ${
-                      isThreadActive ? "text-[var(--accent)] opacity-100" : ""
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate flex-1">{thread.title}</span>
-                </Link>
-              );
-            })}
+            {!collapsed && (
+              <Link
+                href={`${base}/ask`}
+                prefetch={true}
+                onClick={handleItemClick}
+                className="opacity-0 group-hover/ask:opacity-100 hover:text-[var(--fg)] text-[var(--muted)] p-1 mr-2 rounded-md hover:bg-[var(--surface)] transition-all"
+                title="새 대화 시작"
+                aria-label="새 대화 시작"
+              >
+                <Plus size={13} aria-hidden="true" />
+              </Link>
+            )}
           </div>
-        )}
 
-        <Link
-          href={`${base}/wiki`}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="위키 문서"
-          aria-current={
-            pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive
-              ? "page"
-              : undefined
-          }
-          className={`nav-item ${pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive ? "active" : ""}`}
-        >
-          <FileText className="nav-icon" aria-hidden="true" />
-          <span>위키 문서</span>
-        </Link>
-
-        <Link
-          href={`${base}/backlog`}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="미완성 백로그"
-          aria-current={
-            pathname.startsWith(`${base}/backlog`) ? "page" : undefined
-          }
-          className={`nav-item ${pathname.startsWith(`${base}/backlog`) ? "active" : ""}`}
-        >
-          <CircleAlert className="nav-icon" aria-hidden="true" />
-          <span>미완성 백로그</span>
-        </Link>
-
-        <Link
-          href={`${base}/wiki?bookmarked=true`}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="즐겨찾기"
-          aria-current={isBookmarkedFilterActive ? "page" : undefined}
-          className={`nav-item ${isBookmarkedFilterActive ? "active" : ""}`}
-        >
-          <Star className="nav-icon" aria-hidden="true" />
-          <span>즐겨찾기</span>
-        </Link>
-
-        <div className="nav-label" aria-hidden="true">
-          <span>카테고리</span>
-        </div>
-
-        {CATEGORIES.map(({ slug, label, icon: Icon }) => {
-          const isCategoryActive =
-            pathname === base && currentCategory === slug;
-          const href = `${base}?category=${slug}`;
-
-          return (
-            <Link
-              key={slug}
-              href={href}
-              prefetch={true}
-              onClick={handleItemClick}
-              data-category={slug}
-              aria-label={label}
-              aria-current={isCategoryActive ? "page" : undefined}
-              className={`nav-item ${isCategoryActive ? "active" : ""}`}
+          {/* ChatGPT 스타일: LNB 최근 대화 이력 목록 */}
+          {!collapsed && recentThreads.length > 0 && (
+            <div
+              className="pl-3 pr-1 py-1 my-0.5 space-y-0.5 border-l border-[var(--border)] ml-4.5"
+              data-testid="sidebar-recent-threads"
             >
-              <Icon className="nav-icon" aria-hidden="true" />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
+              <div className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wider px-2 py-0.5">
+                최근 대화
+              </div>
+              {recentThreads.map((thread) => {
+                const isThreadActive =
+                  isAskSectionActive && activeThreadId === thread.id;
+                return (
+                  <div
+                    key={thread.id}
+                    className={`group/thread relative flex items-center justify-between gap-1 px-2 py-1 rounded-md text-[11.5px] transition-colors ${
+                      isThreadActive
+                        ? "bg-[var(--surface)] text-[var(--accent)] font-semibold shadow-2xs"
+                        : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)]/60 font-normal"
+                    }`}
+                  >
+                    <Link
+                      href={`${base}/ask?thread=${thread.id}`}
+                      prefetch={true}
+                      onClick={handleItemClick}
+                      title={thread.title}
+                      aria-current={isThreadActive ? "page" : undefined}
+                      className="flex items-center gap-1.5 min-w-0 flex-1 truncate"
+                    >
+                      <MessageSquare
+                        size={11.5}
+                        className={`flex-none opacity-60 group-hover/thread:opacity-100 ${
+                          isThreadActive
+                            ? "text-[var(--accent)] opacity-100"
+                            : ""
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate flex-1">{thread.title}</span>
+                    </Link>
 
-        <div className="nav-label" aria-hidden="true">
-          <span>팀 관리</span>
-        </div>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover/thread:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        className="p-0.5 rounded text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--bg)]"
+                        title="이름 바꾸기"
+                        aria-label={`${thread.title} 대화 이름 바꾸기`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenameTarget(thread);
+                          setRenameTitle(thread.title);
+                          setRenameError(null);
+                        }}
+                      >
+                        <Pencil size={10.5} aria-hidden="true" />
+                        <span className="sr-only">이름 바꾸기</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="p-0.5 rounded text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--bg)]"
+                        title="삭제"
+                        aria-label={`${thread.title} 대화 삭제`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(thread);
+                        }}
+                      >
+                        <Trash2 size={10.5} aria-hidden="true" />
+                        <span className="sr-only">삭제</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-        <Link
-          href={`${base}/settings`}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="팀원 & 역할 관리"
-          aria-current={
-            pathname.startsWith(`${base}/settings`) ? "page" : undefined
-          }
-          className={`nav-item ${pathname.startsWith(`${base}/settings`) ? "active" : ""}`}
+          <Link
+            href={`${base}/wiki`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="위키 문서"
+            aria-current={
+              pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive
+                ? "page"
+                : undefined
+            }
+            className={`nav-item ${pathname.startsWith(`${base}/wiki`) && !isBookmarkedFilterActive ? "active" : ""}`}
+          >
+            <FileText className="nav-icon" aria-hidden="true" />
+            <span>위키 문서</span>
+          </Link>
+
+          <Link
+            href={`${base}/backlog`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="미완성 백로그"
+            aria-current={
+              pathname.startsWith(`${base}/backlog`) ? "page" : undefined
+            }
+            className={`nav-item ${pathname.startsWith(`${base}/backlog`) ? "active" : ""}`}
+          >
+            <CircleAlert className="nav-icon" aria-hidden="true" />
+            <span>미완성 백로그</span>
+          </Link>
+
+          <Link
+            href={`${base}/wiki?bookmarked=true`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="즐겨찾기"
+            aria-current={isBookmarkedFilterActive ? "page" : undefined}
+            className={`nav-item ${isBookmarkedFilterActive ? "active" : ""}`}
+          >
+            <Star className="nav-icon" aria-hidden="true" />
+            <span>즐겨찾기</span>
+          </Link>
+
+          <div className="nav-label" aria-hidden="true">
+            <span>카테고리</span>
+          </div>
+
+          {CATEGORIES.map(({ slug, label, icon: Icon }) => {
+            const isCategoryActive =
+              pathname === base && currentCategory === slug;
+            const href = `${base}?category=${slug}`;
+
+            return (
+              <Link
+                key={slug}
+                href={href}
+                prefetch={true}
+                onClick={handleItemClick}
+                data-category={slug}
+                aria-label={label}
+                aria-current={isCategoryActive ? "page" : undefined}
+                className={`nav-item ${isCategoryActive ? "active" : ""}`}
+              >
+                <Icon className="nav-icon" aria-hidden="true" />
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+
+          <div className="nav-label" aria-hidden="true">
+            <span>팀 관리</span>
+          </div>
+
+          <Link
+            href={`${base}/settings`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="팀원 & 역할 관리"
+            aria-current={
+              pathname.startsWith(`${base}/settings`) ? "page" : undefined
+            }
+            className={`nav-item ${pathname.startsWith(`${base}/settings`) ? "active" : ""}`}
+          >
+            <Users className="nav-icon" aria-hidden="true" />
+            <span>팀원 &amp; 역할 관리</span>
+          </Link>
+        </nav>
+
+        <div
+          className="profile"
+          data-od-id="user-profile"
+          aria-label={accountEmail}
         >
-          <Users className="nav-icon" aria-hidden="true" />
-          <span>팀원 &amp; 역할 관리</span>
-        </Link>
-      </nav>
+          <div className="avatar">{initial}</div>
+          <div className="profile-text">
+            <strong className="truncate">{accountEmail.split("@")[0]}</strong>
+            <span className="truncate">{accountEmail}</span>
+          </div>
+          <Link
+            href={`${base}/settings`}
+            onClick={handleItemClick}
+            className="icon-btn"
+            aria-label="설정"
+          >
+            <Settings className="nav-icon" aria-hidden="true" />
+          </Link>
+        </div>
+      </aside>
 
-      <div
-        className="profile"
-        data-od-id="user-profile"
-        aria-label={accountEmail}
+      {/* LNB 최근 대화 삭제 모달 */}
+      <Dialog.Root
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
       >
-        <div className="avatar">{initial}</div>
-        <div className="profile-text">
-          <strong className="truncate">{accountEmail.split("@")[0]}</strong>
-          <span className="truncate">{accountEmail}</span>
-        </div>
-        <Link
-          href={`${base}/settings`}
-          onClick={handleItemClick}
-          className="icon-btn"
-          aria-label="설정"
-        >
-          <Settings className="nav-icon" aria-hidden="true" />
-        </Link>
-      </div>
-    </aside>
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
+          <Dialog.Content className="modal fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
+            <div className="modal-head mb-4">
+              <Dialog.Title className="text-base font-bold text-[var(--fg)]">
+                대화 삭제
+              </Dialog.Title>
+            </div>
+            <Dialog.Description className="text-xs text-[var(--muted)] mb-3">
+              {deleteTarget
+                ? `'${deleteTarget.title}' 대화를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
+                : ""}
+            </Dialog.Description>
+            <div className="modal-foot flex items-center justify-end gap-2 mt-4">
+              <Dialog.Close asChild>
+                <button type="button" className="button compact">
+                  취소
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                className="button compact danger"
+                onClick={() => {
+                  if (!deleteTarget) return;
+                  const target = deleteTarget;
+                  void deleteAskThread(currentWorkspaceId, target.id).then(
+                    () => {
+                      setRecentThreads((prev) =>
+                        prev.filter((row) => row.id !== target.id),
+                      );
+                      if (activeThreadId === target.id) {
+                        router.push(`${base}/ask`);
+                      }
+                      setDeleteTarget(null);
+                    },
+                  );
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* LNB 최근 대화 이름 변경 모달 */}
+      <Dialog.Root
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+            setRenameTitle("");
+            setRenameError(null);
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
+          <Dialog.Content className="modal fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
+            <div className="modal-head mb-4">
+              <Dialog.Title className="text-base font-bold text-[var(--fg)]">
+                대화 이름 변경
+              </Dialog.Title>
+            </div>
+            <Dialog.Description className="text-xs text-[var(--muted)] mb-3">
+              대화의 새로운 제목을 입력하세요.
+            </Dialog.Description>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!renameTarget || !renameTitle.trim() || renameSubmitting)
+                  return;
+                setRenameSubmitting(true);
+                setRenameError(null);
+                renameAskThread(
+                  currentWorkspaceId,
+                  renameTarget.id,
+                  renameTitle.trim(),
+                )
+                  .then((row) => {
+                    setRecentThreads((prev) =>
+                      prev.map((item) => (item.id === row.id ? row : item)),
+                    );
+                    setRenameTarget(null);
+                    setRenameTitle("");
+                  })
+                  .catch(() => {
+                    setRenameError(
+                      "이름을 변경하지 못했습니다. 다시 시도해주세요.",
+                    );
+                  })
+                  .finally(() => {
+                    setRenameSubmitting(false);
+                  });
+              }}
+            >
+              <input
+                type="text"
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+                placeholder="대화 제목"
+                className="w-full px-3 py-2 text-xs rounded-md border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)] outline-none focus:border-[var(--accent)] transition-all mb-2"
+                autoFocus
+              />
+              {renameError && (
+                <p className="text-xs text-[var(--danger)] mb-3">
+                  {renameError}
+                </p>
+              )}
+              <div className="modal-foot flex items-center justify-end gap-2 mt-4">
+                <Dialog.Close asChild>
+                  <button type="button" className="button compact">
+                    취소
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  className="button compact primary"
+                  disabled={!renameTitle.trim() || renameSubmitting}
+                >
+                  {renameSubmitting ? "변경 중..." : "변경"}
+                </button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
   );
 }
