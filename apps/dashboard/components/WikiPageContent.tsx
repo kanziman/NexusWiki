@@ -162,29 +162,29 @@ export function WikiPageContent({
   return (
     <div className="reader-layout">
       <article className="reader">
-        {/* 상단 네비게이션: 뒤로가기 + 브레드크럼 경로 */}
-        <div className="flex items-center gap-2.5 mb-2.5">
+        {/* 상단 브레드크럼 네비게이션: 뒤로가기 + 현재 카테고리 경로 */}
+        <nav
+          aria-label="위키 탐색 경로"
+          className="flex items-center gap-1.5 mb-3 text-xs text-[var(--muted)]"
+        >
           <Link
             href={`${workspacePath(workspaceId)}/wiki`}
-            className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--fg)] transition-colors py-0.5 px-1.5 -ml-1.5 rounded hover:bg-[var(--surface)] font-medium"
+            className="inline-flex items-center gap-1.5 py-1 px-2 -ml-2 rounded-md hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors font-medium text-xs leading-none text-[var(--muted)]"
             aria-label="위키 목록으로 돌아가기"
           >
-            <ArrowLeft size={13} aria-hidden="true" />
+            <ArrowLeft size={13} className="shrink-0" aria-hidden="true" />
             <span>위키 목록</span>
           </Link>
           <span
-            className="text-[var(--border-strong)] opacity-50 font-mono text-xs select-none"
+            className="text-[var(--border-strong)] opacity-60 select-none text-[11px] leading-none"
             aria-hidden="true"
           >
             /
           </span>
-          <nav
-            aria-label="위키 탐색 경로"
-            className="breadcrumb-path m-0 text-xs"
-          >
+          <span className="font-semibold text-[var(--fg)] text-xs leading-none">
             {categoryLabel}
-          </nav>
-        </div>
+          </span>
+        </nav>
 
         {/* 문서 타이틀 + 즐겨찾기 */}
         <div className="title-row">
