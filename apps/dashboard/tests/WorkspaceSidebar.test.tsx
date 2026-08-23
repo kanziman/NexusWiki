@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/w/ws-1"));
@@ -23,6 +23,23 @@ vi.mock("@/components/WorkspaceSwitcher", () => ({
       {workspaces[0]?.name}
     </button>
   ),
+}));
+
+vi.mock("@/lib/ask-threads", () => ({
+  listAskThreads: vi.fn(async () => [
+    {
+      id: "thread-101",
+      title: "최근 질문 1",
+      created_at: "2026-08-23T00:00:00Z",
+      updated_at: "2026-08-23T00:00:00Z",
+    },
+    {
+      id: "thread-102",
+      title: "최근 질문 2",
+      created_at: "2026-08-23T00:00:00Z",
+      updated_at: "2026-08-23T00:00:00Z",
+    },
+  ]),
 }));
 
 import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
@@ -68,6 +85,18 @@ describe("WorkspaceSidebar", () => {
     expect(screen.getByText("D")).toBeInTheDocument();
     expect(screen.getByText("developer")).toBeInTheDocument();
     expect(screen.getByText("developer@nexuswiki.com")).toBeInTheDocument();
+  });
+
+  it("LNB에서 최근 대화 목록을 렌더링하고 클릭 시 해당 스레드로 이동 링크를 제공한다", async () => {
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("최근 질문 1")).toBeInTheDocument();
+      expect(screen.getByText("최근 질문 2")).toBeInTheDocument();
+    });
+
+    const threadLink = screen.getByRole("link", { name: /최근 질문 1/ });
+    expect(threadLink).toHaveAttribute("href", "/w/ws-1/ask?thread=thread-101");
   });
 
   it("marks active link based on pathname", () => {

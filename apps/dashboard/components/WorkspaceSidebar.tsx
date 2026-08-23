@@ -10,16 +10,20 @@ import {
   HelpCircle,
   Layers,
   Map,
+  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Settings,
   Sparkles,
   Star,
   Upload,
   Users,
 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { listAskThreads, type AskThreadSummary } from "@/lib/ask-threads";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WorkspaceSidebarProps = {
@@ -52,9 +56,28 @@ export function WorkspaceSidebar({
   const searchParams = useSearchParams();
   const base = workspacePath(currentWorkspaceId);
   const currentCategory = searchParams.get("category");
+  const activeThreadId = searchParams.get("thread");
   const isBookmarkedFilterActive =
     pathname.startsWith(`${base}/wiki`) &&
     searchParams.get("bookmarked") === "true";
+
+  const [recentThreads, setRecentThreads] = useState<AskThreadSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listAskThreads(currentWorkspaceId)
+      .then((rows) => {
+        if (!cancelled && Array.isArray(rows)) {
+          setRecentThreads(rows.slice(0, 5));
+        }
+      })
+      .catch(() => {
+        // 백엔드 오류 시 사이드바는 조용히 기본 네비게이션 유지
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentWorkspaceId, pathname]);
 
   const initial = accountEmail ? accountEmail.charAt(0).toUpperCase() : "W";
 
@@ -63,6 +86,8 @@ export function WorkspaceSidebar({
       onCloseMobile();
     }
   }
+
+  const isAskSectionActive = pathname.startsWith(`${base}/ask`);
 
   return (
     <aside
@@ -124,17 +149,76 @@ export function WorkspaceSidebar({
           <span>원문 소스</span>
         </Link>
 
-        <Link
-          href={`${base}/ask`}
-          prefetch={true}
-          onClick={handleItemClick}
-          aria-label="질문하기"
-          aria-current={pathname.startsWith(`${base}/ask`) ? "page" : undefined}
-          className={`nav-item ${pathname.startsWith(`${base}/ask`) ? "active" : ""}`}
-        >
-          <HelpCircle className="nav-icon" aria-hidden="true" />
-          <span>질문하기</span>
-        </Link>
+        {/* 질문하기 + 새 대화 액션 */}
+        <div className="group/ask flex items-center justify-between">
+          <Link
+            href={`${base}/ask`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="질문하기"
+            aria-current={
+              isAskSectionActive && !activeThreadId ? "page" : undefined
+            }
+            className={`nav-item flex-1 ${
+              isAskSectionActive && !activeThreadId ? "active" : ""
+            }`}
+          >
+            <HelpCircle className="nav-icon" aria-hidden="true" />
+            <span>질문하기</span>
+          </Link>
+          {!collapsed && (
+            <Link
+              href={`${base}/ask`}
+              prefetch={true}
+              onClick={handleItemClick}
+              className="opacity-0 group-hover/ask:opacity-100 hover:text-[var(--fg)] text-[var(--muted)] p-1 mr-2 rounded-md hover:bg-[var(--surface)] transition-all"
+              title="새 대화 시작"
+              aria-label="새 대화 시작"
+            >
+              <Plus size={13} aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+
+        {/* ChatGPT 스타일: LNB 최근 대화 이력 목록 */}
+        {!collapsed && recentThreads.length > 0 && (
+          <div
+            className="pl-3 pr-1 py-1 my-0.5 space-y-0.5 border-l border-[var(--border)] ml-4.5"
+            data-testid="sidebar-recent-threads"
+          >
+            <div className="text-[10px] font-semibold text-[var(--muted)] uppercase tracking-wider px-2 py-0.5">
+              최근 대화
+            </div>
+            {recentThreads.map((thread) => {
+              const isThreadActive =
+                isAskSectionActive && activeThreadId === thread.id;
+              return (
+                <Link
+                  key={thread.id}
+                  href={`${base}/ask?thread=${thread.id}`}
+                  prefetch={true}
+                  onClick={handleItemClick}
+                  title={thread.title}
+                  aria-current={isThreadActive ? "page" : undefined}
+                  className={`group flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] transition-colors truncate ${
+                    isThreadActive
+                      ? "bg-[var(--surface)] text-[var(--accent)] font-semibold shadow-2xs"
+                      : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)]/60 font-normal"
+                  }`}
+                >
+                  <MessageSquare
+                    size={11.5}
+                    className={`flex-none opacity-60 group-hover:opacity-100 ${
+                      isThreadActive ? "text-[var(--accent)] opacity-100" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate flex-1">{thread.title}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         <Link
           href={`${base}/wiki`}

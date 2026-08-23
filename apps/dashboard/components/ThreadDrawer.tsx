@@ -1,6 +1,7 @@
 "use client";
 
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
+import React from "react";
 
 import { formatRelativeTime } from "@/lib/relative-time";
 import type { AskThreadSummary } from "@/lib/ask-threads";
@@ -32,103 +33,149 @@ export function ThreadDrawer({
   onRename,
   onDelete,
 }: ThreadDrawerProps) {
+  if (!open) return null;
+
   return (
     <>
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label={open ? "대화 목록 닫기" : "대화 목록 열기"}
-        aria-expanded={open}
-        onClick={() => onOpenChange(!open)}
+      {/* 모바일 / 좁은 화면용 스크림 오버레이 */}
+      <div
+        className="thread-drawer-scrim fixed inset-0 z-20 bg-black/30 backdrop-blur-2xs lg:hidden"
+        onClick={() => onOpenChange(false)}
+        aria-hidden="true"
+      />
+
+      <aside
+        className="thread-drawer open flex flex-col h-full w-[280px] shrink-0 border-r border-[var(--border)] bg-[var(--bg)] z-30 transition-all select-none"
+        aria-label="대화 이력 사이드바"
       >
-        {open ? (
-          <PanelLeftClose aria-hidden="true" size={18} />
-        ) : (
-          <PanelLeftOpen aria-hidden="true" size={18} />
-        )}
-      </button>
-      {open ? (
-        <div
-          className="thread-drawer-scrim"
-          onClick={() => onOpenChange(false)}
-        />
-      ) : null}
-      <div className={`thread-drawer ${open ? "open" : ""}`} hidden={!open}>
-        <div className="thread-drawer-head">
-          <b>대화 목록</b>
-          <button type="button" className="button compact" onClick={onNew}>
-            새 대화
+        {/* 드로어 상단 헤더: 타이틀 + 새 대화 버튼 */}
+        <div className="thread-drawer-head flex items-center justify-between p-3.5 border-b border-[var(--border)] shrink-0 bg-[var(--bg)]">
+          <div className="flex items-center gap-2">
+            <MessageSquare
+              size={15}
+              className="text-[var(--accent)]"
+              aria-hidden="true"
+            />
+            <b className="text-xs font-bold text-[var(--fg)] tracking-tight">
+              대화 목록
+            </b>
+          </div>
+          <button
+            type="button"
+            className="button compact inline-flex items-center gap-1 text-xs font-semibold py-1 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--accent)] hover:text-white hover:border-[var(--accent)] transition-all shadow-2xs"
+            onClick={onNew}
+          >
+            <Plus size={12} aria-hidden="true" />
+            <span>새 대화</span>
           </button>
         </div>
-        {loading ? (
-          <div
-            data-testid="thread-list-loading"
-            className="thread-list-skeleton"
-          >
-            <span />
-            <span />
-            <span />
-          </div>
-        ) : error ? (
-          <div className="answer notice" role="alert">
-            <p>대화 목록을 불러오지 못했습니다.</p>
-            <button type="button" className="button compact" onClick={onRetry}>
-              다시 시도
-            </button>
-          </div>
-        ) : threads.length === 0 ? (
-          <p className="thread-list-empty">아직 나눈 대화가 없습니다</p>
-        ) : (
-          <div role="listbox" aria-label="대화 목록" className="thread-list">
-            {threads.map((thread) => (
-              <div
-                key={thread.id}
-                role="option"
-                aria-selected={thread.id === activeThreadId}
-                tabIndex={thread.id === activeThreadId ? 0 : -1}
-                className={`thread-list-item ${thread.id === activeThreadId ? "active" : ""}`}
-                onClick={() => onSelect(thread.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelect(thread.id);
-                  }
-                }}
+
+        {/* 스레드 리스트 영역 */}
+        <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
+          {loading ? (
+            <div
+              data-testid="thread-list-loading"
+              className="thread-list-skeleton p-2 space-y-2"
+            >
+              <div className="h-11 rounded-lg bg-[var(--surface)] animate-pulse" />
+              <div className="h-11 rounded-lg bg-[var(--surface)] animate-pulse" />
+              <div className="h-11 rounded-lg bg-[var(--surface)] animate-pulse" />
+            </div>
+          ) : error ? (
+            <div className="answer notice p-3 text-xs" role="alert">
+              <p className="mb-2 text-[var(--danger)]">
+                대화 목록을 불러오지 못했습니다.
+              </p>
+              <button
+                type="button"
+                className="button compact text-xs"
+                onClick={onRetry}
               >
-                <span className="thread-list-title">{thread.title}</span>
-                <span className="thread-list-time">
-                  {formatRelativeTime(thread.updated_at)}
-                </span>
-                <span className="thread-list-actions">
-                  <button
-                    type="button"
-                    className="button compact"
-                    aria-label={`${thread.title} 대화 이름 바꾸기`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      const next = window.prompt("이름 바꾸기", thread.title);
-                      if (next && next.trim()) onRename(thread.id, next.trim());
+                다시 시도
+              </button>
+            </div>
+          ) : threads.length === 0 ? (
+            <div className="py-12 px-4 text-center">
+              <p className="thread-list-empty text-xs text-[var(--muted)]">
+                아직 나눈 대화가 없습니다
+              </p>
+            </div>
+          ) : (
+            <div
+              role="listbox"
+              aria-label="대화 목록"
+              className="thread-list space-y-1"
+            >
+              {threads.map((thread) => {
+                const isActive = thread.id === activeThreadId;
+                return (
+                  <div
+                    key={thread.id}
+                    role="option"
+                    aria-selected={isActive}
+                    tabIndex={isActive ? 0 : -1}
+                    className={`thread-list-item group relative flex flex-col gap-1 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                      isActive
+                        ? "active bg-[var(--surface)] border-[var(--border-strong)] text-[var(--fg)] shadow-xs"
+                        : "border-transparent hover:border-[var(--border)] hover:bg-[var(--surface)]/60 text-[var(--muted)] hover:text-[var(--fg)]"
+                    }`}
+                    onClick={() => onSelect(thread.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelect(thread.id);
+                      }
                     }}
                   >
-                    이름 바꾸기
-                  </button>
-                  <button
-                    type="button"
-                    className="button compact danger"
-                    aria-label={`${thread.title} 대화 옵션`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDelete(thread.id, thread.title);
-                    }}
-                  >
-                    삭제
-                  </button>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                    <span className="thread-list-title text-xs font-semibold truncate block pr-1 leading-snug">
+                      {thread.title}
+                    </span>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className="thread-list-time text-[10.5px] font-mono text-[var(--muted)] opacity-80">
+                        {formatRelativeTime(thread.updated_at)}
+                      </span>
+                      <span className="thread-list-actions flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          className="button compact p-1 text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--bg)] rounded"
+                          aria-label={`${thread.title} 대화 이름 바꾸기`}
+                          title="이름 바꾸기"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const next = window.prompt(
+                              "이름 바꾸기",
+                              thread.title,
+                            );
+                            if (next && next.trim()) {
+                              onRename(thread.id, next.trim());
+                            }
+                          }}
+                        >
+                          <Pencil size={11} aria-hidden="true" />
+                          <span className="sr-only">이름 바꾸기</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="button compact danger p-1 text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--bg)] rounded"
+                          aria-label={`${thread.title} 대화 옵션`}
+                          title="삭제"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDelete(thread.id, thread.title);
+                          }}
+                        >
+                          <Trash2 size={11} aria-hidden="true" />
+                          <span className="sr-only">삭제</span>
+                        </button>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </aside>
     </>
   );
 }
