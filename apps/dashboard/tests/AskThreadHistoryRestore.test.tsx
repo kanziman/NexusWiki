@@ -110,4 +110,73 @@ describe("AskThreadHistoryRestore", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("저장된 답변")).toBeInTheDocument();
   });
+
+  it("저장된 no-evidence 턴은 placeholder 없이 경고 카드로 복원된다", async () => {
+    apiFetch.mockImplementation(async (path: string) => {
+      if (path.endsWith("/ask/threads")) return [];
+      if (path.endsWith("/ask/threads/thread-1")) {
+        return {
+          id: "thread-1",
+          title: "무근거",
+          created_at: "2026-08-23T00:00:00Z",
+          updated_at: "2026-08-23T00:00:00Z",
+          messages: [
+            {
+              id: "m-empty",
+              client_turn_id: "c-empty",
+              question: "없는 내용?",
+              answer_text: "근거를 찾지 못했습니다.",
+              citations: { text: "근거를 찾지 못했습니다.", resolved: [] },
+              status: "no-evidence",
+              created_at: "2026-08-23T00:00:00Z",
+            },
+          ],
+        };
+      }
+      return [];
+    });
+
+    render(<AskConversation workspaceId="ws-1" />);
+    expect(await screen.findByTestId("no-evidence-card")).toHaveTextContent(
+      "근거를 찾지 못했습니다.",
+    );
+    expect(
+      screen.queryByTestId("citation-marker-placeholder"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("저장된 error 턴은 placeholder 없이 재시도 카드로 복원된다", async () => {
+    apiFetch.mockImplementation(async (path: string) => {
+      if (path.endsWith("/ask/threads")) return [];
+      if (path.endsWith("/ask/threads/thread-1")) {
+        return {
+          id: "thread-1",
+          title: "오류",
+          created_at: "2026-08-23T00:00:00Z",
+          updated_at: "2026-08-23T00:00:00Z",
+          messages: [
+            {
+              id: "m-err",
+              client_turn_id: "c-err",
+              question: "실패 질문",
+              answer_text: "",
+              citations: { text: "", resolved: [] },
+              status: "error",
+              created_at: "2026-08-23T00:00:00Z",
+            },
+          ],
+        };
+      }
+      return [];
+    });
+
+    render(<AskConversation workspaceId="ws-1" />);
+    expect(await screen.findByTestId("ask-error-card")).toHaveTextContent(
+      "질문에 답하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    );
+    expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("citation-marker-placeholder"),
+    ).not.toBeInTheDocument();
+  });
 });

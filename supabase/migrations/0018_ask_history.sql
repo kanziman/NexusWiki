@@ -84,7 +84,7 @@ create table public.ask_messages (
   citations      jsonb not null default '{"text":"","resolved":[]}'::jsonb,
   status         text not null check (status in ('resolved', 'no-evidence', 'error')),
   created_at     timestamptz not null default now(),
-  unique (thread_id, client_turn_id),
+  constraint ask_messages_turn_key unique (thread_id, client_turn_id),
   constraint ask_messages_thread_fkey
     foreign key (thread_id, workspace_id)
     references public.ask_threads (id, workspace_id) on delete cascade
@@ -212,7 +212,9 @@ begin
     coalesce(p_citations, '{"text":"","resolved":[]}'::jsonb),
     p_status
   )
-  on conflict (thread_id, client_turn_id) do nothing
+  -- ⚠️ RETURNS TABLE의 출력 컬럼명이 thread_id라 on conflict (thread_id)가
+  --    변수와 모호해진다. 제약 이름으로만 지정한다.
+  on conflict on constraint ask_messages_turn_key do nothing
   returning id into v_message_id;
 
   if v_message_id is null then
@@ -223,7 +225,9 @@ begin
        and m.client_turn_id = p_client_turn_id;
   end if;
 
-  return query select v_thread_id, v_message_id;
+  thread_id := v_thread_id;
+  message_id := v_message_id;
+  return next;
 end;
 $$;
 
