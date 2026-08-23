@@ -17,6 +17,7 @@ export type ThreadDrawerProps = {
   onSelect: (threadId: string) => void;
   onNew: () => void;
   onRename: (threadId: string, title: string) => void;
+  onRequestRename?: (threadId: string, currentTitle: string) => void;
   onDelete: (threadId: string, title: string) => void;
 };
 
@@ -31,9 +32,39 @@ export function ThreadDrawer({
   onSelect,
   onNew,
   onRename,
+  onRequestRename,
   onDelete,
 }: ThreadDrawerProps) {
   if (!open) return null;
+
+  function handleRenameClick(
+    event: React.MouseEvent,
+    thread: AskThreadSummary,
+  ) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    try {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.prompt === "function"
+      ) {
+        const next = window.prompt("이름 바꾸기", thread.title);
+        if (next !== null && next !== undefined) {
+          if (next.trim().length > 0) {
+            onRename(thread.id, next.trim());
+          }
+          return;
+        }
+      }
+    } catch {
+      // window.prompt 미지원 또는 에러 발생 시 모달 fallback
+    }
+
+    if (onRequestRename) {
+      onRequestRename(thread.id, thread.title);
+    }
+  }
 
   return (
     <>
@@ -140,16 +171,7 @@ export function ThreadDrawer({
                           className="button compact p-1 text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--bg)] rounded"
                           aria-label={`${thread.title} 대화 이름 바꾸기`}
                           title="이름 바꾸기"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            const next = window.prompt(
-                              "이름 바꾸기",
-                              thread.title,
-                            );
-                            if (next && next.trim()) {
-                              onRename(thread.id, next.trim());
-                            }
-                          }}
+                          onClick={(event) => handleRenameClick(event, thread)}
                         >
                           <Pencil size={11} aria-hidden="true" />
                           <span className="sr-only">이름 바꾸기</span>

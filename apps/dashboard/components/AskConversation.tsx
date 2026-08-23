@@ -140,6 +140,13 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     id: string;
     title: string;
   } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
   const autoSubmittedRef = useRef(false);
   const activeKeyRef = useRef(activeKey);
   activeKeyRef.current = activeKey;
@@ -428,11 +435,20 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         }}
         onNew={handleNewConversation}
         onRename={(threadId, title) => {
-          void renameAskThread(workspaceId, threadId, title).then((row) => {
-            setThreads((prev) =>
-              prev.map((item) => (item.id === row.id ? row : item)),
-            );
-          });
+          void renameAskThread(workspaceId, threadId, title)
+            .then((row) => {
+              setThreads((prev) =>
+                prev.map((item) => (item.id === row.id ? row : item)),
+              );
+            })
+            .catch((err) => {
+              console.error("Failed to rename thread:", err);
+            });
+        }}
+        onRequestRename={(threadId, currentTitle) => {
+          setRenameTarget({ id: threadId, title: currentTitle });
+          setRenameTitle(currentTitle);
+          setRenameError(null);
         }}
         onDelete={(threadId, title) => setDeleteTarget({ id: threadId, title })}
       />
@@ -684,6 +700,89 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                 삭제
               </button>
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+            setRenameTitle("");
+            setRenameError(null);
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
+          <Dialog.Content className="modal fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
+            <div className="modal-head mb-4">
+              <Dialog.Title className="text-base font-bold text-[var(--fg)]">
+                대화 이름 변경
+              </Dialog.Title>
+            </div>
+            <Dialog.Description className="text-xs text-[var(--muted)] mb-3">
+              대화의 새로운 제목을 입력하세요.
+            </Dialog.Description>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!renameTarget || !renameTitle.trim() || renameSubmitting)
+                  return;
+                setRenameSubmitting(true);
+                setRenameError(null);
+                renameAskThread(
+                  workspaceId,
+                  renameTarget.id,
+                  renameTitle.trim(),
+                )
+                  .then((row) => {
+                    setThreads((prev) =>
+                      prev.map((item) => (item.id === row.id ? row : item)),
+                    );
+                    setRenameTarget(null);
+                    setRenameTitle("");
+                  })
+                  .catch(() => {
+                    setRenameError(
+                      "이름을 변경하지 못했습니다. 다시 시도해주세요.",
+                    );
+                  })
+                  .finally(() => {
+                    setRenameSubmitting(false);
+                  });
+              }}
+            >
+              <input
+                type="text"
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+                placeholder="대화 제목"
+                className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)] outline-none focus:border-[var(--accent)] transition-all mb-2"
+                autoFocus
+              />
+              {renameError && (
+                <p className="text-xs text-[var(--danger)] mb-3">
+                  {renameError}
+                </p>
+              )}
+              <div className="modal-foot flex items-center justify-end gap-2 mt-4">
+                <Dialog.Close asChild>
+                  <button type="button" className="button compact">
+                    취소
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  className="button compact primary"
+                  disabled={!renameTitle.trim() || renameSubmitting}
+                >
+                  {renameSubmitting ? "변경 중..." : "변경"}
+                </button>
+              </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
