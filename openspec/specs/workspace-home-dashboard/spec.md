@@ -43,7 +43,7 @@ The system SHALL use 'workspace' (워크스페이스) terminology across all ent
 - **THEN** the interface refers exclusively to workspaces and displays no legacy project vocabulary
 
 ### Requirement: Ask hero canvas and suggested question chips
-The system SHALL provide an Ask hero canvas with multi-line question input, search scope selection (workspace-wide, category, local context), a submit trigger leading to the ask interface, and clickable starter question chips that automatically populate the input.
+The system SHALL provide an Ask hero canvas with multi-line question input, search scope selection (workspace-wide, category, local context), a submit trigger leading to the ask interface, and clickable starter question chips that automatically populate the input. When submitted, the target ask interface SHALL automatically receive the query parameter and initiate the answering turn.
 
 #### Scenario: User enters question via chips
 - **WHEN** a member clicks a suggested question chip in the Ask hero canvas
@@ -51,7 +51,7 @@ The system SHALL provide an Ask hero canvas with multi-line question input, sear
 
 #### Scenario: User submits question with scope
 - **WHEN** a member enters a question and clicks submit
-- **THEN** the system transitions to the ask page with the query and chosen scope
+- **THEN** the system transitions to the ask page with the query and chosen scope, and the ask interface automatically begins generating the response
 
 ### Requirement: Category lens filtering
 The system SHALL provide category lens filters (all, concepts, entities, guides, maps) that filter the displayed compiled wiki pages by category.
@@ -61,11 +61,11 @@ The system SHALL provide category lens filters (all, concepts, entities, guides,
 - **THEN** the knowledge grid updates to show only wiki pages belonging to the selected category
 
 ### Requirement: Two-column knowledge grid with wiki pages and backlog
-The system SHALL display a two-column knowledge grid featuring recent compiled wiki documents with verification status badges on the left, and unresolved red link backlog entries with source connection prompts on the right.
+The system SHALL display a two-column knowledge grid featuring recent compiled wiki documents (capped at 10 items) with verification status badges on the left, and unresolved red link backlog entries (capped at 8 items) with source connection prompts on the right.
 
 #### Scenario: Populated wiki and backlog display
 - **WHEN** a workspace has compiled wiki pages and unresolved links
-- **THEN** the system displays the wiki document rows with category and verification badges, and the backlog rows with citation counts and a source connection CTA
+- **THEN** the system displays up to 10 recent wiki document rows with category and verification badges, and up to 8 backlog rows with citation counts and a source connection CTA
 
 #### Scenario: Empty state display
 - **WHEN** a workspace has no compiled wiki pages or backlog items
