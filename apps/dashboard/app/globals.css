@@ -162,6 +162,10 @@
   }
 }
 
+.thread-list-item {
+  border-radius: 8px;
+}
+
 .thread-list-item.active {
   background: var(--surface);
   color: var(--fg);

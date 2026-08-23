@@ -93,7 +93,7 @@ export function ThreadDrawer({
           </div>
           <button
             type="button"
-            className="button compact inline-flex items-center gap-1 text-xs font-semibold py-1 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--accent)] hover:text-white hover:border-[var(--accent)] transition-all shadow-2xs"
+            className="button compact inline-flex items-center gap-1 text-xs font-semibold py-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--accent)] hover:text-white hover:border-[var(--accent)] transition-all shadow-2xs"
             onClick={onNew}
           >
             <Plus size={12} aria-hidden="true" />
@@ -108,9 +108,9 @@ export function ThreadDrawer({
               data-testid="thread-list-loading"
               className="thread-list-skeleton p-2 space-y-2"
             >
-              <div className="h-11 rounded-lg bg-[var(--surface)] animate-pulse" />
-              <div className="h-11 rounded-lg bg-[var(--surface)] animate-pulse" />
-              <div className="h-11 rounded-lg bg-[var(--surface)] animate-pulse" />
+              <div className="h-11 rounded-md bg-[var(--surface)] animate-pulse" />
+              <div className="h-11 rounded-md bg-[var(--surface)] animate-pulse" />
+              <div className="h-11 rounded-md bg-[var(--surface)] animate-pulse" />
             </div>
           ) : error ? (
             <div className="answer notice p-3 text-xs" role="alert">
@@ -145,7 +145,7 @@ export function ThreadDrawer({
                     role="option"
                     aria-selected={isActive}
                     tabIndex={isActive ? 0 : -1}
-                    className={`thread-list-item group relative flex flex-col gap-1 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    className={`thread-list-item group relative flex flex-col gap-1 p-2.5 rounded-lg border transition-all cursor-pointer ${
                       isActive
                         ? "active bg-[var(--surface)] border-[var(--border-strong)] text-[var(--fg)] shadow-xs"
                         : "border-transparent hover:border-[var(--border)] hover:bg-[var(--surface)]/60 text-[var(--muted)] hover:text-[var(--fg)]"

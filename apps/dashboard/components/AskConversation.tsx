@@ -760,7 +760,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                 value={renameTitle}
                 onChange={(e) => setRenameTitle(e.target.value)}
                 placeholder="대화 제목"
-                className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)] outline-none focus:border-[var(--accent)] transition-all mb-2"
+                className="w-full px-3 py-2 text-xs rounded-md border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)] outline-none focus:border-[var(--accent)] transition-all mb-2"
                 autoFocus
               />
               {renameError && (
