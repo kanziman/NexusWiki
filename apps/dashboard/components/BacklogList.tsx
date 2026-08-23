@@ -82,7 +82,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
 
       {/* 툴바 & 테이블 섹션 */}
       <section data-od-id="backlog-table-section">
-        <div className="toolbar flex-wrap items-center justify-between gap-3">
+        <div className="toolbar flex items-center justify-between gap-4">
           <nav className="tabs" role="tablist" aria-label="백로그 필터">
             <button
               type="button"
@@ -95,14 +95,13 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
           </nav>
 
           {/* 검색 인풋 */}
-          <div className="relative flex-1 min-w-[220px] max-w-[340px]">
+          <div className="relative w-full max-w-[280px] flex-none">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
             />
             <input
-              className="field search w-full pr-3 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:border-[var(--accent)] focus:outline-none transition-all"
-              style={{ paddingLeft: "34px" }}
+              className="field search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="주제 또는 참조 문서로 검색"

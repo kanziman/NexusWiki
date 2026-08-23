@@ -195,7 +195,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 8px;
+  padding: 8px 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -203,9 +203,14 @@ textarea:focus-visible {
   text-align: left;
   font-size: 13px;
   font-weight: 700;
+  transition: background-color 140ms cubic-bezier(0.16, 1, 0.3, 1),
+              color 140ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 100ms cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
-.nav-item:hover { background: var(--bg) }
+.nav-item:hover { background: var(--surface) }
+.nav-item:active { transform: scale(0.985) }
 
 /* 명세 §내비게이션: 활성 LNB 는 --soft 배경 + --accent 전경.
    채움형(accent 배경 + 흰 글자)은 화면당 CTA 1개 원칙과 경쟁하므로 쓰지 않는다. */
@@ -1649,6 +1654,7 @@ textarea:focus-visible {
   justify-content: space-between;
   gap: 18px;
   margin-top: 34px;
+  margin-bottom: 16px;
 }
 
 .content.sources .tabs { display: flex; gap: 4px; flex-wrap: wrap }
@@ -1665,7 +1671,27 @@ textarea:focus-visible {
 
 .content.sources .tab:hover { color: var(--fg) }
 .content.sources .tab.active { border-color: var(--accent); color: var(--accent) }
-.search { width: 230px }
+
+.field.search {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 12px 0 34px !important;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  box-sizing: border-box;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.field.search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px oklch(0.58 0.11 190 / 0.15);
+  outline: none;
+}
 
 /* 소스 테이블 */
 .table-wrap { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden }
@@ -2233,10 +2259,11 @@ textarea:focus-visible {
   flex: none;
   display: flex;
   align-items: center;
-  padding: 16px clamp(20px, 3vw, 36px);
+  height: 58px;
+  min-height: 58px;
+  padding: 0 clamp(20px, 3vw, 36px);
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-  min-height: 80px;
   box-sizing: border-box;
 }
 
@@ -2422,40 +2449,68 @@ textarea:focus-visible {
   border-left: 1px solid var(--border);
 }
 
-.inspect-head { padding: 16px 18px 0 }
-.inspect-title { display: flex; justify-content: space-between; margin-bottom: 14px }
-.inspect-title h2 { margin: 0; font: 800 14px var(--font-display) }
+.inspect-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.inspect-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin-bottom: 0;
+}
+
+.inspect-title h2 {
+  margin: 0;
+  font: 800 14px/1.25 var(--font-display);
+  letter-spacing: -.3px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
 .inspect .tabs {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-  overflow: auto;
+  align-items: center;
+  gap: 3px;
+  border-bottom: 0;
+  padding-bottom: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .inspect .tab {
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all 140ms ease;
 }
 
 .inspect .tab:hover {
   color: var(--fg);
-  background: var(--bg);
+  background: var(--surface);
 }
 
 .inspect .tab.active {
   color: var(--accent);
-  background: var(--bg);
-  border-color: var(--border);
-  box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+  background: var(--soft);
+  border-color: transparent;
   font-weight: 700;
 }
 .inspect-body { flex: 1; padding: 18px; overflow: auto }
@@ -2719,6 +2774,7 @@ textarea:focus-visible {
   justify-content: space-between;
   gap: 18px;
   margin-top: 34px;
+  margin-bottom: 16px;
 }
 
 .content.backlog .tabs { display: flex; gap: 4px; flex-wrap: wrap }
@@ -2786,30 +2842,53 @@ button.topic:hover b { color: var(--accent) }
   text-transform: uppercase;
 }
 
-.backlog-panel-refs ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none }
+.backlog-panel-refs ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none }
 
-.backlog-panel-refs a {
-  display: block;
-  padding: 9px 11px;
+.backlog-panel-refs li {
+  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--fg);
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
-.backlog-panel-refs a:hover { border-color: var(--border-strong); background: var(--surface) }
+.backlog-panel-refs li:hover {
+  border-color: var(--border-strong);
+  background: var(--bg);
+}
+
+.backlog-panel-refs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.backlog-panel-refs a:hover {
+  color: var(--accent);
+  border: 0;
+  background: transparent;
+}
 
 /* 인용 문맥 발췌(add-backlog-topic-context 3.1). 링크 라벨과 위계가 달라야
    한다 — 문서 제목이 아니라 그 안의 한 문장이라는 것을 색과 줄바꿈으로
    보여준다. */
 .backlog-panel-excerpt {
   display: block;
-  margin-top: 4px;
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 500;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 @media (max-width: 900px) {
@@ -2975,7 +3054,7 @@ button.topic:hover b { color: var(--accent) }
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin: 30px 0 6px;
+  margin: 30px 0 16px;
 }
 
 /* 카테고리 필터. 탭이 아니라 토글이라 .tab 이 아닌 .chip 을 쓴다 —
@@ -3037,4 +3116,33 @@ button.topic:hover b { color: var(--accent) }
   .content.library .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
   .content.library .chips::-webkit-scrollbar { display: none }
   .content.library .chip { white-space: nowrap }
+}
+
+/* -----------------------------------------------------------------------------
+ * 18. 페이지 전환 부드러운 트랜지션 (taste-skill)
+ * -------------------------------------------------------------------------- */
+@keyframes pageEnter {
+  from {
+    opacity: 0.35;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-page-transition {
+  animation: pageEnter 170ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-page-transition {
+    animation: none;
+  }
 }

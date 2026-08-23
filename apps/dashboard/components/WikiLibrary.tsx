@@ -132,9 +132,13 @@ export function WikiLibrary({
 
       <section data-od-id="wiki-library-list">
         {isEmpty ? null : (
-          <div className="toolbar flex-wrap gap-3">
+          <div className="toolbar flex items-center justify-between gap-4">
             {/* 카테고리 필터 */}
-            <div className="chips" role="group" aria-label="카테고리 필터">
+            <div
+              className="chips flex items-center gap-1.5 flex-wrap"
+              role="group"
+              aria-label="카테고리 필터"
+            >
               <button
                 type="button"
                 aria-pressed={category === null}
@@ -156,16 +160,15 @@ export function WikiLibrary({
               ))}
             </div>
 
-            {/* 검색창 — 아이콘과 텍스트가 겹치지 않도록 확실한 좌측 패딩 적용 */}
-            <div className="relative flex-1 min-w-[220px] max-w-[340px]">
+            {/* 검색창 */}
+            <div className="relative w-full max-w-[280px] flex-none">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
               />
               <input
                 aria-label="위키 문서 검색"
-                className="field search w-full pr-3 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:border-[var(--accent)] focus:outline-none transition-all"
-                style={{ paddingLeft: "34px" }}
+                className="field search"
                 placeholder="제목이나 내용으로 검색"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
