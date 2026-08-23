@@ -50,6 +50,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   maps: "맵",
 };
 
+const MAX_WIKI_PAGES = 10;
+const MAX_BACKLOG_ITEMS = 8;
+
 export function KnowledgeGrid({
   workspaceId,
   wikiPages,
@@ -62,6 +65,9 @@ export function KnowledgeGrid({
   const filteredPages = activeCategory
     ? wikiPages.filter((p) => p.category === activeCategory)
     : wikiPages;
+
+  const visiblePages = filteredPages.slice(0, MAX_WIKI_PAGES);
+  const visibleBacklog = backlogItems.slice(0, MAX_BACKLOG_ITEMS);
 
   return (
     <div className="sections" data-od-id="knowledge-grid">
@@ -89,7 +95,7 @@ export function KnowledgeGrid({
                 : "컴파일된 위키 문서가 아직 없습니다."}
             </div>
           ) : (
-            filteredPages.map((page) => {
+            visiblePages.map((page) => {
               const catLabel = page.category
                 ? (CATEGORY_LABELS[page.category] ?? page.category)
                 : "미분류";
@@ -169,7 +175,7 @@ export function KnowledgeGrid({
               작성 대기 중인 백로그가 없습니다.
             </div>
           ) : (
-            backlogItems.map((item) => {
+            visibleBacklog.map((item) => {
               const displayTitle = item.display_title || item.target_slug;
               const count = item.impact ?? item.reference_count;
               const fullItem: BacklogItem = {

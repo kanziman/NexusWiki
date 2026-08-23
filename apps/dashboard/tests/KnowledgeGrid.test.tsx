@@ -124,4 +124,43 @@ describe("KnowledgeGrid", () => {
       screen.getByText("작성 대기 중인 백로그가 없습니다."),
     ).toBeInTheDocument();
   });
+
+  it("홈 대시보드 피드에서 위키 문서는 최대 10개, 백로그 항목은 최대 8개로 노출을 제한한다", () => {
+    const manyPages = Array.from({ length: 15 }, (_, i) => ({
+      id: `page-${i + 1}`,
+      title: `위키 문서 ${i + 1}`,
+      slug: `wiki-page-${i + 1}`,
+      category: "concepts",
+      verification_status: "verified",
+      citation_count: 1,
+    }));
+
+    const manyBacklogs = Array.from({ length: 12 }, (_, i) => ({
+      target_slug: `backlog-topic-${i + 1}`,
+      display_title: `백로그 주제 ${i + 1}`,
+      reference_count: 2,
+    }));
+
+    render(
+      <KnowledgeGrid
+        workspaceId="ws-1"
+        wikiPages={manyPages}
+        backlogItems={manyBacklogs}
+      />,
+    );
+
+    // 헤더에는 전체 개수 배지(15, 12)가 유지된다
+    expect(screen.getByText("15")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+
+    // 위키 문서는 1~10까지만 렌더링되고 11~15는 렌더링되지 않는다
+    expect(screen.getByText("위키 문서 1")).toBeInTheDocument();
+    expect(screen.getByText("위키 문서 10")).toBeInTheDocument();
+    expect(screen.queryByText("위키 문서 11")).not.toBeInTheDocument();
+
+    // 백로그는 1~8까지만 렌더링되고 9~12는 렌더링되지 않는다
+    expect(screen.getByText("백로그 주제 1")).toBeInTheDocument();
+    expect(screen.getByText("백로그 주제 8")).toBeInTheDocument();
+    expect(screen.queryByText("백로그 주제 9")).not.toBeInTheDocument();
+  });
 });
