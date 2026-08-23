@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { Menu, Plus, X } from "lucide-react";
 
@@ -18,6 +19,20 @@ export type WorkspaceShellProps = {
 
 const LNB_COLLAPSED_STORAGE_KEY = "nexuswiki-lnb-collapsed";
 
+function getSectionTitle(pathname: string, isBookmarked: boolean): string {
+  const segments = pathname.split("/").filter(Boolean);
+  const sub = segments.slice(2).join("/");
+
+  if (!sub) return "홈 대시보드";
+  if (sub.startsWith("sources")) return "원문 소스";
+  if (sub.startsWith("wiki")) return isBookmarked ? "즐겨찾기" : "위키 문서";
+  if (sub.startsWith("ask")) return "질문하기";
+  if (sub.startsWith("backlog")) return "미완성 백로그";
+  if (sub.startsWith("graph")) return "지식 그래프";
+  if (sub.startsWith("settings")) return "설정";
+  return "홈 대시보드";
+}
+
 export function WorkspaceShell({
   workspace,
   workspaces,
@@ -32,6 +47,10 @@ export function WorkspaceShell({
   // 경고가 난다.
   const [collapsed, setCollapsed] = useState(false);
   const base = workspacePath(currentWorkspaceId);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isBookmarked = searchParams.get("bookmarked") === "true";
+  const sectionTitle = getSectionTitle(pathname, isBookmarked);
 
   useEffect(() => {
     if (sessionStorage.getItem(LNB_COLLAPSED_STORAGE_KEY) === "true") {
@@ -78,8 +97,19 @@ export function WorkspaceShell({
 
       <div className="workspace flex flex-col min-w-0 flex-1">
         <header className="topbar" data-od-id="workspace-topbar">
-          <div className="crumb">
-            <strong className="truncate">{workspace.name}</strong>
+          <div className="crumb flex items-center gap-1.5 text-xs text-[var(--muted)]">
+            <span className="truncate max-w-[160px] text-[var(--muted)] font-normal">
+              {workspace.name}
+            </span>
+            <span
+              className="text-[var(--border-strong)] opacity-60 font-mono"
+              aria-hidden="true"
+            >
+              /
+            </span>
+            <strong className="truncate font-semibold text-[var(--fg)]">
+              {sectionTitle}
+            </strong>
           </div>
           <div className="top-actions">
             <Link

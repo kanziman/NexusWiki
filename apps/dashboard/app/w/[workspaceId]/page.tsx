@@ -187,7 +187,7 @@ export default async function WorkspaceHomePage({
               버튼은 그래서 눌러도 아무 일도 일어나지 않았다(UX-02). 실제
               토글은 WikiPageContent(위키 리더)의 title-row로 옮겼다. */}
           <div className="title-row">
-            <h1 data-od-id="workspace-title">{workspaceName}</h1>
+            <h1 data-od-id="workspace-title">홈 대시보드</h1>
           </div>
           <p>
             연결한 원문과 컴파일된 위키를 한곳에서 질문하고, 비어 있는 지식을
