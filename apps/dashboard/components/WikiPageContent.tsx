@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import React, { Fragment, useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RedLinkCta } from "@/components/RedLinkCta";
@@ -113,7 +114,8 @@ export function WikiPageContent({
   const isExpired =
     expiresAt !== null && new Date(expiresAt).getTime() < Date.now();
 
-  const headings = extractHeadings(page.content);
+  const sanitizedContent = cleanWikiContent(page.content);
+  const headings = extractHeadings(sanitizedContent);
   const relatedLinks = [
     ...new Map(
       links
@@ -160,10 +162,29 @@ export function WikiPageContent({
   return (
     <div className="reader-layout">
       <article className="reader">
-        {/* 상단 브레드크럼 경로 */}
-        <nav aria-label="위키 탐색 경로" className="breadcrumb-path">
-          위키 / {page.category}
-        </nav>
+        {/* 상단 네비게이션: 뒤로가기 + 브레드크럼 경로 */}
+        <div className="flex items-center gap-2.5 mb-2.5">
+          <Link
+            href={`${workspacePath(workspaceId)}/wiki`}
+            className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--fg)] transition-colors py-0.5 px-1.5 -ml-1.5 rounded hover:bg-[var(--surface)] font-medium"
+            aria-label="위키 목록으로 돌아가기"
+          >
+            <ArrowLeft size={13} aria-hidden="true" />
+            <span>위키 목록</span>
+          </Link>
+          <span
+            className="text-[var(--border-strong)] opacity-50 font-mono text-xs select-none"
+            aria-hidden="true"
+          >
+            /
+          </span>
+          <nav
+            aria-label="위키 탐색 경로"
+            className="breadcrumb-path m-0 text-xs"
+          >
+            {categoryLabel}
+          </nav>
+        </div>
 
         {/* 문서 타이틀 + 즐겨찾기 */}
         <div className="title-row">
@@ -220,7 +241,7 @@ export function WikiPageContent({
         {/* 본문 렌더링 */}
         <div className="article mt-7">
           <DocumentBody
-            content={page.content}
+            content={sanitizedContent}
             links={links}
             workspaceId={workspaceId}
           />
@@ -298,6 +319,20 @@ export function WikiPageContent({
       </aside>
     </div>
   );
+}
+
+/**
+ * 마크다운 본문 끝에 생성된 중복 "관련 문서" 섹션을 제거하여
+ * 위키 전용 카드 칩 UI로 단일화한다.
+ */
+function cleanWikiContent(content: string): string {
+  if (!content) return "";
+  return content
+    .replace(
+      /(?:\r?\n)+(?:#{1,4})\s*(?:관련\s*문서|관련문서|Related\s*Documents?)\s*(?:\r?\n)[\s\S]*$/i,
+      "",
+    )
+    .trimEnd();
 }
 
 /**
