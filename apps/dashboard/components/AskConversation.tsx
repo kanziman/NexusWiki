@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import { MarkdownAnswer } from "@/components/MarkdownAnswer";
@@ -139,6 +140,13 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     id: string;
     title: string;
   } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
   const autoSubmittedRef = useRef(false);
   const activeKeyRef = useRef(activeKey);
   activeKeyRef.current = activeKey;
@@ -178,10 +186,29 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }, [initialQuery]);
 
   useEffect(() => {
-    if (!initialThread) return;
-    void openThread(initialThread);
+    if (initialThread) {
+      void openThread(initialThread);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialThread]);
+
+  useEffect(() => {
+    function onNewThreadEvent() {
+      const key = newDraftKey();
+      setConversations((prev) => ({ ...prev, [key]: [] }));
+      setActiveKey(key);
+      setRestoreError(null);
+      setDrawerOpen(false);
+      setTimeout(() => {
+        const input = document.getElementById("ask-question-input");
+        input?.focus();
+      }, 50);
+    }
+    window.addEventListener("nexuswiki:new-ask-thread", onNewThreadEvent);
+    return () => {
+      window.removeEventListener("nexuswiki:new-ask-thread", onNewThreadEvent);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,219 +434,247 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }
 
   return (
-    <section className="conversation" data-od-id="conversation-thread">
-      <header className="conversation-head">
-        <div className="flex w-full items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ThreadDrawer
-              open={drawerOpen}
-              onOpenChange={setDrawerOpen}
-              threads={threads}
-              activeThreadId={activeThreadId}
-              loading={listLoading}
-              error={listError}
-              onRetry={() => void refreshThreads()}
-              onSelect={(threadId) => {
-                void openThread(threadId);
-                if (window.matchMedia("(max-width: 1599px)").matches) {
-                  setDrawerOpen(false);
-                }
-              }}
-              onNew={handleNewConversation}
-              onRename={(threadId, title) => {
-                void renameAskThread(workspaceId, threadId, title).then(
-                  (row) => {
-                    setThreads((prev) =>
-                      prev.map((item) => (item.id === row.id ? row : item)),
-                    );
-                  },
-                );
-              }}
-              onDelete={(threadId, title) =>
-                setDeleteTarget({ id: threadId, title })
-              }
-            />
-            <h1>질문하기</h1>
-          </div>
-          <div
-            className="flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1 text-[11px] text-[var(--muted)] shadow-2xs"
-            aria-label="이중 인용 범례"
-          >
-            <span className="inline-flex items-center gap-1.5 font-medium">
-              <span
-                className="cite source font-mono font-bold"
-                aria-hidden="true"
-              >
-                1
-              </span>
-              <span>원문 소스</span>
-            </span>
-            <span className="text-[var(--border-strong)] opacity-40">·</span>
-            <span className="inline-flex items-center gap-1.5 font-medium">
-              <span className="cite font-mono font-bold" aria-hidden="true">
-                2
-              </span>
-              <span>위키 문서</span>
-            </span>
-          </div>
-        </div>
-      </header>
-      <div className="thread" data-testid="ask-conversation">
-        {restoreError === "deleted" ? (
-          <article
-            className="answer notice"
-            role="alert"
-            data-testid="thread-gone"
-          >
-            <p>삭제된 대화입니다.</p>
-            <button
-              type="button"
-              className="button compact"
-              onClick={handleNewConversation}
-            >
-              새 대화
-            </button>
-          </article>
-        ) : null}
-        {restoreError === "load_failed" ? (
-          <article className="answer notice" role="alert">
-            <p>이 대화를 볼 수 있는 권한이 없습니다.</p>
-          </article>
-        ) : null}
-        {turns.length === 0 && restoreError === null ? (
-          <div className="thread-empty">
-            <b>{EMPTY_HEADING}</b>
-            <span>{EMPTY_BODY}</span>
-          </div>
-        ) : turns.length > 0 ? (
-          <p className="thread-meta">대화 · 원문과 위키 이중 인용</p>
-        ) : null}
+    <section
+      className="conversation relative flex h-full min-w-0"
+      data-od-id="conversation-thread"
+    >
+      <ThreadDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        threads={threads}
+        activeThreadId={activeThreadId}
+        loading={listLoading}
+        error={listError}
+        onRetry={() => void refreshThreads()}
+        onSelect={(threadId) => {
+          void openThread(threadId);
+          if (typeof window !== "undefined" && window.innerWidth < 1200) {
+            setDrawerOpen(false);
+          }
+        }}
+        onNew={handleNewConversation}
+        onRename={(threadId, title) => {
+          void renameAskThread(workspaceId, threadId, title)
+            .then((row) => {
+              setThreads((prev) =>
+                prev.map((item) => (item.id === row.id ? row : item)),
+              );
+            })
+            .catch((err) => {
+              console.error("Failed to rename thread:", err);
+            });
+        }}
+        onRequestRename={(threadId, currentTitle) => {
+          setRenameTarget({ id: threadId, title: currentTitle });
+          setRenameTitle(currentTitle);
+          setRenameError(null);
+        }}
+        onDelete={(threadId, title) => setDeleteTarget({ id: threadId, title })}
+      />
 
-        {turns.map((turn, index) => (
-          <Fragment key={index}>
-            <article className="user" data-testid={`ask-turn-${index}`}>
-              {turn.question}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <header className="conversation-head">
+          <div className="flex w-full items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={drawerOpen ? "대화 목록 닫기" : "대화 목록 열기"}
+                aria-expanded={drawerOpen}
+                onClick={() => setDrawerOpen(!drawerOpen)}
+              >
+                {drawerOpen ? (
+                  <PanelLeftClose aria-hidden="true" size={18} />
+                ) : (
+                  <PanelLeftOpen aria-hidden="true" size={18} />
+                )}
+              </button>
+              <h1>질문하기</h1>
+            </div>
+            <div
+              className="flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1 text-[11px] text-[var(--muted)] shadow-2xs"
+              aria-label="이중 인용 범례"
+            >
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <span
+                  className="cite source font-mono font-bold"
+                  aria-hidden="true"
+                >
+                  1
+                </span>
+                <span>원문 소스</span>
+              </span>
+              <span className="text-[var(--border-strong)] opacity-40">·</span>
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className="cite font-mono font-bold" aria-hidden="true">
+                  2
+                </span>
+                <span>위키 문서</span>
+              </span>
+            </div>
+          </div>
+        </header>
+        <div className="thread" data-testid="ask-conversation">
+          {restoreError === "deleted" ? (
+            <article
+              className="answer notice"
+              role="alert"
+              data-testid="thread-gone"
+            >
+              <p>삭제된 대화입니다.</p>
+              <button
+                type="button"
+                className="button compact"
+                onClick={handleNewConversation}
+              >
+                새 대화
+              </button>
             </article>
+          ) : null}
+          {restoreError === "load_failed" ? (
+            <article className="answer notice" role="alert">
+              <p>이 대화를 볼 수 있는 권한이 없습니다.</p>
+            </article>
+          ) : null}
+          {turns.length === 0 && restoreError === null ? (
+            <div className="thread-empty">
+              <b>{EMPTY_HEADING}</b>
+              <span>{EMPTY_BODY}</span>
+            </div>
+          ) : turns.length > 0 ? (
+            <p className="thread-meta">대화 · 원문과 위키 이중 인용</p>
+          ) : null}
 
-            {turn.missingChannelsNotice ? (
-              <p
-                role="status"
-                data-testid="missing-channels-notice"
-                className="thread-meta"
-              >
-                {MISSING_CHANNELS_NOTICE}
-              </p>
-            ) : null}
-
-            {turn.status === "no-evidence" ? (
-              <article
-                role="alert"
-                data-variant="warning"
-                data-testid="no-evidence-card"
-                className="answer notice"
-              >
-                <p>{NO_EVIDENCE_MESSAGE}</p>
+          {turns.map((turn, index) => (
+            <Fragment key={index}>
+              <article className="user" data-testid={`ask-turn-${index}`}>
+                {turn.question}
               </article>
-            ) : turn.status === "error" ? (
-              <article
-                role="alert"
-                data-variant="error"
-                data-testid="ask-error-card"
-                className="answer notice"
-              >
-                <p>{GENERIC_ERROR_MESSAGE}</p>
-                <button
-                  type="button"
-                  className="button compact"
-                  onClick={() => void submitQuestion(turn.question, activeKey)}
+
+              {turn.missingChannelsNotice ? (
+                <p
+                  role="status"
+                  data-testid="missing-channels-notice"
+                  className="thread-meta"
                 >
-                  재시도
-                </button>
-              </article>
-            ) : turn.status === "dropped" ? (
-              <article
-                role="alert"
-                data-variant="dropped"
-                data-testid="stream-drop-card"
-                className="answer notice"
-              >
-                <p>{STREAM_DROP_MESSAGE}</p>
-                <button
-                  type="button"
-                  className="button compact"
-                  onClick={() => void submitQuestion(turn.question, activeKey)}
-                >
-                  재시도
-                </button>
-              </article>
-            ) : (
-              <article className="answer" data-od-id="ai-answer">
-                <div className="answer-head">
-                  <i className="dot" aria-hidden="true" />
-                  <b>넥서스위키 AI 답변</b>
-                  <span>
-                    {turn.status === "streaming"
-                      ? "생성 중"
-                      : turn.persisted
-                        ? "저장된 답변"
-                        : "방금 생성됨"}
-                  </span>
-                </div>
-                <div data-testid={`ask-turn-${index}-body`}>
-                  <MarkdownAnswer
-                    segments={turn.segments}
-                    resolved={turn.status === "resolved"}
-                    onMarkerClick={handleMarkerClick}
-                  />
-                </div>
-              </article>
-            )}
-          </Fragment>
-        ))}
-      </div>
+                  {MISSING_CHANNELS_NOTICE}
+                </p>
+              ) : null}
 
-      {templates.length > 0 ? (
-        <div className="chips" role="group" aria-label="프롬프트 템플릿">
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => setTemplateId(template.id)}
-              aria-pressed={templateId === template.id}
-              className="chip"
-            >
-              {template.name}
-            </button>
+              {turn.status === "no-evidence" ? (
+                <article
+                  role="alert"
+                  data-variant="warning"
+                  data-testid="no-evidence-card"
+                  className="answer notice"
+                >
+                  <p>{NO_EVIDENCE_MESSAGE}</p>
+                </article>
+              ) : turn.status === "error" ? (
+                <article
+                  role="alert"
+                  data-variant="error"
+                  data-testid="ask-error-card"
+                  className="answer notice"
+                >
+                  <p>{GENERIC_ERROR_MESSAGE}</p>
+                  <button
+                    type="button"
+                    className="button compact"
+                    onClick={() =>
+                      void submitQuestion(turn.question, activeKey)
+                    }
+                  >
+                    재시도
+                  </button>
+                </article>
+              ) : turn.status === "dropped" ? (
+                <article
+                  role="alert"
+                  data-variant="dropped"
+                  data-testid="stream-drop-card"
+                  className="answer notice"
+                >
+                  <p>{STREAM_DROP_MESSAGE}</p>
+                  <button
+                    type="button"
+                    className="button compact"
+                    onClick={() =>
+                      void submitQuestion(turn.question, activeKey)
+                    }
+                  >
+                    재시도
+                  </button>
+                </article>
+              ) : (
+                <article className="answer" data-od-id="ai-answer">
+                  <div className="answer-head">
+                    <i className="dot" aria-hidden="true" />
+                    <b>넥서스위키 AI 답변</b>
+                    <span>
+                      {turn.status === "streaming"
+                        ? "생성 중"
+                        : turn.persisted
+                          ? "저장된 답변"
+                          : "방금 생성됨"}
+                    </span>
+                  </div>
+                  <div data-testid={`ask-turn-${index}-body`}>
+                    <MarkdownAnswer
+                      segments={turn.segments}
+                      resolved={turn.status === "resolved"}
+                      onMarkerClick={handleMarkerClick}
+                    />
+                  </div>
+                </article>
+              )}
+            </Fragment>
           ))}
         </div>
-      ) : null}
 
-      <form
-        onSubmit={handleSubmit}
-        className="composer"
-        data-od-id="follow-up-composer"
-      >
-        <label htmlFor="ask-question-input" className="sr-only">
-          질문
-        </label>
-        <div className="compose-inner">
-          <input
-            id="ask-question-input"
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="이어서 추가 질문을 입력하세요"
-            className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none text-xs text-[var(--fg)] placeholder:text-[var(--muted)]"
-          />
-          <button
-            type="submit"
-            className="send"
-            aria-label="질문하기"
-            disabled={question.trim().length === 0 || submitting}
-          >
-            <span aria-hidden="true">↑</span>
-          </button>
-        </div>
-      </form>
+        {templates.length > 0 ? (
+          <div className="chips" role="group" aria-label="프롬프트 템플릿">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => setTemplateId(template.id)}
+                aria-pressed={templateId === template.id}
+                className="chip"
+              >
+                {template.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <form
+          onSubmit={handleSubmit}
+          className="composer"
+          data-od-id="follow-up-composer"
+        >
+          <label htmlFor="ask-question-input" className="sr-only">
+            질문
+          </label>
+          <div className="compose-inner">
+            <input
+              id="ask-question-input"
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder="이어서 추가 질문을 입력하세요"
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none text-xs text-[var(--fg)] placeholder:text-[var(--muted)]"
+            />
+            <button
+              type="submit"
+              className="send"
+              aria-label="질문하기"
+              disabled={question.trim().length === 0 || submitting}
+            >
+              <span aria-hidden="true">↑</span>
+            </button>
+          </div>
+        </form>
+      </div>
 
       <Dialog.Root
         open={deleteTarget !== null}
@@ -664,6 +719,89 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                 삭제
               </button>
             </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+            setRenameTitle("");
+            setRenameError(null);
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal-backdrop fixed inset-0" />
+          <Dialog.Content className="modal fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
+            <div className="modal-head mb-4">
+              <Dialog.Title className="text-base font-bold text-[var(--fg)]">
+                대화 이름 변경
+              </Dialog.Title>
+            </div>
+            <Dialog.Description className="text-xs text-[var(--muted)] mb-3">
+              대화의 새로운 제목을 입력하세요.
+            </Dialog.Description>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!renameTarget || !renameTitle.trim() || renameSubmitting)
+                  return;
+                setRenameSubmitting(true);
+                setRenameError(null);
+                renameAskThread(
+                  workspaceId,
+                  renameTarget.id,
+                  renameTitle.trim(),
+                )
+                  .then((row) => {
+                    setThreads((prev) =>
+                      prev.map((item) => (item.id === row.id ? row : item)),
+                    );
+                    setRenameTarget(null);
+                    setRenameTitle("");
+                  })
+                  .catch(() => {
+                    setRenameError(
+                      "이름을 변경하지 못했습니다. 다시 시도해주세요.",
+                    );
+                  })
+                  .finally(() => {
+                    setRenameSubmitting(false);
+                  });
+              }}
+            >
+              <input
+                type="text"
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+                placeholder="대화 제목"
+                className="w-full px-3 py-2 text-xs rounded-md border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)] outline-none focus:border-[var(--accent)] transition-all mb-2"
+                autoFocus
+              />
+              {renameError && (
+                <p className="text-xs text-[var(--danger)] mb-3">
+                  {renameError}
+                </p>
+              )}
+              <div className="modal-foot flex items-center justify-end gap-2 mt-4">
+                <Dialog.Close asChild>
+                  <button type="button" className="button compact">
+                    취소
+                  </button>
+                </Dialog.Close>
+                <button
+                  type="submit"
+                  className="button compact primary"
+                  disabled={!renameTitle.trim() || renameSubmitting}
+                >
+                  {renameSubmitting ? "변경 중..." : "변경"}
+                </button>
+              </div>
+            </form>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
