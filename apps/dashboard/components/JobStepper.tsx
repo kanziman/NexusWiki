@@ -232,13 +232,15 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
           </button>
         ) : null}
       </div>
-      <progress
-        aria-label={`처리 진행률 ${progressValue}/5단계 완료`}
-        aria-valuetext={`${progressValue}/5단계 완료`}
-        className="pipe-bar"
-        max={5}
-        value={progressValue}
-      />
+      {!allSucceeded && (
+        <progress
+          aria-label={`처리 진행률 ${progressValue}/5단계 완료`}
+          aria-valuetext={`${progressValue}/5단계 완료`}
+          className="pipe-bar"
+          max={5}
+          value={progressValue}
+        />
+      )}
 
       {failedJobs.map((job) => (
         <div key={job.id} className="pipe-error">
