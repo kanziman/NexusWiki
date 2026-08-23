@@ -13,8 +13,13 @@ vi.mock("@/lib/sse", () => ({
 // CitationSidePanel 대신 router.push로 ContentViewer 쿼리 파라미터를
 // 바꾸므로, push 호출 인자를 직접 관찰한다.
 const push = vi.fn();
+const searchParamsMock = vi.hoisted(() => ({
+  value: new URLSearchParams(),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+  useSearchParams: () => searchParamsMock.value,
 }));
 
 // wiki_pages 조회(handleMarkerClick의 wiki-kind 분기)가 workspace_id로
@@ -76,6 +81,7 @@ describe("AskConversation", () => {
   beforeEach(() => {
     sseFrames.mockReset();
     push.mockReset();
+    searchParamsMock.value = new URLSearchParams();
     wikiLookupCalls.mockReset();
     wikiLookupResult.current = { data: null };
     // 06-REVIEW.md WR-02 fix: AskConversation이 SSE 루프에 들어가기 전에
@@ -89,6 +95,31 @@ describe("AskConversation", () => {
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_API_URL = originalApiUrl;
+  });
+
+  it("URL 쿼리 파라미터(q)가 있으면 자동으로 질문을 제출하여 대화를 시작한다", async () => {
+    searchParamsMock.value = new URLSearchParams({
+      q: "RLS 격리 규칙이 무엇인가요?",
+    });
+    sseFrames.mockReturnValue(
+      toAsyncGenerator([
+        { event: "meta", data: {} },
+        { event: "delta", data: { text: "RLS 격리 답변입니다." } },
+        { event: "citations", data: { text: "RLS 격리 답변입니다." } },
+        { event: "done", data: {} },
+      ]),
+    );
+
+    render(<AskConversation workspaceId="ws-1" />);
+
+    // 자동으로 첫 질문 버블이 렌더링되고 fetch가 호출됨
+    await waitFor(() => {
+      expect(
+        screen.getByText("RLS 격리 규칙이 무엇인가요?"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("RLS 격리 답변입니다.")).toBeInTheDocument();
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("빈 대화에서는 empty-state 문구를 렌더링한다", () => {

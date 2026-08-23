@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { MarkdownAnswer } from "@/components/MarkdownAnswer";
 import {
@@ -81,11 +81,23 @@ async function readAskErrorToken(response: Response): Promise<string> {
  */
 export function AskConversation({ workspaceId }: AskConversationProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const autoSubmittedRef = useRef(false);
+
+  const initialQuery =
+    searchParams?.get("q") ?? searchParams?.get("question") ?? "";
+
+  useEffect(() => {
+    const trimmed = initialQuery.trim();
+    if (!trimmed || autoSubmittedRef.current) return;
+    autoSubmittedRef.current = true;
+    void submitQuestion(trimmed);
+  }, [initialQuery]);
 
   useEffect(() => {
     let cancelled = false;
