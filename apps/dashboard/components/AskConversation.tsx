@@ -186,10 +186,29 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }, [initialQuery]);
 
   useEffect(() => {
-    if (!initialThread) return;
-    void openThread(initialThread);
+    if (initialThread) {
+      void openThread(initialThread);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialThread]);
+
+  useEffect(() => {
+    function onNewThreadEvent() {
+      const key = newDraftKey();
+      setConversations((prev) => ({ ...prev, [key]: [] }));
+      setActiveKey(key);
+      setRestoreError(null);
+      setDrawerOpen(false);
+      setTimeout(() => {
+        const input = document.getElementById("ask-question-input");
+        input?.focus();
+      }, 50);
+    }
+    window.addEventListener("nexuswiki:new-ask-thread", onNewThreadEvent);
+    return () => {
+      window.removeEventListener("nexuswiki:new-ask-thread", onNewThreadEvent);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

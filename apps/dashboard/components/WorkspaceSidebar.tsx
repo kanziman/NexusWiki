@@ -187,16 +187,24 @@ export function WorkspaceSidebar({
               <span>질문하기</span>
             </Link>
             {!collapsed && (
-              <Link
-                href={`${base}/ask`}
-                prefetch={true}
-                onClick={handleItemClick}
-                className="opacity-0 group-hover/ask:opacity-100 hover:text-[var(--fg)] text-[var(--muted)] p-1 mr-2 rounded-md hover:bg-[var(--surface)] transition-all"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleItemClick();
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                      new CustomEvent("nexuswiki:new-ask-thread"),
+                    );
+                  }
+                  router.push(`${base}/ask`);
+                }}
+                className="opacity-0 group-hover/ask:opacity-100 hover:text-[var(--fg)] text-[var(--muted)] p-1 mr-2 rounded-md hover:bg-[var(--surface)] transition-all cursor-pointer"
                 title="새 대화 시작"
                 aria-label="새 대화 시작"
               >
                 <Plus size={13} aria-hidden="true" />
-              </Link>
+              </button>
             )}
           </div>
 
