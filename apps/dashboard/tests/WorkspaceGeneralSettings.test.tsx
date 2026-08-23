@@ -104,7 +104,43 @@ describe("WorkspaceGeneralSettings", () => {
     expect(updateMock).toHaveBeenCalledWith({
       name: "새 이름",
       slug: "new-slug",
+      kind: "personal",
     });
+  });
+
+  it("allows owner to change workspace kind to team and saves successfully", async () => {
+    const onKindChange = vi.fn();
+    render(
+      <WorkspaceGeneralSettings
+        workspaceId="ws-1"
+        initialName="내 워크스페이스"
+        initialSlug="my-workspace"
+        initialKind="personal"
+        onKindChange={onKindChange}
+        isOwner={true}
+      />,
+    );
+
+    const teamRadio = screen.getByRole("radio", { name: /팀 워크스페이스/ });
+    expect(teamRadio).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(teamRadio);
+    expect(teamRadio).toHaveAttribute("aria-checked", "true");
+
+    const saveBtn = screen.getByRole("button", { name: "저장" });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("워크스페이스 정보가 저장되었습니다."),
+      ).toBeInTheDocument();
+    });
+    expect(updateMock).toHaveBeenCalledWith({
+      name: "내 워크스페이스",
+      slug: "my-workspace",
+      kind: "team",
+    });
+    expect(onKindChange).toHaveBeenCalledWith("team");
   });
 
   it("shows error message when slug format is invalid", async () => {

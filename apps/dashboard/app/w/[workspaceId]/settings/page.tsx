@@ -35,7 +35,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         .maybeSingle(),
       supabase
         .from("workspaces")
-        .select("name,slug")
+        .select("name,slug,kind")
         .eq("id", workspaceId)
         .maybeSingle(),
       // ⚠️ 이 조회가 없으면 공개 설정 폼이 항상 기본값(꺼짐·빈 문자열)으로 뜬다.
@@ -75,6 +75,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         currentRole={currentRole}
         workspaceName={workspace?.name ?? ""}
         workspaceSlug={workspace?.slug ?? ""}
+        workspaceKind={workspace?.kind ?? "personal"}
         allowPublicSharing={publicSettings?.allow_public_sharing ?? false}
         publicDisplayName={publicSettings?.public_display_name ?? ""}
         publicDescription={publicSettings?.public_description ?? ""}

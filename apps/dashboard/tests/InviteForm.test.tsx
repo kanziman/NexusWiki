@@ -105,4 +105,14 @@ describe("InviteForm", () => {
       p_role: "viewer",
     });
   });
+
+  it("isPersonal이 true면 안내 노트를 렌더링하고 입력 및 버튼이 비활성화된다", () => {
+    render(<InviteForm workspaceId="ws-1" isPersonal={true} />);
+
+    expect(
+      screen.getByText("개인 워크스페이스는 멤버 초대가 비활성화되어 있습니다"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("이메일")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "초대 보내기" })).toBeDisabled();
+  });
 });

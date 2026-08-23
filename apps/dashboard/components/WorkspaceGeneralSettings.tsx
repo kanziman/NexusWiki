@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, User, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { PublicSharingSettings } from "@/components/PublicSharingSettings";
@@ -10,6 +10,8 @@ export type WorkspaceGeneralSettingsProps = {
   workspaceId: string;
   initialName: string;
   initialSlug: string;
+  initialKind?: "personal" | "team";
+  onKindChange?: (kind: "personal" | "team") => void;
   isOwner: boolean;
   allowPublicSharing?: boolean;
   publicDisplayName?: string;
@@ -22,6 +24,8 @@ export function WorkspaceGeneralSettings({
   workspaceId,
   initialName,
   initialSlug,
+  initialKind = "personal",
+  onKindChange,
   isOwner,
   allowPublicSharing = false,
   publicDisplayName = "",
@@ -29,6 +33,7 @@ export function WorkspaceGeneralSettings({
 }: WorkspaceGeneralSettingsProps) {
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
+  const [kind, setKind] = useState<"personal" | "team">(initialKind);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -65,7 +70,7 @@ export function WorkspaceGeneralSettings({
     // 행 수를 확인해야 "차단됨"과 "성공"이 구분된다(CLAUDE.md 불변 규칙).
     const { data, error } = await supabase
       .from("workspaces")
-      .update({ name: trimmedName, slug: trimmedSlug })
+      .update({ name: trimmedName, slug: trimmedSlug, kind })
       .eq("id", workspaceId)
       .select();
 
@@ -79,6 +84,7 @@ export function WorkspaceGeneralSettings({
     }
 
     setSuccessMessage("워크스페이스 정보가 저장되었습니다.");
+    onKindChange?.(kind);
   }
 
   return (
@@ -86,7 +92,7 @@ export function WorkspaceGeneralSettings({
       <div className="section-head">
         <div>
           <h2>기본 정보</h2>
-          <p>워크스페이스 이름과 식별용 슬러그를 관리합니다.</p>
+          <p>워크스페이스 이름과 식별용 슬러그, 협업 유형을 관리합니다.</p>
         </div>
       </div>
 
@@ -97,10 +103,99 @@ export function WorkspaceGeneralSettings({
       )}
 
       <section className="settings-card" aria-label="기본 설정">
-        <h3>워크스페이스 식별</h3>
-        <p>슬러그는 공개 URL 과 공유 링크의 식별자로 쓰입니다.</p>
+        <h3>워크스페이스 식별 및 유형</h3>
+        <p>
+          슬러그는 공개 URL 과 공유 링크의 식별자로 쓰이며, 유형에 따라 멤버
+          초대 기능이 활성화됩니다.
+        </p>
 
         <form onSubmit={handleSubmit} className="settings-form">
+          {/* 워크스페이스 유형 선택 (개인 / 팀) */}
+          <div className="settings-field">
+            <label id="workspace-kind-label">워크스페이스 유형</label>
+            <div
+              role="radiogroup"
+              aria-labelledby="workspace-kind-label"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1.5"
+            >
+              {/* 개인 카드 */}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={kind === "personal"}
+                disabled={!isOwner || saving}
+                onClick={() => {
+                  if (!isOwner || saving) return;
+                  setKind("personal");
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  kind === "personal"
+                    ? "border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)]/60 hover:border-[var(--border-strong)]"
+                } ${!isOwner ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                <div
+                  className={`p-2 rounded-lg flex-none mt-0.5 ${
+                    kind === "personal"
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--surface)] text-[var(--muted)]"
+                  }`}
+                >
+                  <User size={16} aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs font-bold text-[var(--fg)]">
+                    개인 워크스페이스
+                  </span>
+                  <span className="block text-[11px] text-[var(--muted)] leading-relaxed mt-0.5">
+                    혼자 지식을 정리하는 프라이빗 공간입니다. (멤버 초대
+                    비활성화)
+                  </span>
+                </div>
+              </button>
+
+              {/* 팀 카드 */}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={kind === "team"}
+                disabled={!isOwner || saving}
+                onClick={() => {
+                  if (!isOwner || saving) return;
+                  setKind("team");
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  kind === "team"
+                    ? "border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)]/60 hover:border-[var(--border-strong)]"
+                } ${!isOwner ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                <div
+                  className={`p-2 rounded-lg flex-none mt-0.5 ${
+                    kind === "team"
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--surface)] text-[var(--muted)]"
+                  }`}
+                >
+                  <Users size={16} aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs font-bold text-[var(--fg)]">
+                    팀 워크스페이스
+                  </span>
+                  <span className="block text-[11px] text-[var(--muted)] leading-relaxed mt-0.5">
+                    동료들과 소스를 공유하고 위키를 함께 구축하는 협업
+                    공간입니다. (멤버 초대 지원)
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div className="settings-field">
             <label htmlFor="workspace-name-input">워크스페이스 이름</label>
             <input

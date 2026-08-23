@@ -6,7 +6,14 @@ vi.mock("@/components/MembersList", () => ({
 }));
 
 vi.mock("@/components/InviteForm", () => ({
-  InviteForm: () => <div data-testid="invite-form">Invite Form</div>,
+  InviteForm: ({ isPersonal }: { isPersonal?: boolean }) => (
+    <div
+      data-testid="invite-form"
+      data-is-personal={String(Boolean(isPersonal))}
+    >
+      Invite Form
+    </div>
+  ),
 }));
 
 vi.mock("@/components/OperationsPanel", () => ({
@@ -73,5 +80,38 @@ describe("SettingsMembersPanel", () => {
 
     expect(screen.getByTestId("members-list")).toBeInTheDocument();
     expect(screen.getByTestId("invite-form")).toBeInTheDocument();
+  });
+
+  it("passes isPersonal to InviteForm based on workspaceKind", () => {
+    const { rerender } = render(
+      <SettingsMembersPanel
+        workspaceId="ws-1"
+        currentUserId="user-1"
+        currentRole="owner"
+        workspaceKind="personal"
+      />,
+    );
+
+    const membersTab = screen.getByRole("tab", { name: "멤버" });
+    fireEvent.click(membersTab);
+
+    expect(screen.getByTestId("invite-form")).toHaveAttribute(
+      "data-is-personal",
+      "true",
+    );
+
+    rerender(
+      <SettingsMembersPanel
+        workspaceId="ws-1"
+        currentUserId="user-1"
+        currentRole="owner"
+        workspaceKind="team"
+      />,
+    );
+
+    expect(screen.getByTestId("invite-form")).toHaveAttribute(
+      "data-is-personal",
+      "false",
+    );
   });
 });
