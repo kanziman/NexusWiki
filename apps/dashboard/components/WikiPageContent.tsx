@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { Fragment, useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, FileText, Layers } from "lucide-react";
 
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RedLinkCta } from "@/components/RedLinkCta";
@@ -250,27 +250,59 @@ export function WikiPageContent({
         {/* 하단 관련 문서 섹션 */}
         {relatedLinks.length ? (
           <section
-            className="mt-10 border-t border-[var(--border)] pt-6"
+            className="mt-12 border-t border-[var(--border)] pt-8"
             aria-labelledby="related-wiki-heading"
           >
-            <h2
-              id="related-wiki-heading"
-              className="m-0 text-[14px] font-bold text-[var(--fg)] tracking-tight"
-            >
-              관련 문서
-            </h2>
-            <ul className="mt-3 flex flex-wrap gap-2">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <Layers
+                  size={16}
+                  className="text-[var(--accent)]"
+                  aria-hidden="true"
+                />
+                <h2
+                  id="related-wiki-heading"
+                  className="m-0 text-sm font-semibold text-[var(--fg)] tracking-tight"
+                >
+                  관련 문서
+                </h2>
+                <span className="rounded-full bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 text-[10px] font-mono font-medium text-[var(--muted)]">
+                  {relatedLinks.length}
+                </span>
+              </div>
+              <p className="m-0 text-xs text-[var(--muted)] hidden sm:block">
+                이 문서와 연결된 지식 문서입니다
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {relatedLinks.map((link) => (
-                <li key={link.target_slug}>
-                  <Link
-                    className="doc-chip hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-                    href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
-                  >
-                    {link.target_slug.replace(/-/g, " ")}
-                  </Link>
-                </li>
+                <Link
+                  key={link.target_slug}
+                  href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
+                  className="group relative flex items-center justify-between p-3.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)]/50 hover:border-[var(--accent)]/50 transition-all duration-150 shadow-[var(--shadow-sm)] hover:shadow"
+                >
+                  <div className="flex items-center gap-3 min-w-0 pr-2">
+                    <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--surface)] border border-[var(--border)] group-hover:border-[var(--accent)]/30 group-hover:text-[var(--accent)] text-[var(--muted)] transition-colors">
+                      <FileText size={15} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex flex-col">
+                      <span className="text-xs font-semibold text-[var(--fg)] group-hover:text-[var(--accent)] truncate transition-colors">
+                        {link.target_slug.replace(/-/g, " ")}
+                      </span>
+                      <span className="text-[10px] font-mono text-[var(--muted)]">
+                        위키 문서 보기
+                      </span>
+                    </div>
+                  </div>
+                  <ArrowUpRight
+                    size={14}
+                    className="shrink-0 text-[var(--muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-150"
+                    aria-hidden="true"
+                  />
+                </Link>
               ))}
-            </ul>
+            </div>
           </section>
         ) : null}
       </article>
