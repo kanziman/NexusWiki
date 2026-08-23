@@ -47,7 +47,7 @@
 
 ## 마이그레이션
 
-`supabase/migrations/`에 `0001` ~ `0017`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 번호 간격은 없다.
+`supabase/migrations/`에 `0001` ~ `0018`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 번호 간격은 없다.
 
 주요 지점만:
 
@@ -63,8 +63,9 @@
 | `0009` | usage 회계 + dead-letter · cancel 함수 |
 | `0016` | 공개 공유 사이드카 — `workspace_public_settings` · `wiki_page_publications` |
 | `0017` | 사용자별 위키 즐겨찾기 — `user_wiki_bookmarks` |
+| `0018` | Ask 대화 스레드 이력 — `ask_threads` `ask_messages` |
 
-현재 테이블 13개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks`
+현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 
 ## 설정
 

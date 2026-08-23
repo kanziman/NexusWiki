@@ -22,6 +22,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.db.user import UserDb
+from api.errors import WorkspaceForbidden
 from api.services.ask import AskService, HttpLlmStreamClient
 from api.services.retrieval import HttpQueryEmbeddingClient, RetrievalService
 
@@ -38,6 +39,8 @@ class AskRequest(BaseModel):
     # ValueError를 던지지 않는다.
     requested_k: int = Field(default=8, ge=1, le=8)
     template_id: str | None = Field(default=None)
+    thread_id: UUID | None = Field(default=None)
+    client_turn_id: UUID
 
 
 def _user_db(request: Request, credentials: HTTPAuthorizationCredentials) -> UserDb:
@@ -95,5 +98,93 @@ async def ask(
         requested_k=body.requested_k,
         template_id=body.template_id,
         user_db=_user_db(request, credentials),
+        thread_id=body.thread_id,
+        client_turn_id=body.client_turn_id,
     )
     return StreamingResponse(_format_sse(events), media_type="text/event-stream")
+
+
+class ThreadRenameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str = Field(min_length=1, max_length=100)
+
+
+def _thread_summary(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+@router.get("/{workspace_id}/ask/threads")
+async def list_ask_threads(
+    workspace_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> list[dict[str, Any]]:
+    rows = await _user_db(request, credentials).select(
+        "ask_threads",
+        match={"workspace_id": str(workspace_id)},
+        columns="id,title,created_at,updated_at",
+        order="updated_at.desc",
+    )
+    return [_thread_summary(row) for row in rows]
+
+
+@router.get("/{workspace_id}/ask/threads/{thread_id}")
+async def get_ask_thread(
+    workspace_id: UUID,
+    thread_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    db = _user_db(request, credentials)
+    threads = await db.select(
+        "ask_threads",
+        match={"id": str(thread_id), "workspace_id": str(workspace_id)},
+        columns="id,title,created_at,updated_at",
+        limit=1,
+    )
+    if not threads:
+        # 부재와 격리 위반을 구분하지 않는다.
+        raise WorkspaceForbidden(table="ask_threads", affected=0)
+    messages = await db.select(
+        "ask_messages",
+        match={"thread_id": str(thread_id), "workspace_id": str(workspace_id)},
+        columns="id,client_turn_id,question,answer_text,citations,status,created_at",
+        order="created_at.asc",
+    )
+    return {**_thread_summary(threads[0]), "messages": messages}
+
+
+@router.patch("/{workspace_id}/ask/threads/{thread_id}")
+async def rename_ask_thread(
+    workspace_id: UUID,
+    thread_id: UUID,
+    body: ThreadRenameRequest,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    row = await _user_db(request, credentials).update_one(
+        "ask_threads",
+        match={"id": str(thread_id), "workspace_id": str(workspace_id)},
+        values={"title": body.title},
+    )
+    return _thread_summary(row)
+
+
+@router.delete("/{workspace_id}/ask/threads/{thread_id}")
+async def delete_ask_thread(
+    workspace_id: UUID,
+    thread_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    row = await _user_db(request, credentials).delete_one(
+        "ask_threads",
+        match={"id": str(thread_id), "workspace_id": str(workspace_id)},
+    )
+    return _thread_summary(row)

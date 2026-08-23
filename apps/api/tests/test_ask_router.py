@@ -26,7 +26,21 @@ _WIKI_ID = str(uuid4())
 _SOURCE_CHUNK_ID = str(uuid4())
 _RAW_SOURCE_ID = str(uuid4())
 _TEMPLATE_ID = str(uuid4())
+_PERSISTED_THREAD_ID = str(uuid4())
 _ASK_PATH = "/workspaces/{workspace_id}/ask"
+
+
+def _ask_body(**extra: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {"query": "질문", "client_turn_id": str(uuid4())}
+    body.update(extra)
+    return body
+
+
+def _persist_ok() -> httpx.Response:
+    return httpx.Response(
+        200,
+        json=[{"thread_id": _PERSISTED_THREAD_ID, "message_id": str(uuid4())}],
+    )
 
 
 def _settings() -> ApiSettings:
@@ -118,6 +132,8 @@ def _mock_prompt_and_content_transport() -> httpx.MockTransport:
                     }
                 ],
             )
+        if path == "/rest/v1/rpc/persist_ask_turn":
+            return _persist_ok()
         raise AssertionError(f"unexpected request: {request.url}")
 
     return httpx.MockTransport(_handler)
@@ -145,15 +161,19 @@ async def test_no_evidence_short_circuits_before_any_llm_call() -> None:
     app = create_app(_settings(), git_sha="test-sha")
     fake_llm = _FakeLlmStream(_UpstreamResponse([]))
     async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(
+            transport=_mock_prompt_and_content_transport(), timeout=httpx.Timeout(2.0)
+        )
         app.state.ask_service = AskService(_EmptyRetrievalService(), fake_llm)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
             response = await client.post(
                 _ASK_PATH.format(workspace_id=uuid4()),
-                json={"query": "질문", "requested_k": 8},
+                json=_ask_body(requested_k=8),
                 headers={"Authorization": "Bearer test-token"},
             )
+        await app.state.http_client.aclose()
 
     assert response.status_code == 200
     events = _parse_sse(response.text)
@@ -188,7 +208,7 @@ async def test_grounded_answer_streams_meta_delta_citations_done_with_fabricatio
         ) as client:
             response = await client.post(
                 _ASK_PATH.format(workspace_id=uuid4()),
-                json={"query": "질문", "requested_k": 8},
+                json=_ask_body(requested_k=8),
                 headers={"Authorization": "Bearer test-token"},
             )
         await app.state.http_client.aclose()
@@ -198,6 +218,7 @@ async def test_grounded_answer_streams_meta_delta_citations_done_with_fabricatio
     names = [name for name, _ in events]
     assert names[0] == "meta"
     assert names[-2:] == ["citations", "done"]
+    assert events[-1][1]["thread_id"] == _PERSISTED_THREAD_ID
     assert names.count("delta") == 2
 
     citations_payload = dict(events)["citations"]
@@ -235,6 +256,8 @@ async def test_visible_requested_template_is_used_for_ask() -> None:
                     }
                 ],
             )
+        if request.url.path == "/rest/v1/rpc/persist_ask_turn":
+            return _persist_ok()
         raise AssertionError(f"unexpected request: {request.url}")
 
     async with app.router.lifespan_context(app):
@@ -245,7 +268,7 @@ async def test_visible_requested_template_is_used_for_ask() -> None:
         ) as client:
             response = await client.post(
                 _ASK_PATH.format(workspace_id=uuid4()),
-                json={"query": "질문", "template_id": selected_template_id},
+                json=_ask_body(template_id=selected_template_id),
                 headers={"Authorization": "Bearer test-token"},
             )
         await app.state.http_client.aclose()
@@ -271,7 +294,7 @@ async def test_invisible_requested_template_falls_back_to_default() -> None:
         ) as client:
             response = await client.post(
                 _ASK_PATH.format(workspace_id=uuid4()),
-                json={"query": "질문", "template_id": selected_template_id},
+                json=_ask_body(template_id=selected_template_id),
                 headers={"Authorization": "Bearer test-token"},
             )
         await app.state.http_client.aclose()

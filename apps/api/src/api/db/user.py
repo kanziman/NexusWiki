@@ -62,12 +62,15 @@ class UserDb:
         match: Mapping[str, str] | None = None,
         columns: str = "*",
         limit: int | None = None,
+        order: str | None = None,
     ) -> list[dict[str, Any]]:
         """조건에 맞는 행을 돌려준다. 결과가 없으면 빈 리스트이며 예외가 아니다."""
         params: dict[str, str] = {"select": columns}
         params.update(_as_filters(match or {}))
         if limit is not None:
             params["limit"] = str(limit)
+        if order is not None:
+            params["order"] = order
 
         response = await self._client.get(
             f"{self._base_url}/{table}",
