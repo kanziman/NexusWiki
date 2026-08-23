@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
 
+import { Pagination } from "@/components/Pagination";
 import { isVerified, verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
 
@@ -92,6 +93,9 @@ export function WikiLibrary({
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 8;
 
   const visible = useMemo(
     () =>
@@ -103,6 +107,11 @@ export function WikiLibrary({
             .includes(query.toLocaleLowerCase()),
       ),
     [category, pages, query],
+  );
+
+  const paginatedPages = visible.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
   );
 
   const isEmpty = pages.length === 0;
@@ -132,14 +141,21 @@ export function WikiLibrary({
 
       <section data-od-id="wiki-library-list">
         {isEmpty ? null : (
-          <div className="toolbar flex-wrap gap-3">
+          <div className="toolbar flex items-center justify-between gap-4">
             {/* 카테고리 필터 */}
-            <div className="chips" role="group" aria-label="카테고리 필터">
+            <div
+              className="chips flex items-center gap-1.5 flex-wrap"
+              role="group"
+              aria-label="카테고리 필터"
+            >
               <button
                 type="button"
                 aria-pressed={category === null}
                 className="chip transition-colors"
-                onClick={() => setCategory(null)}
+                onClick={() => {
+                  setCategory(null);
+                  setPage(1);
+                }}
               >
                 전체
               </button>
@@ -149,26 +165,31 @@ export function WikiLibrary({
                   type="button"
                   aria-pressed={category === item}
                   className="chip transition-colors"
-                  onClick={() => setCategory(category === item ? null : item)}
+                  onClick={() => {
+                    setCategory(category === item ? null : item);
+                    setPage(1);
+                  }}
                 >
                   {labels[item]}
                 </button>
               ))}
             </div>
 
-            {/* 검색창 — 아이콘과 텍스트가 겹치지 않도록 확실한 좌측 패딩 적용 */}
-            <div className="relative flex-1 min-w-[220px] max-w-[340px]">
+            {/* 검색창 */}
+            <div className="relative w-full max-w-[280px] flex-none">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
               />
               <input
                 aria-label="위키 문서 검색"
-                className="field search w-full pr-3 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:border-[var(--accent)] focus:outline-none transition-all"
-                style={{ paddingLeft: "34px" }}
+                className="field search"
                 placeholder="제목이나 내용으로 검색"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
               />
             </div>
           </div>
@@ -176,60 +197,69 @@ export function WikiLibrary({
 
         {/* 문서 목록 — 과도한 둥근 모서리 카드를 배제하고 명확한 상하 구분선 기반의 정갈한 리스트 */}
         {visible.length ? (
-          <div className="doc-list mt-2 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
-            {visible.map((page) => {
-              const verified = isVerified(page);
-              const label = stateLabel(page);
+          <>
+            <div className="doc-list mt-2 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
+              {paginatedPages.map((page) => {
+                const verified = isVerified(page);
+                const label = stateLabel(page);
 
-              return (
-                <Link
-                  key={page.id}
-                  className="doc group flex items-center justify-between py-3.5 px-3 hover:bg-[var(--surface)] transition-colors rounded-none"
-                  href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                  data-od-id={`wiki-document-${page.slug}`}
-                >
-                  <div className="doc-body flex-1 min-w-0 pr-4">
-                    {/* 상단 메타 뱃지 */}
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
-                        {getCategoryIcon(page.category)}
-                        <span>{labels[page.category] ?? page.category}</span>
+                return (
+                  <Link
+                    key={page.id}
+                    className="doc group flex items-center justify-between py-3.5 px-3 hover:bg-[var(--surface)] transition-colors rounded-none"
+                    href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                    data-od-id={`wiki-document-${page.slug}`}
+                  >
+                    <div className="doc-body flex-1 min-w-0 pr-4">
+                      {/* 상단 메타 뱃지 */}
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+                          {getCategoryIcon(page.category)}
+                          <span>{labels[page.category] ?? page.category}</span>
+                        </span>
+
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium ${
+                            page.disputed
+                              ? "text-[var(--danger)]"
+                              : verified
+                                ? "text-[var(--good)]"
+                                : "text-[var(--muted)]"
+                          }`}
+                        >
+                          {verified && <CheckCircle2 size={11} />}
+                          <span>{label}</span>
+                        </span>
+                      </div>
+
+                      {/* 문서 제목 */}
+                      <span className="doc-title text-[14px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
+                        {page.title}
                       </span>
 
-                      <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-medium ${
-                          page.disputed
-                            ? "text-[var(--danger)]"
-                            : verified
-                              ? "text-[var(--good)]"
-                              : "text-[var(--muted)]"
-                        }`}
-                      >
-                        {verified && <CheckCircle2 size={11} />}
-                        <span>{label}</span>
-                      </span>
+                      {/* 발췌문 */}
+                      <p className="doc-excerpt text-xs text-[var(--muted)] leading-relaxed mt-1 line-clamp-2">
+                        {cleanExcerpt(page.content)}
+                      </p>
                     </div>
 
-                    {/* 문서 제목 */}
-                    <span className="doc-title text-[14px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
-                      {page.title}
-                    </span>
+                    <ChevronRight
+                      className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
+                      size={16}
+                      aria-hidden="true"
+                    />
+                  </Link>
+                );
+              })}
+            </div>
 
-                    {/* 발췌문 */}
-                    <p className="doc-excerpt text-xs text-[var(--muted)] leading-relaxed mt-1 line-clamp-2">
-                      {cleanExcerpt(page.content)}
-                    </p>
-                  </div>
-
-                  <ChevronRight
-                    className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
-                    size={16}
-                    aria-hidden="true"
-                  />
-                </Link>
-              );
-            })}
-          </div>
+            <Pagination
+              currentPage={page}
+              totalItems={visible.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          </>
         ) : (
           <div className="library-empty mt-6" role="status">
             {isEmpty ? (

@@ -72,7 +72,9 @@ describe("WorkspaceHomePage", () => {
         params: Promise.resolve({ workspaceId: "ws-1" }),
       }),
     );
-    expect(screen.getByText("내 워크스페이스")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "홈 대시보드" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("컴파일된 문서")).toBeInTheDocument();
     expect(screen.getByText("연결된 원문 소스")).toBeInTheDocument();
     expect(screen.getByText("작성 대기 항목")).toBeInTheDocument();

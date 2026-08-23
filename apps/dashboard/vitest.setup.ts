@@ -1,8 +1,21 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 
 afterEach(() => cleanup());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => "/w/ws-1",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 // jsdom은 Pointer Capture API/scrollIntoView/ResizeObserver를 구현하지 않는다
 // (jsdom 30 실측 확인). Radix UI 프리미티브(DropdownMenu/Tooltip/Select 등,

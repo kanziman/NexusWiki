@@ -87,6 +87,7 @@ export function AskHero({
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
+            className="w-full resize-none border-0 bg-transparent p-0 text-base leading-relaxed text-[var(--fg)] placeholder:text-[oklch(0.70_0.02_258)] focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none outline-none ring-0"
           />
         </div>
 

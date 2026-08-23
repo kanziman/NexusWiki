@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import React, { Fragment, useEffect, useState } from "react";
+import { ArrowLeft, ArrowUpRight, FileText, Layers } from "lucide-react";
 
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RedLinkCta } from "@/components/RedLinkCta";
@@ -113,7 +114,8 @@ export function WikiPageContent({
   const isExpired =
     expiresAt !== null && new Date(expiresAt).getTime() < Date.now();
 
-  const headings = extractHeadings(page.content);
+  const sanitizedContent = cleanWikiContent(page.content);
+  const headings = extractHeadings(sanitizedContent);
   const relatedLinks = [
     ...new Map(
       links
@@ -160,9 +162,28 @@ export function WikiPageContent({
   return (
     <div className="reader-layout">
       <article className="reader">
-        {/* 상단 브레드크럼 경로 */}
-        <nav aria-label="위키 탐색 경로" className="breadcrumb-path">
-          위키 / {page.category}
+        {/* 상단 브레드크럼 네비게이션: 뒤로가기 + 현재 카테고리 경로 */}
+        <nav
+          aria-label="위키 탐색 경로"
+          className="flex items-center gap-1.5 mb-3 text-xs text-[var(--muted)]"
+        >
+          <Link
+            href={`${workspacePath(workspaceId)}/wiki`}
+            className="inline-flex items-center gap-1.5 py-1 px-2 -ml-2 rounded-md hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors font-medium text-xs leading-none text-[var(--muted)]"
+            aria-label="위키 목록으로 돌아가기"
+          >
+            <ArrowLeft size={13} className="shrink-0" aria-hidden="true" />
+            <span>위키 목록</span>
+          </Link>
+          <span
+            className="text-[var(--border-strong)] opacity-60 select-none text-[11px] leading-none"
+            aria-hidden="true"
+          >
+            /
+          </span>
+          <span className="font-semibold text-[var(--fg)] text-xs leading-none">
+            {categoryLabel}
+          </span>
         </nav>
 
         {/* 문서 타이틀 + 즐겨찾기 */}
@@ -220,7 +241,7 @@ export function WikiPageContent({
         {/* 본문 렌더링 */}
         <div className="article mt-7">
           <DocumentBody
-            content={page.content}
+            content={sanitizedContent}
             links={links}
             workspaceId={workspaceId}
           />
@@ -229,27 +250,59 @@ export function WikiPageContent({
         {/* 하단 관련 문서 섹션 */}
         {relatedLinks.length ? (
           <section
-            className="mt-10 border-t border-[var(--border)] pt-6"
+            className="mt-12 border-t border-[var(--border)] pt-8"
             aria-labelledby="related-wiki-heading"
           >
-            <h2
-              id="related-wiki-heading"
-              className="m-0 text-[14px] font-bold text-[var(--fg)] tracking-tight"
-            >
-              관련 문서
-            </h2>
-            <ul className="mt-3 flex flex-wrap gap-2">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <Layers
+                  size={16}
+                  className="text-[var(--accent)]"
+                  aria-hidden="true"
+                />
+                <h2
+                  id="related-wiki-heading"
+                  className="m-0 text-sm font-semibold text-[var(--fg)] tracking-tight"
+                >
+                  관련 문서
+                </h2>
+                <span className="rounded-full bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 text-[10px] font-mono font-medium text-[var(--muted)]">
+                  {relatedLinks.length}
+                </span>
+              </div>
+              <p className="m-0 text-xs text-[var(--muted)] hidden sm:block">
+                이 문서와 연결된 지식 문서입니다
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {relatedLinks.map((link) => (
-                <li key={link.target_slug}>
-                  <Link
-                    className="doc-chip hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-                    href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
-                  >
-                    {link.target_slug.replace(/-/g, " ")}
-                  </Link>
-                </li>
+                <Link
+                  key={link.target_slug}
+                  href={`${workspacePath(workspaceId)}/wiki/${link.target_slug}`}
+                  className="group relative flex items-center justify-between p-3.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)]/50 hover:border-[var(--accent)]/50 transition-all duration-150 shadow-[var(--shadow-sm)] hover:shadow"
+                >
+                  <div className="flex items-center gap-3 min-w-0 pr-2">
+                    <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--surface)] border border-[var(--border)] group-hover:border-[var(--accent)]/30 group-hover:text-[var(--accent)] text-[var(--muted)] transition-colors">
+                      <FileText size={15} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex flex-col">
+                      <span className="text-xs font-semibold text-[var(--fg)] group-hover:text-[var(--accent)] truncate transition-colors">
+                        {link.target_slug.replace(/-/g, " ")}
+                      </span>
+                      <span className="text-[10px] font-mono text-[var(--muted)]">
+                        위키 문서 보기
+                      </span>
+                    </div>
+                  </div>
+                  <ArrowUpRight
+                    size={14}
+                    className="shrink-0 text-[var(--muted)] group-hover:text-[var(--accent)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-150"
+                    aria-hidden="true"
+                  />
+                </Link>
               ))}
-            </ul>
+            </div>
           </section>
         ) : null}
       </article>
@@ -298,6 +351,20 @@ export function WikiPageContent({
       </aside>
     </div>
   );
+}
+
+/**
+ * 마크다운 본문 끝에 생성된 중복 "관련 문서" 섹션을 제거하여
+ * 위키 전용 카드 칩 UI로 단일화한다.
+ */
+function cleanWikiContent(content: string): string {
+  if (!content) return "";
+  return content
+    .replace(
+      /(?:\r?\n)+(?:#{1,4})\s*(?:관련\s*문서|관련문서|Related\s*Documents?)\s*(?:\r?\n)[\s\S]*$/i,
+      "",
+    )
+    .trimEnd();
 }
 
 /**

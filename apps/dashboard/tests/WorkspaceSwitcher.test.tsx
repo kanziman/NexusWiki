@@ -28,7 +28,7 @@ describe("WorkspaceSwitcher", () => {
     createPersonalWorkspace.mockReset();
   });
 
-  it("스위처 버튼에 현재 워크스페이스 이름이 렌더링된다", () => {
+  it("스위처 버튼에 현재 워크스페이스 이름과 유형 뱃지가 렌더링된다", () => {
     render(
       <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId="ws-1" />,
     );
@@ -36,6 +36,9 @@ describe("WorkspaceSwitcher", () => {
     expect(
       screen.getByRole("button", { name: /워크스페이스 하나/ }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("current-workspace-kind-badge"),
+    ).toHaveTextContent("개인");
   });
 
   it('현재 워크스페이스 항목만 data-active="true"를 갖는다', async () => {

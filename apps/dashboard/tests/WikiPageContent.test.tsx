@@ -33,14 +33,63 @@ describe("WikiPageContent", () => {
       />,
     );
     expect(
+      screen.getByRole("link", { name: "위키 목록으로 돌아가기" }),
+    ).toHaveAttribute("href", "/w/ws-1/wiki");
+    expect(
       screen.getByRole("navigation", { name: "위키 탐색 경로" }),
-    ).toHaveTextContent("위키 / guides");
+    ).toHaveTextContent("가이드");
     expect(
       screen.getByRole("navigation", { name: "이 문서에서" }),
     ).toHaveTextContent("개요");
     expect(screen.getByRole("region", { name: "관련 문서" })).toHaveTextContent(
       "관련 문서",
     );
+  });
+
+  it("마크다운 본문 끝의 '## 관련 문서' 섹션을 제거하여 하단 카드 칩과 중복되지 않게 한다", () => {
+    const rawMarkdown = `## 핵심 개념
+개념 설명입니다.
+
+## 관련 문서
+- [[데이터-계층]]
+- [[시스템-아키텍처]]
+`;
+
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        canVerify={false}
+        initialBookmarked={false}
+        page={{
+          id: "one",
+          title: "문서",
+          category: "concepts",
+          content: rawMarkdown,
+          verification_status: "verified",
+          verified_by: null,
+          verified_at: null,
+          expires_at: null,
+          disputed: false,
+        }}
+        links={[
+          { target_slug: "데이터-계층", resolved: true },
+          { target_slug: "시스템-아키텍처", resolved: true },
+        ]}
+      />,
+    );
+
+    // 본문 TOC 목차에는 "핵심 개념"만 있고 "관련 문서"는 목차에서 제외됨
+    const toc = screen.getByRole("navigation", { name: "이 문서에서" });
+    expect(within(toc).getByText("핵심 개념")).toBeInTheDocument();
+    expect(within(toc).queryByText("관련 문서")).toBeNull();
+
+    // 하단 전용 영역에만 "관련 문서" 칩이 렌더링됨
+    const relatedSection = screen.getByRole("region", { name: "관련 문서" });
+    expect(relatedSection).toBeInTheDocument();
+    expect(within(relatedSection).getByText("데이터 계층")).toBeInTheDocument();
+    expect(
+      within(relatedSection).getByText("시스템 아키텍처"),
+    ).toBeInTheDocument();
   });
 
   it("exposes a favorite toggle in the title row (UX-02)", () => {

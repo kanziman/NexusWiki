@@ -7,6 +7,7 @@ import React, { useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
+import { Pagination } from "@/components/Pagination";
 import { formatDate, formatRelativeTime } from "@/lib/relative-time";
 import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
@@ -85,9 +86,12 @@ export function SourcesList({
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
   const [activeMime, setActiveMime] = useState<MimeFilter>("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(
     Boolean(prefillTitle) || initialTab === "text",
   );
+
+  const PAGE_SIZE = 8;
 
   async function handleIngested(_jobId: string, rawSourceId: string) {
     const supabase = createClient();
@@ -114,6 +118,11 @@ export function SourcesList({
     if (activeMime === "pdf") return isPdf(source);
     return isTextMd(source);
   });
+
+  const paginatedSources = filteredSources.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   const pdfCount = sources.filter(isPdf).length;
   const textMdCount = sources.filter(isTextMd).length;
@@ -172,7 +181,7 @@ export function SourcesList({
 
       {/* 툴바 & 테이블 섹션 */}
       <section data-od-id="source-table-section">
-        <div className="toolbar flex-wrap items-center justify-between gap-3">
+        <div className="toolbar flex items-center justify-between gap-4">
           <nav className="tabs" role="tablist" aria-label="파일 형식 필터">
             {TABS.map((tab) => (
               <button
@@ -180,7 +189,10 @@ export function SourcesList({
                 type="button"
                 role="tab"
                 aria-selected={activeMime === tab.id}
-                onClick={() => setActiveMime(tab.id)}
+                onClick={() => {
+                  setActiveMime(tab.id);
+                  setPage(1);
+                }}
                 className={`tab ${activeMime === tab.id ? "active" : ""}`}
               >
                 {tab.label}
@@ -189,16 +201,18 @@ export function SourcesList({
           </nav>
 
           {/* 검색창 */}
-          <div className="relative flex-1 min-w-[220px] max-w-[340px]">
+          <div className="relative w-full max-w-[280px] flex-none">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
             />
             <input
-              className="field search w-full pr-3 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:border-[var(--accent)] focus:outline-none transition-all"
-              style={{ paddingLeft: "34px" }}
+              className="field search"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
               placeholder="파일명으로 검색"
               aria-label="파일명으로 검색"
             />
@@ -255,7 +269,7 @@ export function SourcesList({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)] text-xs">
-                {filteredSources.map((source) => {
+                {paginatedSources.map((source) => {
                   const format = formatLabel(source);
                   const size = formatBytes(source.byte_size);
                   const stat = chunkStats[source.id];
@@ -369,6 +383,15 @@ export function SourcesList({
               </tbody>
             </table>
           </div>
+        )}
+
+        {filteredSources.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalItems={filteredSources.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+          />
         )}
       </section>
 

@@ -1,13 +1,14 @@
 "use client";
 
 import * as Select from "@radix-ui/react-select";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Lock } from "lucide-react";
 import { useId, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
 export type InviteFormProps = {
   workspaceId: string;
+  isPersonal?: boolean;
   onInvited?: () => void;
 };
 
@@ -32,7 +33,11 @@ const UNREGISTERED_EMAIL_ERROR =
 const FORBIDDEN_ERROR = "권한이 없습니다.";
 const GENERIC_ERROR = "초대를 보내지 못했습니다.";
 
-export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
+export function InviteForm({
+  workspaceId,
+  isPersonal = false,
+  onInvited,
+}: InviteFormProps) {
   const emailId = useId();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>(DEFAULT_ROLE);
@@ -43,7 +48,7 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
   // UI-SPEC: "submit stays disabled only on invalid email format, not on role
   // choice" — role 유효성은 Select가 3값만 노출하므로 여기서 별도 검사하지 않는다.
   const isValidEmail = EMAIL_PATTERN.test(email.trim());
-  const canSubmit = isValidEmail && !submitting;
+  const canSubmit = !isPersonal && isValidEmail && !submitting;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,7 +98,33 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
       <h3>새 멤버 초대</h3>
       <p>가입된 계정만 초대할 수 있습니다. 기본 역할은 뷰어입니다.</p>
 
-      <form onSubmit={handleSubmit} className="invite-form">
+      {isPersonal && (
+        <div
+          role="note"
+          className="mb-4 mt-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]/50 p-3.5 text-xs text-[var(--muted)] flex items-start gap-2.5"
+        >
+          <Lock
+            size={15}
+            className="flex-none mt-0.5 text-[var(--muted)]"
+            aria-hidden="true"
+          />
+          <div>
+            <strong className="block text-[var(--fg)] font-semibold mb-0.5">
+              개인 워크스페이스는 멤버 초대가 비활성화되어 있습니다
+            </strong>
+            <span>
+              팀원을 초대하여 함께 지식을 관리하려면 <strong>[일반]</strong>{" "}
+              설정 탭에서 워크스페이스 유형을{" "}
+              <strong>&apos;팀 워크스페이스&apos;</strong>로 변경하세요.
+            </span>
+          </div>
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        className={`invite-form ${isPersonal ? "opacity-60 pointer-events-none" : ""}`}
+      >
         {/* 프로토타입은 라벨을 그리지 않지만, 라벨 없는 입력은 스크린 리더에
             "편집 텍스트"로만 읽힌다 — 시각적으로만 감춘다. */}
         <label htmlFor={emailId} className="sr-only">
@@ -104,6 +135,7 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
           name="email"
           type="email"
           required
+          disabled={isPersonal}
           autoComplete="email"
           placeholder="초대할 사람의 이메일"
           value={email}
@@ -117,10 +149,12 @@ export function InviteForm({ workspaceId, onInvited }: InviteFormProps) {
 
         <Select.Root
           value={role}
+          disabled={isPersonal}
           onValueChange={(value) => setRole(value as Role)}
         >
           <Select.Trigger
             aria-label="역할 선택"
+            disabled={isPersonal}
             className="field flex items-center justify-between"
           >
             <Select.Value />

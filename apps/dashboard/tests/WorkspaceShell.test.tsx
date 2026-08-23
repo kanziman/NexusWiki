@@ -41,9 +41,9 @@ describe("WorkspaceShell", () => {
       </WorkspaceShell>,
     );
 
-    expect(
-      screen.getAllByText("우리 팀 워크스페이스").length,
-    ).toBeGreaterThanOrEqual(1);
+    const topbar = document.querySelector('[data-od-id="workspace-topbar"]');
+    expect(topbar).toHaveTextContent("우리 팀 워크스페이스");
+    expect(topbar).toHaveTextContent("홈 대시보드");
     expect(screen.getByRole("link", { name: /소스 추가/ })).toHaveAttribute(
       "href",
       "/w/ws-1/sources",

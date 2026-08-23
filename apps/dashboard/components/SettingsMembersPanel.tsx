@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 
 import { InviteForm } from "@/components/InviteForm";
 import { MembersList } from "@/components/MembersList";
@@ -13,6 +13,7 @@ export type SettingsMembersPanelProps = {
   currentRole: string;
   workspaceName?: string;
   workspaceSlug?: string;
+  workspaceKind?: "personal" | "team";
   allowPublicSharing?: boolean;
   publicDisplayName?: string;
   publicDescription?: string;
@@ -34,14 +35,22 @@ export function SettingsMembersPanel({
   currentRole,
   workspaceName = "",
   workspaceSlug = "",
+  workspaceKind = "personal",
   allowPublicSharing = false,
   publicDisplayName = "",
   publicDescription = "",
 }: SettingsMembersPanelProps) {
   const [refreshToken, setRefreshToken] = useState(0);
+  const [currentKind, setCurrentKind] = useState<"personal" | "team">(
+    workspaceKind,
+  );
   const isOwner = currentRole === "owner";
   const canViewOperations = currentRole === "owner" || currentRole === "editor";
   const [activeTab, setActiveTab] = useState<TabId>("general");
+
+  useEffect(() => {
+    setCurrentKind(workspaceKind);
+  }, [workspaceKind]);
 
   const availableTabs: TabId[] = [
     "general",
@@ -104,6 +113,8 @@ export function SettingsMembersPanel({
             workspaceId={workspaceId}
             initialName={workspaceName}
             initialSlug={workspaceSlug}
+            initialKind={currentKind}
+            onKindChange={setCurrentKind}
             isOwner={isOwner}
             allowPublicSharing={allowPublicSharing}
             publicDisplayName={publicDisplayName}
@@ -134,6 +145,7 @@ export function SettingsMembersPanel({
           {isOwner && (
             <InviteForm
               workspaceId={workspaceId}
+              isPersonal={currentKind === "personal"}
               onInvited={() => setRefreshToken((token) => token + 1)}
             />
           )}

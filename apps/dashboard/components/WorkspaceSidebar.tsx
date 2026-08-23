@@ -98,6 +98,7 @@ export function WorkspaceSidebar({
       <nav className="nav-stack" aria-label="주요 메뉴">
         <Link
           href={base}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="홈 대시보드"
           aria-current={
@@ -111,6 +112,7 @@ export function WorkspaceSidebar({
 
         <Link
           href={`${base}/sources`}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="원문 소스"
           aria-current={
@@ -124,6 +126,7 @@ export function WorkspaceSidebar({
 
         <Link
           href={`${base}/ask`}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="질문하기"
           aria-current={pathname.startsWith(`${base}/ask`) ? "page" : undefined}
@@ -135,6 +138,7 @@ export function WorkspaceSidebar({
 
         <Link
           href={`${base}/wiki`}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="위키 문서"
           aria-current={
@@ -150,6 +154,7 @@ export function WorkspaceSidebar({
 
         <Link
           href={`${base}/backlog`}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="미완성 백로그"
           aria-current={
@@ -163,6 +168,7 @@ export function WorkspaceSidebar({
 
         <Link
           href={`${base}/wiki?bookmarked=true`}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="즐겨찾기"
           aria-current={isBookmarkedFilterActive ? "page" : undefined}
@@ -185,6 +191,7 @@ export function WorkspaceSidebar({
             <Link
               key={slug}
               href={href}
+              prefetch={true}
               onClick={handleItemClick}
               data-category={slug}
               aria-label={label}
@@ -203,6 +210,7 @@ export function WorkspaceSidebar({
 
         <Link
           href={`${base}/settings`}
+          prefetch={true}
           onClick={handleItemClick}
           aria-label="팀원 & 역할 관리"
           aria-current={
