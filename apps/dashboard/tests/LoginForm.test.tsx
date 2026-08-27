@@ -47,4 +47,31 @@ describe("LoginForm", () => {
       "로그인에 실패했습니다. 다시 시도해 주세요.",
     );
   });
+
+  it("로그인 화면 표현은 OAuth 진행 중 중복 요청을 막고 상태를 알린다", async () => {
+    let resolveOAuth:
+      ((value: { data: object; error: null }) => void) | undefined;
+    signInWithOAuth.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveOAuth = resolve;
+        }),
+    );
+
+    render(<LoginForm presentation="login" />);
+    const button = screen.getByRole("button", {
+      name: "Google 계정으로 계속하기",
+    });
+
+    fireEvent.click(button);
+
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Google로 이동 중")).toBeInTheDocument();
+    expect(
+      screen.getByText("보안 인증 페이지를 준비하고 있습니다."),
+    ).toBeInTheDocument();
+
+    resolveOAuth?.({ data: {}, error: null });
+  });
 });

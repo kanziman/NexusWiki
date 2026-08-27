@@ -1,9 +1,4 @@
-# google-authentication Specification
-
-## Purpose
-사용자가 Google 계정 하나로 가입·로그인하고, 인증 코드와 리다이렉트 대상이 안전하게 처리되도록 한다.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Google 단일 인증
 
@@ -45,11 +40,3 @@ OAuth 진행 중에는 중복 시작을 막고 진행 상태를 알려야 한다
 
 - **WHEN** 사용자가 로그인 화면의 가입 안내를 선택한다
 - **THEN** 시스템은 `/signup`으로 이동한다
-
-### Requirement: OAuth 콜백은 안전한 내부 경로만 따른다
-
-시스템은 authorization code를 한 번 교환하고, `/`로 시작하되 `//`로 시작하지 않는 경로만 다음 목적지로 허용해야 한다(MUST).
-
-#### Scenario: 외부 리다이렉트 거부
-- **WHEN** next 값이 절대 URL 또는 `//`로 시작하면
-- **THEN** 시스템은 코드 교환 뒤 루트 경로로 이동한다
