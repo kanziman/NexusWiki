@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { LoginHeroTitle } from "@/components/LoginHeroTitle";
 import { LoginKnowledgePreview } from "@/components/LoginKnowledgePreview";
 import { LoginForm } from "@/components/LoginForm";
 
@@ -40,11 +41,7 @@ export default async function LoginPage({
           </Link>
 
           <div className="login-visual-copy">
-            <h1 id="login-visual-title">
-              팀의 지식을,
-              <br />
-              답으로 연결하다.
-            </h1>
+            <LoginHeroTitle />
             <p>
               원문과 위키를 함께 탐색해 답변의 출처와 맥락을 한 화면에서
               연결합니다.

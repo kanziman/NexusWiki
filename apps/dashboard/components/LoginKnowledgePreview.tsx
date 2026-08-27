@@ -9,6 +9,8 @@ type KnowledgeScenario = {
   wiki: string;
 };
 
+type PreviewPhase = "question" | "answer" | "evidence" | "complete";
+
 const scenarios: KnowledgeScenario[] = [
   {
     question: "지난 분기 고객 이탈 원인은 무엇이었나요?",
@@ -33,24 +35,119 @@ const scenarios: KnowledgeScenario[] = [
   },
 ];
 
+function statusFor(phase: PreviewPhase) {
+  if (phase === "question") return "질문 입력 중";
+  if (phase === "answer") return "답변 생성 중";
+  return "근거 연결 완료";
+}
+
 export function LoginKnowledgePreview() {
   const [scenarioIndex, setScenarioIndex] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [documentVisible, setDocumentVisible] = useState(true);
+  const [phase, setPhase] = useState<PreviewPhase>("complete");
+  const [questionText, setQuestionText] = useState(scenarios[0].question);
+  const [answerText, setAnswerText] = useState(scenarios[0].answer);
+  const [evidenceVisible, setEvidenceVisible] = useState(true);
+  const scenario = scenarios[scenarioIndex];
 
   useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
+    const syncVisibility = () => setDocumentVisible(!document.hidden);
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
 
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (typeof window.matchMedia !== "function") {
+      return () =>
+        document.removeEventListener("visibilitychange", syncVisibility);
+    }
 
-    if (reducedMotion.matches) return;
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncReducedMotion = () => setReducedMotion(media.matches);
+    syncReducedMotion();
+    media.addEventListener("change", syncReducedMotion);
 
-    const interval = window.setInterval(() => {
-      setScenarioIndex((current) => (current + 1) % scenarios.length);
-    }, 9000);
-
-    return () => window.clearInterval(interval);
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibility);
+      media.removeEventListener("change", syncReducedMotion);
+    };
   }, []);
 
-  const scenario = scenarios[scenarioIndex];
+  useEffect(() => {
+    if (reducedMotion || !documentVisible) {
+      setPhase("complete");
+      setQuestionText(scenario.question);
+      setAnswerText(scenario.answer);
+      setEvidenceVisible(true);
+      return;
+    }
+
+    let active = true;
+    const timeoutIds = new Set<number>();
+
+    function wait(milliseconds: number) {
+      return new Promise<void>((resolve) => {
+        const timeoutId = window.setTimeout(() => {
+          timeoutIds.delete(timeoutId);
+          resolve();
+        }, milliseconds);
+        timeoutIds.add(timeoutId);
+      });
+    }
+
+    async function typeText(
+      text: string,
+      delay: number,
+      setText: (value: string | ((previous: string) => string)) => void,
+    ) {
+      setText("");
+
+      for (const character of Array.from(text)) {
+        await wait(delay);
+        if (!active) return false;
+        setText((previous) => previous + character);
+      }
+
+      return true;
+    }
+
+    async function playScenario() {
+      // 첫 페인트는 완성된 내용을 보여 준다. 그렇지 않으면 느린 연결에서 카드가
+      // 빈 상태로 보이고 로그인 화면의 신뢰감을 해친다.
+      await wait(700);
+      if (!active) return;
+
+      setPhase("question");
+      setAnswerText("");
+      setEvidenceVisible(false);
+      const questionDone = await typeText(
+        scenario.question,
+        68,
+        setQuestionText,
+      );
+      if (!questionDone || !active) return;
+
+      await wait(320);
+      if (!active) return;
+
+      setPhase("answer");
+      const answerDone = await typeText(scenario.answer, 22, setAnswerText);
+      if (!answerDone || !active) return;
+
+      setPhase("evidence");
+      setEvidenceVisible(true);
+      await wait(2600);
+      if (!active) return;
+
+      setScenarioIndex((current) => (current + 1) % scenarios.length);
+    }
+
+    void playScenario();
+
+    return () => {
+      active = false;
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, [documentVisible, reducedMotion, scenario]);
 
   return (
     <section
@@ -58,30 +155,32 @@ export function LoginKnowledgePreview() {
       aria-label="NexusWiki 답변 미리보기"
     >
       <header className="login-preview-header">
-        <span className="login-preview-status">근거 연결 완료</span>
+        <span className="login-preview-status">{statusFor(phase)}</span>
       </header>
       <div className="login-preview-body" aria-hidden="true">
         <div className="login-preview-question">
           <span className="login-preview-label">QUESTION</span>
-          <p
-            className="login-preview-question-text"
-            key={`question-${scenarioIndex}`}
-          >
-            {scenario.question}
-            <span className="login-preview-cursor" />
+          <p className="login-preview-question-text">
+            {questionText}
+            {phase === "question" ? (
+              <span className="login-preview-cursor" />
+            ) : null}
           </p>
         </div>
         <div className="login-preview-answer">
           <span className="login-preview-label">NEXUSWIKI ANSWER</span>
-          <p
-            className="login-preview-answer-text"
-            key={`answer-${scenarioIndex}`}
-          >
-            {scenario.answer}
-          </p>
+          <p className="login-preview-answer-text">{answerText}</p>
           <div className="login-preview-evidence">
-            <span className="login-evidence-chip">{scenario.source}</span>
-            <span className="login-evidence-chip">{scenario.wiki}</span>
+            <span
+              className={`login-evidence-chip${evidenceVisible ? " is-visible" : ""}`}
+            >
+              {scenario.source}
+            </span>
+            <span
+              className={`login-evidence-chip${evidenceVisible ? " is-visible" : ""}`}
+            >
+              {scenario.wiki}
+            </span>
           </div>
         </div>
       </div>

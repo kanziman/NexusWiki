@@ -272,6 +272,29 @@
   text-wrap: balance;
 }
 
+.login-visual-underlined {
+  position: relative;
+  display: inline-block;
+}
+
+.login-visual-underlined::after {
+  position: absolute;
+  right: 0;
+  bottom: -0.12em;
+  left: 0;
+  height: 0.085em;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.login-visual-underlined.is-animating::after {
+  animation: login-headline-underline 700ms 280ms cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+}
+
 .login-visual-copy p {
   max-width: 480px;
   margin: 20px 0 0;
@@ -385,6 +408,16 @@
   border-radius: 8px;
   color: var(--fg);
   font: 600 9.5px/1 var(--font-mono);
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-evidence-chip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .login-evidence-chip:first-child {
@@ -581,6 +614,18 @@
   }
 }
 
+@keyframes login-headline-underline {
+  from {
+    opacity: 0.65;
+    transform: scaleX(0);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
 @keyframes login-spinner {
   to {
     transform: rotate(360deg);
@@ -731,5 +776,9 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .login-visual-underlined::after {
+    transform: scaleX(1);
   }
 }
