@@ -102,7 +102,7 @@ export function WorkspaceSwitcher({
             {current?.kind ? (
               <span
                 data-testid="current-workspace-kind-badge"
-                className="shrink-0 rounded-full border border-[var(--border)] px-1.5 py-0.2 text-[9px] font-mono font-semibold text-[var(--muted)]"
+                className="switcher-kind"
               >
                 {current.kind === "team" ? "팀" : "개인"}
               </span>
