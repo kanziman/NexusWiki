@@ -40,7 +40,9 @@ MUTATION_BOUNDARIES = {
     "workspace_members": "requester-JWT UserDb (owner-only membership administration)",
     "raw_sources": "POST /workspaces/{id}/sources/{text,file,url}; requester-JWT delete",
     "wiki_pages": (
-        "PATCH /workspaces/{id}/wiki/{id}/verify; requester-JWT UserDb for policy-only CRUD"
+        "PATCH /workspaces/{id}/wiki/{id}/verify; "
+        "PUT/DELETE /workspaces/{id}/wiki/{id}/publication; "
+        "requester-JWT UserDb for policy-only CRUD"
     ),
     "source_chunks": "no client mutation; worker/service-role only",
     "wiki_embeddings": "no client mutation; worker/service-role only",

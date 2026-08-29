@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusWiki — 공개 위키 뷰어 (v2 템플릿)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="nexuswiki-design-system.css">
+<!--
+  셸 클래스는 섹션 18(.public-*)을 그대로 쓴다. 인라인 CSS를 또 두면 시안과
+  앱이 다시 어긋난다.
+
+  공개 LNB는 평면 "공개 문서" 목록이다. wiki_pages.category 4종으로 묶으려면
+  발행 스냅샷에 published_category가 필요하고, 그 마이그레이션은 이 시안 라운드의
+  비범위다(align-public-wiki-reader-shell/design.md).
+-->
+</head>
+<body>
+<div class="public-shell">
+  <header class="public-header">
+    <div class="public-header-grid">
+      <div class="public-header-left">
+        <div class="public-brand-logo">
+          <img src="assets_nexuswiki-network-mark.png" alt="" width="18" height="18">
+        </div>
+        <strong class="public-workspace-name">nexuswiki</strong>
+        <span class="public-badge">공개 위키</span>
+      </div>
+      <div class="public-header-center">승인된 발행본 뷰어</div>
+      <div class="public-header-right">
+        <button type="button" class="public-btn-secondary" onclick="alert('링크가 클립보드에 복사되었습니다.')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          링크 복사
+        </button>
+        <a href="/signup" class="public-cta">시작하기</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="public-layout">
+    <aside class="public-sidebar" aria-label="공개 문서">
+      <div class="public-nav-head">
+        <span class="public-nav-title">공개 문서</span>
+        <span class="public-nav-count">5</span>
+      </div>
+      <ul class="public-nav-list">
+        <li>
+          <a href="#" class="public-nav-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>테넌트 격리 아키텍처</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="public-nav-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>이중 인용 보증 원칙</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="public-nav-link active" aria-current="page">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Background Job Lifecycle</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="public-nav-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>로컬 개발 및 마이그레이션</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="public-nav-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>소스 청킹 및 컴파일 가이드</span>
+          </a>
+        </li>
+      </ul>
+    </aside>
+
+    <main class="public-reader">
+      <article class="reader">
+        <nav class="breadcrumb-path" aria-label="공개 위키 탐색 경로">nexuswiki / 공개 문서</nav>
+        <div class="title-row">
+          <h1>Background Job Lifecycle</h1>
+        </div>
+
+        <div class="public-trust">
+          <div class="public-trust-who">
+            <span class="public-avatar" aria-hidden="true">ne</span>
+            <div>
+              <b>nexuswiki</b>
+              <span class="public-source-line">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                원문 소스 · Architecture-Specification.pdf 외 1
+              </span>
+            </div>
+          </div>
+          <div class="public-trust-meta">
+            <span class="badge verified">검증 및 승인됨</span>
+            <span class="public-read-time">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              읽기 3분 · 2026년 8월 27일
+            </span>
+          </div>
+        </div>
+
+        <div class="article">
+          <p>
+            장시간 수집·컴파일 작업이 at-least-once 실행 환경에서도 관측 가능하고 재시도 가능하며 중복 비용이나 비밀정보 노출 없이 안전하게 종료되도록 하는 작업 생명주기 명세입니다.
+          </p>
+          <h2>목적</h2>
+          <p>at-least-once 실행 환경에서 소스 처리 작업이 다음을 보장하도록 합니다.</p>
+          <ul>
+            <li><strong>관측 가능성</strong>: 각 단계의 현재 상태를 외부에서 확인 가능</li>
+            <li><strong>재시도 안전성</strong>: 중복 실행이 발생해도 중복 과금 및 데이터 충돌 방지</li>
+            <li><strong>비밀정보 보호</strong>: API 키, 자격증명이 저장·노출되지 않음</li>
+          </ul>
+          <h2>핵심 스테이지</h2>
+          <p>소스 처리는 다음 순서의 핵심 스테이지로 구성됩니다.</p>
+          <ul>
+            <li><code>parse</code> — 원문 텍스트 추출 및 구조 분석</li>
+            <li><code>compile</code> — 지식 그래프 및 위키 페이지 합성</li>
+            <li><code>link_sync</code> — 상호 위키링크 및 백로그 동기화</li>
+            <li><code>embed</code> — 하이브리드 검색을 위한 벡터 임베딩 생성</li>
+          </ul>
+        </div>
+
+        <section class="pub-cites" aria-labelledby="citations-heading">
+          <h2 id="citations-heading">승인된 인용 출처 (2)</h2>
+          <p class="pub-cites-note">발행 시점에 검토·승인된 원문 구간입니다.</p>
+          <ul class="pub-cite-list">
+            <li class="pub-cite">
+              <b>Architecture-Specification.pdf</b>
+              <p>"모든 비동기 작업은 스테이지 단위로 상태가 저장되며 at-least-once 실행을 지원한다."</p>
+            </li>
+            <li class="pub-cite">
+              <b>background-jobs-prd.md</b>
+              <p>"워커 프로세스가 비정상 종료되더라도 복구 프로세스가 데드 잡을 자동으로 회수한다."</p>
+            </li>
+          </ul>
+        </section>
+
+        <section class="public-related" aria-labelledby="related-heading">
+          <h2 id="related-heading" class="public-related-head">함께 읽으면 좋은 공개 문서</h2>
+          <div class="public-related-grid">
+            <a href="/p/nexuswiki/tenant-isolation" class="public-related-card">
+              <b>테넌트 격리 아키텍처</b>
+              <p>JWT 테넌트 클레임을 기반으로 RLS 정책과 캐시 계층을 격리하는 설계</p>
+            </a>
+            <a href="/p/nexuswiki/dual-citation" class="public-related-card">
+              <b>이중 인용 보증 원칙</b>
+              <p>Ask 답변 시 원문 소스와 위키 문서를 이중으로 증명하는 메커니즘</p>
+            </a>
+          </div>
+        </section>
+
+        <section class="public-fork" aria-labelledby="fork-heading">
+          <h2 id="fork-heading">내 지식도 이렇게 출처가 남은 위키로 공유해 보세요</h2>
+          <p>PDF, URL, 노트를 올리면 원문과 위키를 함께 인용하는 지식 베이스를 만듭니다.</p>
+          <a href="/signup" class="public-cta">NexusWiki 시작하기</a>
+        </section>
+      </article>
+    </main>
+
+    <aside class="toc">
+      <div class="toc-heading"><h2>목차</h2></div>
+      <nav aria-label="이 문서에서" class="toc-list">
+        <a href="#목적" class="active pl-2 block py-1 text-[11px] leading-snug">목적</a>
+        <a href="#핵심-스테이지" class="pl-2 block py-1 text-[11px] leading-snug">핵심 스테이지</a>
+        <a href="#citations-heading" class="pl-2 block py-1 text-[11px] leading-snug">승인된 인용 출처</a>
+        <a href="#related-heading" class="pl-2 block py-1 text-[11px] leading-snug">함께 읽으면 좋은 공개 문서</a>
+      </nav>
+    </aside>
+  </div>
+
+  <footer class="public-foot">
+    <b>nexuswiki</b>
+    <span>원문과 컴파일된 위키를 함께 인용하는 공개 발행본입니다.</span>
+    <span>이 페이지는 워크스페이스가 승인해 공개한 발행본입니다. 원문 파일과 내부 문서는 공개되지 않습니다.</span>
+  </footer>
+</div>
+</body>
+</html>

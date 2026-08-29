@@ -59,6 +59,7 @@ vi.mock("@/lib/wiki-lookup", async (importOriginal) => {
     ...actual,
     lookupWikiPage: async () => ({
       id: "wiki-1",
+      slug: "tenant-isolation-rls",
       title: "테넌트 격리 스파인",
       content: "본문",
       category: "concepts",
@@ -69,6 +70,8 @@ vi.mock("@/lib/wiki-lookup", async (importOriginal) => {
       disputed: false,
     }),
     lookupWikiLinks: async () => [],
+    lookupWorkspaceSlug: async () => "nexuswiki",
+    lookupWikiPublication: async () => null,
     resolveCanVerify: async () => false,
   };
 });

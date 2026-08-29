@@ -4,6 +4,8 @@ import {
   lookupWikiBookmark,
   lookupWikiLinks,
   lookupWikiPage,
+  lookupWikiPublication,
+  lookupWorkspaceSlug,
   resolveCanVerify,
 } from "@/lib/wiki-lookup";
 import { createClient } from "@/lib/supabase/server";
@@ -45,19 +47,24 @@ export default async function WikiPageRoute({ params }: WikiPageRouteProps) {
     return <WikiPageNotFound />;
   }
 
-  const [links, canVerify, bookmarked] = await Promise.all([
-    lookupWikiLinks(supabase, page.id),
-    resolveCanVerify(supabase, workspaceId),
-    lookupWikiBookmark(supabase, page.id),
-  ]);
+  const [links, canVerify, bookmarked, workspaceSlug, publication] =
+    await Promise.all([
+      lookupWikiLinks(supabase, page.id),
+      resolveCanVerify(supabase, workspaceId),
+      lookupWikiBookmark(supabase, page.id),
+      lookupWorkspaceSlug(supabase, workspaceId),
+      lookupWikiPublication(supabase, page.id),
+    ]);
 
   return (
     <WikiPageContent
       page={page}
       links={links}
       workspaceId={workspaceId}
+      workspaceSlug={workspaceSlug ?? ""}
       canVerify={canVerify}
       initialBookmarked={bookmarked}
+      initialPublishedSlug={publication?.published_slug ?? null}
     />
   );
 }

@@ -14,6 +14,7 @@ vi.mock("@/components/WikiPageContent", () => ({
 
 const fixturePage = {
   id: "wiki-1",
+  slug: "meeting-notes",
   title: "회의록",
   content: "본문",
   verification_status: "unverified",
@@ -40,11 +41,15 @@ vi.mock("@/lib/supabase/server", () => ({
           }
           return query;
         },
-        single: async () =>
-          table === "wiki_pages" &&
-          ["meeting-notes", "회의록", "meeting-회의록"].includes(slug ?? "")
+        single: async () => {
+          if (table === "workspaces") {
+            return { data: { slug: "nexuswiki" }, error: null };
+          }
+          return table === "wiki_pages" &&
+            ["meeting-notes", "회의록", "meeting-회의록"].includes(slug ?? "")
             ? { data: fixturePage, error: null }
-            : { data: null, error: { message: "not found" } },
+            : { data: null, error: { message: "not found" } };
+        },
         // user_wiki_bookmarks 조회(UX-02) — 이 테스트는 즐겨찾기 상태를
         // 다루지 않으므로 항상 미즐겨찾기로 고정한다.
         maybeSingle: async () => ({ data: null, error: null }),

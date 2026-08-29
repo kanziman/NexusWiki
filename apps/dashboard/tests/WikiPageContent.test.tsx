@@ -1,8 +1,37 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/bookmark-actions", () => ({
   setWikiBookmark: vi.fn(),
+}));
+
+const apiFetch = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api-client", () => ({
+  apiFetch: (...args: unknown[]) => apiFetch(...args),
+}));
+
+const publishWikiPage = vi.hoisted(() => vi.fn());
+const unpublishWikiPage = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/wiki-publication", () => ({
+  publishWikiPage: (...args: unknown[]) => publishWikiPage(...args),
+  unpublishWikiPage: (...args: unknown[]) => unpublishWikiPage(...args),
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      getUser: async () => ({
+        data: { user: { id: "user-1" } },
+        error: null,
+      }),
+    },
+  }),
 }));
 
 import { WikiPageContent } from "@/components/WikiPageContent";
@@ -10,16 +39,23 @@ import { WikiPageContent } from "@/components/WikiPageContent";
 describe("WikiPageContent", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    apiFetch.mockReset();
+    publishWikiPage.mockReset();
+    unpublishWikiPage.mockReset();
   });
 
   it("renders document context, heading navigation, and resolved related pages", () => {
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={false}
+        initialPublishedSlug={null}
         page={{
           id: "one",
+          slug: "문서",
           title: "문서",
           category: "guides",
           content: "# 개요\n본문 [[관련 문서]]",
@@ -58,10 +94,13 @@ describe("WikiPageContent", () => {
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={false}
+        initialPublishedSlug={null}
         page={{
           id: "one",
+          slug: "문서",
           title: "문서",
           category: "concepts",
           content: rawMarkdown,
@@ -92,14 +131,55 @@ describe("WikiPageContent", () => {
     ).toBeInTheDocument();
   });
 
+  it("본문 끝의 '관련 문서:' 위키링크 줄을 제거하고 하단 카드만 남긴다", () => {
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={false}
+        initialBookmarked={false}
+        initialPublishedSlug={null}
+        page={{
+          id: "one",
+          slug: "문서",
+          title: "문서",
+          category: "guides",
+          content: `## 검증 계획
+표입니다.
+
+관련 문서: [[데이터-계층]] , [[시스템-아키텍처]]
+`,
+          verification_status: "verified",
+          verified_by: null,
+          verified_at: null,
+          expires_at: null,
+          disputed: false,
+        }}
+        links={[
+          { target_slug: "데이터-계층", resolved: true },
+          { target_slug: "시스템-아키텍처", resolved: true },
+        ]}
+      />,
+    );
+
+    const article = document.querySelector(".article");
+    expect(article?.textContent).toContain("표입니다.");
+    expect(article?.textContent).not.toMatch(/관련 문서/);
+    const relatedSection = screen.getByRole("region", { name: "관련 문서" });
+    expect(within(relatedSection).getByText("데이터 계층")).toBeInTheDocument();
+  });
+
   it("exposes a favorite toggle in the title row (UX-02)", () => {
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={true}
+        initialPublishedSlug={null}
         page={{
           id: "one",
+          slug: "문서",
           title: "문서",
           category: "guides",
           content: "본문",
@@ -139,10 +219,13 @@ npm run build
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={false}
+        initialPublishedSlug={null}
         page={{
           id: "two",
+          slug: "connect-ibd",
           title: "Connect 수집 IBD 사양",
           category: "entities",
           content: markdownContent,
@@ -169,10 +252,13 @@ npm run build
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={false}
+        initialPublishedSlug={null}
         page={{
           id: "unsafe-link",
+          slug: "safe-link",
           title: "안전 링크",
           category: "guides",
           content:
@@ -217,10 +303,13 @@ npm run build
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={false}
+        initialPublishedSlug={null}
         page={{
           id: "toc",
+          slug: "toc-doc",
           title: "목차 문서",
           category: "guides",
           content: "## 개요\n본문\n### 세부 항목",
@@ -259,10 +348,13 @@ npm run build
     render(
       <WikiPageContent
         workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
         canVerify={false}
         initialBookmarked={false}
+        initialPublishedSlug={null}
         page={{
           id: "no-toc",
+          slug: "no-toc",
           title: "제목 없는 본문",
           category: "guides",
           content: "일반 문단만 있습니다.",
@@ -281,5 +373,182 @@ npm run build
     expect(
       within(toc).getByText("제목이 없는 문서입니다."),
     ).toBeInTheDocument();
+  });
+
+  const verifiedPage = {
+    id: "verified-page",
+    slug: "background-job-lifecycle",
+    title: "Background Job Lifecycle",
+    category: "concepts" as const,
+    content: "본문",
+    verification_status: "verified",
+    verified_by: "user-1",
+    verified_at: "2026-08-26T00:00:00Z",
+    expires_at: null,
+    disputed: false,
+  };
+
+  it("lets an editor publish a verified page and copy the public link", async () => {
+    publishWikiPage.mockResolvedValue({
+      published_slug: "background-job-lifecycle",
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      clipboard: { writeText },
+    });
+
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={true}
+        initialBookmarked={false}
+        initialPublishedSlug={null}
+        page={verifiedPage}
+        links={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "공개 발행" }));
+    await waitFor(() => {
+      expect(publishWikiPage).toHaveBeenCalled();
+    });
+
+    const copyButton = await screen.findByRole("button", {
+      name: "공개 링크 복사",
+    });
+    expect(
+      screen.getByRole("button", { name: "발행 취소" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "공개 발행" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(copyButton);
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/p/nexuswiki/background-job-lifecycle`,
+      );
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "공개 링크를 복사했습니다.",
+    );
+  });
+
+  it("lets an editor unpublish a page and restores the publish action", async () => {
+    unpublishWikiPage.mockResolvedValue(undefined);
+
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={true}
+        initialBookmarked={false}
+        initialPublishedSlug="background-job-lifecycle"
+        page={verifiedPage}
+        links={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "발행 취소" }));
+    await waitFor(() => {
+      expect(unpublishWikiPage).toHaveBeenCalled();
+    });
+    expect(
+      await screen.findByRole("button", { name: "공개 발행" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "공개 링크 복사" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer publish controls to viewers or unverified pages", () => {
+    const { unmount } = render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={false}
+        initialBookmarked={false}
+        initialPublishedSlug={null}
+        page={verifiedPage}
+        links={[]}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "공개 발행" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={true}
+        initialBookmarked={false}
+        initialPublishedSlug={null}
+        page={{ ...verifiedPage, verification_status: "unverified" }}
+        links={[]}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "공개 발행" }),
+    ).not.toBeInTheDocument();
+    const verifyBtn = screen.getByRole("button", { name: "검증됨으로 표시" });
+    expect(verifyBtn).toBeInTheDocument();
+    expect(verifyBtn).not.toBeDisabled();
+  });
+
+  it("disables verify button when already verified, and clicking it on unverified page triggers verify and disables button with '검증 완료'", async () => {
+    apiFetch.mockResolvedValue({
+      id: "wiki-1",
+      slug: "background-job-lifecycle",
+      verification_status: "verified",
+      verified_by: "user-1",
+      verified_at: "2026-08-29T00:00:00Z",
+      expires_at: null,
+      disputed: false,
+    });
+
+    const { unmount } = render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={true}
+        initialBookmarked={false}
+        initialPublishedSlug={null}
+        page={verifiedPage}
+        links={[]}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "검증 완료" })).toBeDisabled();
+    unmount();
+
+    render(
+      <WikiPageContent
+        workspaceId="ws-1"
+        workspaceSlug="nexuswiki"
+        canVerify={true}
+        initialBookmarked={false}
+        initialPublishedSlug={null}
+        page={{ ...verifiedPage, verification_status: "unverified" }}
+        links={[]}
+      />,
+    );
+    const verifyBtn = screen.getByRole("button", { name: "검증됨으로 표시" });
+    expect(verifyBtn).not.toBeDisabled();
+
+    fireEvent.click(verifyBtn);
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/workspaces/ws-1/wiki/verified-page/verify",
+        { method: "PATCH", body: { verification_status: "verified" } },
+      );
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "공개 발행" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "검증 완료" })).toBeDisabled();
   });
 });
