@@ -7,6 +7,7 @@ export const WIKI_PAGE_NOT_FOUND_HEADING = "페이지를 찾을 수 없습니다
 
 export type WikiPageRow = {
   id: string;
+  slug: string;
   title: string;
   content: string;
   category: string;
@@ -15,6 +16,10 @@ export type WikiPageRow = {
   verified_at: string | null;
   expires_at: string | null;
   disputed: boolean;
+};
+
+export type WikiPublicationRow = {
+  published_slug: string;
 };
 
 export type WikiLinkRow = { target_slug: string; resolved: boolean };
@@ -32,7 +37,7 @@ export async function lookupWikiPage(
   const { data, error } = await supabase
     .from("wiki_pages")
     .select(
-      "id,title,content,category,verification_status,verified_by,verified_at,expires_at,disputed",
+      "id,slug,title,content,category,verification_status,verified_by,verified_at,expires_at,disputed",
     )
     .eq("workspace_id", workspaceId)
     .eq("slug", slug)
@@ -103,4 +108,42 @@ export async function resolveCanVerify(
     .single();
 
   return memberRow ? ["owner", "editor"].includes(memberRow.role) : false;
+}
+
+/**
+ * 공개 URL 첫 세그먼트. 정본은 `workspaces.slug`다 — 사이드카 복제본은
+ * 킬스위치 행이 아직 없으면 없다.
+ */
+export async function lookupWorkspaceSlug(
+  supabase: SupabaseClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("workspaces")
+    .select("slug")
+    .eq("id", workspaceId)
+    .single();
+
+  if (error || !data?.slug || typeof data.slug !== "string") return null;
+  return data.slug;
+}
+
+/**
+ * 이 위키의 발행본 여부. 멤버 SELECT는 킬스위치 OFF여도 행을 돌려준다 —
+ * 리더가 복사·취소 버튼을 그리려면 OFF 상태도 보여야 한다.
+ */
+export async function lookupWikiPublication(
+  supabase: SupabaseClient,
+  wikiPageId: string,
+): Promise<WikiPublicationRow | null> {
+  const { data } = await supabase
+    .from("wiki_page_publications")
+    .select("published_slug")
+    .eq("wiki_page_id", wikiPageId)
+    .maybeSingle();
+
+  if (!data?.published_slug || typeof data.published_slug !== "string") {
+    return null;
+  }
+  return { published_slug: data.published_slug };
 }

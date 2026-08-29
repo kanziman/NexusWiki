@@ -29,8 +29,6 @@ import { workspacePath } from "@/lib/workspace-path";
 
 export type AskConversationProps = { workspaceId: string };
 
-type PromptTemplate = { id: string; name: string };
-
 type TurnStatus =
   "streaming" | "resolved" | "no-evidence" | "error" | "dropped";
 
@@ -121,8 +119,6 @@ function turnsFromMessages(messages: AskThreadMessage[]): Turn[] {
 export function AskConversation({ workspaceId }: AskConversationProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
-  const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState("");
   const [conversations, setConversations] = useState<Record<string, Turn[]>>(
     {},
@@ -210,27 +206,6 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTemplates() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("prompt_templates")
-        .select("id,name")
-        .eq("target_type", "ask")
-        .or(`workspace_id.is.null,workspace_id.eq.${workspaceId}`);
-      if (!cancelled && data) {
-        setTemplates(data as PromptTemplate[]);
-      }
-    }
-
-    loadTemplates();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
-
   function patchConversation(key: string, updater: (prev: Turn[]) => Turn[]) {
     setConversations((prev) => ({
       ...prev,
@@ -312,7 +287,6 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           body: JSON.stringify({
             query: trimmed,
             requested_k: REQUESTED_K,
-            template_id: templateId,
             client_turn_id: clientTurnId,
             ...(threadId ? { thread_id: threadId } : {}),
           }),
@@ -631,22 +605,6 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
             </Fragment>
           ))}
         </div>
-
-        {templates.length > 0 ? (
-          <div className="chips" role="group" aria-label="프롬프트 템플릿">
-            {templates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => setTemplateId(template.id)}
-                aria-pressed={templateId === template.id}
-                className="chip"
-              >
-                {template.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
 
         <form
           onSubmit={handleSubmit}

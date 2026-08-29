@@ -27,11 +27,52 @@ describe("MarkdownAnswer", () => {
 
     expect(screen.getByRole("heading", { name: "결과" })).toBeInTheDocument();
     expect(screen.getByRole("list").tagName).toBe("OL");
-    expect(screen.getByText("pnpm test").closest("code")).not.toBeNull();
+    expect(screen.getByText("pnpm test").closest("pre")).not.toBeNull();
     expect(screen.getByRole("button", { name: "1" })).toHaveAttribute(
       "data-kind",
       "source",
     );
+  });
+
+  it("SQL 펜스 코드 블록은 위키 본문과 같이 맞춤법 검사를 끈다", () => {
+    const { container } = render(
+      <MarkdownAnswer
+        segments={[
+          {
+            type: "text",
+            value:
+              "```sql\nFOREIGN KEY (parent_id, workspace_id)\nREFERENCES parent_table (id, workspace_id)\n```",
+          },
+        ]}
+        resolved
+        onMarkerClick={vi.fn()}
+      />,
+    );
+
+    const pre = container.querySelector("pre");
+    expect(pre).toHaveAttribute("spellcheck", "false");
+    expect(pre).toHaveAttribute("lang", "zxx");
+    expect(pre).toHaveTextContent("parent_id");
+    expect(container.querySelector("pre code")).toBeNull();
+  });
+
+  it("SQL snake_case 식별자를 이탤릭으로 접지 않는다", () => {
+    const { container } = render(
+      <MarkdownAnswer
+        segments={[
+          {
+            type: "text",
+            value:
+              "| 단계 | 검증기준 |\n| --- | --- |\n| 1 | wiki_pages_sources_idx 적용 후 Bitmap Index Scan |",
+          },
+        ]}
+        resolved
+        onMarkerClick={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector("em")).toBeNull();
+    expect(container.textContent).toContain("wiki_pages_sources_idx");
   });
 
   it("keeps unsafe links as text and safe links navigable", () => {

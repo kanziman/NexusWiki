@@ -51,4 +51,38 @@ describe("AskHero", () => {
       `/w/ws-1/ask?q=${encodeURIComponent("테넌트 격리 원칙").replace(/%20/g, "+")}`,
     );
   });
+
+  it("opens scope menu on click, selects an option, and closes menu", () => {
+    render(<AskHero workspaceId="ws-1" />);
+
+    const trigger = screen.getByRole("button", { name: /워크스페이스 전체/ });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    const categoryOption = screen.getByRole("menuitem", {
+      name: /카테고리 한정/,
+    });
+    fireEvent.click(categoryOption);
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByText("카테고리 한정")).toBeInTheDocument();
+  });
+
+  it("closes scope menu when clicking outside", () => {
+    render(
+      <div>
+        <div data-testid="outside-area">외부 영역</div>
+        <AskHero workspaceId="ws-1" />
+      </div>,
+    );
+
+    const trigger = screen.getByRole("button", { name: /워크스페이스 전체/ });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("outside-area"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
 });

@@ -98,15 +98,20 @@ export function MarkdownAnswer({
       blocks.push(
         <div
           key={`code-${lineIdx}`}
-          className="my-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs"
+          className="my-4 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]"
         >
           {lang ? (
             <div className="border-b border-[var(--border)] bg-[var(--bg)] px-3.5 py-1.5 font-mono text-[10px] font-semibold text-[var(--muted)]">
               {lang}
             </div>
           ) : null}
-          <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-[var(--fg)]">
-            <code>{codeNodes}</code>
+          <pre
+            className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-[var(--fg)]"
+            spellCheck={false}
+            lang="zxx"
+            translate="no"
+          >
+            {codeNodes}
           </pre>
         </div>,
       );
@@ -222,7 +227,10 @@ export function MarkdownAnswer({
                       className="hover:bg-[var(--surface)]/40 transition-colors"
                     >
                       {row.map((cell, cIdx) => (
-                        <td key={cIdx} className="px-3.5 py-2 text-[var(--fg)]">
+                        <td
+                          key={cIdx}
+                          className="align-top px-3.5 py-2 text-[var(--fg)]"
+                        >
                           {cell}
                         </td>
                       ))}
@@ -445,7 +453,7 @@ function parseInlineFormatting(text: string): ReactNode {
       parts.push(
         <code
           key={key++}
-          className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--accent)] font-semibold"
+          className="inline-flex max-w-full align-middle whitespace-nowrap rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[11px] font-medium leading-snug text-[var(--accent)]"
         >
           {codeMatch[1]}
         </code>,
@@ -514,7 +522,7 @@ function parseInlineFormatting(text: string): ReactNode {
     }
 
     // 6. 일반 텍스트 (다음 특수 기호까지)
-    const nextSpecial = remaining.search(/[`*_~\[]/);
+    const nextSpecial = nextMarkupIndex(remaining);
     if (nextSpecial === -1) {
       parts.push(remaining);
       remaining = "";
@@ -529,4 +537,23 @@ function parseInlineFormatting(text: string): ReactNode {
   }
 
   return parts;
+}
+
+/**
+ * 인라인 마크업 시작 위치. 단어 안의 `_` 는 SQL·식별자이므로 이탤릭
+ * 구분자로 쓰지 않는다 — 위키 본문 WikiDocumentBody 와 같은 규칙이다.
+ */
+function nextMarkupIndex(text: string): number {
+  for (let index = 0; index < text.length; index += 1) {
+    const ch = text[index];
+    if (ch === "`" || ch === "*" || ch === "~" || ch === "[") return index;
+    if (ch !== "_") continue;
+    const prev = index > 0 ? text[index - 1] : "";
+    const next = text[index + 1] ?? "";
+    const prevWord = /[0-9A-Za-z가-힣]/.test(prev);
+    const nextWord = /[0-9A-Za-z가-힣]/.test(next);
+    if (prevWord && nextWord) continue;
+    return index;
+  }
+  return -1;
 }

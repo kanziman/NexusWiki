@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Search } from "lucide-react";
 
 import { workspacePath } from "@/lib/workspace-path";
@@ -42,8 +42,25 @@ export function AskHero({
   const [selectedScope, setSelectedScope] = useState(initialScope);
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const scopeWrapRef = useRef<HTMLDivElement | null>(null);
 
   const base = workspacePath(workspaceId);
+
+  useEffect(() => {
+    if (!scopeMenuOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        scopeWrapRef.current &&
+        !scopeWrapRef.current.contains(event.target as Node)
+      ) {
+        setScopeMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [scopeMenuOpen]);
 
   function handleChipClick(chipText: string) {
     setQuestion(chipText);
@@ -92,10 +109,10 @@ export function AskHero({
         </div>
 
         <div className="ask-bottom">
-          <div className="scope-wrap">
+          <div ref={scopeWrapRef} className="scope-wrap relative z-20">
             <button
               type="button"
-              className="scope"
+              className="scope cursor-pointer select-none"
               id="scopeTrigger"
               data-od-id="search-scope-control"
               aria-haspopup="true"
@@ -114,7 +131,7 @@ export function AskHero({
                     key={opt.id}
                     type="button"
                     role="menuitem"
-                    className="scope-option"
+                    className="scope-option cursor-pointer"
                     data-scope={opt.label}
                     onClick={() => {
                       setSelectedScope(opt.label);

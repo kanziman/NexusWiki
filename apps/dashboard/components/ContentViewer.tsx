@@ -14,6 +14,8 @@ import {
   lookupWikiBookmark,
   lookupWikiLinks,
   lookupWikiPage,
+  lookupWikiPublication,
+  lookupWorkspaceSlug,
   resolveCanVerify,
   type WikiLinkRow,
   type WikiPageRow,
@@ -182,13 +184,15 @@ type WikiTabState =
   | { status: "not-found" }
   | {
       status: "ready";
-      // ⚠️ WikiPageRow 에는 slug 가 없다(lib/wiki-lookup.ts). 리더로 넘어가는
-      // 링크가 조회에 쓴 것과 정확히 같은 slug 를 쓰도록 여기 함께 담는다.
+      // 조회에 쓴 slug 를 리더 링크에 그대로 쓴다 — 디코딩 결과가 행의 slug 와
+      // 어긋나면 전체 페이지 링크가 깨진다.
       slug: string;
       page: WikiPageRow;
       links: WikiLinkRow[];
       canVerify: boolean;
       initialBookmarked: boolean;
+      workspaceSlug: string;
+      initialPublishedSlug: string | null;
     };
 
 function WikiTab({
@@ -220,11 +224,14 @@ function WikiTab({
         return;
       }
 
-      const [links, canVerify, bookmarked] = await Promise.all([
-        lookupWikiLinks(supabase, page.id),
-        resolveCanVerify(supabase, workspaceId),
-        lookupWikiBookmark(supabase, page.id),
-      ]);
+      const [links, canVerify, bookmarked, workspaceSlug, publication] =
+        await Promise.all([
+          lookupWikiLinks(supabase, page.id),
+          resolveCanVerify(supabase, workspaceId),
+          lookupWikiBookmark(supabase, page.id),
+          lookupWorkspaceSlug(supabase, workspaceId),
+          lookupWikiPublication(supabase, page.id),
+        ]);
       if (cancelled) return;
       setState({
         status: "ready",
@@ -233,6 +240,8 @@ function WikiTab({
         links,
         canVerify,
         initialBookmarked: bookmarked,
+        workspaceSlug: workspaceSlug ?? "",
+        initialPublishedSlug: publication?.published_slug ?? null,
       });
     }
 
@@ -264,8 +273,10 @@ function WikiTab({
         page={state.page}
         links={state.links}
         workspaceId={workspaceId}
+        workspaceSlug={state.workspaceSlug}
         canVerify={state.canVerify}
         initialBookmarked={state.initialBookmarked}
+        initialPublishedSlug={state.initialPublishedSlug}
       />
       {/* unified-workspace-viewer 「Member opens the full reader from the viewer」.
           인스펙터는 답변의 근거를 확인하는 곳이고 리더는 문서를 읽는 곳이라,

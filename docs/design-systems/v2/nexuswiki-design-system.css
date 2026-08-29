@@ -175,6 +175,18 @@ textarea:focus-visible {
   letter-spacing: -.3px;
 }
 
+.switcher-kind {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font: 600 9px var(--font-mono);
+  letter-spacing: .04em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .chev {
   width: 15px;
   height: 15px;
@@ -301,12 +313,14 @@ textarea:focus-visible {
   justify-content: center;
   align-items: center;
   gap: 0;
+  overflow: hidden;
 }
 .sidebar.collapsed .switcher-mark {
   width: 28px;
   height: 28px;
 }
 .sidebar.collapsed .switcher-name,
+.sidebar.collapsed .switcher-kind,
 .sidebar.collapsed .nav-label,
 .sidebar.collapsed .nav-tree,
 .sidebar.collapsed .profile-text,
@@ -713,24 +727,14 @@ textarea:focus-visible {
      .sidebar는 숨어도(display:none) 그리드 첫 트랙 72px은 그대로 남아
      본문이 그 72px 안에 눌려 들어간다(UX-03 리뷰에서 확인). */
   .app, .app.sidebar-collapsed { grid-template-columns: 1fr }
-  .sidebar { display: none }
+  .sidebar, .sidebar.collapsed { display: none }
   .topbar { padding: 0 20px }
-}
-
-@media (max-width: 640px) {
-  /* 높이를 .topbar 에 직접 쓰지 않고 토큰을 낮춘다 — 상단바에 맞춰 정렬하는
-     쪽(LNB 서랍의 상단 여백 등)이 함께 따라오지 않으면 이 구간에서만 어긋난다. */
-  :root { --topbar-h: 58px }
-
-  .topbar { padding: 0 14px }
-  .crumb { font-size: 12px }
-  .crumb b, .crumb > span { display: none }
 
   .mobile-nav-button {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg);
@@ -758,6 +762,21 @@ textarea:focus-visible {
     inset: 0;
     z-index: 25;
     background: oklch(.208 .033 264/.26);
+  }
+}
+
+@media (max-width: 640px) {
+  /* 높이를 .topbar 에 직접 쓰지 않고 토큰을 낮춘다 — 상단바에 맞춰 정렬하는
+     쪽(LNB 서랍의 상단 여백 등)이 함께 따라오지 않으면 이 구간에서만 어긋난다. */
+  :root { --topbar-h: 58px }
+
+  .topbar { padding: 0 14px }
+  .crumb { font-size: 12px }
+  .crumb b, .crumb > span { display: none }
+
+  .mobile-nav-button {
+    width: 44px;
+    height: 44px;
   }
 
   /* 명세 §버튼: 모바일 주요 조작은 최소 44px */
@@ -924,6 +943,8 @@ textarea:focus-visible {
   color: var(--fg);
   font-size: 11px;
   font-weight: 700;
+  cursor: pointer;
+  user-select: none;
 }
 
 .scope:hover { background: var(--bg) }
@@ -938,7 +959,7 @@ textarea:focus-visible {
   position: absolute;
   left: 0;
   bottom: calc(100% + 8px);
-  z-index: 4;
+  z-index: 50;
   width: 260px;
   padding: 5px;
   border: 1px solid var(--border);
@@ -958,6 +979,7 @@ textarea:focus-visible {
   background: transparent;
   color: var(--fg);
   text-align: left;
+  cursor: pointer;
 }
 
 .scope-option:hover { background: var(--surface) }
@@ -1072,7 +1094,7 @@ textarea:focus-visible {
   .context p { max-width: 42rem }
   .ask-bottom { align-items: flex-end }
   .scope { max-width: 190px; text-align: left }
-  .scope span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .scope #scopeText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
   .doc-title, .doc-meta { white-space: normal }
 }
 
@@ -2072,11 +2094,49 @@ textarea:focus-visible {
 }
 
 .article code {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
   padding: 2px 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--surface);
   font: 600 12px var(--font-mono);
+  line-height: 1.3;
+  white-space: nowrap;
+  vertical-align: middle;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.article table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.article th,
+.article td {
+  vertical-align: top;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.article td code,
+.article th code {
+  margin: 2px 0;
+}
+
+.article pre {
+  -webkit-locale: "zxx";
+  text-decoration: none;
+}
+
+.article pre::spelling-error,
+.article pre::grammar-error,
+.article ::spelling-error,
+.article ::grammar-error {
+  text-decoration: none !important;
+  background: transparent !important;
 }
 
 /* 인용 마커. .cite.source 는 원문 청크, 기본형은 위키 페이지를 가리킨다 —
@@ -2342,6 +2402,20 @@ textarea:focus-visible {
 .answer h1 { margin: 0 0 10px; font: 800 19px/1.35 var(--font-display); letter-spacing: -.5px }
 .answer p { margin: 0 0 12px; color: var(--fg); line-height: 1.75 }
 .answer p:last-child { margin-bottom: 0 }
+
+.answer pre,
+.markdown-answer pre {
+  -webkit-locale: "zxx";
+  text-decoration: none;
+}
+
+.answer pre::spelling-error,
+.answer pre::grammar-error,
+.markdown-answer pre::spelling-error,
+.markdown-answer pre::grammar-error {
+  text-decoration: none !important;
+  background: transparent !important;
+}
 
 /* 이 화면의 점은 잡 상태가 아니라 "지금 이 맥락" 표식이라 --accent 를 쓴다.
    섹션 8 의 .dot 은 pending/failed 로 색이 갈리므로 여기서 덮으면 안 된다. */
@@ -2942,84 +3016,403 @@ button.topic:hover b { color: var(--accent) }
 /* -----------------------------------------------------------------------------
  * 18. 공개 위키 리더 (/p/[slug]/[page])
  *
- * ⚠️ 이 화면도 v2 프로토타입이 없다(public-sharing-prd.md §7-5). v1
- *    public-wiki-reader-preview.html 은 참고만 하고, 조판은 섹션 15(위키 리더)를
- *    그대로 재사용한다 — 공개본은 내부 문서와 "같은 문서"를 보여주는 화면이므로
- *    두 리더가 다르게 생기면 그 자체가 버그다.
+ * 시안: nexuswiki-public-wiki-reader-v2.html
+ * 계약: openspec/changes/align-public-wiki-reader-shell/design.md
  *
  * ⚠️ 이 화면은 앱 셸(.app · .sidebar · .topbar) 밖에 있다. 로그인 사용자가
  *    아니라 anon 이 보는 페이지이므로 워크스페이스 내비게이션이 존재하지 않는다.
  *    그래서 셸 클래스를 재사용하지 않고 .public-* 로 따로 둔다 — .topbar 를
  *    빌려 쓰면 셸의 여백 규칙이 바뀔 때 공개 페이지가 함께 흔들린다.
  *
- * 재사용하는 것(다시 정의하지 않는다): .reader · .reader .title-row ·
- * .governance · .tag · .badge · .article · .toc · .toc-list · .breadcrumb-path.
+ * 헤더와 본문은 같은 3단 트랙을 공유한다. 폭을 따로 주면 로고와 LNB 가
+ * 어긋나고, 그게 이 화면에서 반복된 시각 버그다.
  *
- * 옮기지 않은 것: 인용 원문 드로어(.drawer). left:264px 이 앱 셸 사이드바를
- * 전제하고, 무엇보다 anon 은 원문 청크에 정책도 GRANT 도 없다(불변식 §4~5).
- * 공개 페이지가 여는 것은 승인된 스니펫뿐이다.
+ * 재사용하는 것(다시 정의하지 않는다): .reader · .reader .title-row ·
+ * .badge · .article · .toc · .toc-list · .breadcrumb-path.
+ *
+ * 옮기지 않은 것: 인용 원문 드로어(.drawer), Ask 입력. anon 은 원문 청크에
+ * 정책도 GRANT 도 없고, 게스트 Ask 는 토큰을 익명 경로로 연다.
  * -------------------------------------------------------------------------- */
 
-/* ⚠️ 캔버스 배경을 여기서 칠하지 않는다. 앱 캔버스는 body 가 소유하며
-   --nw-canvas 하나로 통일돼 있다(checklists.json > decisions.app_canvas).
-   화면마다 --bg 로 덮으면 그 화면만 다른 흰색이 되고, 나중에 캔버스를 바꿀 때
-   덮은 화면들만 조용히 뒤처진다. */
-.public-shell { display: flex; flex-direction: column; min-height: 100vh }
+.public-shell {
+  --public-sidebar-w: 260px;
+  --public-toc-w: 240px;
+  --public-topbar-h: 56px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
 
-.public-topbar {
+.public-header {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 50;
+  height: var(--public-topbar-h);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.public-header-grid,
+.public-layout {
+  display: grid;
+  grid-template-columns: var(--public-sidebar-w) minmax(0, 1fr) var(--public-toc-w);
+  width: 100%;
+}
+
+.public-header-grid { height: 100% }
+
+.public-header-left,
+.public-header-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  height: 56px;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  height: 100%;
+  padding: 0 16px;
+  min-width: 0;
+}
+
+.public-header-left { border-right: 1px solid var(--border) }
+.public-header-right {
+  justify-content: flex-end;
+  border-left: 1px solid var(--border);
+}
+
+.public-header-center {
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.public-brand-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.public-workspace-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 14px var(--font-display);
+  letter-spacing: -.3px;
+}
+
+.public-badge {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid oklch(.58 .11 190/.35);
+  border-radius: 5px;
+  background: var(--soft);
+  color: var(--accent);
+  font: 700 10.5px var(--font-mono);
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.public-btn-secondary,
+.public-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.public-btn-secondary {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.public-btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.public-cta {
+  border: 0;
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.public-cta:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.public-layout { flex: 1; min-height: calc(100vh - var(--public-topbar-h)) }
+
+.public-sidebar {
+  position: sticky;
+  top: var(--public-topbar-h);
+  height: calc(100vh - var(--public-topbar-h));
+  overflow: auto;
+  padding: 24px 14px;
+  border-right: 1px solid var(--border);
   background: var(--bg);
 }
 
-.public-mark { display: flex; align-items: center; gap: 9px; min-width: 0 }
-.public-mark strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 13px var(--font-display) }
-
-/* 공개본임을 알리는 표식. --accent 는 화면당 핵심 CTA 하나에만 쓰는 색이고
-   이 화면에는 CTA 가 없으므로, 여기서 그 자리를 가져간다. */
-.public-badge {
-  flex: none;
-  padding: 3px 7px;
-  border: 1px solid oklch(.58 .11 190/.35);
-  border-radius: 999px;
-  background: var(--soft);
-  color: var(--accent);
-  font: 700 12px var(--font-mono);
-  letter-spacing: .06em;
+.public-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 8px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-.public-stamp { flex: none; color: var(--muted); font: 600 12px var(--font-mono); letter-spacing: .04em }
+.public-nav-title {
+  color: var(--muted);
+  font: 800 11px var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 
-/* ⚠️ 섹션 15 의 .toc 는 top:0 · height:100vh 다. 그대로 두면 목차가 이 화면의
-   공개 상단바 뒤로 미끄러져 들어가 첫 항목이 가려진다. 상단바 높이만큼 내린다. */
-.public-shell .reader-layout { flex: 1 }
-.public-shell .toc { top: 56px; height: calc(100vh - 56px) }
+.public-nav-count {
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 500 10px var(--font-mono);
+}
+
+.public-nav-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.public-nav-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-nav-link svg { flex: none; opacity: .7 }
+
+.public-nav-link:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.public-nav-link.active {
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.public-nav-link.active svg { opacity: 1 }
+
+.public-reader { min-width: 0 }
+.public-shell .reader {
+  width: min(780px, 100%);
+  padding: 36px 48px 64px;
+}
+
+.public-trust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 28px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.public-trust-who,
+.public-source-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.public-trust-meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.public-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  color: var(--fg);
+  font: 800 11px var(--font-display);
+}
+
+.public-trust-who b {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.public-source-line,
+.public-read-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.public-read-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+}
+
+.public-trust-meta { gap: 8px }
+
+.public-shell .toc {
+  top: var(--public-topbar-h);
+  height: calc(100vh - var(--public-topbar-h));
+  background: var(--bg);
+}
 
 /* 승인된 인용 스니펫. ⚠️ 인라인 마커 .cite 와 다른 물건이라 이름을 나눈다 —
    이쪽은 발행 시점에 사람이 승인해 평문으로 펼쳐 둔 스냅샷이다
    (public-sharing-prd.md §7-4 권고: 런타임 해석기를 외부에 노출하지 않는다). */
-.pub-cites { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--border) }
-.pub-cites h2 { margin: 0 0 4px; font: 800 15px var(--font-display); letter-spacing: -.3px }
-.pub-cites-note { margin: 0 0 14px; color: var(--muted); font-size: 11px }
-.pub-cite-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none }
+.pub-cites,
+.public-related,
+.public-fork {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.pub-cites h2,
+.public-related-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font: 800 13.5px var(--font-display);
+  letter-spacing: -.3px;
+}
+
+.pub-cites-note { margin: 0 0 14px; color: var(--muted); font-size: 11.5px }
+.pub-cite-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none }
 
 .pub-cite {
-  padding: 13px 15px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
 }
 
-.pub-cite b { display: block; font-size: 12px }
-.pub-cite p { margin: 6px 0 0; color: oklch(.34 .025 264); font-size: 12px; line-height: 1.7 }
+.pub-cite b { display: block; margin-bottom: 3px; font-size: 12px }
+.pub-cite p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.public-related-head { margin-bottom: 12px }
+.public-related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.public-related-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.public-related-card:hover { border-color: var(--accent) }
+.public-related-card b {
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.public-related-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.public-fork {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--fg) 4%, var(--surface));
+  text-align: center;
+}
+
+.public-fork h2 {
+  margin: 0 0 6px;
+  font: 800 15px var(--font-display);
+}
+
+.public-fork p {
+  max-width: 460px;
+  margin: 0 auto 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.public-fork .public-cta {
+  height: 36px;
+  padding: 0 18px;
+  font-size: 12.5px;
+}
 
 .public-foot {
   padding: 22px 28px 30px;
@@ -3032,18 +3425,32 @@ button.topic:hover b { color: var(--accent) }
 
 .public-foot b { display: block; color: var(--fg); font-size: 12px }
 
-@media (max-width: 960px) {
-  /* 섹션 15 가 960px 이하에서 .toc 를 감춘다 — 여기서 되살리지 않는다.
-     본문을 좁혀 가며 목차를 유지하는 편이 더 나쁘다. */
-  .public-topbar { padding: 0 20px }
-  .public-foot { padding: 20px }
+@media (max-width: 1120px) {
+  .public-shell { --public-toc-w: 0px }
+  .public-header-grid,
+  .public-layout { grid-template-columns: var(--public-sidebar-w) minmax(0, 1fr) }
+  .public-header-right { border-left: 0 }
+  .public-shell .toc { display: none }
 }
 
-@media (max-width: 680px) {
-  .public-topbar { height: 52px; padding: 0 14px }
-  .public-shell .toc { top: 52px }
-  .public-stamp { display: none }
-  .pub-cites { margin-top: 30px }
+@media (max-width: 768px) {
+  .public-shell {
+    --public-sidebar-w: 0px;
+    --public-topbar-h: 52px;
+  }
+  .public-header-grid {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .public-layout { grid-template-columns: minmax(0, 1fr) }
+  .public-header-left,
+  .public-header-right { border: 0 }
+  .public-header-center,
+  .public-sidebar,
+  .public-badge { display: none }
+  .public-shell .reader { padding: 28px 20px 56px }
+  .public-foot { padding: 20px 16px 24px }
 }
 
 /* -----------------------------------------------------------------------------

@@ -1,16 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import React, { Fragment, useEffect, useState } from "react";
-import { ArrowLeft, ArrowUpRight, FileText, Layers } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Check,
+  FileText,
+  Globe,
+  GlobeOff,
+  Layers,
+  Link2,
+} from "lucide-react";
 
 import { FavoriteButton } from "@/components/FavoriteButton";
-import { RedLinkCta } from "@/components/RedLinkCta";
-import { safeMarkdownHref } from "@/lib/markdown-url";
+import { WikiDocumentBody } from "@/components/WikiDocumentBody";
 import { apiFetch } from "@/lib/api-client";
+import { createClient } from "@/lib/supabase/client";
+import { cleanWikiContent, extractHeadings } from "@/lib/wiki-document";
 import { verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
-import { resolveWikiLinks } from "@/lib/wiki-links";
+import { publishWikiPage, unpublishWikiPage } from "@/lib/wiki-publication";
 
 // UI-SPEC Copywriting Contract "Wiki viewer (UI-05)" — 문구를 한 글자도 바꾸지 않는다.
 const READ_ONLY_BANNER =
@@ -18,7 +28,16 @@ const READ_ONLY_BANNER =
 // ⚠️ 상태 이름은 lib/verification-label.ts 에서 파생한다.
 const DISPUTED_CALLOUT = `${verificationLabel({ disputed: true })} — 상충하는 정보가 있습니다. 원문을 확인하세요.`;
 const VERIFY_ACTION_LABEL = "검증됨으로 표시";
+const VERIFIED_STATUS_LABEL = "검증 완료";
 const VERIFY_FAILURE_MESSAGE = "검증 처리에 실패했습니다. 다시 시도해주세요.";
+const PUBLISH_ACTION_LABEL = "공개 발행";
+const COPY_LINK_ACTION_LABEL = "공개 링크 복사";
+const UNPUBLISH_ACTION_LABEL = "발행 취소";
+const PUBLISH_FAILURE_MESSAGE = "공개 발행에 실패했습니다. 다시 시도해주세요.";
+const UNPUBLISH_FAILURE_MESSAGE =
+  "발행 취소에 실패했습니다. 다시 시도해주세요.";
+const COPY_SUCCESS_MESSAGE = "공개 링크를 복사했습니다.";
+const COPY_FAILURE_MESSAGE = "링크를 복사하지 못했습니다. 다시 시도해주세요.";
 
 // workspace-home-prd.md 카테고리 표시명 매핑 — wiki_pages.category CHECK 4종 고정.
 const CATEGORY_LABELS: Record<string, string> = {
@@ -30,6 +49,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type WikiPage = {
   id: string;
+  slug: string;
   title: string;
   content: string;
   category: string;
@@ -44,8 +64,10 @@ export type WikiPageContentProps = {
   page: WikiPage;
   links: { target_slug: string; resolved: boolean }[];
   workspaceId: string;
+  workspaceSlug: string;
   canVerify: boolean;
   initialBookmarked: boolean;
+  initialPublishedSlug: string | null;
 };
 
 type VerifyResponse = {
@@ -66,12 +88,6 @@ function formatDate(iso: string): string {
   });
 }
 
-type HeadingItem = {
-  id: string;
-  level: number;
-  title: string;
-};
-
 /**
  * 위키 문서 뷰어 본체 — 미니멀 & 클린 에디토리얼 조판
  */
@@ -79,8 +95,10 @@ export function WikiPageContent({
   page,
   links,
   workspaceId,
+  workspaceSlug,
   canVerify,
   initialBookmarked,
+  initialPublishedSlug,
 }: WikiPageContentProps) {
   const [status, setStatus] = useState(page.verification_status);
   const [verifiedAt, setVerifiedAt] = useState(page.verified_at);
@@ -88,6 +106,13 @@ export function WikiPageContent({
   const [disputed, setDisputed] = useState(page.disputed);
   const [submitting, setSubmitting] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [publishedSlug, setPublishedSlug] = useState<string | null>(
+    initialPublishedSlug,
+  );
+  const [publishing, setPublishing] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
 
   async function handleVerify() {
@@ -108,6 +133,65 @@ export function WikiPageContent({
       setVerifyError(VERIFY_FAILURE_MESSAGE);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (publishing || unpublishing) return;
+    setPublishing(true);
+    setPublishError(null);
+    setCopyStatus(null);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setPublishError(PUBLISH_FAILURE_MESSAGE);
+        return;
+      }
+      const result = await publishWikiPage(supabase, {
+        workspaceId,
+        wikiId: page.id,
+        userId: user.id,
+      });
+      setPublishedSlug(result.published_slug);
+    } catch {
+      setPublishError(PUBLISH_FAILURE_MESSAGE);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function handleUnpublish() {
+    if (publishing || unpublishing) return;
+    setUnpublishing(true);
+    setPublishError(null);
+    setCopyStatus(null);
+
+    try {
+      await unpublishWikiPage(createClient(), {
+        workspaceId,
+        wikiId: page.id,
+      });
+      setPublishedSlug(null);
+    } catch {
+      setPublishError(UNPUBLISH_FAILURE_MESSAGE);
+    } finally {
+      setUnpublishing(false);
+    }
+  }
+
+  async function handleCopyPublicLink() {
+    if (publishedSlug === null || !workspaceSlug) return;
+    setCopyStatus(null);
+    const url = `${window.location.origin}${publicWikiPath(workspaceSlug, publishedSlug)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyStatus(COPY_SUCCESS_MESSAGE);
+    } catch {
+      setCopyStatus(COPY_FAILURE_MESSAGE);
     }
   }
 
@@ -158,6 +242,9 @@ export function WikiPageContent({
   }, [headings]);
 
   const categoryLabel = CATEGORY_LABELS[page.category] ?? page.category;
+  const isPageVerified = status === "verified" && !disputed && !isExpired;
+  const canPublish = canVerify && isPageVerified && publishedSlug === null;
+  const publicationBusy = publishing || unpublishing;
 
   return (
     <div className="reader-layout">
@@ -219,29 +306,85 @@ export function WikiPageContent({
           {READ_ONLY_BANNER}
         </p>
 
-        {/* 검증 액션 버튼 */}
+        {/* 검증 · 공개 발행 액션 */}
         {canVerify ? (
           <div className="mt-3.5 flex flex-col gap-1">
-            <button
-              type="button"
-              onClick={handleVerify}
-              disabled={submitting}
-              className="button primary self-start"
-            >
-              {submitting ? "검증 처리 중..." : VERIFY_ACTION_LABEL}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={submitting || isPageVerified}
+                className="button primary self-start inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isPageVerified ? <Check size={13} aria-hidden="true" /> : null}
+                {submitting
+                  ? "검증 처리 중..."
+                  : isPageVerified
+                    ? VERIFIED_STATUS_LABEL
+                    : VERIFY_ACTION_LABEL}
+              </button>
+              {canPublish ? (
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={publicationBusy}
+                  className="button self-start inline-flex items-center gap-1.5"
+                >
+                  <Globe size={13} aria-hidden="true" />
+                  {publishing ? "발행 중..." : PUBLISH_ACTION_LABEL}
+                </button>
+              ) : null}
+              {publishedSlug !== null ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCopyPublicLink}
+                    disabled={!workspaceSlug}
+                    className="button self-start inline-flex items-center gap-1.5"
+                  >
+                    <Link2 size={13} aria-hidden="true" />
+                    {COPY_LINK_ACTION_LABEL}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleUnpublish}
+                    disabled={publicationBusy}
+                    className="button self-start inline-flex items-center gap-1.5"
+                  >
+                    <GlobeOff size={13} aria-hidden="true" />
+                    {unpublishing ? "취소 중..." : UNPUBLISH_ACTION_LABEL}
+                  </button>
+                </>
+              ) : null}
+            </div>
             {verifyError !== null ? (
               <p role="alert" className="invite-feedback error show mt-1">
                 {verifyError}
+              </p>
+            ) : null}
+            {publishError !== null ? (
+              <p role="alert" className="invite-feedback error show mt-1">
+                {publishError}
+              </p>
+            ) : null}
+            {copyStatus !== null ? (
+              <p
+                role={copyStatus === COPY_FAILURE_MESSAGE ? "alert" : "status"}
+                className={`invite-feedback show mt-1${
+                  copyStatus === COPY_FAILURE_MESSAGE ? " error" : ""
+                }`}
+              >
+                {copyStatus}
               </p>
             ) : null}
           </div>
         ) : null}
 
         {/* 본문 렌더링 */}
-        <div className="article mt-7">
-          <DocumentBody
+        <div className="article mt-7" spellCheck={false}>
+          <WikiDocumentBody
             content={sanitizedContent}
+            linkMode="internal"
             links={links}
             workspaceId={workspaceId}
           />
@@ -353,485 +496,8 @@ export function WikiPageContent({
   );
 }
 
-/**
- * 마크다운 본문 끝에 생성된 중복 "관련 문서" 섹션을 제거하여
- * 위키 전용 카드 칩 UI로 단일화한다.
- */
-function cleanWikiContent(content: string): string {
-  if (!content) return "";
-  return content
-    .replace(
-      /(?:\r?\n)+(?:#{1,4})\s*(?:관련\s*문서|관련문서|Related\s*Documents?)\s*(?:\r?\n)[\s\S]*$/i,
-      "",
-    )
-    .trimEnd();
-}
-
-/**
- * 본문에서 목차 항목 추출
- */
-function extractHeadings(content: string): HeadingItem[] {
-  if (!content) return [];
-  const lines = content.split("\n");
-  const result: HeadingItem[] = [];
-
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    const match = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
-    if (match) {
-      const level = match[1].length;
-      const rawTitle = match[2]
-        .replace(/\[\[(?:[^\]|]+\|)?([^\]]+)\]\]/g, "$1")
-        .replace(/[*_`~]/g, "")
-        .trim();
-      result.push({
-        id: `section-${index}`,
-        level,
-        title: rawTitle,
-      });
-    }
-  }
-
-  return result;
-}
-
-type DocumentBodyProps = {
-  content: string;
-  links: { target_slug: string; resolved: boolean }[];
-  workspaceId: string;
-};
-
-/**
- * 위키 문서 본문 마크다운 + WikiLink 렌더러
- */
-function DocumentBody({ content, links, workspaceId }: DocumentBodyProps) {
-  if (!content) return null;
-
-  const lines = content.split("\n");
-  const nodes: React.ReactNode[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index];
-    const trimmed = line.trim();
-
-    // 1. 빈 줄
-    if (!trimmed) {
-      index++;
-      continue;
-    }
-
-    // 2. 코드 블록 (``` ... ```)
-    if (trimmed.startsWith("```")) {
-      const lang = trimmed.slice(3).trim();
-      const codeLines: string[] = [];
-      index++;
-      while (index < lines.length && !lines[index].trim().startsWith("```")) {
-        codeLines.push(lines[index]);
-        index++;
-      }
-      if (index < lines.length) {
-        index++;
-      }
-      nodes.push(
-        <div
-          key={`code-${index}`}
-          className="my-4 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]"
-        >
-          {lang ? (
-            <div className="border-b border-[var(--border)] bg-[var(--bg)] px-3.5 py-1.5 font-mono text-[10px] font-semibold text-[var(--muted)]">
-              {lang}
-            </div>
-          ) : null}
-          <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-[var(--fg)]">
-            <code>{codeLines.join("\n")}</code>
-          </pre>
-        </div>,
-      );
-      continue;
-    }
-
-    // 3. 마크다운 테이블 (| ... |)
-    if (trimmed.startsWith("|") && trimmed.includes("|", 1)) {
-      const tableLines: string[] = [];
-      while (
-        index < lines.length &&
-        lines[index].trim().startsWith("|") &&
-        lines[index].trim().includes("|", 1)
-      ) {
-        tableLines.push(lines[index].trim());
-        index++;
-      }
-
-      if (tableLines.length >= 2) {
-        const headerCells = splitTableRow(tableLines[0]);
-        const isDivider = tableLines[1]
-          .split("|")
-          .filter(Boolean)
-          .every((cell) => /^[\s:-]+$/.test(cell));
-
-        const bodyRows = (
-          isDivider ? tableLines.slice(2) : tableLines.slice(1)
-        ).map(splitTableRow);
-
-        nodes.push(
-          <div
-            key={`table-${index}`}
-            className="my-5 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--bg)]"
-          >
-            <table className="w-full border-collapse text-left text-xs">
-              <thead className="border-b border-[var(--border)] bg-[var(--surface)] text-[var(--fg)]">
-                <tr>
-                  {headerCells.map((cell, cIdx) => (
-                    <th
-                      key={cIdx}
-                      className="px-3.5 py-2 font-semibold tracking-tight text-[var(--fg)]"
-                    >
-                      {renderRichText(cell, links, workspaceId)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              {bodyRows.length > 0 ? (
-                <tbody className="divide-y divide-[var(--border)]">
-                  {bodyRows.map((row, rIdx) => (
-                    <tr
-                      key={rIdx}
-                      className="hover:bg-[var(--surface)]/40 transition-colors"
-                    >
-                      {row.map((cell, cIdx) => (
-                        <td key={cIdx} className="px-3.5 py-2 text-[var(--fg)]">
-                          {renderRichText(cell, links, workspaceId)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              ) : null}
-            </table>
-          </div>,
-        );
-        continue;
-      }
-    }
-
-    // 4. 헤딩 (#, ##, ###, ####)
-    const headingMatch = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
-    if (headingMatch) {
-      const level = headingMatch[1].length;
-      const title = headingMatch[2];
-      const sectionId = `section-${index}`;
-      const renderedTitle = renderRichText(title, links, workspaceId);
-      index++;
-
-      if (level === 1) {
-        nodes.push(
-          <h2
-            key={`h2-${index}`}
-            id={sectionId}
-            className="scroll-mt-20 mt-9 mb-3 pb-1.5 text-lg font-bold tracking-tight text-[var(--fg)] border-b border-[var(--border)]"
-          >
-            {renderedTitle}
-          </h2>,
-        );
-      } else if (level === 2) {
-        nodes.push(
-          <h3
-            key={`h3-${index}`}
-            id={sectionId}
-            className="scroll-mt-20 mt-7 mb-2 text-[15px] font-bold tracking-tight text-[var(--fg)]"
-          >
-            {renderedTitle}
-          </h3>,
-        );
-      } else if (level === 3) {
-        nodes.push(
-          <h4
-            key={`h4-${index}`}
-            id={sectionId}
-            className="scroll-mt-20 mt-5 mb-1.5 text-xs font-bold tracking-tight text-[var(--fg)]"
-          >
-            {renderedTitle}
-          </h4>,
-        );
-      } else {
-        nodes.push(
-          <h5
-            key={`h5-${index}`}
-            id={sectionId}
-            className="scroll-mt-20 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]"
-          >
-            {renderedTitle}
-          </h5>,
-        );
-      }
-      continue;
-    }
-
-    // 5. 구분선 (---, ***)
-    if (/^(\*\*\*|---|___)$/.test(trimmed)) {
-      nodes.push(
-        <hr
-          key={`hr-${index}`}
-          className="my-6 border-t border-[var(--border)]"
-        />,
-      );
-      index++;
-      continue;
-    }
-
-    // 6. 블록 인용구 (> ...)
-    if (trimmed.startsWith(">")) {
-      const quoteLines: string[] = [];
-      while (index < lines.length && lines[index].trim().startsWith(">")) {
-        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
-        index++;
-      }
-      nodes.push(
-        <blockquote
-          key={`quote-${index}`}
-          className="my-4 border-l-2 border-[var(--accent)] pl-4 pr-3 py-1 text-[13.5px] italic text-[var(--muted)] leading-relaxed break-words"
-        >
-          {quoteLines.map((ql, qIdx) => (
-            <p
-              key={qIdx}
-              className={`${qIdx > 0 ? "mt-1.5" : "my-0"} break-words`}
-            >
-              {renderRichText(ql, links, workspaceId)}
-            </p>
-          ))}
-        </blockquote>,
-      );
-      continue;
-    }
-
-    // 7. 리스트 (- item, * item, 1. item)
-    if (/^(\s*[-*+]|\s*\d+\.)\s+/.test(line)) {
-      const isOrdered = /^\s*\d+\.\s+/.test(line);
-      const listItems: string[] = [];
-      while (
-        index < lines.length &&
-        /^(\s*[-*+]|\s*\d+\.)\s+/.test(lines[index])
-      ) {
-        const itemLine = lines[index];
-        const text = itemLine.replace(/^(\s*[-*+]|\s*\d+\.)\s+/, "");
-        listItems.push(text);
-        index++;
-      }
-
-      const ListTag = isOrdered ? "ol" : "ul";
-      nodes.push(
-        <ListTag
-          key={`list-${index}`}
-          className={`my-3 space-y-1.5 pl-5 text-[14px] leading-[1.8] text-[var(--fg)] ${
-            isOrdered ? "list-decimal" : "list-disc"
-          }`}
-        >
-          {listItems.map((li, lIdx) => (
-            <li key={lIdx} className="marker:text-[var(--muted)]">
-              {renderRichText(li, links, workspaceId)}
-            </li>
-          ))}
-        </ListTag>,
-      );
-      continue;
-    }
-
-    // 8. 일반 단락
-    const paragraphLines: string[] = [line];
-    index++;
-    while (
-      index < lines.length &&
-      lines[index].trim() &&
-      !lines[index].trim().startsWith("#") &&
-      !lines[index].trim().startsWith("```") &&
-      !lines[index].trim().startsWith(">") &&
-      !lines[index].trim().startsWith("|") &&
-      !/^(\s*[-*+]|\s*\d+\.)\s+/.test(lines[index])
-    ) {
-      paragraphLines.push(lines[index]);
-      index++;
-    }
-
-    nodes.push(
-      <p
-        key={`p-${index}`}
-        className="my-2.5 text-[14px] leading-[1.8] text-[var(--fg)]"
-      >
-        {renderRichText(paragraphLines.join(" "), links, workspaceId)}
-      </p>,
-    );
-  }
-
-  return <>{nodes}</>;
-}
-
-function splitTableRow(rowStr: string): string[] {
-  const trimmed = rowStr.trim();
-  const inner = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
-  const cleaned = inner.endsWith("|") ? inner.slice(0, -1) : inner;
-  return cleaned.split("|").map((cell) => cell.trim());
-}
-
-/**
- * 인라인 마크다운 서식 + [[WikiLink]] 통합 파싱 함수
- */
-function renderRichText(
-  text: string,
-  links: { target_slug: string; resolved: boolean }[],
-  workspaceId: string,
-): React.ReactNode {
-  if (!text) return null;
-
-  const wikiParts = resolveWikiLinks(text, links);
-
-  return wikiParts.map((part, pIdx) => {
-    if (part.type === "link") {
-      if (part.resolved) {
-        return (
-          <Link
-            key={pIdx}
-            href={`${workspacePath(workspaceId)}/wiki/${part.slug}`}
-            className="cite inline-flex items-center gap-1 text-[13px] font-medium text-[var(--accent)] hover:opacity-80 transition-opacity align-baseline no-underline"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="flex-none opacity-70"
-              aria-hidden="true"
-            >
-              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
-              <path d="M6 6h10" />
-              <path d="M6 10h10" />
-            </svg>
-            <span>{part.title}</span>
-          </Link>
-        );
-      }
-      return (
-        <RedLinkCta
-          key={pIdx}
-          title={part.title}
-          slug={part.slug}
-          workspaceId={workspaceId}
-        />
-      );
-    }
-
-    return <Fragment key={pIdx}>{parseInlineMarkdown(part.value)}</Fragment>;
-  });
-}
-
-/**
- * 인라인 마크다운 파싱: **볼드**, *이탤릭*, `인라인 코드`, ~~취소선~~, [링크](url)
- */
-function parseInlineMarkdown(text: string): React.ReactNode {
-  if (!text) return null;
-  const parts: React.ReactNode[] = [];
-  let remaining = text;
-  let key = 0;
-
-  let safetyCounter = 0;
-  const maxIterations = text.length * 2 + 10;
-
-  while (remaining.length > 0 && safetyCounter++ < maxIterations) {
-    // 1. 인라인 코드: `code`
-    const codeMatch = remaining.match(/^`([^`]+)`/);
-    if (codeMatch) {
-      parts.push(
-        <code
-          key={key++}
-          className="rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[var(--accent)]"
-        >
-          {codeMatch[1]}
-        </code>,
-      );
-      remaining = remaining.slice(codeMatch[0].length);
-      continue;
-    }
-
-    // 2. 링크: [label](url)
-    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
-    if (linkMatch) {
-      const href = safeMarkdownHref(linkMatch[2]);
-      parts.push(
-        href ? (
-          <a
-            key={key++}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-[var(--accent)] underline underline-offset-3 hover:opacity-80 transition-opacity"
-          >
-            {linkMatch[1]}
-          </a>
-        ) : (
-          <span key={key++}>{linkMatch[1]}</span>
-        ),
-      );
-      remaining = remaining.slice(linkMatch[0].length);
-      continue;
-    }
-
-    // 3. 볼드: **text** or __text__
-    const boldMatch = remaining.match(/^(\*\*|__)(.+?)\1/);
-    if (boldMatch) {
-      parts.push(
-        <strong key={key++} className="font-bold text-[var(--fg)]">
-          {parseInlineMarkdown(boldMatch[2])}
-        </strong>,
-      );
-      remaining = remaining.slice(boldMatch[0].length);
-      continue;
-    }
-
-    // 4. 이탤릭: *text* or _text_
-    const italicMatch = remaining.match(/^(\*|_)(.+?)\1/);
-    if (italicMatch) {
-      parts.push(
-        <em key={key++} className="italic text-[var(--fg)]">
-          {parseInlineMarkdown(italicMatch[2])}
-        </em>,
-      );
-      remaining = remaining.slice(italicMatch[0].length);
-      continue;
-    }
-
-    // 5. 취소선: ~~text~~
-    const strikeMatch = remaining.match(/^~~(.+?)~~/);
-    if (strikeMatch) {
-      parts.push(
-        <del key={key++} className="line-through text-[var(--muted)]">
-          {parseInlineMarkdown(strikeMatch[1])}
-        </del>,
-      );
-      remaining = remaining.slice(strikeMatch[0].length);
-      continue;
-    }
-
-    // 6. 일반 텍스트
-    const nextSpecial = remaining.search(/[`*_~\[]/);
-    if (nextSpecial === -1) {
-      parts.push(remaining);
-      remaining = "";
-      break;
-    } else if (nextSpecial === 0) {
-      parts.push(remaining[0]);
-      remaining = remaining.slice(1);
-    } else {
-      parts.push(remaining.slice(0, nextSpecial));
-      remaining = remaining.slice(nextSpecial);
-    }
-  }
-
-  return parts;
+function publicWikiPath(workspaceSlug: string, pageSlug: string): string {
+  return `/p/${encodeURIComponent(workspaceSlug)}/${encodeURIComponent(pageSlug)}`;
 }
 
 type VerificationCalloutProps = {
