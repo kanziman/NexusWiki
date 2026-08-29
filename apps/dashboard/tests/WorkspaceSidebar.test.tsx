@@ -1,13 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/w/ws-1"));
 const mockSearchParamsGet = vi.hoisted(() =>
   vi.fn<(key: string) => string | null>(() => null),
 );
+const push = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   usePathname: mockUsePathname,
   useSearchParams: () => ({
     get: mockSearchParamsGet,
@@ -53,6 +54,25 @@ describe("WorkspaceSidebar", () => {
     ],
     accountEmail: "developer@nexuswiki.com",
   };
+
+  beforeEach(() => {
+    push.mockReset();
+    sessionStorage.clear();
+    mockUsePathname.mockReturnValue("/w/ws-1");
+    mockSearchParamsGet.mockReturnValue(null);
+  });
+
+  it("질문하기를 다시 누르면 세션의 활성 스레드로 이동한다", () => {
+    sessionStorage.setItem(
+      "nexuswiki:active-ask-thread:ws-1",
+      "thread-streaming-1",
+    );
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("link", { name: "질문하기" }));
+
+    expect(push).toHaveBeenCalledWith("/w/ws-1/ask?thread=thread-streaming-1");
+  });
 
   it("renders main navigation items, categories, and user profile", () => {
     render(<WorkspaceSidebar {...defaultProps} />);

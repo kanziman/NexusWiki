@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { Menu, Plus, X } from "lucide-react";
 
 import { AccountMenu } from "@/components/AccountMenu";
 import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
+import { getActiveAskThread } from "@/lib/ask-active-thread";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WorkspaceShellProps = {
@@ -48,6 +49,7 @@ export function WorkspaceShell({
   const [collapsed, setCollapsed] = useState(false);
   const base = workspacePath(currentWorkspaceId);
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const isBookmarked = searchParams.get("bookmarked") === "true";
   const sectionTitle = getSectionTitle(pathname, isBookmarked);
@@ -72,6 +74,13 @@ export function WorkspaceShell({
       sessionStorage.setItem(LNB_COLLAPSED_STORAGE_KEY, String(next));
       return next;
     });
+  }
+
+  function handleAskNavigation(event: MouseEvent<HTMLAnchorElement>) {
+    const threadId = getActiveAskThread(currentWorkspaceId);
+    if (!threadId) return;
+    event.preventDefault();
+    router.push(`${base}/ask?thread=${encodeURIComponent(threadId)}`);
   }
 
   return (
@@ -122,6 +131,7 @@ export function WorkspaceShell({
             </Link>
             <Link
               href={`${base}/ask`}
+              onClick={handleAskNavigation}
               className="button primary"
               data-od-id="ask-top-button"
             >

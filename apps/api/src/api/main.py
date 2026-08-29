@@ -62,6 +62,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Ask-Thread-Id"],
     )
     errors.register_error_handlers(app)
     app.include_router(health_router)

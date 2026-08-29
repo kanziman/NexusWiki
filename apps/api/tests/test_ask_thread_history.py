@@ -46,12 +46,17 @@ async def test_ask_without_client_turn_id_is_422() -> None:
 
 
 @pytest.mark.asyncio
-async def test_persist_rpc_runs_before_done_and_done_carries_thread_id() -> None:
+async def test_start_and_finalize_rpcs_wrap_done_with_thread_id() -> None:
     seen: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request.url.path)
-        if request.url.path == "/rest/v1/rpc/persist_ask_turn":
+        if request.url.path == "/rest/v1/rpc/start_ask_turn":
+            body = json.loads(request.content.decode())
+            assert body["p_question"] == "질문"
+            assert body["p_client_turn_id"]
+            return _persist_ok()
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
             body = json.loads(request.content.decode())
             assert body["p_status"] == "no-evidence"
             assert body["p_client_turn_id"]
@@ -78,16 +83,20 @@ async def test_persist_rpc_runs_before_done_and_done_carries_thread_id() -> None
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
     assert names == ["meta", "citations", "done"]
-    assert "/rest/v1/rpc/persist_ask_turn" in seen
-    assert seen.index("/rest/v1/rpc/persist_ask_turn") >= 0
+    assert seen[0] == "/rest/v1/rpc/start_ask_turn"
+    assert seen[-1] == "/rest/v1/rpc/finalize_ask_turn"
+    assert events[0][1]["thread_id"] == _PERSISTED_THREAD_ID
     assert events[-1][1]["thread_id"] == _PERSISTED_THREAD_ID
     assert events[1][1]["text"] == NO_EVIDENCE_MESSAGE
+    assert response.headers["X-Ask-Thread-Id"] == _PERSISTED_THREAD_ID
 
 
 @pytest.mark.asyncio
 async def test_persist_failure_omits_done() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/rest/v1/rpc/persist_ask_turn":
+        if request.url.path == "/rest/v1/rpc/start_ask_turn":
+            return _persist_ok()
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
             return httpx.Response(
                 401,
                 json={"code": "42501", "message": "permission denied"},
@@ -224,9 +233,11 @@ async def test_retry_or_switch_sends_distinct_client_turn_id() -> None:
     ids: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/rest/v1/rpc/persist_ask_turn":
+        if request.url.path == "/rest/v1/rpc/start_ask_turn":
             body = json.loads(request.content.decode())
             ids.append(body["p_client_turn_id"])
+            return _persist_ok()
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
             return _persist_ok()
         return httpx.Response(200, json=[])
 

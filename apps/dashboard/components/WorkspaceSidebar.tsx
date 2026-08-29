@@ -31,6 +31,10 @@ import {
   renameAskThread,
   type AskThreadSummary,
 } from "@/lib/ask-threads";
+import {
+  clearActiveAskThread,
+  getActiveAskThread,
+} from "@/lib/ask-active-thread";
 import { workspacePath } from "@/lib/workspace-path";
 import {
   WorkspaceSwitcher,
@@ -109,6 +113,14 @@ export function WorkspaceSidebar({
     }
   }
 
+  function handleAskNavigation(event: React.MouseEvent<HTMLAnchorElement>) {
+    handleItemClick();
+    const threadId = getActiveAskThread(currentWorkspaceId);
+    if (!threadId) return;
+    event.preventDefault();
+    router.push(`${base}/ask?thread=${encodeURIComponent(threadId)}`);
+  }
+
   const isAskSectionActive = pathname.startsWith(`${base}/ask`);
 
   return (
@@ -174,7 +186,7 @@ export function WorkspaceSidebar({
             <Link
               href={`${base}/ask`}
               prefetch={true}
-              onClick={handleItemClick}
+              onClick={handleAskNavigation}
               aria-label="질문하기"
               aria-current={
                 isAskSectionActive && !activeThreadId ? "page" : undefined
@@ -193,6 +205,7 @@ export function WorkspaceSidebar({
                   e.preventDefault();
                   handleItemClick();
                   if (typeof window !== "undefined") {
+                    clearActiveAskThread(currentWorkspaceId);
                     window.dispatchEvent(
                       new CustomEvent("nexuswiki:new-ask-thread"),
                     );
@@ -431,6 +444,7 @@ export function WorkspaceSidebar({
                         prev.filter((row) => row.id !== target.id),
                       );
                       if (activeThreadId === target.id) {
+                        clearActiveAskThread(currentWorkspaceId);
                         router.push(`${base}/ask`);
                       }
                       setDeleteTarget(null);
