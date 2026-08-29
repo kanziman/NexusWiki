@@ -14,7 +14,7 @@ describe("LoginPage", () => {
       screen.getByRole("region", { name: "NexusWiki 답변 미리보기" }),
     ).toBeInTheDocument();
     expect(screen.getByText("답으로 연결하다.")).toHaveClass(
-      "login-visual-underlined",
+      "login-visual-highlighted",
     );
     expect(
       screen.getByRole("link", { name: "Google 계정으로 시작하기" }),

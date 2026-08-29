@@ -92,6 +92,12 @@ NexusWiki의 인증, 워크스페이스, 소스 관리, 문서 리더 화면을 
 - OAuth 신규 사용자는 인증 후 메인 화면 셸에서 워크스페이스 온보딩을 진행한다.
 - 완료·저장·복사 동작은 버튼 또는 인접한 피드백 텍스트로 결과를 즉시 알린다.
 
+### 로그인 히어로 강조
+
+- 로그인 제목 `답으로 연결하다.`는 글자 하단 25~30%를 덮는 반투명 `--accent` 형광펜으로 강조한다.
+- 직선 막대나 끝이 위로 올라가는 곡선 스우시는 쓰지 않는다. 마커의 상하단만 약하게 불규칙하게 처리한다.
+- 모션 허용 환경에서는 왼쪽에서 오른쪽으로 그려지고, `prefers-reduced-motion`에서는 완성 상태로 즉시 표시한다.
+
 ## 반응형 기준
 
 | 구간 | 행동 |
@@ -105,9 +111,10 @@ NexusWiki의 인증, 워크스페이스, 소스 관리, 문서 리더 화면을 
 
 ## 적용 대상
 
-이 문서의 실행 가능한 형태는 [nexuswiki-design-system.css](nexuswiki-design-system.css)이며, 아래 6개 화면이 모두 이 파일을 `<link>` 로 불러온다. 각 HTML 의 `<style>` 에는 그 화면 고유 레이아웃만 남긴다.
+이 문서의 실행 가능한 형태는 [nexuswiki-design-system.css](nexuswiki-design-system.css)이며, 아래 7개 화면이 모두 이 파일을 `<link>` 로 불러온다. 각 HTML 의 `<style>` 에는 그 화면 고유 레이아웃만 남긴다.
 
-- `nexuswiki-google-auth.html` — 앱 셸이 없는 유일한 화면(토큰·리셋·버튼·폼만 사용)
+- `nexuswiki-google-auth.html` — 가입·온보딩 흐름의 앱 셸 없는 화면
+- `nexuswiki-login-split-v3.html` — 실제 `/login`의 2단 구성과 지식 미리보기 기준
 - `nexuswiki-workspace-home.html`
 - `nexuswiki-workspace-settings.html`
 - `nexuswiki-source-management.html`

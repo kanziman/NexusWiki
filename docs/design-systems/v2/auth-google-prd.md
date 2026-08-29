@@ -1,13 +1,13 @@
 # Google 로그인 & 가입 PRD
 
-> **문서 상태**: 방향 확정 · 전량 미구현 (2026-08-17). 이전 판은 Google OAuth 를 **이미 구현된 것처럼** 기술했다. 실제로는 이메일+비밀번호가 전부였고 그것이 잠긴 결정(D-01)이었다. 이번에 **D-01 을 번복하기로 결정**했으므로, 이 문서는 "구현 현황"이 아니라 **구현 계약**이다. 여기 적힌 화면·라우트·설정은 §2 를 빼면 **하나도 존재하지 않는다.**
+> **문서 상태**: 구현 기준 갱신 (2026-08-29). Google 단일 인증, OAuth 콜백, 셀프서브 워크스페이스 생성은 코드와 로컬 설정에 반영되었다. 클라우드 Provider 자격 증명과 운영 OAuth 왕복 확인은 §7·§11의 별도 출시 점검으로 남는다.
 > **기능 영역**: 가입, 로그인, 세션, 워크스페이스 진입·생성
-> **라우트**: `/signup` **[미구현]** · `/login` · `/auth/callback` **[미구현]** · `/`
-> **연계 프로토타입**: [`nexuswiki-google-auth.html`](nexuswiki-google-auth.html) — §10 참조
+> **라우트**: `/signup` **[구현됨]** · `/login` **[구현됨]** · `/auth/callback` **[구현됨]** · `/` **[구현됨]**
+> **연계 프로토타입**: 로그인은 [`nexuswiki-login-split-v3.html`](nexuswiki-login-split-v3.html), 가입·온보딩은 [`nexuswiki-google-auth.html`](nexuswiki-google-auth.html) — §10 참조
 > **상위 불변 규칙**: [`PRODUCT-INVARIANTS.md`](PRODUCT-INVARIANTS.md)
 > **디자인 토큰**: [`nexuswiki-design-system.css`](nexuswiki-design-system.css)
 
-미구현은 **[미구현]**, 새 마이그레이션이 필요하면 **[마이그레이션 필요]**, 스키마는 있으나 화면이 없으면 **[UI 미구현]** 으로 표시한다.
+상태 표기는 현재 저장소 기준이다. 외부 자격 증명이나 운영 환경 확인이 필요한 항목은 구현 상태와 분리해 명시한다.
 
 ---
 
@@ -27,14 +27,14 @@
 | 8 | 라우트 `/login` **또는 `/auth`** | `/auth` 는 없다. 콜백은 `/auth/callback` 이며 별개다 | §4.3 |
 | 9 | 문서 헤더 없음 | v2 PRD 공통 헤더 블록 추가 | — |
 
-### B. 미구현이었고, 이제 만들기로 한 것
+### B. 문서 작성 당시 미구현이었고, 이후 반영한 것
 
 | 항목 | 이전 판 서술 | 지금 상태 |
 | --- | --- | --- |
-| Google OAuth 로그인 | 구현된 것처럼 기술 | **[미구현] · 채택 확정** (§1) |
-| `/signup` | 로그인과 "단일화"된다고만 함 | **[미구현] · 별도 라우트로 신설 확정** (§3) |
-| `/auth/callback` | "OAuth 콜백 처리" 1줄 | **[미구현] · 계약은 §4.3** |
-| 셀프서브 워크스페이스 생성 | `OnboardingWorkspaceCard` | **[미구현] · 채택 확정** (§5). 거버닝 스펙 개정 필요 (§8) |
+| Google OAuth 로그인 | 구현된 것처럼 기술 | **[구현됨]** · Google 단일 인증 (§1) |
+| `/signup` | 로그인과 "단일화"된다고만 함 | **[구현됨]** · 별도 라우트 (§3) |
+| `/auth/callback` | "OAuth 콜백 처리" 1줄 | **[구현됨]** · 안전한 내부 경로 콜백 (§4.3) |
+| 셀프서브 워크스페이스 생성 | `OnboardingWorkspaceCard` | **[구현됨]** · 0개 워크스페이스 온보딩 (§5) |
 
 **살아남은 것**: 진입 분기 Case A(1개 → 리다이렉트) · Case B(2개+ → 선택 화면)는 구현과 정확히 일치한다.
 
@@ -63,7 +63,7 @@
 
 ---
 
-## 2. 현재 구현 — 이번 작업으로 대체되는 것
+## 2. 교체 전 구현 — 적용 과정에서 대체된 것
 
 제거·교체 대상을 명시해 둔다. "왜 이런 코드가 있지"를 다음 사람이 다시 파헤치지 않도록.
 
@@ -82,7 +82,7 @@
 
 ---
 
-## 3. `/signup` — [미구현]
+## 3. `/signup` — [구현됨]
 
 ### 3.1 화면
 
@@ -104,7 +104,7 @@ Google OAuth 는 **기술적으로 두 흐름이 동일하다** — 같은 `sign
 
 ---
 
-## 4. `/login` 개편 — [미구현]
+## 4. `/login` 개편 — [구현됨]
 
 ### 4.1 화면
 
@@ -149,7 +149,7 @@ const { error } = await supabase.auth.exchangeCodeForSession(code);
 
 ---
 
-## 5. 셀프서브 워크스페이스 생성 — [미구현]
+## 5. 셀프서브 워크스페이스 생성 — [구현됨]
 
 ### 5.1 진입 조건
 
@@ -199,35 +199,35 @@ returning id, slug;
 ```
 
 * `owner_id` 는 `NOT NULL`. 빠지면 실패한다.
-* ⚠️ **`slug` 은 [마이그레이션 필요]** 다 — 컬럼이 아직 없다(§6.3 실측). 값은 서버가 `slugify(title=:name, taken=<전체 workspaces.slug>)` 로 만들며 사용자에게 입력받지 않는다(§9-1). 컬럼 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0.
+* **`slug` 은 [구현됨]** — [`0015_workspace_slug.sql`](../../../supabase/migrations/0015_workspace_slug.sql)이 전역 UNIQUE·형식·NOT NULL 계약을 적용한다. 값은 서버가 `slugify(title=:name, taken=<전체 workspaces.slug>)` 로 만들며 사용자에게 입력받지 않는다(§9-1). 컬럼 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0.
 * `kind` 는 `'personal'` · `'team'` 2종. **셀프서브 첫 워크스페이스는 `'personal'`** 로 만든다 — 팀 전환은 멤버를 초대하는 시점의 의미이지 생성 시점이 아니다. *(이 매핑은 §9-4 로 열어 둔다.)*
 * ⚠️ **`workspace_members` INSERT 를 이어 적지 않는다.** `workspaces_add_owner_member` AFTER INSERT 트리거가 `role='owner'` 로 등록한다. 계약이 두 곳에 있으면 한쪽만 고쳐질 때 어긋난다 — **불변식 §6**.
 * ⚠️ **프롬프트 템플릿에 대해 할 일이 없다.** 전역 5종은 `workspace_id IS NULL` 로 존재하고 그대로 조회된다. 상속·복사 단계가 없다.
 
-### 6.3 검증 완료 (로컬 `supabase_db_NexusWiki`)
+### 6.3 초기 계약 검증 기록 (2026-08-17)
 
 * 이전 판 §5.2 1단계(`owner_id` 누락) → `null value in column "owner_id" … violates not-null constraint` **실패 재현**
 * §6.2 신판 → 성공, `workspace_members` owner 행 **정확히 1개**(트리거 중복 없음)
 * 전역 프롬프트 템플릿 → `ask 4` · `compile 1`, 전부 `workspace_id IS NULL`
-* `workspaces.slug` → **0행**
+* 당시 `workspaces.slug` → **0행**. 이후 `0015_workspace_slug.sql`과 SQL 계약 테스트를 적용했다.
 
 ---
 
-## 7. 설정 & 마이그레이션 체크리스트
+## 7. 설정 & 출시 체크리스트
 
-착수 시 순서대로. 하나라도 빠지면 콜백이 조용히 실패한다.
+코드·로컬 설정은 반영되었다. 외부 시스템 항목은 배포 환경마다 다시 확인해야 하며, 하나라도 빠지면 콜백이 실패한다.
 
-| # | 작업 | 대상 | 비고 |
+| # | 작업 | 대상 | 상태·비고 |
 | --- | --- | --- | --- |
-| 1 | Google Cloud 프로젝트에 OAuth 2.0 클라이언트 생성 | 외부 | 승인된 리디렉션 URI 에 로컬·클라우드 양쪽 등록 |
-| 2 | `[auth.external.google]` 블록 추가 | `supabase/config.toml` | **현재 이 블록 자체가 없다.** 있는 건 `[auth.external.apple] enabled = false` 하나 |
-| 3 | `client_id` · `secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"` | `config.toml` + `.env` | ⚠️ **시크릿을 값으로 적지 않는다** — `config.toml` 의 기존 관행(참조로만 기록) |
-| 4 | `skip_nonce_check = true` | `config.toml` | 주석이 명시: *"Required for local sign in with Google auth"*. **로컬 전용**이며 클라우드에 그대로 넘기지 않는다 |
-| 5 | `additional_redirect_urls` 에 콜백 추가 | `config.toml` | 현재 `["https://127.0.0.1:3000"]`, `site_url` 은 `http://127.0.0.1:3000` |
-| 6 | 클라우드 프로젝트 Auth Provider 설정 | Supabase 대시보드 | `config.toml` 은 로컬 스택용이다. 클라우드는 별도 |
-| 7 | `/auth/callback` Route Handler | `apps/dashboard/app/auth/callback/route.ts` | §4.3 |
-| 8 | middleware matcher 갱신 | `middleware.ts` | `/signup` **추가**, `/auth/callback` **제외** |
-| 9 | 기존 비밀번호 계정 처리 | `auth.users` | §7.1 |
+| 1 | Google Cloud 프로젝트에 OAuth 2.0 클라이언트 생성 | 외부 | **환경별 확인** — 승인된 리디렉션 URI에 로컬·클라우드 양쪽 등록 |
+| 2 | `[auth.external.google]` 블록 추가 | `supabase/config.toml` | **반영됨** |
+| 3 | `client_id` · `secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"` | `config.toml` + `.env` | **반영됨** — 시크릿 값은 저장소에 적지 않는다 |
+| 4 | `skip_nonce_check = true` | `config.toml` | **로컬 설정 반영됨** — 클라우드에 그대로 넘기지 않는다 |
+| 5 | `additional_redirect_urls` 에 콜백 추가 | `config.toml` | **로컬·배포 콜백 경로 반영됨** |
+| 6 | 클라우드 프로젝트 Auth Provider 설정 | Supabase 대시보드 | **환경별 확인** — `config.toml`은 로컬 스택용이다 |
+| 7 | `/auth/callback` Route Handler | `apps/dashboard/app/auth/callback/route.ts` | **구현됨** (§4.3) |
+| 8 | middleware 경계 확인 | `middleware.ts` | **콜백 제외됨** — `/auth/callback`은 1회용 코드를 직접 교환한다 |
+| 9 | 기존 비밀번호 계정 처리 | `auth.users` | **환경별 확인** (§7.1) |
 
 ### 7.1 기존 계정
 
@@ -244,25 +244,21 @@ select provider, count(*) from auth.identities group by 1;
 
 ---
 
-## 8. 거버닝 스펙 개정 필요
+## 8. 거버닝 스펙 반영 — [구현됨]
 
-`openspec/specs/workspace-entry-flow/spec.md` 가 지금 이렇게 요구한다:
+[`workspace-entry-flow`](../../../openspec/specs/workspace-entry-flow/spec.md)는 0개 워크스페이스 분기를 다음과 같이 규정한다:
 
-> *"MUST retain the existing invitation guidance for a user with no accessible workspaces"*
-> *"THEN the system displays the existing invitation guidance without naming or counting inaccessible workspaces"*
+> *"MUST present personal-workspace onboarding for a user with no accessible workspaces without naming or counting inaccessible workspaces."*
 
-**§5 셀프서브 생성은 이 요구사항과 정면으로 충돌한다.** 화면만 바꾸면 스펙과 코드가 어긋난 채로 남는다.
-
-* `Requirement: RLS-scoped workspace entry resolution` 의 0개 시나리오를 **초대 안내 → 워크스페이스 생성 온보딩**으로 개정한다.
-* ⚠️ **함께 붙어 있던 "접근 불가 워크스페이스의 존재나 개수를 노출하지 않는다"는 유지한다.** 이건 초대 안내 때문에 있던 문구가 아니라 정보 노출 방지 요구사항이다. 온보딩 화면도 "당신이 못 보는 워크스페이스가 N개 있습니다" 류를 절대 표시하지 않는다.
+* `Requirement: RLS-scoped workspace entry resolution`의 0개 시나리오는 **워크스페이스 생성 온보딩**으로 개정되었다.
+* **접근 불가 워크스페이스의 존재나 개수를 노출하지 않는 규칙은 유지한다.** 온보딩 화면도 "당신이 못 보는 워크스페이스가 N개 있습니다" 류를 표시하지 않는다.
 * `Requirement: Non-disclosing inaccessible workspace handling` 은 손대지 않는다.
 
 ---
 
 ## 9. 미해결 결정
 
-1. ~~`workspaces.slug` 위치~~ — **2026-08-17 결정 완료.** `workspaces.slug` 정본 + 사이드카 복제(`decisions.workspace_slug`, 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0).
-   **온보딩에 남은 것은 UX 결정이다** — 사용자에게 슬러그를 **입력받을지 이름에서 자동 생성할지**. *권고: 자동 생성.* `slug.py` 의 `slugify(title=이름, taken=전체 슬러그)` 가 충돌을 숫자 접미로 이미 해소하고, 첫 화면에서 필드를 하나로 줄이는 것이 §5.3("이름 하나 받고 바로 대시보드")과 맞는다. 슬러그 변경은 나중에 설정에서 열어 준다.
+1. ~~`workspaces.slug` 위치와 온보딩 입력 방식~~ — **2026-08-17 결정·구현 완료.** `workspaces.slug`를 정본으로 두고, 사용자가 입력하지 않도록 이름에서 자동 생성한다. 계약은 [`public-sharing-prd.md`](public-sharing-prd.md) §2.0을 따른다.
 2. **초대 흐름의 남은 구멍** — `/signup` 이 열려도 `invite_workspace_member` 는 여전히 **미가입 이메일을 `NW404` 로 거부**한다. owner 는 초대 전에 상대가 가입했는지 알 수 없고, 알려줄 수단도 앱 안에 없다. *권고: `NW404` 문구에 `/signup` 링크를 넣거나, Supabase `inviteUserByEmail` 로 초대 메일 경로를 따로 만든다.* 후자는 §1 결정 범위 밖이므로 별도 판단.
 3. **이용약관 · 개인정보 처리방침** — `/signup` 이 링크해야 하는데 **문서 자체가 없다.** 가입을 여는 이상 미룰 수 없다.
 4. **첫 워크스페이스의 `kind`** — §6.2 는 `'personal'` 로 두자고 제안한다. `'team'` 이 맞다면 그 근거를 `decisions` 에 적는다.

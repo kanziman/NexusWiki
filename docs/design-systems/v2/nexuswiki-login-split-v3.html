@@ -131,6 +131,33 @@ a {
   text-wrap: balance;
 }
 
+.visual-highlighted {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+  white-space: nowrap;
+}
+
+.visual-highlighted::after {
+  position: absolute;
+  z-index: -1;
+  right: -0.06em;
+  bottom: -0.04em;
+  left: -0.04em;
+  height: 0.35em;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--accent) 22%, transparent) 0%,
+    color-mix(in oklch, var(--accent) 36%, transparent) 16%,
+    color-mix(in oklch, var(--accent) 27%, transparent) 62%,
+    color-mix(in oklch, var(--accent) 34%, transparent) 100%
+  );
+  clip-path: polygon(0 27%, 4% 12%, 43% 18%, 70% 9%, 100% 20%, 99% 88%, 78% 81%, 37% 92%, 2% 84%);
+  transform: rotate(-0.35deg);
+  transform-origin: left center;
+  content: "";
+}
+
 .visual-copy p {
   max-width: 480px;
   margin: 20px 0 0;
@@ -631,7 +658,7 @@ a {
       </a>
 
       <div class="visual-copy">
-        <h1 id="visual-title">팀의 지식을,<br>답으로 연결하다.</h1>
+        <h1 id="visual-title">팀의 지식을,<br><span class="visual-highlighted">답으로 연결하다.</span></h1>
         <p>원문과 위키를 함께 탐색해 답변의 출처와 맥락을 한 화면에서 연결합니다.</p>
       </div>
 

@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe("LoginHeroTitle", () => {
-  it("감소 모션에서는 밑줄을 즉시 완성 상태로 렌더링한다", () => {
+  it("감소 모션에서는 형광펜 강조를 즉시 완성 상태로 렌더링한다", () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
       value: vi.fn().mockReturnValue({

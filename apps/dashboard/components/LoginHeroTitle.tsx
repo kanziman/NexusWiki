@@ -32,7 +32,7 @@ export function LoginHeroTitle() {
       팀의 지식을,
       <br />
       <span
-        className={`login-visual-underlined${
+        className={`login-visual-highlighted${
           documentVisible && !reducedMotion ? " is-animating" : " is-complete"
         }`}
       >

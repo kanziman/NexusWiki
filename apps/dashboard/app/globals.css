@@ -272,26 +272,45 @@
   text-wrap: balance;
 }
 
-.login-visual-underlined {
+.login-visual-highlighted {
   position: relative;
   display: inline-block;
+  isolation: isolate;
+  white-space: nowrap;
 }
 
-.login-visual-underlined::after {
+.login-visual-highlighted::after {
   position: absolute;
-  right: 0;
-  bottom: -0.12em;
-  left: 0;
-  height: 0.085em;
-  border-radius: 999px;
-  background: var(--accent);
+  z-index: -1;
+  right: -0.06em;
+  bottom: -0.04em;
+  left: -0.04em;
+  height: 0.35em;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--accent) 22%, transparent) 0%,
+    color-mix(in oklch, var(--accent) 36%, transparent) 16%,
+    color-mix(in oklch, var(--accent) 27%, transparent) 62%,
+    color-mix(in oklch, var(--accent) 34%, transparent) 100%
+  );
+  clip-path: polygon(
+    0 27%,
+    4% 12%,
+    43% 18%,
+    70% 9%,
+    100% 20%,
+    99% 88%,
+    78% 81%,
+    37% 92%,
+    2% 84%
+  );
   content: "";
-  transform: scaleX(1);
+  transform: scaleX(1) rotate(-0.35deg);
   transform-origin: left;
 }
 
-.login-visual-underlined.is-animating::after {
-  animation: login-headline-underline 700ms 280ms cubic-bezier(0.16, 1, 0.3, 1)
+.login-visual-highlighted.is-animating::after {
+  animation: login-headline-highlight 750ms 260ms cubic-bezier(0.16, 1, 0.3, 1)
     both;
 }
 
@@ -614,15 +633,15 @@
   }
 }
 
-@keyframes login-headline-underline {
+@keyframes login-headline-highlight {
   from {
     opacity: 0.65;
-    transform: scaleX(0);
+    transform: scaleX(0) rotate(-0.35deg);
   }
 
   to {
     opacity: 1;
-    transform: scaleX(1);
+    transform: scaleX(1) rotate(-0.35deg);
   }
 }
 
@@ -778,7 +797,7 @@
     transition-duration: 0.01ms !important;
   }
 
-  .login-visual-underlined::after {
-    transform: scaleX(1);
+  .login-visual-highlighted::after {
+    transform: scaleX(1) rotate(-0.35deg);
   }
 }
