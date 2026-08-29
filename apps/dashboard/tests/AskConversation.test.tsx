@@ -133,6 +133,11 @@ describe("AskConversation", () => {
       expect(screen.getByText("RLS 격리 답변입니다.")).toBeInTheDocument();
     });
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [, init] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      { body?: string },
+    ];
+    expect(JSON.parse(init.body ?? "{}")).not.toHaveProperty("template_id");
   });
 
   it("빈 대화에서는 empty-state 문구를 렌더링한다", () => {
@@ -143,6 +148,9 @@ describe("AskConversation", () => {
         "워크스페이스에 등록된 소스와 위키에서 답을 찾아드립니다.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "프롬프트 템플릿" }),
+    ).not.toBeInTheDocument();
   });
 
   it("meta.no_evidence:true면 CITE-04 경고 카드를 정확한 문구로, 채팅 버블과 구분되게 렌더링한다", async () => {
