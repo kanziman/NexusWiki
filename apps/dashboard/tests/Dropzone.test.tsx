@@ -185,4 +185,23 @@ describe("Dropzone", () => {
     expect(message.textContent).not.toContain("application/x-msdownload");
     expect(apiFetch).toHaveBeenCalledTimes(3);
   });
+
+  it("402 budget_exceeded 에러 시 사용량 초과 배너와 크레딧 한도 모달을 표시한다", async () => {
+    const user = userEvent.setup();
+    apiFetch.mockRejectedValueOnce(new ApiError(402, "budget_exceeded"));
+    render(<Dropzone workspaceId="ws-1" />);
+
+    await user.click(screen.getByRole("tab", { name: "URL" }));
+    fireEvent.change(screen.getByLabelText("URL 주소"), {
+      target: { value: "https://example.com/overflow" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "소스 등록" }));
+
+    await screen.findByText(
+      "이번 달 워크스페이스 사용량 한도를 초과했습니다. 관리자에게 문의하거나 다음 달까지 기다려주세요.",
+    );
+    expect(
+      screen.getByText("이번 달 무료 크레딧을 모두 소진했습니다"),
+    ).toBeInTheDocument();
+  });
 });
