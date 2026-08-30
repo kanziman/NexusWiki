@@ -118,17 +118,18 @@ a {
 }
 
 .visual-copy {
-  width: min(610px, 88%);
+  width: 100%;
+  max-width: 100%;
   margin: auto 0 28px;
 }
 
 .visual-copy h1 {
   margin: 0;
-  max-width: 590px;
+  max-width: 100%;
   color: var(--visual-copy);
-  font: 800 clamp(38px, 5.1vw, 72px)/1.02 var(--font-display);
+  font: 800 clamp(44px, 5.4vw, 76px)/1.08 var(--font-display);
   letter-spacing: clamp(-3.6px, -.055em, -1.8px);
-  text-wrap: balance;
+  word-break: keep-all;
 }
 
 .visual-highlighted {
@@ -159,11 +160,12 @@ a {
 }
 
 .visual-copy p {
-  max-width: 480px;
+  max-width: 100%;
   margin: 20px 0 0;
   color: var(--visual-muted);
-  font-size: clamp(13px, 1.2vw, 15px);
-  line-height: 1.7;
+  font-size: clamp(14px, 1.25vw, 17px);
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .ai-demo {
@@ -555,8 +557,8 @@ a {
   }
 
   .visual-copy h1 {
-    max-width: 560px;
-    font-size: clamp(38px, 8vw, 60px);
+    max-width: 100%;
+    font-size: clamp(42px, 8.5vw, 68px);
   }
 
   .ai-demo {
@@ -658,8 +660,8 @@ a {
       </a>
 
       <div class="visual-copy">
-        <h1 id="visual-title">팀의 지식을,<br><span class="visual-highlighted">답으로 연결하다.</span></h1>
-        <p>원문과 위키를 함께 탐색해 답변의 출처와 맥락을 한 화면에서 연결합니다.</p>
+        <h1 id="visual-title">인사이트와 팀의 지식을, <span class="visual-highlighted">살아있는 답으로 연결하다.</span></h1>
+        <p>스크립트와 팀 문서를 위키로 자동 컴파일하고, 1초 만에 출처가 검증되는 듀얼 인용 답변을 얻으세요.</p>
       </div>
 
       <section class="ai-demo" aria-label="NexusWiki AI 답변 실시간 미리보기">
@@ -677,8 +679,8 @@ a {
             <span class="demo-label">NEXUSWIKI ANSWER</span>
             <p class="answer-text" id="answerText" aria-live="polite"></p>
             <div class="evidence-row" id="evidenceRow" role="group" aria-label="연결된 근거">
-              <span class="evidence-chip">원문 청크 3개</span>
-              <span class="evidence-chip">위키 문서 2개</span>
+              <span class="evidence-chip">원문 청크</span>
+              <span class="evidence-chip">위키 문서</span>
             </div>
           </div>
         </div>
@@ -693,9 +695,9 @@ a {
         <span>NexusWiki</span>
       </div>
 
-      <p class="auth-kicker">WELCOME BACK</p>
-      <h2 id="login-title">팀의 지식으로<br>돌아오세요.</h2>
-      <p class="auth-intro">Google 계정 하나로 워크스페이스와 연결된 지식에 안전하게 접근합니다.</p>
+      <p class="auth-kicker">LIVING KNOWLEDGE WORKSPACE</p>
+      <h2 id="login-title">검증 가능한 지식으로<br>돌아오세요.</h2>
+      <p class="auth-intro">Google 계정으로 워크스페이스에 접속해 나만의 거장 브레인과 팀 지식을 관리하세요.</p>
 
       <div class="auth-error" id="authError" role="alert">로그인하지 못했습니다. 다시 시도해주세요.</div>
 
@@ -725,22 +727,22 @@ a {
 <script>
 const scenarios = [
   {
-    question: "지난 분기 고객 이탈 원인은 무엇이었나요?",
-    answer: "요금제 변경보다 온보딩 지연의 영향이 컸습니다. 인터뷰 원문과 리텐션 위키 모두 첫 가치 도달 시간의 증가를 공통 원인으로 지목합니다.",
-    source: "원문 청크 3개",
-    wiki: "위키 문서 2개"
+    question: "랜딩페이지 가격 저항을 없애는 $100M 오퍼 공식은?",
+    answer: "가격을 깎지 말고 가치 방정식의 분모(시간과 노력)를 0으로 만들어야 합니다. 보증과 보너스 스택으로 결과 달성의 확실성을 극대화하세요.",
+    source: "유튜브 원문 (12:34)",
+    wiki: "위키: Grand Slam Offer"
   },
   {
-    question: "새 결제 정책에서 반드시 지켜야 할 조건은?",
-    answer: "기존 연간 계약은 갱신일까지 가격을 유지해야 합니다. 정책 회의록과 결제 운영 가이드에서 같은 예외 조건을 확인할 수 있습니다.",
-    source: "원문 청크 4개",
-    wiki: "위키 문서 2개"
+    question: "새 결제 정책에서 연간 계약 고객 환불 예외 규칙은?",
+    answer: "연간 결제 후 30일 이내 해지 시에는 월간 정가로 일할 계산 후 차액이 환불됩니다. 정책 회의록과 결제 운영 가이드에서 동일한 예외 조건을 확인할 수 있습니다.",
+    source: "결제정책_개정안.pdf (p.4)",
+    wiki: "위키: billing-refund"
   },
   {
-    question: "검색 품질 저하가 시작된 시점은 언제인가요?",
-    answer: "한국어 토크나이저 교체 직후부터입니다. 색인 버전 기록과 검색 품질 회고가 질의 시점 토큰 불일치를 함께 가리킵니다.",
-    source: "원문 청크 2개",
-    wiki: "위키 문서 3개"
+    question: "우리 서비스의 테넌트 데이터 격리는 어떻게 보장되나요?",
+    answer: "앱 코드가 아닌 PostgreSQL 17의 RLS 정책 37개가 DB 엔진 레벨에서 강제합니다. JWT 클레임으로 물리 격리되어 데이터 누수를 원천 차단합니다.",
+    source: "ADR-0012 원문 청크",
+    wiki: "위키: tenant-isolation"
   }
 ];
 

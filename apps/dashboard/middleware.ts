@@ -56,7 +56,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if ((pathname.startsWith("/w/") || pathname === "/") && !user) {
+  if (pathname.startsWith("/w/") && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     return NextResponse.redirect(redirectUrl);
