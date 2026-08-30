@@ -74,4 +74,25 @@ describe("LoginForm", () => {
 
     resolveOAuth?.({ data: {}, error: null });
   });
+
+  it("가입 화면 표현은 'Google 계정으로 시작하기' 버튼을 제공한다", async () => {
+    signInWithOAuth.mockResolvedValue({ data: {}, error: null });
+
+    render(<LoginForm presentation="signup" />);
+    const button = screen.getByRole("button", {
+      name: "Google 계정으로 시작하기",
+    });
+
+    expect(button).toBeInTheDocument();
+    fireEvent.click(button);
+
+    await waitFor(() =>
+      expect(signInWithOAuth).toHaveBeenCalledWith({
+        provider: "google",
+        options: {
+          redirectTo: "http://localhost:3000/auth/callback?next=%2F",
+        },
+      }),
+    );
+  });
 });

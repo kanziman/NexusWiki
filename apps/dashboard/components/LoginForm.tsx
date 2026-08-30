@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type LoginFormProps = {
   initialError?: boolean;
-  presentation?: "default" | "login";
+  presentation?: "default" | "login" | "signup";
 };
 
 // 관련 결정: checklists.json > decisions.auth revision 7.
@@ -18,12 +18,15 @@ export function LoginForm({
 }: LoginFormProps) {
   const [error, setError] = useState(initialError);
   const [submitting, setSubmitting] = useState(false);
-  const isLoginPresentation = presentation === "login";
+  const isSplitPresentation =
+    presentation === "login" || presentation === "signup";
   const buttonLabel = submitting
     ? "Google로 이동 중"
-    : isLoginPresentation
-      ? "Google 계정으로 계속하기"
-      : "Google로 계속하기";
+    : presentation === "signup"
+      ? "Google 계정으로 시작하기"
+      : presentation === "login"
+        ? "Google 계정으로 계속하기"
+        : "Google로 계속하기";
 
   async function handleGoogleSignIn() {
     if (submitting) return;
@@ -48,7 +51,7 @@ export function LoginForm({
   return (
     <div
       className={
-        isLoginPresentation ? "login-form" : "flex w-full flex-col gap-base"
+        isSplitPresentation ? "login-form" : "flex w-full flex-col gap-base"
       }
     >
       {error ? (
@@ -56,10 +59,10 @@ export function LoginForm({
           data-state="error"
           role="alert"
           className={
-            isLoginPresentation ? "login-auth-error" : "text-primary-error-text"
+            isSplitPresentation ? "login-auth-error" : "text-primary-error-text"
           }
           style={
-            isLoginPresentation
+            isSplitPresentation
               ? undefined
               : { font: "var(--font-caption)", fontWeight: 600 }
           }
@@ -74,17 +77,17 @@ export function LoginForm({
         onClick={handleGoogleSignIn}
         aria-busy={submitting}
         className={
-          isLoginPresentation
+          isSplitPresentation
             ? "login-google-button"
             : "h-12 rounded-sm bg-primary px-lg text-on-primary transition-colors active:bg-primary-active disabled:cursor-not-allowed disabled:bg-primary-disabled"
         }
         style={
-          isLoginPresentation
+          isSplitPresentation
             ? undefined
             : { font: "var(--font-button-md)", fontWeight: 600 }
         }
       >
-        {isLoginPresentation ? (
+        {isSplitPresentation ? (
           <>
             <svg
               className="login-google-icon"
@@ -113,7 +116,7 @@ export function LoginForm({
         ) : null}
         <span>{buttonLabel}</span>
       </button>
-      {isLoginPresentation ? (
+      {isSplitPresentation ? (
         <p className="login-auth-feedback" aria-live="polite">
           {submitting ? "보안 인증 페이지를 준비하고 있습니다." : null}
         </p>
