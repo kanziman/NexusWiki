@@ -1,9 +1,4 @@
-# google-authentication Specification
-
-## Purpose
-사용자가 Google 계정 하나로 가입·로그인하고, 인증 코드와 리다이렉트 대상이 안전하게 처리되도록 한다.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Google 단일 인증
 

@@ -56,13 +56,19 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  if (pathname === "/" && request.nextUrl.searchParams.has("code")) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/auth/callback";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   if (pathname.startsWith("/w/") && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (pathname === "/login" && user) {
+  if ((pathname === "/login" || pathname === "/signup") && user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/";
     return NextResponse.redirect(redirectUrl);
@@ -72,5 +78,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/w/:path*", "/login", "/"],
+  matcher: ["/w/:path*", "/login", "/signup", "/"],
 };
