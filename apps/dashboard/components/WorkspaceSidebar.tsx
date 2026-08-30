@@ -20,11 +20,13 @@ import {
   Trash2,
   Upload,
   Users,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
+import { apiFetch } from "@/lib/api-client";
 import {
   deleteAskThread,
   listAskThreads,
@@ -36,6 +38,23 @@ import {
   getActiveAskThread,
 } from "@/lib/ask-active-thread";
 import { workspacePath } from "@/lib/workspace-path";
+
+type WorkspaceBudget = {
+  cap_micros: number;
+  spent_micros: number;
+  remaining_micros: number;
+  month_start: string;
+  truncated: boolean;
+  authoritative: boolean;
+};
+
+function formatMicros(micros: number): string {
+  return new Intl.NumberFormat("ko-KR", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(micros / 1_000_000);
+}
 import {
   WorkspaceSwitcher,
   type WorkspaceSwitcherProps,
@@ -78,6 +97,7 @@ export function WorkspaceSidebar({
     searchParams.get("bookmarked") === "true";
 
   const [recentThreads, setRecentThreads] = useState<AskThreadSummary[]>([]);
+  const [budget, setBudget] = useState<WorkspaceBudget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AskThreadSummary | null>(
     null,
   );
@@ -99,6 +119,15 @@ export function WorkspaceSidebar({
       })
       .catch(() => {
         // 백엔드 오류 시 사이드바는 조용히 기본 네비게이션 유지
+      });
+    apiFetch<WorkspaceBudget>(`/workspaces/${currentWorkspaceId}/budget`)
+      .then((res) => {
+        if (!cancelled && res && typeof res.cap_micros === "number") {
+          setBudget(res);
+        }
+      })
+      .catch(() => {
+        // 오류 시 조용히 무시
       });
     return () => {
       cancelled = true;
@@ -384,6 +413,41 @@ export function WorkspaceSidebar({
             <span>팀원 &amp; 역할 관리</span>
           </Link>
         </nav>
+
+        {/* 무료 크레딧 미니 위젯 */}
+        {budget && budget.cap_micros > 0 && !collapsed && (
+          <Link
+            href={`${base}/settings?tab=operations`}
+            prefetch={true}
+            onClick={handleItemClick}
+            className="mx-3 mb-2 flex items-center justify-between rounded-xl border border-[var(--border)]/70 bg-[var(--surface)]/40 p-2.5 text-xs text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)]/50 transition-all group"
+            title="운영 현황 및 무료 크레딧 관리"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-white transition-colors flex-none">
+                <Zap size={14} aria-hidden="true" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-medium text-[var(--muted)] truncate">
+                  무료 크레딧
+                </span>
+                <span className="text-[11px] font-bold text-[var(--fg)] truncate">
+                  {formatMicros(budget.remaining_micros)} 남음
+                </span>
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors flex-none">
+              {Math.min(
+                100,
+                Math.max(
+                  0,
+                  Math.round((budget.spent_micros / budget.cap_micros) * 100),
+                ),
+              )}
+              %
+            </span>
+          </Link>
+        )}
 
         <div
           className="profile"

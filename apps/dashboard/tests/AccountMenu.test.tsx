@@ -3,9 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const signOut = vi.fn();
+const apiFetch = vi.fn();
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ auth: { signOut } }),
+}));
+
+vi.mock("@/lib/api-client", () => ({
+  apiFetch: (...args: unknown[]) => apiFetch(...args),
 }));
 
 import { AccountMenu } from "@/components/AccountMenu";
@@ -16,6 +21,15 @@ const originalLocation = window.location;
 describe("AccountMenu", () => {
   beforeEach(() => {
     signOut.mockReset();
+    apiFetch.mockReset();
+    apiFetch.mockResolvedValue({
+      cap_micros: 1000000,
+      spent_micros: 120000,
+      remaining_micros: 880000,
+      month_start: "2026-08-01T00:00:00Z",
+      truncated: false,
+      authoritative: false,
+    });
     assign.mockReset();
     // @ts-expect-error - 테스트 전용 location 스텁 교체
     delete window.location;
@@ -105,5 +119,17 @@ describe("AccountMenu", () => {
     expect(
       screen.queryByPlaceholderText("예: 마케팅 전략 위키"),
     ).not.toBeInTheDocument();
+  });
+
+  it("메뉴가 열렸을 때 워크스페이스의 잔여 무료 크레딧 카드를 렌더링한다", async () => {
+    const user = userEvent.setup();
+    render(<AccountMenu email="member@example.com" workspaceId="ws-1" />);
+
+    await user.click(screen.getByRole("button", { name: "계정 메뉴" }));
+
+    expect(await screen.findByText("무료 크레딧")).toBeInTheDocument();
+    expect(screen.getByText("US$0.88 남음")).toBeInTheDocument();
+    expect(screen.getByText("사용 US$0.12")).toBeInTheDocument();
+    expect(screen.getByText("한도 US$1.00")).toBeInTheDocument();
   });
 });

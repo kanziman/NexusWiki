@@ -27,6 +27,22 @@ vi.mock("@/components/WorkspaceSwitcher", () => ({
   ),
 }));
 
+vi.mock("@/lib/api-client", () => ({
+  apiFetch: vi.fn(async (path: string) => {
+    if (path.includes("/budget")) {
+      return {
+        cap_micros: 1000000,
+        spent_micros: 150000,
+        remaining_micros: 850000,
+        month_start: "2026-08-01T00:00:00Z",
+        truncated: false,
+        authoritative: false,
+      };
+    }
+    return [];
+  }),
+}));
+
 vi.mock("@/lib/ask-threads", () => ({
   listAskThreads: vi.fn(async () => [
     {
@@ -242,5 +258,13 @@ describe("WorkspaceSidebar", () => {
     fireEvent.click(homeLink);
 
     expect(onCloseMobile).toHaveBeenCalledTimes(1);
+  });
+
+  it("사이드바 하단에 잔여 무료 크레딧 위젯을 렌더링한다", async () => {
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    expect(await screen.findByText("무료 크레딧")).toBeInTheDocument();
+    expect(screen.getByText("US$0.85 남음")).toBeInTheDocument();
+    expect(screen.getByText("15%")).toBeInTheDocument();
   });
 });
