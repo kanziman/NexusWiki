@@ -79,7 +79,7 @@ export default async function LoginPage({
 
           <div className="login-divider" aria-hidden="true" />
           <p className="login-signup-copy">
-            처음 오셨나요? <Link href="/signup">Google 계정으로 시작하기</Link>
+            Google 계정 하나로 로그인과 새 워크스페이스 생성이 모두 가능합니다.
           </p>
         </div>
       </section>

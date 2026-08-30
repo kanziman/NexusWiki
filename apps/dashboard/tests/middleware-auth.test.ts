@@ -47,4 +47,38 @@ describe("middleware authentication gate", () => {
 
     expect(response.status).toBe(200);
   });
+
+  it("forwards OAuth authorization code on root route to /auth/callback", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+
+    const response = await middleware(
+      new NextRequest("https://dashboard.test/?code=test-auth-code&state=xyz"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://dashboard.test/auth/callback?code=test-auth-code&state=xyz",
+    );
+  });
+
+  it("redirects logged-in visitor from /signup to /", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+
+    const response = await middleware(
+      new NextRequest("https://dashboard.test/signup"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://dashboard.test/");
+  });
+
+  it("lets a logged-out visitor reach /signup", async () => {
+    getUser.mockResolvedValue({ data: { user: null } });
+
+    const response = await middleware(
+      new NextRequest("https://dashboard.test/signup"),
+    );
+
+    expect(response.status).toBe(200);
+  });
 });
