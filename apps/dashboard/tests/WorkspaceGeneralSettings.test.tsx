@@ -1,11 +1,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const pushMock = vi.hoisted(() => vi.fn());
+const refreshMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
-const state = vi.hoisted(() => ({ memberCount: 1 }));
+const deleteMock = vi.hoisted(() => vi.fn());
+const state = vi.hoisted(() => ({
+  memberCount: 1,
+  remainingWorkspaces: [] as { workspace_id: string }[],
+  deleteData: [{ id: "ws-1" }] as unknown[] | null,
+  deleteError: null as { message: string } | null,
+}));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: refreshMock, push: pushMock }),
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -16,6 +24,13 @@ vi.mock("@/lib/supabase/client", () => ({
           select: () => ({
             eq: () =>
               Promise.resolve({ count: state.memberCount, error: null }),
+            neq: () => ({
+              limit: () =>
+                Promise.resolve({
+                  data: state.remainingWorkspaces,
+                  error: null,
+                }),
+            }),
           }),
         };
       }
@@ -25,6 +40,14 @@ vi.mock("@/lib/supabase/client", () => ({
             select: async () => ({
               data: [{ id: "ws-1", name: "새 이름", slug: "new-slug" }],
               error: null,
+            }),
+          }),
+        }),
+        delete: deleteMock.mockReturnValue({
+          eq: () => ({
+            select: async () => ({
+              data: state.deleteData,
+              error: state.deleteError,
             }),
           }),
         }),
@@ -38,13 +61,16 @@ import { WorkspaceGeneralSettings } from "@/components/WorkspaceGeneralSettings"
 describe("WorkspaceGeneralSettings", () => {
   beforeEach(() => {
     updateMock.mockClear();
+    deleteMock.mockClear();
+    pushMock.mockClear();
+    refreshMock.mockClear();
     state.memberCount = 1;
+    state.remainingWorkspaces = [];
+    state.deleteData = [{ id: "ws-1" }];
+    state.deleteError = null;
   });
 
   it("저장된 공개 설정을 폼에 반영한다", () => {
-    // ⚠️ 이 프롭 체인이 끊겨 있으면 폼이 항상 기본값(꺼짐·빈 문자열)으로 뜬다.
-    // 그 상태에서 저장하면 upsert 가 실제 값을 덮어써 표시명·설명이 null 이 되고
-    // 켜져 있던 공개 공유가 조용히 꺼진다 — 화면이 보여준 적 없는 값으로.
     render(
       <WorkspaceGeneralSettings
         workspaceId="ws-1"
@@ -89,6 +115,9 @@ describe("WorkspaceGeneralSettings", () => {
     expect(
       screen.queryByRole("button", { name: "저장" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "워크스페이스 삭제" }),
+    ).toBeDisabled();
   });
 
   it("allows owner to edit name and slug and saves successfully", async () => {
@@ -211,5 +240,113 @@ describe("WorkspaceGeneralSettings", () => {
       ).toBeInTheDocument();
     });
     expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  describe("위험 구역 (워크스페이스 삭제)", () => {
+    it("소유자는 삭제 모달을 열고 워크스페이스 이름이 일치해야만 영구 삭제가 가능하다", async () => {
+      state.remainingWorkspaces = [{ workspace_id: "ws-2" }];
+
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="삭제할 워크스페이스"
+          initialSlug="delete-me"
+          isOwner={true}
+        />,
+      );
+
+      const deleteTriggerBtn = screen.getByRole("button", {
+        name: "워크스페이스 삭제",
+      });
+      expect(deleteTriggerBtn).not.toBeDisabled();
+
+      fireEvent.click(deleteTriggerBtn);
+
+      // 모달 표시 확인
+      expect(screen.getByText("워크스페이스 삭제 확인")).toBeInTheDocument();
+
+      const confirmInput = screen.getByPlaceholderText("삭제할 워크스페이스");
+      const confirmDeleteBtn = screen.getByRole("button", {
+        name: "영구 삭제",
+      });
+
+      // 이름 불일치 시 삭제 버튼 비활성화
+      expect(confirmDeleteBtn).toBeDisabled();
+
+      fireEvent.change(confirmInput, { target: { value: "틀린 이름" } });
+      expect(confirmDeleteBtn).toBeDisabled();
+
+      // 이름 일치 시 삭제 버튼 활성화 및 실행
+      fireEvent.change(confirmInput, {
+        target: { value: "삭제할 워크스페이스" },
+      });
+      expect(confirmDeleteBtn).toBeEnabled();
+
+      fireEvent.click(confirmDeleteBtn);
+
+      await waitFor(() => {
+        expect(deleteMock).toHaveBeenCalled();
+        expect(pushMock).toHaveBeenCalledWith("/w/ws-2");
+      });
+    });
+
+    it("남은 다른 워크스페이스가 없으면 삭제 후 온보딩(/onboarding)으로 리다이렉트한다", async () => {
+      state.remainingWorkspaces = []; // 마지막 워크스페이스
+
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="마지막 워크스페이스"
+          initialSlug="last-ws"
+          isOwner={true}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "워크스페이스 삭제" }),
+      );
+
+      const confirmInput = screen.getByPlaceholderText("마지막 워크스페이스");
+      fireEvent.change(confirmInput, {
+        target: { value: "마지막 워크스페이스" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "영구 삭제" }));
+
+      await waitFor(() => {
+        expect(deleteMock).toHaveBeenCalled();
+        expect(pushMock).toHaveBeenCalledWith("/onboarding");
+      });
+    });
+
+    it("삭제 실패 시 모달에 인라인 에러 메시지를 표시한다", async () => {
+      state.deleteData = [];
+      state.deleteError = { message: "삭제 권한이 없습니다." };
+
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="삭제 실패 테스트"
+          initialSlug="fail-ws"
+          isOwner={true}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "워크스페이스 삭제" }),
+      );
+
+      const confirmInput = screen.getByPlaceholderText("삭제 실패 테스트");
+      fireEvent.change(confirmInput, {
+        target: { value: "삭제 실패 테스트" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "영구 삭제" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("삭제 권한이 없습니다.")).toBeInTheDocument();
+      });
+      expect(pushMock).not.toHaveBeenCalled();
+    });
   });
 });

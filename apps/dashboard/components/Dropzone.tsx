@@ -294,28 +294,28 @@ export function Dropzone({
       >
         {/* 세그먼트 탭 헤더 */}
         <Tabs.List
-          className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1"
+          className="grid grid-cols-3 gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5"
           aria-label="소스 등록 방식"
         >
           <Tabs.Trigger
             value="file"
-            className="nw-focus-ring flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
+            className="nw-focus-ring flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs md:text-sm font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
           >
-            <FileText size={14} aria-hidden="true" />
+            <FileText size={15} aria-hidden="true" />
             <span>파일</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="url"
-            className="nw-focus-ring flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
+            className="nw-focus-ring flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs md:text-sm font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
           >
-            <Globe size={14} aria-hidden="true" />
+            <Globe size={15} aria-hidden="true" />
             <span>URL</span>
           </Tabs.Trigger>
           <Tabs.Trigger
             value="text"
-            className="nw-focus-ring flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
+            className="nw-focus-ring flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs md:text-sm font-semibold transition-all data-[state=active]:bg-[var(--bg)] data-[state=active]:text-[var(--fg)] data-[state=active]:shadow-xs text-[var(--muted)] hover:text-[var(--fg)] cursor-pointer"
           >
-            <AlignLeft size={14} aria-hidden="true" />
+            <AlignLeft size={15} aria-hidden="true" />
             <span>텍스트</span>
           </Tabs.Trigger>
         </Tabs.List>
@@ -358,20 +358,20 @@ export function Dropzone({
                 event.preventDefault();
                 fileInputRef.current?.click();
               }}
-              className={`group nw-focus-ring flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-7 text-center transition-all ${
+              className={`group nw-focus-ring flex cursor-pointer flex-col items-center justify-center gap-3.5 rounded-2xl border-2 border-dashed p-8 md:p-12 text-center transition-all ${
                 isDragging
                   ? "border-[var(--accent)] bg-[var(--soft)] ring-4 ring-[var(--accent)]/10 scale-[1.01]"
                   : "border-[var(--border)] bg-[var(--surface)]/30 hover:border-[var(--accent)]/70 hover:bg-[var(--soft)]/30"
               }`}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg)] text-[var(--accent)] shadow-xs transition-transform group-hover:scale-105">
-                <Upload size={20} aria-hidden="true" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg)] text-[var(--accent)] shadow-xs transition-transform group-hover:scale-105">
+                <Upload size={24} aria-hidden="true" />
               </div>
               <div>
-                <span className="block text-sm font-semibold text-[var(--fg)]">
+                <span className="block text-sm md:text-base font-semibold text-[var(--fg)]">
                   파일을 드래그하거나 클릭해서 선택하세요
                 </span>
-                <span className="mt-1 block text-xs text-[var(--muted)]">
+                <span className="mt-1.5 block text-xs text-[var(--muted)]">
                   PDF, Markdown (.md), TXT 파일 지원 (다중 선택 가능)
                 </span>
               </div>
@@ -481,7 +481,11 @@ export function Dropzone({
             <button
               type="submit"
               disabled={!canSubmitFile || submitting}
-              className="nw-action nw-focus-ring flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white shadow-xs transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className={`nw-action nw-focus-ring flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                canSubmitFile && !submitting
+                  ? "bg-[var(--accent)] text-white shadow-xs hover:brightness-105 active:scale-[0.99]"
+                  : "bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] opacity-60 cursor-not-allowed"
+              }`}
             >
               {submitting ? (
                 <>
@@ -538,7 +542,11 @@ export function Dropzone({
             <button
               type="submit"
               disabled={!canSubmitUrl}
-              className="nw-action nw-focus-ring mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white shadow-xs transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className={`nw-action nw-focus-ring mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                canSubmitUrl
+                  ? "bg-[var(--accent)] text-white shadow-xs hover:brightness-105 active:scale-[0.99]"
+                  : "bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] opacity-60 cursor-not-allowed"
+              }`}
             >
               {submitting ? (
                 <>
@@ -597,7 +605,11 @@ export function Dropzone({
             <button
               type="submit"
               disabled={!canSubmitText}
-              className="nw-action nw-focus-ring mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-sm font-semibold text-white shadow-xs transition-all hover:brightness-105 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className={`nw-action nw-focus-ring mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                canSubmitText
+                  ? "bg-[var(--accent)] text-white shadow-xs hover:brightness-105 active:scale-[0.99]"
+                  : "bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] opacity-60 cursor-not-allowed"
+              }`}
             >
               {submitting ? (
                 <>

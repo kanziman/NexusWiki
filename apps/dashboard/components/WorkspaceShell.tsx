@@ -137,7 +137,11 @@ export function WorkspaceShell({
             >
               <span>질문 시작</span>
             </Link>
-            <AccountMenu email={accountEmail} />
+            <AccountMenu
+              email={accountEmail}
+              workspaceId={currentWorkspaceId}
+              workspaceCount={workspaces.length}
+            />
             <button
               type="button"
               onClick={toggleMobile}

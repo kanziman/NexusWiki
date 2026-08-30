@@ -1,8 +1,9 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2, User, Users } from "lucide-react";
+import { AlertTriangle, Loader2, Trash2, User, Users, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { PublicSharingSettings } from "@/components/PublicSharingSettings";
@@ -39,6 +40,12 @@ export function WorkspaceGeneralSettings({
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // 워크스페이스 삭제 상태
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [confirmInput, setConfirmInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -105,6 +112,45 @@ export function WorkspaceGeneralSettings({
     setSuccessMessage("워크스페이스 정보가 저장되었습니다.");
     onKindChange?.(kind);
     router.refresh();
+  }
+
+  async function handleDeleteWorkspace() {
+    if (!isOwner || deleting || confirmInput !== initialName) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    const supabase = createClient();
+
+    // 1. DELETE 호출
+    const { data, error } = await supabase
+      .from("workspaces")
+      .delete()
+      .eq("id", workspaceId)
+      .select();
+
+    if (error || !data || data.length === 0) {
+      setDeleting(false);
+      setDeleteError(error?.message || "워크스페이스를 삭제하지 못했습니다.");
+      return;
+    }
+
+    // 2. 삭제 성공 후 남아 있는 다른 워크스페이스 조회
+    const { data: remainingMemberships } = await supabase
+      .from("workspace_members")
+      .select("workspace_id")
+      .neq("workspace_id", workspaceId)
+      .limit(1);
+
+    setDeleting(false);
+    setDeleteModalOpen(false);
+
+    if (remainingMemberships && remainingMemberships.length > 0) {
+      const nextWorkspaceId = remainingMemberships[0].workspace_id;
+      router.push(`/w/${nextWorkspaceId}`);
+    } else {
+      router.push("/onboarding");
+    }
   }
 
   return (
@@ -288,6 +334,130 @@ export function WorkspaceGeneralSettings({
         initialDisplayName={publicDisplayName}
         initialDescription={publicDescription}
       />
+
+      {/* 위험 구역 (Danger Zone) */}
+      <section
+        className="settings-card border-[var(--danger)]/30 bg-[var(--danger)]/5 mt-8"
+        aria-label="위험 구역"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-[var(--danger)] flex items-center gap-1.5">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <span>위험 구역</span>
+            </h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              워크스페이스를 삭제하면 등록된 모든 원문 소스, 위키 문서, 인덱싱
+              청크 및 질문 내역이 영구적으로 제거됩니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[var(--danger)]/15 flex items-center justify-between gap-4">
+          <div>
+            <b className="block text-xs font-semibold text-[var(--fg)]">
+              워크스페이스 삭제
+            </b>
+            <span className="block text-[11px] text-[var(--muted)] mt-0.5">
+              {!isOwner
+                ? "소유자(Owner)만 워크스페이스를 삭제할 수 있습니다."
+                : "이 작업은 되돌릴 수 없습니다."}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            disabled={!isOwner}
+            onClick={() => {
+              setConfirmInput("");
+              setDeleteError(null);
+              setDeleteModalOpen(true);
+            }}
+            className="button compact danger whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 size={13} aria-hidden="true" />
+            <span>워크스페이스 삭제</span>
+          </button>
+        </div>
+      </section>
+
+      {/* 워크스페이스 삭제 확인 모달 */}
+      <Dialog.Root open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md transition-all duration-200" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
+            <div className="modal-head mb-4 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-base font-bold text-[var(--danger)] flex items-center gap-1.5">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <span>워크스페이스 삭제 확인</span>
+                </Dialog.Title>
+                <Dialog.Description className="mt-1.5 text-xs text-[var(--muted)] leading-relaxed">
+                  이 작업은 절대 되돌릴 수 없습니다.{" "}
+                  <b>&lsquo;{initialName}&rsquo;</b> 워크스페이스와 연관된 모든
+                  원문 자료, 위키 문서, 대화 기록이 즉시 영구 삭제됩니다.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors cursor-pointer"
+                  aria-label="닫기"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            <div className="space-y-3 mt-4">
+              <label
+                htmlFor="confirm-workspace-name-input"
+                className="block text-xs font-semibold text-[var(--fg)]"
+              >
+                확인을 위해 워크스페이스 이름(<b>{initialName}</b>)을 정확히
+                입력하세요:
+              </label>
+              <input
+                id="confirm-workspace-name-input"
+                type="text"
+                value={confirmInput}
+                onChange={(e) => setConfirmInput(e.target.value)}
+                placeholder={initialName}
+                disabled={deleting}
+                className="field"
+                autoComplete="off"
+              />
+            </div>
+
+            {deleteError && (
+              <p role="alert" className="invite-feedback error show mt-3">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="modal-foot flex items-center justify-end gap-2 mt-6">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  className="button compact"
+                >
+                  취소
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={deleting || confirmInput !== initialName}
+                onClick={handleDeleteWorkspace}
+                className="button compact danger disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleting && <Loader2 size={13} className="animate-spin" />}
+                <span>영구 삭제</span>
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   );
 }
