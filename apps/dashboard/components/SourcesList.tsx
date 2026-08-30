@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, Search, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import React, { useState } from "react";
 
@@ -150,86 +150,116 @@ export function SourcesList({
             등록된 원본의 청킹, 5채널 인덱싱 상태와 위키 인용 관계를 관리합니다.
           </p>
         </div>
-        <button
-          type="button"
-          className="button primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-xs"
-          onClick={() => setUploadOpen(true)}
-          data-od-id="upload-open"
-        >
-          <Plus size={14} aria-hidden="true" />
-          <span>소스 업로드</span>
-        </button>
+        {sources.length > 0 && (
+          <button
+            type="button"
+            className="button primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-xs"
+            onClick={() => setUploadOpen(true)}
+            data-od-id="upload-open"
+          >
+            <Plus size={14} aria-hidden="true" />
+            <span>소스 업로드</span>
+          </button>
+        )}
       </section>
 
-      {/* 요약 통계 */}
-      <section className="stats" data-od-id="pipeline-stats">
-        <div className="stat">
-          <b>{sources.length}</b>
-          <span>총 등록 소스</span>
-        </div>
-        <div className="stat">
-          <b>{totalChunks}</b>
-          <span>생성된 청크</span>
-        </div>
-        <div className="stat">
-          <b>
-            {indexedCount}/{sources.length}
-          </b>
-          <span>청크 생성 완료 소스</span>
-        </div>
-      </section>
+      {/* 요약 통계 (소스가 있을 때만 표시) */}
+      {sources.length > 0 && (
+        <section className="stats" data-od-id="pipeline-stats">
+          <div className="stat">
+            <b>{sources.length}</b>
+            <span>총 등록 소스</span>
+          </div>
+          <div className="stat">
+            <b>{totalChunks}</b>
+            <span>생성된 청크</span>
+          </div>
+          <div className="stat">
+            <b>
+              {indexedCount}/{sources.length}
+            </b>
+            <span>청크 생성 완료 소스</span>
+          </div>
+        </section>
+      )}
 
       {/* 툴바 & 테이블 섹션 */}
       <section data-od-id="source-table-section">
-        <div className="toolbar flex items-center justify-between gap-4">
-          <nav className="tabs" role="tablist" aria-label="파일 형식 필터">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={activeMime === tab.id}
-                onClick={() => {
-                  setActiveMime(tab.id);
+        {sources.length > 0 && (
+          <div className="toolbar flex items-center justify-between gap-4">
+            <nav className="tabs" role="tablist" aria-label="파일 형식 필터">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeMime === tab.id}
+                  onClick={() => {
+                    setActiveMime(tab.id);
+                    setPage(1);
+                  }}
+                  className={`tab ${activeMime === tab.id ? "active" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            {/* 검색창 */}
+            <div className="relative w-full max-w-[280px] flex-none">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+              />
+              <input
+                className="field search"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
                   setPage(1);
                 }}
-                className={`tab ${activeMime === tab.id ? "active" : ""}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-
-          {/* 검색창 */}
-          <div className="relative w-full max-w-[280px] flex-none">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
-            />
-            <input
-              className="field search"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder="파일명으로 검색"
-              aria-label="파일명으로 검색"
-            />
+                placeholder="파일명으로 검색"
+                aria-label="파일명으로 검색"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        {filteredSources.length === 0 ? (
+        {sources.length === 0 ? (
+          <div
+            className="empty-sources-canvas w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 md:p-10 mt-4 shadow-xs"
+            data-testid="empty-sources-dropzone-container"
+          >
+            {/* max-w-lg는 쓰지 않는다 — --spacing-lg(24px) 간격 토큰과 이름이 충돌해
+                Tailwind가 컨테이너 스케일(32rem) 대신 24px를 max-width로 먹인다.
+                tests/PublicLandingPage.test.tsx의 max-w-xl 회귀 테스트와 같은 종류의 함정. */}
+            <div className="text-center max-w-[32rem] mx-auto mb-8">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--soft)] text-[var(--accent)] mb-3 shadow-2xs">
+                <Sparkles size={20} aria-hidden="true" />
+              </div>
+              <h2 className="text-base md:text-lg font-bold text-[var(--fg)] tracking-tight break-keep">
+                {EMPTY_HEADING}
+              </h2>
+              <p className="mt-1.5 text-xs md:text-sm text-[var(--muted)] leading-relaxed break-keep">
+                {EMPTY_BODY}
+              </p>
+            </div>
+            <div className="w-full max-w-3xl mx-auto">
+              <Dropzone
+                workspaceId={workspaceId}
+                onIngested={handleIngested}
+                prefillTitle={prefillTitle}
+                initialTab={initialTab}
+              />
+            </div>
+          </div>
+        ) : filteredSources.length === 0 ? (
           <div className="table-wrap p-12 text-center border border-[var(--border)] rounded-lg bg-[var(--surface)]/30 mt-3">
             <b className="block text-[14px] text-[var(--fg)]">
-              {sources.length === 0
-                ? EMPTY_HEADING
-                : "해당 조건의 소스가 없습니다"}
+              해당 조건의 소스가 없습니다
             </b>
             <span className="mt-1.5 block text-xs text-[var(--muted)]">
-              {sources.length === 0
-                ? EMPTY_BODY
-                : "다른 형식 탭을 선택하거나 검색어를 지우세요."}
+              다른 형식 탭을 선택하거나 검색어를 지우세요.
             </span>
           </div>
         ) : (
@@ -398,14 +428,14 @@ export function SourcesList({
       {/* 업로드 모달 */}
       <Dialog.Root open={uploadOpen} onOpenChange={setUploadOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="modal-backdrop fixed inset-0 z-50 bg-black/40 backdrop-blur-xs transition-opacity" />
-          <Dialog.Content className="modal fixed top-1/2 left-1/2 z-50 w-[min(540px,calc(100vw-32px))] max-h-[88vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
-            <div className="modal-head mb-5 flex items-start justify-between gap-4">
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md transition-all duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(720px,calc(100vw-32px))] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 md:p-8 shadow-2xl outline-none duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+            <div className="modal-head mb-6 flex items-start justify-between gap-4">
               <div>
-                <Dialog.Title className="text-base font-bold text-[var(--fg)] tracking-tight">
+                <Dialog.Title className="text-lg md:text-xl font-bold text-[var(--fg)] tracking-tight">
                   소스 업로드
                 </Dialog.Title>
-                <p className="mt-1 text-xs text-[var(--muted)]">
+                <p className="mt-1.5 text-xs md:text-sm text-[var(--muted)]">
                   파일, 웹 URL 또는 텍스트를 등록하여 위키 지식 베이스를
                   확장합니다.
                 </p>
@@ -413,10 +443,10 @@ export function SourcesList({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors"
+                  className="icon-btn rounded-xl p-1.5 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors cursor-pointer"
                   aria-label="닫기"
                 >
-                  <X size={16} aria-hidden="true" />
+                  <X size={20} aria-hidden="true" />
                 </button>
               </Dialog.Close>
             </div>

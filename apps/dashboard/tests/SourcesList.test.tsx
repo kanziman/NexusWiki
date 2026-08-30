@@ -16,7 +16,7 @@ vi.mock("@/lib/supabase/client", () => ({
 import { SourcesList } from "@/components/SourcesList";
 
 describe("SourcesList", () => {
-  it("preserves the approved empty-state copy", () => {
+  it("preserves the approved empty-state copy and renders inline Dropzone", () => {
     render(<SourcesList workspaceId="ws-1" initialSources={[]} />);
 
     expect(screen.getByText("아직 등록된 소스가 없습니다")).toBeInTheDocument();
@@ -25,6 +25,10 @@ describe("SourcesList", () => {
         "파일을 드래그하거나 URL/텍스트를 붙여넣어 첫 소스를 추가하세요.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("empty-sources-dropzone-container"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("dropzone")).toBeInTheDocument();
   });
 
   it("keeps a truncated source title available to assistive technology", () => {

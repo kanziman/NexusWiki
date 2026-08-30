@@ -44,16 +44,66 @@ describe("AccountMenu", () => {
   it("supports keyboard activation and presents a retry-safe error", async () => {
     const user = userEvent.setup();
     signOut.mockResolvedValue({ error: { message: "network" } });
-    render(<AccountMenu email="member@example.com" />);
+    render(<AccountMenu email="member@example.com" workspaceId="ws-1" />);
 
     await user.tab();
     expect(screen.getByRole("button", { name: "계정 메뉴" })).toHaveFocus();
     await user.keyboard("{Enter}");
-    await user.keyboard("{Enter}");
+
+    expect(
+      screen.getByRole("menuitem", { name: "워크스페이스 설정" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "새 워크스페이스 만들기" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitem", { name: "로그아웃" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "로그아웃하지 못했습니다. 다시 시도해주세요.",
     );
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("새 워크스페이스 만들기 메뉴 선택 시 생성 모달 다이얼로그를 연다", async () => {
+    const user = userEvent.setup();
+    render(<AccountMenu email="member@example.com" workspaceId="ws-1" />);
+
+    await user.click(screen.getByRole("button", { name: "계정 메뉴" }));
+    await user.click(
+      screen.getByRole("menuitem", { name: "새 워크스페이스 만들기" }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "새 워크스페이스 만들기" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("예: 마케팅 전략 위키"),
+    ).toBeInTheDocument();
+  });
+
+  it("보유 워크스페이스가 3개 이상이면 최대치 도달 안내를 모달에 표시한다", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccountMenu
+        email="member@example.com"
+        workspaceId="ws-1"
+        workspaceCount={3}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "계정 메뉴" }));
+    expect(screen.getByText("최대 3개")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("menuitem", { name: /새 워크스페이스 만들기/ }),
+    );
+
+    expect(
+      await screen.findByText("워크스페이스 최대 개수(3개)에 도달했습니다"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("예: 마케팅 전략 위키"),
+    ).not.toBeInTheDocument();
   });
 });

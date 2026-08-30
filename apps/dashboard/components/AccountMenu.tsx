@@ -1,19 +1,31 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { LogOut, UserRound } from "lucide-react";
+import { LogOut, Plus, Settings, UserRound } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
+import { CreateWorkspaceModal } from "@/components/CreateWorkspaceModal";
+
 type AccountMenuProps = {
   email: string;
+  workspaceId?: string;
+  workspaceCount?: number;
 };
 
-export function AccountMenu({ email }: AccountMenuProps) {
+export function AccountMenu({
+  email,
+  workspaceId,
+  workspaceCount,
+}: AccountMenuProps) {
   const [open, setOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const maxReached = typeof workspaceCount === "number" && workspaceCount >= 3;
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -33,53 +45,115 @@ export function AccountMenu({ email }: AccountMenuProps) {
     window.location.assign("/login");
   }
 
+  const initial = email ? email[0].toUpperCase() : "U";
+  const username = email ? email.split("@")[0] : "사용자";
+
   return (
-    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          aria-label="계정 메뉴"
-          className="nw-focus-ring ml-auto flex h-11 min-w-11 items-center justify-center text-[var(--fg)] sm:ml-0"
-        >
-          <UserRound size={19} aria-hidden="true" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="end"
-          sideOffset={8}
-          className="w-64 rounded-md border border-[var(--border)] bg-[var(--bg)] p-xs shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
-        >
-          <p
-            className="truncate px-sm py-xs text-[var(--muted)]"
-            style={{ font: "var(--font-caption)" }}
+    <>
+      <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            aria-label="계정 메뉴"
+            className="nw-focus-ring ml-auto flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--fg)] hover:bg-[var(--soft)] hover:border-[var(--accent)] transition-all cursor-pointer sm:ml-0"
           >
-            {email}
-          </p>
-          <DropdownMenu.Separator className="my-xs h-px bg-[var(--border)]" />
-          <DropdownMenu.Item
-            disabled={signingOut}
-            onSelect={(event) => {
-              event.preventDefault();
-              void handleSignOut();
-            }}
-            className="nw-focus-ring flex cursor-pointer items-center gap-sm px-sm py-sm text-[var(--fg)] outline-none data-[highlighted]:bg-[var(--bg)] data-[disabled]:cursor-wait data-[disabled]:opacity-60"
-            style={{ font: "var(--font-caption)", fontWeight: 600 }}
+            <UserRound size={18} aria-hidden="true" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={8}
+            className="w-72 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-2 shadow-2xl outline-none duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           >
-            <LogOut size={16} aria-hidden="true" />
-            {signingOut ? "로그아웃 중" : "로그아웃"}
-          </DropdownMenu.Item>
-          {error ? (
-            <p
-              role="alert"
-              className="px-sm py-xs text-[var(--color-primary-error-text)]"
-              style={{ font: "var(--font-caption-sm)" }}
+            {/* 사용자 프로필 헤더 */}
+            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--surface)]/50 border border-[var(--border)]/60">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent)] text-white font-bold text-sm shadow-2xs flex-none">
+                {initial}
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-bold text-[var(--fg)]">
+                  {username}
+                </span>
+                <span className="block truncate text-[11px] text-[var(--muted)]">
+                  {email}
+                </span>
+              </div>
+            </div>
+
+            <DropdownMenu.Separator className="my-1.5 h-px bg-[var(--border)]" />
+
+            {/* 워크스페이스 빠른 바로가기 */}
+            {workspaceId && (
+              <DropdownMenu.Item asChild>
+                <Link
+                  href={`/w/${workspaceId}/settings`}
+                  className="nw-focus-ring flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--fg)] outline-none hover:bg-[var(--surface)] data-[highlighted]:bg-[var(--surface)] transition-colors"
+                >
+                  <Settings
+                    size={15}
+                    className="text-[var(--muted)] flex-none"
+                    aria-hidden="true"
+                  />
+                  <span>워크스페이스 설정</span>
+                </Link>
+              </DropdownMenu.Item>
+            )}
+
+            <DropdownMenu.Item
+              onSelect={() => {
+                setCreateModalOpen(true);
+              }}
+              className="nw-focus-ring flex cursor-pointer items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--fg)] outline-none hover:bg-[var(--surface)] data-[highlighted]:bg-[var(--surface)] transition-colors"
             >
-              {error}
-            </p>
-          ) : null}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+              <div className="flex items-center gap-2.5">
+                <Plus
+                  size={15}
+                  className="text-[var(--muted)] flex-none"
+                  aria-hidden="true"
+                />
+                <span>새 워크스페이스 만들기</span>
+              </div>
+              {maxReached && (
+                <span className="text-[10px] font-semibold bg-[var(--surface)] text-[var(--muted)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+                  최대 3개
+                </span>
+              )}
+            </DropdownMenu.Item>
+
+            <DropdownMenu.Separator className="my-1.5 h-px bg-[var(--border)]" />
+
+            {/* 로그아웃 버튼 */}
+            <DropdownMenu.Item
+              disabled={signingOut}
+              onSelect={(event) => {
+                event.preventDefault();
+                void handleSignOut();
+              }}
+              className="nw-focus-ring flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-[var(--danger)] outline-none hover:bg-[var(--danger)]/10 data-[highlighted]:bg-[var(--danger)]/10 transition-colors data-[disabled]:cursor-wait data-[disabled]:opacity-60"
+            >
+              <LogOut size={15} aria-hidden="true" />
+              <span>{signingOut ? "로그아웃 중…" : "로그아웃"}</span>
+            </DropdownMenu.Item>
+
+            {error ? (
+              <p
+                role="alert"
+                className="mt-1 px-2.5 py-1 text-[11px] text-[var(--danger)]"
+              >
+                {error}
+              </p>
+            ) : null}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+
+      {/* 새 워크스페이스 생성 모달 */}
+      <CreateWorkspaceModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        maxReached={maxReached}
+      />
+    </>
   );
 }

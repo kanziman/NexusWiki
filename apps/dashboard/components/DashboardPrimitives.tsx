@@ -57,7 +57,11 @@ export function EmptyState({
   return (
     <section className="flex flex-col items-center gap-sm border-y border-[var(--border)] px-base py-section text-center">
       <h2 className="text-lg font-semibold text-[var(--fg)]">{title}</h2>
-      <p className="max-w-lg text-sm leading-6 text-[var(--muted)]">{detail}</p>
+      {/* max-w-lg는 쓰지 않는다 — --spacing-lg(24px) 간격 토큰과 이름이 충돌해
+          Tailwind가 컨테이너 스케일(32rem) 대신 24px를 max-width로 먹인다. */}
+      <p className="max-w-[32rem] text-sm leading-6 text-[var(--muted)]">
+        {detail}
+      </p>
       {action ? <div className="mt-sm">{action}</div> : null}
     </section>
   );
