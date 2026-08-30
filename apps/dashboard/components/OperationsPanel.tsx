@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
+import { formatCredits } from "@/lib/credits";
 
 type PipelineRow = {
   type: string;
@@ -30,10 +31,6 @@ export type OperationsPanelProps = { workspaceId: string };
 
 const LOAD_ERROR =
   "운영 현황을 불러오지 못했습니다. 운영 현황 새로고침을 시도해주세요.";
-const moneyFormatter = new Intl.NumberFormat("ko-KR", {
-  style: "currency",
-  currency: "USD",
-});
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -41,10 +38,6 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
 const monthFormatter = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
 });
-
-function formatMicros(micros: number) {
-  return moneyFormatter.format(micros / 1_000_000);
-}
 
 function countOrUnavailable(value: number | null) {
   return value === null ? "집계 불가" : `${value}건`;
@@ -133,24 +126,24 @@ export function OperationsPanel({ workspaceId }: OperationsPanelProps) {
         <>
           <section className="budget" data-od-id="budget-card">
             <div className="budget-main">
-              <h3>이번 달 LLM 추론 예산</h3>
+              <h3>이번 달 AI 연산 크레딧</h3>
               {/* ⚠️ authoritative:false 는 계약의 일부다(PRD §3.3.1) — 상한
                   집행은 enqueue_source_job 이 하고 여기는 표시용이다. */}
               <p>표시용 수치입니다. 상한 집행은 작업 등록 시점에 이뤄집니다.</p>
 
               <div className="budget-amount">
-                {formatMicros(budget.spent_micros)}{" "}
-                <span>/ {formatMicros(budget.cap_micros)}</span>
+                {formatCredits(budget.spent_micros)}{" "}
+                <span>/ {formatCredits(budget.cap_micros)}</span>
               </div>
 
               {budget.cap_micros === 0 ? (
                 <p className="mt-[18px] mb-0 text-[11px]">
-                  예산이 설정되지 않았습니다.
+                  크레딧 한도가 설정되지 않았습니다.
                 </p>
               ) : (
                 <div
                   className="progress"
-                  aria-label={`예산 사용률 ${Math.round(budgetPercent ?? 0)}%`}
+                  aria-label={`크레딧 사용률 ${Math.round(budgetPercent ?? 0)}%`}
                 >
                   <i style={{ width: `${budgetPercent ?? 0}%` }} />
                 </div>
@@ -162,7 +155,9 @@ export function OperationsPanel({ workspaceId }: OperationsPanelProps) {
                     ? "이번 달 사용 기록이 없습니다."
                     : `집계 시작 ${monthFormatter.format(new Date(budget.month_start))}`}
                 </span>
-                <span>남은 금액 {formatMicros(budget.remaining_micros)}</span>
+                <span>
+                  남은 크레딧 {formatCredits(budget.remaining_micros)}
+                </span>
               </div>
             </div>
 
@@ -171,22 +166,22 @@ export function OperationsPanel({ workspaceId }: OperationsPanelProps) {
                 응답에 실재하는 값만 둔다. */}
             <div className="budget-aside">
               <div>
-                <span>사용액</span>
-                <b>{formatMicros(budget.spent_micros)}</b>
+                <span>사용 크레딧</span>
+                <b>{formatCredits(budget.spent_micros)}</b>
               </div>
               <div>
-                <span>남은 금액</span>
-                <b>{formatMicros(budget.remaining_micros)}</b>
+                <span>남은 크레딧</span>
+                <b>{formatCredits(budget.remaining_micros)}</b>
               </div>
               <div>
-                <span>월 상한</span>
-                <b>{formatMicros(budget.cap_micros)}</b>
+                <span>월간 한도</span>
+                <b>{formatCredits(budget.cap_micros)}</b>
               </div>
 
               {budget.cap_micros > 0 &&
               budget.spent_micros > budget.cap_micros ? (
                 <p className="m-0 text-[11px] text-[var(--danger)]">
-                  이번 달 예산을 초과했습니다. 새 작업 등록이 제한될 수
+                  이번 달 크레딧을 초과했습니다. 새 작업 등록이 제한될 수
                   있습니다.
                 </p>
               ) : null}
@@ -194,7 +189,7 @@ export function OperationsPanel({ workspaceId }: OperationsPanelProps) {
               budget.spent_micros >= budget.cap_micros * 0.8 &&
               budget.spent_micros <= budget.cap_micros ? (
                 <p className="m-0 text-[11px] text-[var(--danger)]">
-                  이번 달 예산에 가깝습니다.
+                  이번 달 크레딧 한도에 가깝습니다.
                 </p>
               ) : null}
               {budget.truncated ? (

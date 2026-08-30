@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
+import { formatCredits } from "@/lib/credits";
 import { createClient } from "@/lib/supabase/client";
 
 import { CreateWorkspaceModal } from "@/components/CreateWorkspaceModal";
@@ -18,14 +19,6 @@ type WorkspaceBudget = {
   truncated: boolean;
   authoritative: boolean;
 };
-
-function formatMicros(micros: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(micros / 1_000_000);
-}
 
 type AccountMenuProps = {
   email: string;
@@ -142,7 +135,7 @@ export function AccountMenu({
                     <span>무료 크레딧</span>
                   </div>
                   <span className="font-bold text-[var(--accent)] text-[11px]">
-                    {formatMicros(budget.remaining_micros)} 남음
+                    {formatCredits(budget.remaining_micros)} 남음
                   </span>
                 </div>
                 <div
@@ -159,8 +152,8 @@ export function AccountMenu({
                   />
                 </div>
                 <div className="flex items-center justify-between text-[10.5px] text-[var(--muted)]">
-                  <span>사용 {formatMicros(budget.spent_micros)}</span>
-                  <span>한도 {formatMicros(budget.cap_micros)}</span>
+                  <span>사용 {formatCredits(budget.spent_micros)}</span>
+                  <span>한도 {formatCredits(budget.cap_micros)}</span>
                 </div>
               </Link>
             )}

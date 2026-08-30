@@ -27,6 +27,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api-client";
+import { formatCredits } from "@/lib/credits";
 import {
   deleteAskThread,
   listAskThreads,
@@ -47,14 +48,6 @@ type WorkspaceBudget = {
   truncated: boolean;
   authoritative: boolean;
 };
-
-function formatMicros(micros: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(micros / 1_000_000);
-}
 import {
   WorkspaceSwitcher,
   type WorkspaceSwitcherProps,
@@ -432,7 +425,7 @@ export function WorkspaceSidebar({
                   무료 크레딧
                 </span>
                 <span className="text-[11px] font-bold text-[var(--fg)] truncate">
-                  {formatMicros(budget.remaining_micros)} 남음
+                  {formatCredits(budget.remaining_micros)} 남음
                 </span>
               </div>
             </div>

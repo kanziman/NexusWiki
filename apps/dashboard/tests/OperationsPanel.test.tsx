@@ -112,7 +112,7 @@ describe("OperationsPanel", () => {
     );
     render(<OperationsPanel workspaceId="ws-1" />);
     expect(
-      await screen.findByText("예산이 설정되지 않았습니다."),
+      await screen.findByText("크레딧 한도가 설정되지 않았습니다."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("이번 달 사용 기록이 없습니다."),

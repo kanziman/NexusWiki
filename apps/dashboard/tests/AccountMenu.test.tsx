@@ -23,9 +23,9 @@ describe("AccountMenu", () => {
     signOut.mockReset();
     apiFetch.mockReset();
     apiFetch.mockResolvedValue({
-      cap_micros: 1000000,
-      spent_micros: 120000,
-      remaining_micros: 880000,
+      cap_micros: 5000000,
+      spent_micros: 800000,
+      remaining_micros: 4200000,
       month_start: "2026-08-01T00:00:00Z",
       truncated: false,
       authoritative: false,
@@ -128,8 +128,8 @@ describe("AccountMenu", () => {
     await user.click(screen.getByRole("button", { name: "계정 메뉴" }));
 
     expect(await screen.findByText("무료 크레딧")).toBeInTheDocument();
-    expect(screen.getByText("US$0.88 남음")).toBeInTheDocument();
-    expect(screen.getByText("사용 US$0.12")).toBeInTheDocument();
-    expect(screen.getByText("한도 US$1.00")).toBeInTheDocument();
+    expect(screen.getByText("420 크레딧 남음")).toBeInTheDocument();
+    expect(screen.getByText("사용 80 크레딧")).toBeInTheDocument();
+    expect(screen.getByText("한도 500 크레딧")).toBeInTheDocument();
   });
 });

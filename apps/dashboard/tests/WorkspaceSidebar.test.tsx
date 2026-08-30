@@ -31,9 +31,9 @@ vi.mock("@/lib/api-client", () => ({
   apiFetch: vi.fn(async (path: string) => {
     if (path.includes("/budget")) {
       return {
-        cap_micros: 1000000,
-        spent_micros: 150000,
-        remaining_micros: 850000,
+        cap_micros: 5000000,
+        spent_micros: 1500000,
+        remaining_micros: 3500000,
         month_start: "2026-08-01T00:00:00Z",
         truncated: false,
         authoritative: false,
@@ -264,7 +264,7 @@ describe("WorkspaceSidebar", () => {
     render(<WorkspaceSidebar {...defaultProps} />);
 
     expect(await screen.findByText("무료 크레딧")).toBeInTheDocument();
-    expect(screen.getByText("US$0.85 남음")).toBeInTheDocument();
-    expect(screen.getByText("15%")).toBeInTheDocument();
+    expect(screen.getByText("350 크레딧 남음")).toBeInTheDocument();
+    expect(screen.getByText("30%")).toBeInTheDocument();
   });
 });
