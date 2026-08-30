@@ -35,7 +35,7 @@ async def test_same_workspace_member_cannot_read_or_mutate_others_thread(
     teammate = workspace_member_with_role(owner, "editor")
     probe = local_stack.get("/rest/v1/ask_threads", headers=_user_headers(owner.access_token))
     if probe.status_code >= 400 and "ask_threads" in probe.text:
-        pytest.skip("0018_ask_history 가 로컬 스택에 아직 없다")
+        pytest.skip("0019_ask_streaming_turns 가 로컬 스택에 아직 없다")
 
     created = local_stack.post(
         "/rest/v1/ask_threads",
@@ -141,31 +141,49 @@ async def test_same_client_turn_id_replay_does_not_duplicate_messages(
         pytest.skip("0018_ask_history 가 로컬 스택에 아직 없다")
 
     client_turn_id = str(uuid4())
-    payload = {
+    start_payload = {
         "p_workspace_id": owner.workspace_id,
         "p_thread_id": None,
         "p_client_turn_id": client_turn_id,
         "p_question": "같은 턴",
-        "p_answer_text": "답",
-        "p_citations": {"text": "답", "resolved": []},
-        "p_status": "resolved",
     }
     first = local_stack.post(
-        "/rest/v1/rpc/persist_ask_turn",
+        "/rest/v1/rpc/start_ask_turn",
         headers=_user_headers(owner.access_token),
-        json=payload,
+        json=start_payload,
     )
     assert first.status_code < 400, first.text
     first_row = first.json()[0] if isinstance(first.json(), list) else first.json()
     second = local_stack.post(
-        "/rest/v1/rpc/persist_ask_turn",
+        "/rest/v1/rpc/start_ask_turn",
         headers=_user_headers(owner.access_token),
-        json={**payload, "p_thread_id": first_row["thread_id"]},
+        json=start_payload,
     )
     assert second.status_code < 400, second.text
     second_row = second.json()[0] if isinstance(second.json(), list) else second.json()
     assert second_row["thread_id"] == first_row["thread_id"]
     assert second_row["message_id"] == first_row["message_id"]
+
+    finalize_payload = {
+        "p_workspace_id": owner.workspace_id,
+        "p_thread_id": first_row["thread_id"],
+        "p_client_turn_id": client_turn_id,
+        "p_answer_text": "답",
+        "p_citations": {"text": "답", "resolved": []},
+        "p_status": "resolved",
+    }
+    finalized = local_stack.post(
+        "/rest/v1/rpc/finalize_ask_turn",
+        headers=_user_headers(owner.access_token),
+        json=finalize_payload,
+    )
+    assert finalized.status_code < 400, finalized.text
+    replayed_finalization = local_stack.post(
+        "/rest/v1/rpc/finalize_ask_turn",
+        headers=_user_headers(owner.access_token),
+        json=finalize_payload,
+    )
+    assert replayed_finalization.status_code < 400, replayed_finalization.text
 
     listed = local_stack.get(
         "/rest/v1/ask_messages",

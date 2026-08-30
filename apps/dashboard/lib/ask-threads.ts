@@ -18,7 +18,7 @@ export type AskThreadMessage = {
   question: string;
   answer_text: string;
   citations: StoredCitations;
-  status: "resolved" | "no-evidence" | "error";
+  status: "streaming" | "resolved" | "no-evidence" | "error";
   created_at: string;
 };
 

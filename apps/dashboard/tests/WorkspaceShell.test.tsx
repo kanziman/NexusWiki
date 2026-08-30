@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const push = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   usePathname: () => "/w/ws-1",
   useSearchParams: () => ({
     get: () => null,
@@ -32,7 +34,24 @@ describe("WorkspaceShell", () => {
   };
 
   beforeEach(() => {
+    push.mockReset();
     sessionStorage.clear();
+  });
+
+  it("상단 질문 시작 버튼도 세션의 활성 스레드로 이동한다", () => {
+    sessionStorage.setItem(
+      "nexuswiki:active-ask-thread:ws-1",
+      "thread-streaming-1",
+    );
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <div>콘텐츠</div>
+      </WorkspaceShell>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: /질문 시작/ }));
+
+    expect(push).toHaveBeenCalledWith("/w/ws-1/ask?thread=thread-streaming-1");
   });
 
   it("renders topbar actions, breadcrumb, and children content", () => {

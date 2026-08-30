@@ -132,7 +132,10 @@ def _mock_prompt_and_content_transport() -> httpx.MockTransport:
                     }
                 ],
             )
-        if path == "/rest/v1/rpc/persist_ask_turn":
+        if path in {
+            "/rest/v1/rpc/start_ask_turn",
+            "/rest/v1/rpc/finalize_ask_turn",
+        }:
             return _persist_ok()
         raise AssertionError(f"unexpected request: {request.url}")
 
@@ -256,7 +259,10 @@ async def test_visible_requested_template_is_used_for_ask() -> None:
                     }
                 ],
             )
-        if request.url.path == "/rest/v1/rpc/persist_ask_turn":
+        if request.url.path in {
+            "/rest/v1/rpc/start_ask_turn",
+            "/rest/v1/rpc/finalize_ask_turn",
+        }:
             return _persist_ok()
         raise AssertionError(f"unexpected request: {request.url}")
 

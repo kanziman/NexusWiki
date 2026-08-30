@@ -76,6 +76,7 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 import { AskConversation } from "@/components/AskConversation";
+import { apiFetch } from "@/lib/api-client";
 
 async function* toAsyncGenerator<T>(items: T[]): AsyncGenerator<T> {
   for (const item of items) {
@@ -97,6 +98,9 @@ describe("AskConversation", () => {
     searchParamsMock.value = new URLSearchParams();
     wikiLookupCalls.mockReset();
     wikiLookupResult.current = { data: null };
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+    vi.mocked(apiFetch).mockResolvedValue([]);
     // 06-REVIEW.md WR-02 fix: AskConversation이 SSE 루프에 들어가기 전에
     // response.ok를 확인하므로, 기존 성공 경로 테스트들이 계속 통과하려면
     // 목 fetch도 ok:true를 흉내내야 한다.
@@ -138,6 +142,62 @@ describe("AskConversation", () => {
       { body?: string },
     ];
     expect(JSON.parse(init.body ?? "{}")).not.toHaveProperty("template_id");
+  });
+
+  it("응답 헤더에서 진행 중 스레드를 세션과 URL에 즉시 기록하고 대화를 유지한다", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "X-Ask-Thread-Id": "thread-streaming-1" }),
+    } as Response);
+    sseFrames.mockReturnValue(toAsyncGenerator([]));
+
+    render(<AskConversation workspaceId="ws-1" />);
+    await askQuestion("라우트를 떠나도 남나요?");
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem("nexuswiki:active-ask-thread:ws-1")).toBe(
+        "thread-streaming-1",
+      );
+      expect(window.location.pathname).toBe("/w/ws-1/ask");
+      expect(window.location.search).toBe("?thread=thread-streaming-1");
+      expect(screen.getByText("라우트를 떠나도 남나요?")).toBeInTheDocument();
+    });
+  });
+
+  it("저장된 streaming 턴을 다시 열면 생성 중 상태로 복원한다", async () => {
+    searchParamsMock.value = new URLSearchParams({
+      thread: "thread-streaming-2",
+    });
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path.endsWith("/threads/thread-streaming-2")) {
+        return {
+          id: "thread-streaming-2",
+          title: "진행 중 질문",
+          created_at: "2026-08-29T00:00:00Z",
+          updated_at: "2026-08-29T00:00:00Z",
+          messages: [
+            {
+              id: "message-1",
+              client_turn_id: "turn-1",
+              question: "진행 중인가요?",
+              answer_text: "",
+              citations: { text: "", resolved: [] },
+              status: "streaming",
+              created_at: "2026-08-29T00:00:00Z",
+            },
+          ],
+        };
+      }
+      return [];
+    });
+
+    render(<AskConversation workspaceId="ws-1" />);
+
+    expect(await screen.findByText("진행 중인가요?")).toBeInTheDocument();
+    expect(screen.getByText("생성 중")).toBeInTheDocument();
+    expect(sessionStorage.getItem("nexuswiki:active-ask-thread:ws-1")).toBe(
+      "thread-streaming-2",
+    );
   });
 
   it("빈 대화에서는 empty-state 문구를 렌더링한다", () => {

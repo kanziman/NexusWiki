@@ -15,6 +15,10 @@ import {
 } from "@/lib/citation-anchors";
 import { ApiError } from "@/lib/api-client";
 import {
+  clearActiveAskThread,
+  setActiveAskThread,
+} from "@/lib/ask-active-thread";
+import {
   deleteAskThread,
   getAskThread,
   listAskThreads,
@@ -81,6 +85,15 @@ async function readAskErrorToken(response: Response): Promise<string> {
 
 function turnsFromMessages(messages: AskThreadMessage[]): Turn[] {
   return messages.map((message) => {
+    if (message.status === "streaming") {
+      return {
+        question: message.question,
+        segments: [],
+        status: "streaming" as const,
+        missingChannelsNotice: false,
+        persisted: true,
+      };
+    }
     if (message.status === "no-evidence") {
       return {
         question: message.question,
@@ -189,12 +202,33 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }, [initialThread]);
 
   useEffect(() => {
+    if (
+      !activeThreadId ||
+      !turns.some((turn) => turn.persisted && turn.status === "streaming")
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void openThread(activeThreadId);
+    }, 800);
+    return () => window.clearTimeout(timer);
+    // openThread는 이 컴포넌트의 현재 상태를 사용하므로, 폴링 대상만 바뀔 때 다시 잡는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeThreadId, turns]);
+
+  useEffect(() => {
     function onNewThreadEvent() {
       const key = newDraftKey();
       setConversations((prev) => ({ ...prev, [key]: [] }));
       setActiveKey(key);
       setRestoreError(null);
       setDrawerOpen(false);
+      clearActiveAskThread(workspaceId);
+      window.history.replaceState(
+        null,
+        "",
+        `${workspacePath(workspaceId)}/ask`,
+      );
       setTimeout(() => {
         const input = document.getElementById("ask-question-input");
         input?.focus();
@@ -204,7 +238,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     return () => {
       window.removeEventListener("nexuswiki:new-ask-thread", onNewThreadEvent);
     };
-  }, []);
+  }, [workspaceId]);
 
   function patchConversation(key: string, updater: (prev: Turn[]) => Turn[]) {
     setConversations((prev) => ({
@@ -219,6 +253,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
       const detail = await getAskThread(workspaceId, threadId);
       patchConversation(threadId, () => turnsFromMessages(detail.messages));
       setActiveKey(threadId);
+      setActiveAskThread(workspaceId, threadId);
       setThreads((prev) => {
         if (prev.some((row) => row.id === detail.id)) {
           return prev.map((row) => (row.id === detail.id ? detail : row));
@@ -226,6 +261,9 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         return [detail, ...prev];
       });
     } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        clearActiveAskThread(workspaceId);
+      }
       setRestoreError(
         error instanceof ApiError && error.status === 403
           ? "deleted"
@@ -243,6 +281,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     const threadId = conversationKey.startsWith(DRAFT_PREFIX)
       ? undefined
       : conversationKey;
+    let streamKey = conversationKey;
 
     setSubmittingKeys((prev) => ({ ...prev, [conversationKey]: true }));
     patchConversation(conversationKey, (prev) => [
@@ -256,12 +295,40 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     ]);
 
     function patchTurn(patch: Partial<Turn>) {
-      patchConversation(conversationKey, (prev) => {
+      patchConversation(streamKey, (prev) => {
         if (prev[turnIndex] === undefined) return prev;
         const next = [...prev];
         next[turnIndex] = { ...next[turnIndex], ...patch };
         return next;
       });
+    }
+
+    function promoteToThread(persistedId: string) {
+      setActiveAskThread(workspaceId, persistedId);
+      if (!streamKey.startsWith(DRAFT_PREFIX)) return;
+
+      const draftKey = streamKey;
+      streamKey = persistedId;
+      setConversations((prev) => {
+        const next = { ...prev };
+        next[persistedId] = next[draftKey] ?? [];
+        delete next[draftKey];
+        return next;
+      });
+      setSubmittingKeys((prev) => {
+        const next = { ...prev, [persistedId]: true };
+        delete next[draftKey];
+        return next;
+      });
+      if (activeKeyRef.current === draftKey) {
+        setActiveKey(persistedId);
+      }
+      window.history.replaceState(
+        null,
+        "",
+        `${workspacePath(workspaceId)}/ask?thread=${encodeURIComponent(persistedId)}`,
+      );
+      void refreshThreads();
     }
 
     let accumulatedText = "";
@@ -299,12 +366,21 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         return;
       }
 
+      const startedThreadId = response.headers?.get("X-Ask-Thread-Id");
+      if (startedThreadId) {
+        promoteToThread(startedThreadId);
+      }
+
       for await (const frame of parseSseStream(response)) {
         if (frame.event === "meta") {
           const meta = frame.data as {
+            thread_id?: string;
             no_evidence?: boolean;
             missing_channels?: string[];
           };
+          if (meta.thread_id) {
+            promoteToThread(meta.thread_id);
+          }
           if (meta.no_evidence) {
             noEvidence = true;
           }
@@ -337,25 +413,15 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           }
         } else if (frame.event === "done") {
           const done = frame.data as { thread_id?: string };
-          if (done.thread_id && conversationKey.startsWith(DRAFT_PREFIX)) {
-            const persistedId = done.thread_id;
-            setConversations((prev) => {
-              const next = { ...prev };
-              next[persistedId] = next[conversationKey] ?? [];
-              delete next[conversationKey];
-              return next;
-            });
-            if (activeKeyRef.current === conversationKey) {
-              setActiveKey(persistedId);
-            }
-            void refreshThreads();
+          if (done.thread_id) {
+            setActiveAskThread(workspaceId, done.thread_id);
           }
         }
       }
     } catch {
       // finally의 dropped 처리
     } finally {
-      patchConversation(conversationKey, (prev) => {
+      patchConversation(streamKey, (prev) => {
         if (prev[turnIndex]?.status !== "streaming") return prev;
         const next = [...prev];
         next[turnIndex] = { ...next[turnIndex], status: "dropped" };
@@ -363,7 +429,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
       });
       setSubmittingKeys((prev) => {
         const next = { ...prev };
-        delete next[conversationKey];
+        delete next[streamKey];
         return next;
       });
     }
@@ -382,6 +448,8 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     setActiveKey(key);
     setRestoreError(null);
     setDrawerOpen(false);
+    clearActiveAskThread(workspaceId);
+    window.history.replaceState(null, "", `${workspacePath(workspaceId)}/ask`);
     const input = document.getElementById("ask-question-input");
     input?.focus();
   }

@@ -355,14 +355,13 @@ class AskService:
         self._retrieval_service = retrieval_service
         self._llm_client = llm_client
 
-    async def _persist_completed_turn(
+    async def _finalize_turn(
         self,
         *,
         user_db: UserDb,
         workspace_id: UUID,
-        thread_id: UUID | None,
+        thread_id: UUID,
         client_turn_id: UUID,
-        query: str,
         answer_text: str,
         citations: dict[str, Any],
         status: str,
@@ -374,12 +373,11 @@ class AskService:
         }
         try:
             rows = await user_db.rpc(
-                "persist_ask_turn",
+                "finalize_ask_turn",
                 params={
                     "p_workspace_id": str(workspace_id),
-                    "p_thread_id": str(thread_id) if thread_id is not None else None,
+                    "p_thread_id": str(thread_id),
                     "p_client_turn_id": str(client_turn_id),
-                    "p_question": query,
                     "p_answer_text": answer_text,
                     "p_citations": stored_citations,
                     "p_status": status,
@@ -391,24 +389,22 @@ class AskService:
             return None
         return UUID(str(rows[0]["thread_id"]))
 
-    async def _yield_done_if_persisted(
+    async def _yield_done_if_finalized(
         self,
         *,
         user_db: UserDb,
         workspace_id: UUID,
-        thread_id: UUID | None,
+        thread_id: UUID,
         client_turn_id: UUID,
-        query: str,
         answer_text: str,
         citations: dict[str, Any],
         status: str,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        persisted = await self._persist_completed_turn(
+        persisted = await self._finalize_turn(
             user_db=user_db,
             workspace_id=workspace_id,
             thread_id=thread_id,
             client_turn_id=client_turn_id,
-            query=query,
             answer_text=answer_text,
             citations=citations,
             status=status,
@@ -425,13 +421,13 @@ class AskService:
         requested_k: int,
         template_id: str | None,
         user_db: UserDb,
-        thread_id: UUID | None,
+        thread_id: UUID,
         client_turn_id: UUID,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         result = await self._retrieval_service.retrieve(workspace_id, query, requested_k, user_db)
         if not result.evidence:
             # CITE-04 — 근거가 하나도 없으면 provider 호출을 아예 하지 않는다.
-            yield "meta", {"no_evidence": True}
+            yield "meta", {"thread_id": str(thread_id), "no_evidence": True}
             no_evidence_citations = {
                 "text": NO_EVIDENCE_MESSAGE,
                 "resolved": [],
@@ -441,12 +437,11 @@ class AskService:
                 "unsourced_sentence_ratio": 0.0,
             }
             yield "citations", no_evidence_citations
-            async for event in self._yield_done_if_persisted(
+            async for event in self._yield_done_if_finalized(
                 user_db=user_db,
                 workspace_id=workspace_id,
                 thread_id=thread_id,
                 client_turn_id=client_turn_id,
-                query=query,
                 answer_text=NO_EVIDENCE_MESSAGE,
                 citations=no_evidence_citations,
                 status="no-evidence",
@@ -463,7 +458,7 @@ class AskService:
         )
         if template is None:
             # 0006 시드가 적용되지 않았다는 뜻 — 진행할 프롬프트 자체가 없다.
-            yield "meta", {"template_id": None}
+            yield "meta", {"thread_id": str(thread_id), "template_id": None}
             error_citations = {
                 "error": "ask_template_unavailable",
                 "resolved": [],
@@ -473,12 +468,11 @@ class AskService:
                 "unsourced_sentence_ratio": 0.0,
             }
             yield "citations", error_citations
-            async for event in self._yield_done_if_persisted(
+            async for event in self._yield_done_if_finalized(
                 user_db=user_db,
                 workspace_id=workspace_id,
                 thread_id=thread_id,
                 client_turn_id=client_turn_id,
-                query=query,
                 answer_text="",
                 citations=error_citations,
                 status="error",
@@ -495,6 +489,7 @@ class AskService:
         yield (
             "meta",
             {
+                "thread_id": str(thread_id),
                 "template_id": template["id"],
                 "template_name": template["name"],
                 "evidence_count": len(result.evidence),
@@ -521,12 +516,11 @@ class AskService:
                         "unsourced_sentence_ratio": 0.0,
                     }
                     yield "citations", error_citations
-                    async for event in self._yield_done_if_persisted(
+                    async for event in self._yield_done_if_finalized(
                         user_db=user_db,
                         workspace_id=workspace_id,
                         thread_id=thread_id,
                         client_turn_id=client_turn_id,
-                        query=query,
                         answer_text="",
                         citations=error_citations,
                         status="error",
@@ -557,12 +551,11 @@ class AskService:
                 "unsourced_sentence_ratio": 0.0,
             }
             yield "citations", error_citations
-            async for event in self._yield_done_if_persisted(
+            async for event in self._yield_done_if_finalized(
                 user_db=user_db,
                 workspace_id=workspace_id,
                 thread_id=thread_id,
                 client_turn_id=client_turn_id,
-                query=query,
                 answer_text="",
                 citations=error_citations,
                 status="error",
@@ -581,12 +574,11 @@ class AskService:
             "unsourced_sentence_ratio": resolution.unsourced_sentence_ratio,
         }
         yield "citations", success_citations
-        async for event in self._yield_done_if_persisted(
+        async for event in self._yield_done_if_finalized(
             user_db=user_db,
             workspace_id=workspace_id,
             thread_id=thread_id,
             client_turn_id=client_turn_id,
-            query=query,
             answer_text=resolution.rendered_text,
             citations=success_citations,
             status="resolved",

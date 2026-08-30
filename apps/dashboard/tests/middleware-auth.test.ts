@@ -28,17 +28,14 @@ describe("middleware authentication gate", () => {
     );
   });
 
-  it("redirects a logged-out visitor from the home page to login", async () => {
+  it("lets a logged-out visitor reach the home page (public landing)", async () => {
     getUser.mockResolvedValue({ data: { user: null } });
 
     const response = await middleware(
       new NextRequest("https://dashboard.test/"),
     );
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "https://dashboard.test/login",
-    );
+    expect(response.status).toBe(200);
   });
 
   it("lets a logged-in visitor reach the home page", async () => {

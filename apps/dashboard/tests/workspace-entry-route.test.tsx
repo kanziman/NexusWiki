@@ -48,6 +48,18 @@ describe("workspace entry route", () => {
     state.orderField = "";
   });
 
+  it("미인증 방문자(user = null)에게는 공개 랜딩 페이지를 표시한다", async () => {
+    state.user = null;
+    render(await HomePage());
+
+    expect(
+      screen.getByRole("heading", {
+        name: /흩어진 영상과 문서를/i,
+      }),
+    ).toBeInTheDocument();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   it("RLS가 빈 목록을 반환하면 personal 워크스페이스 온보딩을 표시한다", async () => {
     render(await HomePage());
 

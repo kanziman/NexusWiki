@@ -76,6 +76,29 @@ def _ask_service(request: Request) -> AskService:
     )
 
 
+async def _start_ask_turn(
+    *,
+    db: UserDb,
+    workspace_id: UUID,
+    thread_id: UUID | None,
+    client_turn_id: UUID,
+    query: str,
+) -> UUID:
+    """SSE를 열기 전에 진행 중 턴을 만들고, 실패를 일반 API 오류로 돌려준다."""
+    rows = await db.rpc(
+        "start_ask_turn",
+        params={
+            "p_workspace_id": str(workspace_id),
+            "p_thread_id": str(thread_id) if thread_id is not None else None,
+            "p_client_turn_id": str(client_turn_id),
+            "p_question": query,
+        },
+    )
+    if len(rows) != 1 or not rows[0].get("thread_id"):
+        raise WorkspaceForbidden(table="ask_messages", affected=len(rows))
+    return UUID(str(rows[0]["thread_id"]))
+
+
 async def _format_sse(events: AsyncIterator[tuple[str, dict[str, Any]]]) -> AsyncIterator[str]:
     async for name, payload in events:
         yield f"event: {name}\ndata: {json.dumps(payload)}\n\n"
@@ -91,17 +114,29 @@ async def ask(
     settings = request.app.state.settings
     if len(body.query) > settings.RETRIEVAL_MAX_QUERY_CHARS:
         raise HTTPException(status_code=422, detail="invalid_query")
+    db = _user_db(request, credentials)
+    started_thread_id = await _start_ask_turn(
+        db=db,
+        workspace_id=workspace_id,
+        thread_id=body.thread_id,
+        client_turn_id=body.client_turn_id,
+        query=body.query,
+    )
     service = _ask_service(request)
     events = service.ask(
         workspace_id=workspace_id,
         query=body.query,
         requested_k=body.requested_k,
         template_id=body.template_id,
-        user_db=_user_db(request, credentials),
-        thread_id=body.thread_id,
+        user_db=db,
+        thread_id=started_thread_id,
         client_turn_id=body.client_turn_id,
     )
-    return StreamingResponse(_format_sse(events), media_type="text/event-stream")
+    return StreamingResponse(
+        _format_sse(events),
+        media_type="text/event-stream",
+        headers={"X-Ask-Thread-Id": str(started_thread_id)},
+    )
 
 
 class ThreadRenameRequest(BaseModel):
