@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import LoginPage from "@/app/(auth)/login/page";
 
 describe("LoginPage", () => {
-  it("데스크톱 split 로그인 경험에 가입 연결과 지식 미리보기를 제공한다", async () => {
+  it("데스크톱 split 로그인 경험에 SSO 안내와 지식 미리보기를 제공한다", async () => {
     render(await LoginPage({ searchParams: Promise.resolve({}) }));
 
     expect(
@@ -17,8 +17,10 @@ describe("LoginPage", () => {
       "login-visual-highlighted",
     );
     expect(
-      screen.getByRole("link", { name: "Google 계정으로 시작하기" }),
-    ).toHaveAttribute("href", "/signup");
+      screen.getByText(
+        "Google 계정 하나로 로그인과 새 워크스페이스 생성이 모두 가능합니다.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("콜백 오류를 로그인 폼의 단일 오류로 전달한다", async () => {

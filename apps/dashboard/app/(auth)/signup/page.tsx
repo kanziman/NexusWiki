@@ -79,7 +79,8 @@ export default async function SignupPage({
 
           <div className="login-divider" aria-hidden="true" />
           <p className="login-signup-copy">
-            이미 계정이 있으신가요? <Link href="/login">로그인하기</Link>
+            Google 계정 하나로 새 워크스페이스 시작과 기존 계정 로그인이 모두
+            가능합니다.
           </p>
         </div>
       </section>
