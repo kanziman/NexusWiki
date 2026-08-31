@@ -386,79 +386,93 @@ export function WikiLibrary({
           </div>
         )}
 
-        {/* 일괄 액션 바 (선택 항목이 있을 때 표시) */}
-        {canVerify && selectedIds.size > 0 && (
-          <div
-            className="bulk-action-bar flex flex-wrap items-center justify-between gap-3 p-3 my-3 rounded-xl border border-[var(--accent)]/30 bg-[var(--surface)] shadow-xs animate-in fade-in slide-in-from-top-1 duration-150"
-            data-testid="bulk-action-bar"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-[var(--fg)]">
-                {selectedIds.size}개 문서 선택됨
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedIds(new Set())}
-                className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer ml-1"
-              >
-                선택 해제
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleBulkVerify}
-                disabled={bulkLoading !== null}
-                className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                data-testid="bulk-verify-btn"
-              >
-                {bulkLoading === "verify" ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Check size={13} />
-                )}
-                <span>선택 일괄 검증</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleBulkPublish}
-                disabled={bulkLoading !== null}
-                className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-                data-testid="bulk-publish-btn"
-              >
-                {bulkLoading === "publish" ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Globe size={13} />
-                )}
-                <span>선택 일괄 발행</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* 문서 목록 */}
         {visible.length ? (
           <>
             {canVerify && paginatedPages.length > 0 && (
-              <div className="flex items-center justify-between py-2 px-3 border-t border-[var(--border)] text-xs text-[var(--muted)]">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={allPaginatedSelected}
-                    onChange={handleToggleSelectAll}
-                    className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
-                    aria-label="현재 페이지 전체 선택"
-                    data-testid="select-all-checkbox"
-                  />
-                  <span>현재 페이지 전체 선택 ({paginatedPages.length}개)</span>
-                </label>
+              <div
+                className={`flex items-center justify-between min-h-[44px] py-2 px-3 mt-4 border-t border-b border-[var(--border)] transition-colors text-xs ${
+                  selectedIds.size > 0
+                    ? "bg-[var(--surface)] font-medium"
+                    : "text-[var(--muted)]"
+                }`}
+                data-testid={
+                  selectedIds.size > 0 ? "bulk-action-bar" : undefined
+                }
+              >
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={allPaginatedSelected}
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                      aria-label="현재 페이지 전체 선택"
+                      data-testid="select-all-checkbox"
+                    />
+                    <span
+                      className={
+                        selectedIds.size > 0 ? "font-bold text-[var(--fg)]" : ""
+                      }
+                    >
+                      {selectedIds.size > 0
+                        ? `${selectedIds.size}개 문서 선택됨`
+                        : `현재 페이지 전체 선택 (${paginatedPages.length}개)`}
+                    </span>
+                  </label>
+
+                  {selectedIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIds(new Set())}
+                      className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer"
+                    >
+                      선택 해제
+                    </button>
+                  )}
+                </div>
+
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={handleBulkVerify}
+                      disabled={bulkLoading !== null}
+                      className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                      data-testid="bulk-verify-btn"
+                    >
+                      {bulkLoading === "verify" ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Check size={13} />
+                      )}
+                      <span>선택 일괄 검증</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleBulkPublish}
+                      disabled={bulkLoading !== null}
+                      className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                      data-testid="bulk-publish-btn"
+                    >
+                      {bulkLoading === "publish" ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Globe size={13} />
+                      )}
+                      <span>선택 일괄 발행</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="doc-list divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
+            <div
+              className={`doc-list divide-y divide-[var(--border)] border-b border-[var(--border)] ${
+                !canVerify || paginatedPages.length === 0 ? "border-t" : ""
+              }`}
+            >
               {paginatedPages.map((page) => {
                 const verified = isVerified(page);
                 const label = stateLabel(page);
