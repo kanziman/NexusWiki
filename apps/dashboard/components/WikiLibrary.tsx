@@ -2,18 +2,26 @@
 
 import {
   BookOpen,
+  Check,
   CheckCircle2,
   ChevronRight,
   FileText,
+  Globe,
   HelpCircle,
-  Map,
+  Loader2,
+  Map as MapIcon,
   Search,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
 
 import { Pagination } from "@/components/Pagination";
 import { isVerified, verificationLabel } from "@/lib/verification-label";
+import {
+  bulkPublishWikiPages,
+  bulkVerifyWikiPages,
+} from "@/lib/wiki-publication";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type WikiLibraryPage = {
@@ -75,7 +83,7 @@ function getCategoryIcon(category: string) {
     case "guides":
       return <HelpCircle size={13} className="opacity-75 flex-none" />;
     case "maps":
-      return <Map size={13} className="opacity-75 flex-none" />;
+      return <MapIcon size={13} className="opacity-75 flex-none" />;
     default:
       return <FileText size={13} className="opacity-75 flex-none" />;
   }
@@ -85,15 +93,26 @@ function getCategoryIcon(category: string) {
  * 위키 라이브러리 — 컴파일된 문서의 전체 목록이자 리더로 들어가는 진입점이다.
  */
 export function WikiLibrary({
-  pages,
+  pages: initialPages,
   workspaceId,
+  canVerify = false,
 }: {
   pages: WikiLibraryPage[];
   workspaceId: string;
+  canVerify?: boolean;
 }) {
+  const [pages, setPages] = useState<WikiLibraryPage[]>(initialPages);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState<"verify" | "publish" | null>(
+    null,
+  );
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const PAGE_SIZE = 8;
 
@@ -117,6 +136,116 @@ export function WikiLibrary({
   const isEmpty = pages.length === 0;
   const verifiedCount = pages.filter((p) => isVerified(p)).length;
 
+  const allPaginatedSelected =
+    paginatedPages.length > 0 &&
+    paginatedPages.every((p) => selectedIds.has(p.id));
+
+  function handleToggleSelect(id: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function handleToggleSelectAll() {
+    if (allPaginatedSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const p of paginatedPages) {
+          next.delete(p.id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const p of paginatedPages) {
+          next.add(p.id);
+        }
+        return next;
+      });
+    }
+  }
+
+  async function handleBulkVerify() {
+    if (!canVerify || bulkLoading || selectedIds.size === 0) return;
+    setBulkLoading("verify");
+    setFeedback(null);
+    try {
+      const result = await bulkVerifyWikiPages(
+        workspaceId,
+        Array.from(selectedIds),
+      );
+      const verifiedMap = new Map(result.verified_pages.map((p) => [p.id, p]));
+      setPages((prev) =>
+        prev.map((p) => {
+          const updated = verifiedMap.get(p.id);
+          if (!updated) return p;
+          return {
+            ...p,
+            verification_status: updated.verification_status,
+            disputed: updated.disputed,
+            expires_at: updated.expires_at,
+          };
+        }),
+      );
+      setSelectedIds(new Set());
+      setFeedback({
+        type: "success",
+        text: `${result.verified_count}개의 문서가 검증 완료되었습니다.`,
+      });
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        text:
+          (err as { message?: string })?.message ||
+          "일괄 검증 처리에 실패했습니다. 다시 시도해주세요.",
+      });
+    } finally {
+      setBulkLoading(null);
+    }
+  }
+
+  async function handleBulkPublish() {
+    if (!canVerify || bulkLoading || selectedIds.size === 0) return;
+    setBulkLoading("publish");
+    setFeedback(null);
+    try {
+      const result = await bulkPublishWikiPages(
+        workspaceId,
+        Array.from(selectedIds),
+      );
+      setSelectedIds(new Set());
+      if (result.published_count > 0) {
+        setFeedback({
+          type: "success",
+          text: `${result.published_count}개의 문서가 공개 발행되었습니다.`,
+        });
+      } else {
+        setFeedback({
+          type: "error",
+          text: "선택한 문서 중 발행 가능한(검증 완료 및 충돌/만료 없음) 문서가 없습니다.",
+        });
+      }
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        text:
+          (err as { message?: string })?.message ||
+          "일괄 공개 발행 처리에 실패했습니다. 다시 시도해주세요.",
+      });
+    } finally {
+      setBulkLoading(null);
+    }
+  }
+
   return (
     <div className="content library">
       {/* 헤더 영역 */}
@@ -138,6 +267,28 @@ export function WikiLibrary({
           <span>검증됨</span>
         </div>
       </section>
+
+      {/* 피드백 메시지 알림 */}
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-center justify-between gap-2 p-3 rounded-lg text-xs font-medium border ${
+            feedback.type === "success"
+              ? "bg-[var(--good-soft)] border-[var(--good)]/30 text-[var(--good)]"
+              : "bg-[var(--danger-soft)] border-[var(--danger)]/30 text-[var(--danger)]"
+          }`}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="p-1 hover:opacity-80 transition-opacity"
+            aria-label="알림 닫기"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       <section data-od-id="wiki-library-list">
         {isEmpty ? null : (
@@ -195,22 +346,114 @@ export function WikiLibrary({
           </div>
         )}
 
-        {/* 문서 목록 — 과도한 둥근 모서리 카드를 배제하고 명확한 상하 구분선 기반의 정갈한 리스트 */}
+        {/* 일괄 액션 바 (선택 항목이 있을 때 표시) */}
+        {canVerify && selectedIds.size > 0 && (
+          <div
+            className="bulk-action-bar flex flex-wrap items-center justify-between gap-3 p-3 my-3 rounded-xl border border-[var(--accent)]/30 bg-[var(--surface)] shadow-xs animate-in fade-in slide-in-from-top-1 duration-150"
+            data-testid="bulk-action-bar"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[var(--fg)]">
+                {selectedIds.size}개 문서 선택됨
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer ml-1"
+              >
+                선택 해제
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBulkVerify}
+                disabled={bulkLoading !== null}
+                className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                data-testid="bulk-verify-btn"
+              >
+                {bulkLoading === "verify" ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Check size={13} />
+                )}
+                <span>선택 일괄 검증</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBulkPublish}
+                disabled={bulkLoading !== null}
+                className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                data-testid="bulk-publish-btn"
+              >
+                {bulkLoading === "publish" ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Globe size={13} />
+                )}
+                <span>선택 일괄 발행</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 문서 목록 */}
         {visible.length ? (
           <>
-            <div className="doc-list mt-2 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
+            {canVerify && paginatedPages.length > 0 && (
+              <div className="flex items-center justify-between py-2 px-3 border-t border-[var(--border)] text-xs text-[var(--muted)]">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={allPaginatedSelected}
+                    onChange={handleToggleSelectAll}
+                    className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                    aria-label="현재 페이지 전체 선택"
+                    data-testid="select-all-checkbox"
+                  />
+                  <span>현재 페이지 전체 선택 ({paginatedPages.length}개)</span>
+                </label>
+              </div>
+            )}
+
+            <div className="doc-list divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
               {paginatedPages.map((page) => {
                 const verified = isVerified(page);
                 const label = stateLabel(page);
+                const isSelected = selectedIds.has(page.id);
 
                 return (
-                  <Link
+                  <div
                     key={page.id}
-                    className="doc group flex items-center justify-between py-3.5 px-3 hover:bg-[var(--surface)] transition-colors rounded-none"
-                    href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                    data-od-id={`wiki-document-${page.slug}`}
+                    className={`group flex items-center justify-between py-3.5 px-3 hover:bg-[var(--surface)] transition-colors ${
+                      isSelected ? "bg-[var(--surface)]/80" : ""
+                    }`}
                   >
-                    <div className="doc-body flex-1 min-w-0 pr-4">
+                    {canVerify && (
+                      <div className="flex-none pr-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) =>
+                            handleToggleSelect(
+                              page.id,
+                              e as unknown as React.MouseEvent,
+                            )
+                          }
+                          className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                          aria-label={`${page.title} 선택`}
+                          data-testid={`select-wiki-${page.id}`}
+                        />
+                      </div>
+                    )}
+
+                    <Link
+                      className="doc-body flex-1 min-w-0 pr-4 block"
+                      href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                      data-od-id={`wiki-document-${page.slug}`}
+                    >
                       {/* 상단 메타 뱃지 */}
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
@@ -241,14 +484,19 @@ export function WikiLibrary({
                       <p className="doc-excerpt text-xs text-[var(--muted)] leading-relaxed mt-1 line-clamp-2">
                         {cleanExcerpt(page.content)}
                       </p>
-                    </div>
+                    </Link>
 
-                    <ChevronRight
-                      className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
-                      size={16}
+                    <Link
+                      href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
                       aria-hidden="true"
-                    />
-                  </Link>
+                      tabIndex={-1}
+                    >
+                      <ChevronRight
+                        className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
+                        size={16}
+                      />
+                    </Link>
+                  </div>
                 );
               })}
             </div>

@@ -1,10 +1,62 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { apiFetch } from "@/lib/api-client";
 import { plainCitationSnippet } from "@/lib/wiki-document";
 
 export type WikiPublicationSnapshot = {
   published_slug: string;
 };
+
+export type BulkVerifyResult = {
+  verified_count: number;
+  verified_pages: {
+    id: string;
+    slug: string;
+    verification_status: string;
+    verified_by: string | null;
+    verified_at: string | null;
+    expires_at: string | null;
+    disputed: boolean;
+  }[];
+};
+
+export type BulkPublishResult = {
+  published_count: number;
+  published_pages: {
+    wiki_page_id: string;
+    workspace_id: string;
+    published_slug: string;
+    workspace_slug: string;
+    published_at: string;
+    public_path: string;
+  }[];
+};
+
+export async function bulkVerifyWikiPages(
+  workspaceId: string,
+  pageIds: string[],
+): Promise<BulkVerifyResult> {
+  return apiFetch<BulkVerifyResult>(
+    `/workspaces/${workspaceId}/wiki/bulk-verify`,
+    {
+      method: "POST",
+      body: { page_ids: pageIds, verification_status: "verified" },
+    },
+  );
+}
+
+export async function bulkPublishWikiPages(
+  workspaceId: string,
+  pageIds: string[],
+): Promise<BulkPublishResult> {
+  return apiFetch<BulkPublishResult>(
+    `/workspaces/${workspaceId}/wiki/bulk-publish`,
+    {
+      method: "POST",
+      body: { page_ids: pageIds },
+    },
+  );
+}
 
 /**
  * 검증된 위키의 현재 본문·인용을 `wiki_page_publications`에 스냅샷한다.
