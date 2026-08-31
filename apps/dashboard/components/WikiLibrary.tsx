@@ -495,7 +495,7 @@ export function WikiLibrary({
                       data-od-id={`wiki-document-${page.slug}`}
                     >
                       {/* 상단 메타 뱃지 */}
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
                           {getCategoryIcon(page.category)}
                           <span>{labels[page.category] ?? page.category}</span>
@@ -516,12 +516,12 @@ export function WikiLibrary({
                       </div>
 
                       {/* 문서 제목 */}
-                      <span className="doc-title text-[14px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
+                      <span className="doc-title text-[16px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate leading-snug">
                         {page.title}
                       </span>
 
                       {/* 발췌문 */}
-                      <p className="doc-excerpt text-xs text-[var(--muted)] leading-relaxed mt-1 line-clamp-2">
+                      <p className="doc-excerpt text-xs text-[var(--muted)] leading-relaxed mt-1.5 line-clamp-2">
                         {cleanExcerpt(page.content)}
                       </p>
                     </Link>
