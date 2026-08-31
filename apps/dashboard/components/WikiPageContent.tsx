@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowUpRight,
   Check,
@@ -11,7 +11,13 @@ import {
   GlobeOff,
   Layers,
   Link2,
+  Loader2,
+  Trash2,
+  X,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { WikiDocumentBody } from "@/components/WikiDocumentBody";
@@ -20,7 +26,11 @@ import { createClient } from "@/lib/supabase/client";
 import { cleanWikiContent, extractHeadings } from "@/lib/wiki-document";
 import { verificationLabel } from "@/lib/verification-label";
 import { workspacePath } from "@/lib/workspace-path";
-import { publishWikiPage, unpublishWikiPage } from "@/lib/wiki-publication";
+import {
+  deleteWikiPage,
+  publishWikiPage,
+  unpublishWikiPage,
+} from "@/lib/wiki-publication";
 
 // UI-SPEC Copywriting Contract "Wiki viewer (UI-05)" — 문구를 한 글자도 바꾸지 않는다.
 const READ_ONLY_BANNER =
@@ -66,6 +76,7 @@ export type WikiPageContentProps = {
   workspaceId: string;
   workspaceSlug: string;
   canVerify: boolean;
+  isOwner?: boolean;
   initialBookmarked: boolean;
   initialPublishedSlug: string | null;
 };
@@ -97,9 +108,11 @@ export function WikiPageContent({
   workspaceId,
   workspaceSlug,
   canVerify,
+  isOwner = false,
   initialBookmarked,
   initialPublishedSlug,
 }: WikiPageContentProps) {
+  const router = useRouter();
   const [status, setStatus] = useState(page.verification_status);
   const [verifiedAt, setVerifiedAt] = useState(page.verified_at);
   const [expiresAt, setExpiresAt] = useState(page.expires_at);
@@ -114,6 +127,29 @@ export function WikiPageContent({
   const [publishError, setPublishError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
+
+  // 개별 위키 삭제 상태
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteWiki() {
+    if (deleting || !isOwner) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteWikiPage(workspaceId, page.id);
+      setDeleteOpen(false);
+      router.push(`${workspacePath(workspaceId)}/wiki`);
+    } catch (err: unknown) {
+      setDeleteError(
+        (err as { message?: string })?.message ||
+          "위키 문서를 삭제하지 못했습니다. 다시 시도해주세요.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function handleVerify() {
     if (submitting) return;
@@ -306,55 +342,74 @@ export function WikiPageContent({
           {READ_ONLY_BANNER}
         </p>
 
-        {/* 검증 · 공개 발행 액션 */}
-        {canVerify ? (
+        {/* 검증 · 공개 발행 · 삭제 액션 */}
+        {canVerify || isOwner ? (
           <div className="mt-3.5 flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleVerify}
-                disabled={submitting || isPageVerified}
-                className="button primary self-start inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isPageVerified ? <Check size={13} aria-hidden="true" /> : null}
-                {submitting
-                  ? "검증 처리 중..."
-                  : isPageVerified
-                    ? VERIFIED_STATUS_LABEL
-                    : VERIFY_ACTION_LABEL}
-              </button>
-              {canPublish ? (
-                <button
-                  type="button"
-                  onClick={handlePublish}
-                  disabled={publicationBusy}
-                  className="button self-start inline-flex items-center gap-1.5"
-                >
-                  <Globe size={13} aria-hidden="true" />
-                  {publishing ? "발행 중..." : PUBLISH_ACTION_LABEL}
-                </button>
-              ) : null}
-              {publishedSlug !== null ? (
+              {canVerify ? (
                 <>
                   <button
                     type="button"
-                    onClick={handleCopyPublicLink}
-                    disabled={!workspaceSlug}
-                    className="button self-start inline-flex items-center gap-1.5"
+                    onClick={handleVerify}
+                    disabled={submitting || isPageVerified}
+                    className="button primary self-start inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Link2 size={13} aria-hidden="true" />
-                    {COPY_LINK_ACTION_LABEL}
+                    {isPageVerified ? (
+                      <Check size={13} aria-hidden="true" />
+                    ) : null}
+                    {submitting
+                      ? "검증 처리 중..."
+                      : isPageVerified
+                        ? VERIFIED_STATUS_LABEL
+                        : VERIFY_ACTION_LABEL}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleUnpublish}
-                    disabled={publicationBusy}
-                    className="button self-start inline-flex items-center gap-1.5"
-                  >
-                    <GlobeOff size={13} aria-hidden="true" />
-                    {unpublishing ? "취소 중..." : UNPUBLISH_ACTION_LABEL}
-                  </button>
+                  {canPublish ? (
+                    <button
+                      type="button"
+                      onClick={handlePublish}
+                      disabled={publicationBusy}
+                      className="button self-start inline-flex items-center gap-1.5"
+                    >
+                      <Globe size={13} aria-hidden="true" />
+                      {publishing ? "발행 중..." : PUBLISH_ACTION_LABEL}
+                    </button>
+                  ) : null}
+                  {publishedSlug !== null ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCopyPublicLink}
+                        disabled={!workspaceSlug}
+                        className="button self-start inline-flex items-center gap-1.5"
+                      >
+                        <Link2 size={13} aria-hidden="true" />
+                        {COPY_LINK_ACTION_LABEL}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleUnpublish}
+                        disabled={publicationBusy}
+                        className="button self-start inline-flex items-center gap-1.5"
+                      >
+                        <GlobeOff size={13} aria-hidden="true" />
+                        {unpublishing ? "취소 중..." : UNPUBLISH_ACTION_LABEL}
+                      </button>
+                    </>
+                  ) : null}
                 </>
+              ) : null}
+
+              {isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(true)}
+                  disabled={deleting}
+                  className="button compact danger self-start inline-flex items-center gap-1.5 cursor-pointer ml-auto"
+                  data-testid="delete-wiki-btn"
+                >
+                  <Trash2 size={13} aria-hidden="true" />
+                  <span>문서 삭제</span>
+                </button>
               ) : null}
             </div>
             {verifyError !== null ? (
@@ -492,6 +547,69 @@ export function WikiPageContent({
           </p>
         )}
       </aside>
+
+      {/* 개별 위키 문서 삭제 확인 모달 */}
+      <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md transition-all duration-200" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
+            <div className="modal-head mb-4 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-base font-bold text-[var(--danger)] flex items-center gap-1.5">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <span>위키 문서 영구 삭제</span>
+                </Dialog.Title>
+                <Dialog.Description className="mt-1.5 text-xs text-[var(--muted)] leading-relaxed">
+                  이 작업은 절대 되돌릴 수 없습니다.{" "}
+                  <b className="text-[var(--fg)]">&lsquo;{page.title}&rsquo;</b>{" "}
+                  문서와 연관된 모든 청크, 임베딩, 공개 발행 및 북마크가 즉시
+                  영구 삭제됩니다.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors cursor-pointer"
+                  aria-label="닫기"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            {deleteError && (
+              <p
+                role="alert"
+                className="invite-feedback error show mb-3 text-xs text-[var(--danger)]"
+              >
+                {deleteError}
+              </p>
+            )}
+
+            <div className="modal-foot flex items-center justify-end gap-2 mt-6">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  className="button compact"
+                >
+                  취소
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteWiki}
+                className="button compact danger"
+                data-testid="confirm-delete-wiki-btn"
+              >
+                {deleting && <Loader2 size={13} className="animate-spin" />}
+                <span>영구 삭제</span>
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

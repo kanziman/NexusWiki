@@ -275,3 +275,46 @@ async def test_bulk_publish_wiki_pages(
     assert len(body["published_pages"]) == 1
     assert body["published_pages"][0]["wiki_page_id"] == verified["id"]
     assert body["published_pages"][0]["published_slug"] == verified["slug"]
+
+
+async def test_delete_wiki_page_as_owner_succeeds_and_editor_forbidden(
+    two_workspaces_two_users: TenantPair,
+    authed_client: Any,
+    user_db: Any,
+    workspace_member_with_role: Any,
+) -> None:
+    owner, _ = two_workspaces_two_users
+    editor = workspace_member_with_role(owner, "editor")
+    viewer = workspace_member_with_role(owner, "viewer")
+
+    async with user_db(owner) as db:
+        page = await db.insert_one(
+            "wiki_pages",
+            values=_page_values(owner.workspace_id, slug=f"delete-test-{uuid4().hex}"),
+        )
+
+    # 1. 뷰어/에디터는 위키 삭제 불가 (403 Forbidden)
+    async with authed_client(viewer) as client:
+        viewer_resp = await client.delete(f"/workspaces/{owner.workspace_id}/wiki/{page['id']}")
+    assert viewer_resp.status_code == status.HTTP_403_FORBIDDEN
+    assert viewer_resp.json() == FORBIDDEN_BODY
+
+    async with authed_client(editor) as client:
+        editor_resp = await client.delete(f"/workspaces/{owner.workspace_id}/wiki/{page['id']}")
+    assert editor_resp.status_code == status.HTTP_403_FORBIDDEN
+    assert editor_resp.json() == FORBIDDEN_BODY
+
+    # 2. 소유자는 위키 삭제 성공 (200 OK)
+    async with authed_client(owner) as client:
+        owner_resp = await client.delete(f"/workspaces/{owner.workspace_id}/wiki/{page['id']}")
+    assert owner_resp.status_code == status.HTTP_200_OK
+    assert owner_resp.json()["id"] == page["id"]
+    assert owner_resp.json()["title"] == page["title"]
+
+    # 삭제 후 DB 조회 시 없음
+    async with user_db(owner) as db:
+        remaining = await db.select(
+            "wiki_pages",
+            match={"id": page["id"], "workspace_id": owner.workspace_id},
+        )
+    assert len(remaining) == 0

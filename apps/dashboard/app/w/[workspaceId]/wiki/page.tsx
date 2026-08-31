@@ -88,6 +88,7 @@ export default async function WikiIndexPage({
     : { data: null };
 
   const canVerify = member?.role === "owner" || member?.role === "editor";
+  const isOwner = member?.role === "owner";
 
   // ⚠️ 빈 상태를 여기서 가로채지 않는다. 예전에는 pages.length === 0 일 때
   // 라우트가 자체 마크업을 반환해 WikiLibrary 에 아예 도달하지 않았고, 그래서
@@ -99,6 +100,7 @@ export default async function WikiIndexPage({
       pages={pages}
       workspaceId={workspaceId}
       canVerify={canVerify}
+      isOwner={isOwner}
     />
   );
 }

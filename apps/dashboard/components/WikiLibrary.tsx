@@ -1,6 +1,8 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import {
+  AlertTriangle,
   BookOpen,
   Check,
   CheckCircle2,
@@ -11,6 +13,7 @@ import {
   Loader2,
   Map as MapIcon,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +24,7 @@ import { isVerified, verificationLabel } from "@/lib/verification-label";
 import {
   bulkPublishWikiPages,
   bulkVerifyWikiPages,
+  deleteWikiPage,
 } from "@/lib/wiki-publication";
 import { workspacePath } from "@/lib/workspace-path";
 
@@ -96,10 +100,12 @@ export function WikiLibrary({
   pages: initialPages,
   workspaceId,
   canVerify = false,
+  isOwner = false,
 }: {
   pages: WikiLibraryPage[];
   workspaceId: string;
   canVerify?: boolean;
+  isOwner?: boolean;
 }) {
   const [pages, setPages] = useState<WikiLibraryPage[]>(initialPages);
   const [query, setQuery] = useState("");
@@ -113,6 +119,40 @@ export function WikiLibrary({
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  // 개별 위키 삭제 상태
+  const [deleteTarget, setDeleteTarget] = useState<WikiLibraryPage | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteWiki() {
+    if (!deleteTarget || deleting || !isOwner) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteWikiPage(workspaceId, deleteTarget.id);
+      setPages((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deleteTarget.id);
+        return next;
+      });
+      setDeleteTarget(null);
+      setFeedback({
+        type: "success",
+        text: `'${deleteTarget.title}' 문서가 영구 삭제되었습니다.`,
+      });
+    } catch (err: unknown) {
+      setDeleteError(
+        (err as { message?: string })?.message ||
+          "위키 문서를 삭제하지 못했습니다. 다시 시도해주세요.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const PAGE_SIZE = 8;
 
@@ -486,16 +526,36 @@ export function WikiLibrary({
                       </p>
                     </Link>
 
-                    <Link
-                      href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                      aria-hidden="true"
-                      tabIndex={-1}
-                    >
-                      <ChevronRight
-                        className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
-                        size={16}
-                      />
-                    </Link>
+                    <div className="flex items-center gap-1 flex-none">
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDeleteError(null);
+                            setDeleteTarget(page);
+                          }}
+                          className="p-1.5 rounded-md text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors cursor-pointer mr-1"
+                          title="문서 삭제"
+                          aria-label={`${page.title} 삭제`}
+                          data-testid={`delete-wiki-item-${page.id}`}
+                        >
+                          <Trash2 size={14} aria-hidden="true" />
+                        </button>
+                      )}
+
+                      <Link
+                        href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                        aria-hidden="true"
+                        tabIndex={-1}
+                      >
+                        <ChevronRight
+                          className="nav-icon text-[var(--muted)] group-hover:text-[var(--fg)] group-hover:translate-x-0.5 transition-all flex-none opacity-60 group-hover:opacity-100"
+                          size={16}
+                        />
+                      </Link>
+                    </div>
                   </div>
                 );
               })}
@@ -521,6 +581,74 @@ export function WikiLibrary({
           </div>
         )}
       </section>
+
+      {/* 개별 위키 문서 삭제 확인 모달 */}
+      <Dialog.Root
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md transition-all duration-200" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
+            <div className="modal-head mb-4 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-base font-bold text-[var(--danger)] flex items-center gap-1.5">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <span>위키 문서 영구 삭제</span>
+                </Dialog.Title>
+                <Dialog.Description className="mt-1.5 text-xs text-[var(--muted)] leading-relaxed">
+                  이 작업은 절대 되돌릴 수 없습니다.{" "}
+                  <b className="text-[var(--fg)]">
+                    &lsquo;{deleteTarget?.title}&rsquo;
+                  </b>{" "}
+                  문서와 연관된 모든 청크, 임베딩, 공개 발행 및 북마크가 즉시
+                  영구 삭제됩니다.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors cursor-pointer"
+                  aria-label="닫기"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            {deleteError && (
+              <p
+                role="alert"
+                className="invite-feedback error show mb-3 text-xs text-[var(--danger)]"
+              >
+                {deleteError}
+              </p>
+            )}
+
+            <div className="modal-foot flex items-center justify-end gap-2 mt-6">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  className="button compact"
+                >
+                  취소
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteWiki}
+                className="button compact danger"
+                data-testid="confirm-delete-wiki-item-btn"
+              >
+                {deleting && <Loader2 size={13} className="animate-spin" />}
+                <span>영구 삭제</span>
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

@@ -229,6 +229,34 @@ async def bulk_publish_wiki_pages(
     }
 
 
+@router.delete("/{workspace_id}/wiki/{wiki_id}")
+async def delete_wiki_page(
+    workspace_id: UUID,
+    wiki_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """위키 문서를 영구 삭제한다.
+
+    소유자만 삭제할 수 있으며(RLS wiki_pages_delete_owner),
+    DB 외래키 on delete cascade에 의해 연관 청크, 그래프 엣지, 발행 스냅샷, 북마크가 함께 삭제된다.
+    """
+    db = _user_db(request, credentials)
+    ws_id = str(workspace_id)
+    page_id = str(wiki_id)
+
+    deleted_row = await db.delete_one(
+        "wiki_pages",
+        match={"id": page_id, "workspace_id": ws_id},
+    )
+    return {
+        "id": deleted_row["id"],
+        "workspace_id": deleted_row["workspace_id"],
+        "slug": deleted_row.get("slug", ""),
+        "title": deleted_row.get("title", ""),
+    }
+
+
 @router.put("/{workspace_id}/wiki/{wiki_id}/publication")
 async def put_wiki_publication(
     workspace_id: UUID,

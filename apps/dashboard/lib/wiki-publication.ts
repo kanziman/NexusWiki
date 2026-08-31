@@ -58,6 +58,15 @@ export async function bulkPublishWikiPages(
   );
 }
 
+export async function deleteWikiPage(
+  workspaceId: string,
+  wikiId: string,
+): Promise<void> {
+  return apiFetch<void>(`/workspaces/${workspaceId}/wiki/${wikiId}`, {
+    method: "DELETE",
+  });
+}
+
 /**
  * 검증된 위키의 현재 본문·인용을 `wiki_page_publications`에 스냅샷한다.
  *
