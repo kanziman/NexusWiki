@@ -267,4 +267,21 @@ describe("WorkspaceSidebar", () => {
     expect(screen.getByText("350 크레딧 남음")).toBeInTheDocument();
     expect(screen.getByText("30%")).toBeInTheDocument();
   });
+
+  it("커스텀 API 키가 등록된 워크스페이스는 '내 API 키 연결됨 (무제한)' 위젯을 렌더링한다", async () => {
+    const { apiFetch } = await import("@/lib/api-client");
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      cap_micros: -1,
+      spent_micros: 0,
+      remaining_micros: -1,
+      month_start: "2026-08-01T00:00:00Z",
+      truncated: false,
+      authoritative: false,
+    });
+
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    expect(await screen.findByText("내 API 키 연결됨")).toBeInTheDocument();
+    expect(screen.getByText("무제한 이용 중")).toBeInTheDocument();
+  });
 });

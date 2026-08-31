@@ -132,4 +132,26 @@ describe("AccountMenu", () => {
     expect(screen.getByText("사용 80 크레딧")).toBeInTheDocument();
     expect(screen.getByText("한도 500 크레딧")).toBeInTheDocument();
   });
+
+  it("커스텀 API 키가 등록된 워크스페이스는 '내 API 키 연결됨 (무제한)' 카드를 렌더링한다", async () => {
+    const user = userEvent.setup();
+    apiFetch.mockResolvedValue({
+      cap_micros: -1,
+      spent_micros: 0,
+      remaining_micros: -1,
+      month_start: "2026-08-01T00:00:00Z",
+      truncated: false,
+      authoritative: false,
+    });
+
+    render(<AccountMenu email="member@example.com" workspaceId="ws-1" />);
+
+    await user.click(screen.getByRole("button", { name: "계정 메뉴" }));
+
+    expect(await screen.findByText("내 API 키 연결됨")).toBeInTheDocument();
+    expect(screen.getByText("무제한 이용 중")).toBeInTheDocument();
+    expect(
+      screen.getByText("크레딧 차감 없이 무제한으로 사용 가능합니다."),
+    ).toBeInTheDocument();
+  });
 });

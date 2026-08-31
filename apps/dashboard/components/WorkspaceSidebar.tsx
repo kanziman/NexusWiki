@@ -407,40 +407,64 @@ export function WorkspaceSidebar({
           </Link>
         </nav>
 
-        {/* 무료 크레딧 미니 위젯 */}
-        {budget && budget.cap_micros > 0 && !collapsed && (
-          <Link
-            href={`${base}/settings?tab=operations`}
-            prefetch={true}
-            onClick={handleItemClick}
-            className="mx-3 mb-2 flex items-center justify-between rounded-xl border border-[var(--border)]/70 bg-[var(--surface)]/40 p-2.5 text-xs text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)]/50 transition-all group"
-            title="운영 현황 및 무료 크레딧 관리"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-white transition-colors flex-none">
-                <Zap size={14} aria-hidden="true" />
+        {/* 무료 크레딧 또는 BYOK 무제한 미니 위젯 */}
+        {!collapsed &&
+          budget &&
+          (budget.cap_micros < 0 ? (
+            <Link
+              href={`${base}/settings`}
+              prefetch={true}
+              onClick={handleItemClick}
+              className="mx-3 mb-2 flex items-center justify-between rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-2.5 text-xs text-[var(--fg)] hover:border-[var(--accent)] transition-all group"
+              title="내 API 키 연결됨 (무제한)"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent)] text-white flex-none">
+                  <Zap size={14} aria-hidden="true" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-bold text-[var(--accent)] truncate">
+                    내 API 키 연결됨
+                  </span>
+                  <span className="text-[11px] font-medium text-[var(--fg)] truncate">
+                    무제한 이용 중
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[10px] font-medium text-[var(--muted)] truncate">
-                  무료 크레딧
-                </span>
-                <span className="text-[11px] font-bold text-[var(--fg)] truncate">
-                  {formatCredits(budget.remaining_micros)} 남음
-                </span>
+            </Link>
+          ) : budget.cap_micros > 0 ? (
+            <Link
+              href={`${base}/settings?tab=operations`}
+              prefetch={true}
+              onClick={handleItemClick}
+              className="mx-3 mb-2 flex items-center justify-between rounded-xl border border-[var(--border)]/70 bg-[var(--surface)]/40 p-2.5 text-xs text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)]/50 transition-all group"
+              title="운영 현황 및 무료 크레딧 관리"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-white transition-colors flex-none">
+                  <Zap size={14} aria-hidden="true" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-medium text-[var(--muted)] truncate">
+                    무료 크레딧
+                  </span>
+                  <span className="text-[11px] font-bold text-[var(--fg)] truncate">
+                    {formatCredits(budget.remaining_micros)} 남음
+                  </span>
+                </div>
               </div>
-            </div>
-            <span className="text-[11px] font-semibold text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors flex-none">
-              {Math.min(
-                100,
-                Math.max(
-                  0,
-                  Math.round((budget.spent_micros / budget.cap_micros) * 100),
-                ),
-              )}
-              %
-            </span>
-          </Link>
-        )}
+              <span className="text-[11px] font-semibold text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors flex-none">
+                {Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Math.round((budget.spent_micros / budget.cap_micros) * 100),
+                  ),
+                )}
+                %
+              </span>
+            </Link>
+          ) : null)}
 
         <div
           className="profile"

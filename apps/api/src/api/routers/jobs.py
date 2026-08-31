@@ -207,17 +207,25 @@ async def workspace_budget(
 ) -> dict[str, Any]:
     db = _user_db(request, credentials)
     cap_rows = await db.select(
-        "workspaces", match={"id": str(workspace_id)}, columns="monthly_budget_micros", limit=1
+        "workspaces",
+        match={"id": str(workspace_id)},
+        columns="monthly_budget_micros,custom_api_key",
+        limit=1,
     )
     # 읽기 0행은 RLS가 막은 경우에도 빈 목록이다. 예산값으로 다른 워크스페이스 존재를 알리지 않는다.
-    cap_micros = int(cap_rows[0]["monthly_budget_micros"]) if cap_rows else 0
+    has_custom_key = bool(cap_rows and cap_rows[0].get("custom_api_key"))
+    if has_custom_key:
+        cap_micros = -1
+    else:
+        cap_micros = int(cap_rows[0]["monthly_budget_micros"]) if cap_rows else 0
     month_start = _month_start()
     usage = await _usage_rows_since(db, workspace_id=workspace_id, month_start=month_start)
     spent_micros = sum(int(item["cost_micros"]) for item in usage)
+    remaining_micros = -1 if has_custom_key else (cap_micros - spent_micros)
     return {
         "cap_micros": cap_micros,
         "spent_micros": spent_micros,
-        "remaining_micros": cap_micros - spent_micros,
+        "remaining_micros": remaining_micros,
         "month_start": month_start.isoformat(),
         "truncated": len(usage) == _BUDGET_USAGE_LIMIT,
         # 이 값은 표시용이다. 권위 있는 상한 판정은 enqueue_source_job SQL이 한다 (D-P18).

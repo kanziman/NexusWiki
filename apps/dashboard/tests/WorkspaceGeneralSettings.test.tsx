@@ -349,4 +349,98 @@ describe("WorkspaceGeneralSettings", () => {
       expect(pushMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("BYOK (커스텀 API 키) 설정", () => {
+    it("API 키가 없을 때 등록 폼과 외부 발급 링크를 렌더링한다", () => {
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="내 워크스페이스"
+          initialSlug="my-ws"
+          isOwner={true}
+        />,
+      );
+
+      expect(
+        screen.getByLabelText("AI 모델 및 API 키 설정"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("OpenRouter API 키 등록"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /OpenRouter 키 발급받기/ }),
+      ).toHaveAttribute("href", "https://openrouter.ai/keys");
+    });
+
+    it("등록된 API 키가 있을 때 마스킹된 키와 무제한 활성화 뱃지를 표시한다", () => {
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="내 워크스페이스"
+          initialSlug="my-ws"
+          initialCustomApiKey="sk-or-v1-abcdef1234567890abcdef1234"
+          isOwner={true}
+        />,
+      );
+
+      expect(screen.getByText("무제한 활성화됨")).toBeInTheDocument();
+      expect(screen.getByText("sk-or-v1••••••••1234")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "API 키 변경" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "API 키 삭제" }),
+      ).toBeInTheDocument();
+    });
+
+    it("소유자가 새 API 키를 입력하고 저장할 수 있다", async () => {
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="내 워크스페이스"
+          initialSlug="my-ws"
+          isOwner={true}
+        />,
+      );
+
+      const keyInput = screen.getByLabelText("OpenRouter API 키 등록");
+      fireEvent.change(keyInput, {
+        target: { value: "sk-or-v1-new-secret-key-1234567890" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "API 키 저장" }));
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled();
+        expect(
+          screen.getByText(
+            "내 API 키가 등록되었습니다! 이제 크레딧 차감 없이 무제한으로 이용할 수 있습니다.",
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("소유자가 등록된 API 키를 삭제할 수 있다", async () => {
+      render(
+        <WorkspaceGeneralSettings
+          workspaceId="ws-1"
+          initialName="내 워크스페이스"
+          initialSlug="my-ws"
+          initialCustomApiKey="sk-or-v1-abcdef1234567890abcdef1234"
+          isOwner={true}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "API 키 삭제" }));
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled();
+        expect(
+          screen.getByText(
+            "API 키가 삭제되었습니다. 기본 무료 크레딧 쿼터로 전환되었습니다.",
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+  });
 });

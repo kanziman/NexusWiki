@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertCircle, ArrowRight, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, KeyRound, X, Zap } from "lucide-react";
 import Link from "next/link";
 
 type CreditLimitModalProps = {
@@ -46,7 +46,7 @@ export function CreditLimitModal({
           </div>
 
           <div className="space-y-3 my-4 text-xs text-[var(--fg)] leading-relaxed">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/50 p-4 space-y-2">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/50 p-4 space-y-2.5">
               <div className="flex items-start gap-2">
                 <CheckCircle2
                   size={15}
@@ -66,25 +66,38 @@ export function CreditLimitModal({
                   복사할 수 있습니다.
                 </span>
               </div>
+              <div className="flex items-start gap-2 pt-1 border-t border-[var(--border)] text-[var(--fg)] font-medium">
+                <Zap
+                  size={15}
+                  className="text-[var(--accent)] flex-none mt-0.5"
+                />
+                <span>
+                  <b>내 OpenRouter API 키 등록 시 무제한 사용:</b> 워크스페이스
+                  설정에서 개인 키를 연결하면 크레딧 제한 없이 바로 작업을
+                  이어갈 수 있습니다.
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)] mt-6">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-[var(--border)] mt-6">
             <Dialog.Close asChild>
               <button type="button" className="button compact">
                 닫기
               </button>
             </Dialog.Close>
             {workspaceId && (
-              <Dialog.Close asChild>
-                <Link
-                  href={`/w/${workspaceId}/settings?tab=operations`}
-                  className="button compact primary inline-flex items-center gap-1.5"
-                >
-                  <span>사용량 확인</span>
-                  <ArrowRight size={13} aria-hidden="true" />
-                </Link>
-              </Dialog.Close>
+              <>
+                <Dialog.Close asChild>
+                  <Link
+                    href={`/w/${workspaceId}/settings`}
+                    className="button compact primary inline-flex items-center gap-1.5"
+                  >
+                    <KeyRound size={13} aria-hidden="true" />
+                    <span>내 API 키 등록 (무제한)</span>
+                  </Link>
+                </Dialog.Close>
+              </>
             )}
           </div>
         </Dialog.Content>
