@@ -46,6 +46,7 @@ from api.errors import (
     PayloadTooLarge,
     SourceAlreadyIngested,
     TextTooLarge,
+    WorkspaceForbidden,
 )
 from api.settings import ApiSettings
 from api.storage import UserStorage, sanitize_filename, storage_path_for
@@ -434,3 +435,46 @@ async def ingest_url_source(
         "metadata": {"url": url},
     }
     return await _insert_and_enqueue(db, workspace_id=workspace_id, values=values)
+
+
+@router.delete("/{workspace_id}/sources/{source_id}")
+async def delete_source(
+    workspace_id: UUID,
+    source_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """원문 소스를 영구 삭제한다.
+
+    소유자만 삭제할 수 있으며(RLS raw_sources_delete_owner),
+    DB 외래키 on delete cascade에 의해 source_chunks와 source_embeddings가 함께 삭제된다.
+    스토리지에 저장된 원본 파일이 있으면 함께 제거한다.
+    """
+    db = _user_db(request, credentials)
+    ws_id = str(workspace_id)
+    s_id = str(source_id)
+
+    # 스토리지 경로 확인
+    rows = await db.select(
+        _RAW_SOURCES_TABLE,
+        match={"id": s_id, "workspace_id": ws_id},
+        columns="id,storage_path",
+        limit=1,
+    )
+    if not rows:
+        raise WorkspaceForbidden(table=_RAW_SOURCES_TABLE, affected=0)
+
+    storage_path = rows[0].get("storage_path")
+    if storage_path:
+        storage = _user_storage(request, credentials)
+        await storage.delete(path=storage_path)
+
+    deleted_row = await db.delete_one(
+        _RAW_SOURCES_TABLE,
+        match={"id": s_id, "workspace_id": ws_id},
+    )
+    return {
+        "id": deleted_row["id"],
+        "workspace_id": deleted_row["workspace_id"],
+        "title": deleted_row["title"],
+    }

@@ -593,3 +593,49 @@ async def test_budget_refusal_also_covers_the_file_path(
 
     assert response.status_code == 402, response.text
     assert response.json() == {"detail": "budget_exceeded"}
+
+
+@pytest.mark.asyncio
+async def test_delete_source_as_owner_succeeds(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with authed_client(owner) as client:
+        ingest_res = await client.post(
+            TEXT_PATH.format(workspace_id=owner.workspace_id),
+            json=body(title="삭제 대상 소스", text="삭제될 본문 내용"),
+        )
+        assert ingest_res.status_code == 202, ingest_res.text
+        raw_source_id = ingest_res.json()["raw_source_id"]
+
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{raw_source_id}")
+        assert del_res.status_code == 200, del_res.text
+        assert del_res.json()["id"] == raw_source_id
+
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"id": raw_source_id, "workspace_id": owner.workspace_id}
+        )
+    assert len(rows) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_source_cross_tenant_is_forbidden(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    victim, attacker = two_workspaces_two_users
+    async with authed_client(victim) as client:
+        ingest_res = await client.post(
+            TEXT_PATH.format(workspace_id=victim.workspace_id),
+            json=body(title="피해자 소스", text="비공개 내용"),
+        )
+        assert ingest_res.status_code == 202
+        raw_source_id = ingest_res.json()["raw_source_id"]
+
+    async with authed_client(attacker) as client:
+        del_res = await client.delete(f"/workspaces/{victim.workspace_id}/sources/{raw_source_id}")
+        assert del_res.status_code == 403, del_res.text
+        assert del_res.json() == FORBIDDEN_BODY
