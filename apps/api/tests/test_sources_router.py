@@ -16,6 +16,7 @@
 import unicodedata
 from collections.abc import Callable
 from typing import Any
+from uuid import uuid4
 
 import pytest
 
@@ -639,3 +640,57 @@ async def test_delete_source_cross_tenant_is_forbidden(
         del_res = await client.delete(f"/workspaces/{victim.workspace_id}/sources/{raw_source_id}")
         assert del_res.status_code == 403, del_res.text
         assert del_res.json() == FORBIDDEN_BODY
+
+
+@pytest.mark.asyncio
+async def test_delete_nonexistent_source_is_forbidden(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    non_existent_id = uuid4()
+    async with authed_client(owner) as client:
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{non_existent_id}")
+        assert del_res.status_code == 403, del_res.text
+        assert del_res.json() == FORBIDDEN_BODY
+
+
+@pytest.mark.asyncio
+async def test_delete_source_cleans_up_wiki_sources_reference(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with authed_client(owner) as client:
+        ingest_res = await client.post(
+            TEXT_PATH.format(workspace_id=owner.workspace_id),
+            json=body(title="인용 대상 소스", text="참조될 본문"),
+        )
+        assert ingest_res.status_code == 202, ingest_res.text
+        raw_source_id = ingest_res.json()["raw_source_id"]
+
+    async with user_db(owner) as db:
+        # wiki_page 하나 생성하고 sources 컬럼에 raw_source_id 연결
+        page = await db.insert_one(
+            "wiki_pages",
+            values={
+                "workspace_id": owner.workspace_id,
+                "slug": f"test-page-{uuid4().hex[:8]}",
+                "title": "테스트 위키 문서",
+                "content": "이 문서는 소스를 참조합니다.",
+                "category": "concepts",
+                "sources": [raw_source_id, str(uuid4())],
+                "created_by": owner.user_id,
+            },
+        )
+        page_id = page["id"]
+
+    async with authed_client(owner) as client:
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{raw_source_id}")
+        assert del_res.status_code == 200, del_res.text
+
+    async with user_db(owner) as db:
+        pages = await db.select("wiki_pages", match={"id": str(page_id)})
+        assert len(pages) == 1
+        assert raw_source_id not in (pages[0].get("sources") or [])

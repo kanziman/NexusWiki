@@ -92,7 +92,7 @@ describe("Source Deletion", () => {
             method: "DELETE",
           },
         );
-        expect(push).toHaveBeenCalledWith("/w/ws-1/sources");
+        expect(push).toHaveBeenCalledWith("/w/ws-1/sources?deleted=true");
       });
     });
   });
@@ -156,6 +156,48 @@ describe("Source Deletion", () => {
 
       await waitFor(() => {
         expect(screen.queryByText("설계문서.pdf")).not.toBeInTheDocument();
+        expect(
+          screen.getByText("'설계문서.pdf' 원본 소스가 영구 삭제되었습니다."),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("마지막 페이지(2페이지)의 유일한 항목을 삭제하면 1페이지로 자동 보정된다", async () => {
+      const nineSources = Array.from({ length: 9 }, (_, i) => ({
+        id: `src-${i + 1}`,
+        title: `문서-${i + 1}.pdf`,
+        source_type: "file",
+        mime_type: "application/pdf",
+        byte_size: 1024,
+        created_at: "2026-08-12T00:00:00Z",
+        content_hash: `hash-${i + 1}`,
+      }));
+
+      apiFetch.mockResolvedValueOnce({ id: "src-9", workspace_id: "ws-1" });
+
+      render(
+        <SourcesList
+          workspaceId="ws-1"
+          initialSources={nineSources}
+          isOwner={true}
+        />,
+      );
+
+      // 2페이지로 이동
+      const page2Btn = screen.getByRole("button", { name: "2 페이지" });
+      fireEvent.click(page2Btn);
+      expect(screen.getByText("문서-9.pdf")).toBeInTheDocument();
+
+      // 9번 문서 삭제
+      const deleteBtn = screen.getByTestId("delete-source-btn-src-9");
+      fireEvent.click(deleteBtn);
+      const confirmBtn = screen.getByTestId("confirm-delete-source-btn");
+      fireEvent.click(confirmBtn);
+
+      // 1페이지로 자동 이동하여 1페이지 항목들이 보여야 함
+      await waitFor(() => {
+        expect(screen.getByText("문서-1.pdf")).toBeInTheDocument();
+        expect(screen.queryByText("문서-9.pdf")).not.toBeInTheDocument();
       });
     });
   });

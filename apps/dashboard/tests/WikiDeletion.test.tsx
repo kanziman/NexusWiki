@@ -92,7 +92,7 @@ describe("Wiki Deletion (Individual)", () => {
       });
 
       await waitFor(() => {
-        expect(push).toHaveBeenCalledWith("/w/ws-1/wiki");
+        expect(push).toHaveBeenCalledWith("/w/ws-1/wiki?deleted=true");
       });
     });
   });
@@ -152,6 +152,50 @@ describe("Wiki Deletion (Individual)", () => {
         expect(
           screen.queryByTestId("delete-wiki-item-wiki-1"),
         ).not.toBeInTheDocument();
+      });
+    });
+
+    it("마지막 페이지(2페이지)의 유일한 위키를 삭제하면 1페이지로 자동 보정된다", async () => {
+      const ninePages = Array.from({ length: 9 }, (_, i) => ({
+        id: `wiki-${i + 1}`,
+        slug: `page-${i + 1}`,
+        title: `위키문서-${i + 1}`,
+        category: "concepts",
+        content: `내용 ${i + 1}`,
+        verification_status: "verified",
+        disputed: false,
+      }));
+
+      apiFetch.mockResolvedValueOnce({
+        id: "wiki-9",
+        workspace_id: "ws-1",
+        title: "위키문서-9",
+      });
+
+      render(
+        <WikiLibrary
+          pages={ninePages}
+          workspaceId="ws-1"
+          canVerify={true}
+          isOwner={true}
+        />,
+      );
+
+      // 2페이지로 이동
+      const page2Btn = screen.getByRole("button", { name: "2 페이지" });
+      fireEvent.click(page2Btn);
+      expect(screen.getByText("위키문서-9")).toBeInTheDocument();
+
+      // 9번 위키 삭제
+      const deleteBtn = screen.getByTestId("delete-wiki-item-wiki-9");
+      fireEvent.click(deleteBtn);
+      const confirmBtn = screen.getByTestId("confirm-delete-wiki-item-btn");
+      fireEvent.click(confirmBtn);
+
+      // 1페이지로 자동 이동하여 1페이지 항목들이 보여야 함
+      await waitFor(() => {
+        expect(screen.getByText("위키문서-1")).toBeInTheDocument();
+        expect(screen.queryByText("위키문서-9")).not.toBeInTheDocument();
       });
     });
   });

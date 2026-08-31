@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
@@ -105,8 +105,31 @@ export function SourcesList({
   const [sourceToDelete, setSourceToDelete] = useState<SourceRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const PAGE_SIZE = 8;
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("deleted") === "true") {
+        setFeedback({
+          type: "success",
+          text: "원본 소스가 영구 삭제되었습니다.",
+        });
+        const url = new URL(window.location.href);
+        url.searchParams.delete("deleted");
+        window.history.replaceState(
+          null,
+          "",
+          url.pathname + (url.search ? url.search : ""),
+        );
+      }
+    }
+  }, []);
 
   async function handleIngested(_jobId: string, rawSourceId: string) {
     const supabase = createClient();
@@ -130,9 +153,28 @@ export function SourcesList({
       await apiFetch(`/workspaces/${workspaceId}/sources/${target.id}`, {
         method: "DELETE",
       });
-      setSources((prev) => prev.filter((s) => s.id !== target.id));
+      setSources((prev) => {
+        const next = prev.filter((s) => s.id !== target.id);
+        const nextSearched = query.trim()
+          ? next.filter((s) =>
+              s.title.toLowerCase().includes(query.trim().toLowerCase()),
+            )
+          : next;
+        const nextFiltered = nextSearched.filter((s) => {
+          if (activeMime === "all") return true;
+          if (activeMime === "pdf") return isPdf(s);
+          return isTextMd(s);
+        });
+        const maxPage = Math.max(1, Math.ceil(nextFiltered.length / PAGE_SIZE));
+        setPage((curr) => Math.min(curr, maxPage));
+        return next;
+      });
       setDeletingId(null);
       setSourceToDelete(null);
+      setFeedback({
+        type: "success",
+        text: `'${target.title}' 원본 소스가 영구 삭제되었습니다.`,
+      });
     } catch (err: unknown) {
       setDeletingId(null);
       setDeleteError(
@@ -216,6 +258,28 @@ export function SourcesList({
             <span>청크 생성 완료 소스</span>
           </div>
         </section>
+      )}
+
+      {/* 피드백 메시지 알림 */}
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-center justify-between gap-2 p-3 my-3 rounded-lg text-xs font-medium border ${
+            feedback.type === "success"
+              ? "bg-[var(--good-soft)] border-[var(--good)]/30 text-[var(--good)]"
+              : "bg-[var(--danger-soft)] border-[var(--danger)]/30 text-[var(--danger)]"
+          }`}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="p-1 hover:opacity-80 transition-opacity cursor-pointer"
+            aria-label="알림 닫기"
+          >
+            <X size={13} />
+          </button>
+        </div>
       )}
 
       {/* 툴바 & 테이블 섹션 */}

@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { Pagination } from "@/components/Pagination";
 import { isVerified, verificationLabel } from "@/lib/verification-label";
@@ -120,6 +120,25 @@ export function WikiLibrary({
     text: string;
   } | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("deleted") === "true") {
+        setFeedback({
+          type: "success",
+          text: "위키 문서가 영구 삭제되었습니다.",
+        });
+        const url = new URL(window.location.href);
+        url.searchParams.delete("deleted");
+        window.history.replaceState(
+          null,
+          "",
+          url.pathname + (url.search ? url.search : ""),
+        );
+      }
+    }
+  }, []);
+
   // 개별 위키 삭제 상태
   const [deleteTarget, setDeleteTarget] = useState<WikiLibraryPage | null>(
     null,
@@ -133,7 +152,19 @@ export function WikiLibrary({
     setDeleteError(null);
     try {
       await deleteWikiPage(workspaceId, deleteTarget.id);
-      setPages((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setPages((prev) => {
+        const next = prev.filter((p) => p.id !== deleteTarget.id);
+        const nextVisible = next.filter(
+          (p) =>
+            (!category || p.category === category) &&
+            `${p.title} ${cleanExcerpt(p.content)}`
+              .toLocaleLowerCase()
+              .includes(query.toLocaleLowerCase()),
+        );
+        const maxPage = Math.max(1, Math.ceil(nextVisible.length / PAGE_SIZE));
+        setPage((curr) => Math.min(curr, maxPage));
+        return next;
+      });
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(deleteTarget.id);

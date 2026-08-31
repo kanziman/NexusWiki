@@ -195,7 +195,7 @@ export function SourceDetailContent({
       });
       setDeleting(false);
       setDeleteOpen(false);
-      router.push(`${basePath}/sources`);
+      router.push(`${basePath}/sources?deleted=true`);
     } catch (err: unknown) {
       setDeleting(false);
       setDeleteError(

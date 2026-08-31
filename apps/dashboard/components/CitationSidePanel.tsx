@@ -63,13 +63,19 @@ export function CitationSidePanel({
 }: CitationSidePanelProps) {
   const [wiki, setWiki] = useState<WikiCardData | null>(null);
   const [source, setSource] = useState<SourceCardData | null>(null);
+  const [loading, setLoading] = useState(false);
   const markRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setWiki(null);
     setSource(null);
-    if (!part || !part.id) return;
+    if (!part || !part.id) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
 
     // 널 체크로 좁혀진 part를 명시적 인자로 넘긴다 — 중첩 함수 안에서
     // `part!.id`처럼 non-null assertion을 다시 쓰지 않기 위해서다(그러면 아래
@@ -77,20 +83,24 @@ export function CitationSidePanel({
     // 일치한다).
     async function load(part: AnchorPart) {
       const supabase = createClient();
-      if (part.kind === "wiki") {
-        const { data } = await supabase
-          .from("wiki_pages")
-          .select("id,title,slug,content")
-          .eq("id", part.id)
-          .single();
-        if (!cancelled && data) setWiki(data as WikiCardData);
-      } else {
-        const { data } = await supabase
-          .from("source_chunks")
-          .select("id,raw_source_id,chunk_index,char_start,char_end,content")
-          .eq("id", part.id)
-          .single();
-        if (!cancelled && data) setSource(data as SourceCardData);
+      try {
+        if (part.kind === "wiki") {
+          const { data } = await supabase
+            .from("wiki_pages")
+            .select("id,title,slug,content")
+            .eq("id", part.id)
+            .single();
+          if (!cancelled && data) setWiki(data as WikiCardData);
+        } else {
+          const { data } = await supabase
+            .from("source_chunks")
+            .select("id,raw_source_id,chunk_index,char_start,char_end,content")
+            .eq("id", part.id)
+            .single();
+          if (!cancelled && data) setSource(data as SourceCardData);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -128,7 +138,11 @@ export function CitationSidePanel({
         </button>
       </div>
 
-      {part.kind === "wiki" ? (
+      {loading ? (
+        <p className="text-muted" style={{ font: "var(--font-body-sm)" }}>
+          불러오는 중...
+        </p>
+      ) : part.kind === "wiki" ? (
         wiki ? (
           <div
             className="overflow-y-auto rounded-md border border-hairline p-base"
@@ -156,7 +170,11 @@ export function CitationSidePanel({
               </Link>
             ) : null}
           </div>
-        ) : null
+        ) : (
+          <p className="text-muted" style={{ font: "var(--font-body-sm)" }}>
+            삭제되었거나 접근할 수 없는 위키 문서입니다.
+          </p>
+        )
       ) : source ? (
         <div
           className="overflow-y-auto rounded-md border border-hairline p-base"
@@ -178,7 +196,11 @@ export function CitationSidePanel({
             {source.content}
           </mark>
         </div>
-      ) : null}
+      ) : (
+        <p className="text-muted" style={{ font: "var(--font-body-sm)" }}>
+          삭제되었거나 접근할 수 없는 원문 인용입니다.
+        </p>
+      )}
     </div>
   );
 }

@@ -140,7 +140,7 @@ export function WikiPageContent({
     try {
       await deleteWikiPage(workspaceId, page.id);
       setDeleteOpen(false);
-      router.push(`${workspacePath(workspaceId)}/wiki`);
+      router.push(`${workspacePath(workspaceId)}/wiki?deleted=true`);
     } catch (err: unknown) {
       setDeleteError(
         (err as { message?: string })?.message ||

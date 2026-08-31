@@ -88,4 +88,4 @@ The system SHALL allow workspace owners to permanently delete a raw source docum
 
 #### Scenario: Deleting non-existent or foreign workspace source
 - **WHEN** a deletion request targets a source that does not exist or belongs to another workspace
-- **THEN** the system returns a 404 Not Found error without exposing source existence
+- **THEN** the system returns a 403 Forbidden error without exposing source existence

@@ -46,7 +46,6 @@ from api.errors import (
     PayloadTooLarge,
     SourceAlreadyIngested,
     TextTooLarge,
-    WorkspaceForbidden,
 )
 from api.settings import ApiSettings
 from api.storage import UserStorage, sanitize_filename, storage_path_for
@@ -448,31 +447,55 @@ async def delete_source(
 
     소유자만 삭제할 수 있으며(RLS raw_sources_delete_owner),
     DB 외래키 on delete cascade에 의해 source_chunks와 source_embeddings가 함께 삭제된다.
-    스토리지에 저장된 원본 파일이 있으면 함께 제거한다.
+    DB 행 삭제 성공 후 스토리지 원본 파일 및 wiki_pages.sources 인용 목록을 정리한다.
     """
     db = _user_db(request, credentials)
     ws_id = str(workspace_id)
     s_id = str(source_id)
 
-    # 스토리지 경로 확인
-    rows = await db.select(
-        _RAW_SOURCES_TABLE,
-        match={"id": s_id, "workspace_id": ws_id},
-        columns="id,storage_path",
-        limit=1,
-    )
-    if not rows:
-        raise WorkspaceForbidden(table=_RAW_SOURCES_TABLE, affected=0)
-
-    storage_path = rows[0].get("storage_path")
-    if storage_path:
-        storage = _user_storage(request, credentials)
-        await storage.delete(path=storage_path)
-
+    # 1. DB 행을 먼저 삭제하여 RLS 소유자 권한 확인 및 외래키 CASCADE 적용 (무결성 보장)
     deleted_row = await db.delete_one(
         _RAW_SOURCES_TABLE,
         match={"id": s_id, "workspace_id": ws_id},
     )
+
+    # 2. 스토리지 원본 파일 정리 (스토리지 삭제 실패가 DB 삭제 상태를 깨뜨리지 않도록 안전 처리)
+    storage_path = deleted_row.get("storage_path")
+    if storage_path:
+        try:
+            storage = _user_storage(request, credentials)
+            await storage.delete(path=storage_path)
+        except Exception as err:
+            _logger.warning(
+                "Failed to delete storage path %s for deleted raw source %s: %s",
+                storage_path,
+                s_id,
+                err,
+            )
+
+    # 3. wiki_pages.sources JSONB 인용 목록에서 삭제된 source_id 정리
+    try:
+        wiki_rows = await db.select(
+            "wiki_pages",
+            match={"workspace_id": ws_id},
+            columns="id,sources",
+        )
+        for w in wiki_rows:
+            sources_list = w.get("sources") or []
+            if s_id in sources_list:
+                updated_sources = [sid for sid in sources_list if sid != s_id]
+                await db.update_one(
+                    "wiki_pages",
+                    match={"id": str(w["id"]), "workspace_id": ws_id},
+                    values={"sources": updated_sources},
+                )
+    except Exception as err:
+        _logger.warning(
+            "Failed to clean up wiki_pages.sources for deleted raw source %s: %s",
+            s_id,
+            err,
+        )
+
     return {
         "id": deleted_row["id"],
         "workspace_id": deleted_row["workspace_id"],
