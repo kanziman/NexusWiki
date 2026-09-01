@@ -69,6 +69,7 @@ export function ContentViewer({ workspaceId }: ContentViewerProps) {
   const slug = searchParams.get("slug");
   const category = searchParams.get("category");
   const chunkId = searchParams.get("chunkId");
+  const missingCitation = searchParams.get("missingCitation");
   const tabRefs = useRef<Record<ContentViewerTab, HTMLButtonElement | null>>(
     {} as Record<ContentViewerTab, HTMLButtonElement | null>,
   );
@@ -135,7 +136,11 @@ export function ContentViewer({ workspaceId }: ContentViewerProps) {
           className="panel active"
         >
           {tab === "wiki" ? (
-            <WikiTab workspaceId={workspaceId} slug={slug} />
+            <WikiTab
+              workspaceId={workspaceId}
+              slug={slug}
+              unavailable={missingCitation === "wiki"}
+            />
           ) : null}
           {tab === "source" ? (
             <SourceTab
@@ -198,15 +203,25 @@ type WikiTabState =
 function WikiTab({
   workspaceId,
   slug,
+  unavailable,
 }: {
   workspaceId: string;
   slug: string | null;
+  unavailable: boolean;
 }) {
   const [state, setState] = useState<WikiTabState>(
-    slug ? { status: "loading" } : { status: "empty" },
+    unavailable
+      ? { status: "not-found" }
+      : slug
+        ? { status: "loading" }
+        : { status: "empty" },
   );
 
   useEffect(() => {
+    if (unavailable) {
+      setState({ status: "not-found" });
+      return;
+    }
     if (!slug) {
       setState({ status: "empty" });
       return;
@@ -249,7 +264,7 @@ function WikiTab({
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, slug]);
+  }, [workspaceId, slug, unavailable]);
 
   if (state.status === "empty") {
     return (
@@ -261,10 +276,10 @@ function WikiTab({
   }
   if (state.status === "not-found") {
     return (
-      <div className="card">
-        <span className="kicker">위키 문서</span>
-        <h3>{WIKI_PAGE_NOT_FOUND_HEADING}</h3>
-      </div>
+      <InspectEmpty
+        title={WIKI_PAGE_NOT_FOUND_HEADING}
+        detail="삭제되었거나 접근할 수 없는 위키 문서입니다."
+      />
     );
   }
   return (
@@ -317,20 +332,29 @@ function SourceTab({
 // 하나를 가리킨다 — CitationSidePanel이 하던 것과 같은 단건 조회를
 // 그대로 재사용한다(part.id는 source_chunks.id).
 function SourceChunkView({ chunkId }: { chunkId: string }) {
-  const [chunk, setChunk] = useState<SourceChunkRow | null>(null);
+  const [state, setState] = useState<
+    | { status: "loading" }
+    | { status: "unavailable" }
+    | { status: "ready"; chunk: SourceChunkRow }
+  >({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
-    setChunk(null);
+    setState({ status: "loading" });
 
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("source_chunks")
         .select("id,raw_source_id,chunk_index,char_start,char_end,content")
         .eq("id", chunkId)
         .single();
-      if (!cancelled && data) setChunk(data as SourceChunkRow);
+      if (cancelled) return;
+      setState(
+        !error && data
+          ? { status: "ready", chunk: data as SourceChunkRow }
+          : { status: "unavailable" },
+      );
     }
 
     load();
@@ -339,9 +363,19 @@ function SourceChunkView({ chunkId }: { chunkId: string }) {
     };
   }, [chunkId]);
 
-  if (!chunk) {
+  if (state.status === "loading") {
     return <InspectLoading />;
   }
+  if (state.status === "unavailable") {
+    return (
+      <InspectEmpty
+        title="원문 인용을 열 수 없습니다"
+        detail="삭제되었거나 접근할 수 없는 원문 인용입니다."
+      />
+    );
+  }
+
+  const { chunk } = state;
 
   return (
     <div className="card">

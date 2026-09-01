@@ -24,26 +24,41 @@ export default async function SourceDetailRoute({
 
   const supabase = await createClient();
 
-  const [sourceResult, chunksResult, wikiResult] = await Promise.all([
-    supabase
-      .from("raw_sources")
-      .select(
-        "id,title,source_type,mime_type,byte_size,content_hash,created_at,content",
-      )
-      .eq("workspace_id", workspaceId)
-      .eq("id", id)
-      .maybeSingle(),
-    supabase
-      .from("source_chunks")
-      .select("id,raw_source_id,chunk_index,char_start,char_end,content")
-      .eq("workspace_id", workspaceId)
-      .eq("raw_source_id", id)
-      .order("chunk_index", { ascending: true }),
-    supabase
-      .from("wiki_pages")
-      .select("id,title,slug,category,sources")
-      .eq("workspace_id", workspaceId),
-  ]);
+  let user = null;
+  if (supabase.auth?.getUser) {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  }
+
+  const [sourceResult, chunksResult, wikiResult, memberResult] =
+    await Promise.all([
+      supabase
+        .from("raw_sources")
+        .select(
+          "id,title,source_type,mime_type,byte_size,content_hash,created_at,content",
+        )
+        .eq("workspace_id", workspaceId)
+        .eq("id", id)
+        .maybeSingle(),
+      supabase
+        .from("source_chunks")
+        .select("id,raw_source_id,chunk_index,char_start,char_end,content")
+        .eq("workspace_id", workspaceId)
+        .eq("raw_source_id", id)
+        .order("chunk_index", { ascending: true }),
+      supabase
+        .from("wiki_pages")
+        .select("id,title,slug,category,sources")
+        .eq("workspace_id", workspaceId),
+      user
+        ? supabase
+            .from("workspace_members")
+            .select("role")
+            .eq("workspace_id", workspaceId)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
 
   if (sourceResult.error) {
     console.error("소스 상세 조회 실패", {
@@ -90,6 +105,7 @@ export default async function SourceDetailRoute({
 
   const source = sourceResult.data;
   const chunks = chunksResult.data ?? [];
+  const isOwner = memberResult?.data?.role === "owner";
 
   const citingPages = (wikiResult.data ?? [])
     .filter((page) => {
@@ -115,6 +131,7 @@ export default async function SourceDetailRoute({
       source={source}
       chunks={chunks}
       citingPages={citingPages}
+      isOwner={isOwner}
     />
   );
 }

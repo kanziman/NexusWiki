@@ -26,7 +26,9 @@ __all__ = [
     "JobNotCancellable",
     "JobNotRetryable",
     "PayloadTooLarge",
+    "SOURCE_IN_USE_SQLSTATE",
     "SourceAlreadyIngested",
+    "SourceInUse",
     "StorageObjectExists",
     "StorageUnavailable",
     "TextTooLarge",
@@ -46,6 +48,10 @@ DUPLICATE_SQLSTATE: Final[str] = "23505"
 # 숨기는 서버 자원 오류라, API가 402와 실제 DB 장애를 안전하게 구분할 수 없다.
 # `NW402`는 PostgreSQL이 만들 수 없는 프로젝트 코드이므로 이 매핑의 오탐이 구조적으로 없다.
 BUDGET_SQLSTATE: Final[str] = "NW402"
+
+# `delete_raw_source`가 근거·대화·진행 중 잡을 보존하려고 삭제를 거부하는 코드.
+# PostgreSQL 기본 코드와 겹치지 않아 다른 DB 장애를 409로 오인하지 않는다.
+SOURCE_IN_USE_SQLSTATE: Final[str] = "NW409"
 
 # ⚠️ 본문은 고정 문자열이다. 테이블명·리소스 id·SQLSTATE 중 무엇이라도 실으면 다른
 #    테넌트의 리소스 존재 여부가 응답으로 새어나가 열거 공격이 성립한다.
@@ -92,6 +98,10 @@ class SourceAlreadyIngested(Exception):
     def __init__(self, *, raw_source_id: str | None) -> None:
         super().__init__("이미 수집된 원문이다")
         self.raw_source_id = raw_source_id
+
+
+class SourceInUse(Exception):
+    """원문을 가리키는 근거나 활성 파이프라인 잡이 남아 있다."""
 
 
 class BudgetExceeded(Exception):
@@ -228,6 +238,16 @@ async def _render_duplicate_source(request: Request, exc: Exception) -> JSONResp
     )
 
 
+async def _render_source_in_use(request: Request, exc: Exception) -> JSONResponse:
+    """근거 보존 때문에 원문 삭제를 거부한다 — 409와 고정 토큰만 반환한다."""
+    del exc
+    _logger.info("sources.source_in_use", path=request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": "source_in_use"},
+    )
+
+
 async def _render_budget_exceeded(request: Request, exc: Exception) -> JSONResponse:
     """월 비용 상한 초과 — 402.
 
@@ -326,6 +346,7 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(WorkspaceForbidden, handler)
     app.add_exception_handler(DatabaseError, handler)
     app.add_exception_handler(SourceAlreadyIngested, _render_duplicate_source)  # type: ignore[arg-type]
+    app.add_exception_handler(SourceInUse, _render_source_in_use)  # type: ignore[arg-type]
     app.add_exception_handler(BudgetExceeded, _render_budget_exceeded)  # type: ignore[arg-type]
     app.add_exception_handler(TextTooLarge, _render_text_too_large)  # type: ignore[arg-type]
     app.add_exception_handler(InvalidSourceInput, _render_invalid_source)  # type: ignore[arg-type]

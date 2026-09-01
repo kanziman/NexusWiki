@@ -229,7 +229,7 @@ def workspace_member_with_role(
     local_stack: httpx.Client,
 ) -> Iterator[Callable[[TenantActor, str], TenantActor]]:
     """소유자 워크스페이스에 별도 인증 사용자를 editor/viewer로 초대한다."""
-    members: list[TenantActor] = []
+    members: list[tuple[TenantActor, TenantActor]] = []
 
     def _create(owner: TenantActor, role: str) -> TenantActor:
         tag = uuid4().hex[:12]
@@ -268,13 +268,24 @@ def workspace_member_with_role(
             workspace_name=owner.workspace_name,
         )
         _register(member, include_workspace=False)
-        members.append(member)
+        members.append((member, owner))
         return member
 
     try:
         yield _create
     finally:
-        for member in members:
+        for member, owner in members:
+            # 발행본은 published_by를 on delete restrict로 보존한다. 워크스페이스
+            # fixture보다 멤버 fixture가 먼저 정리되므로, 이 테스트 멤버가 만든 발행본을
+            # 소유자 권한으로 먼저 지우지 않으면 auth.users 정리가 23503으로 실패한다.
+            _expect(
+                local_stack.delete(
+                    "/rest/v1/wiki_page_publications",
+                    params={"published_by": f"eq.{member.user_id}"},
+                    headers=_user_headers(owner.access_token, representation=True),
+                ),
+                what="테스트 멤버 발행본 삭제",
+            )
             _expect(
                 local_stack.delete(
                     f"/auth/v1/admin/users/{member.user_id}", headers=_admin_headers()
@@ -324,6 +335,31 @@ def seed_wiki_link(local_stack: httpx.Client) -> Callable[[str, str, str, str], 
             ),
             what="테스트 그래프 간선 생성",
         )
+
+    return _seed
+
+
+@pytest.fixture
+def seed_source_chunk(local_stack: httpx.Client) -> Callable[[str, str, str], str]:
+    """사용자 쓰기가 금지된 파생 원문 청크를 테스트 준비 단계에서만 심는다."""
+
+    def _seed(workspace_id: str, raw_source_id: str, content: str) -> str:
+        rows = _expect(
+            local_stack.post(
+                "/rest/v1/source_chunks",
+                headers={**_admin_headers(), "Prefer": "return=representation"},
+                json={
+                    "workspace_id": workspace_id,
+                    "raw_source_id": raw_source_id,
+                    "chunk_index": 0,
+                    "content": content,
+                    "char_start": 0,
+                    "char_end": len(content),
+                },
+            ),
+            what="테스트 원문 청크 생성",
+        )
+        return str(rows[0]["id"])
 
     return _seed
 

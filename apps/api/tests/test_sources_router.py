@@ -13,13 +13,19 @@
 그 정리 스윕은 Phase 7의 일이며(D-P12), 로컬 개발 스택에서는 무해하다.
 """
 
+import asyncio
+import shutil
 import unicodedata
 from collections.abc import Callable
 from typing import Any
+from uuid import uuid4
 
+import httpx
 import pytest
 
 from api.errors import FORBIDDEN_BODY
+from api.storage import UserStorage
+from tests.conftest import LOCAL_STACK
 
 TEXT_PATH = "/workspaces/{workspace_id}/sources/text"
 FILE_PATH = "/workspaces/{workspace_id}/sources/file"
@@ -41,6 +47,35 @@ def body(**overrides: Any) -> dict[str, Any]:
 
 def file_query(filename: str = "report.pdf", title: str = "보고서") -> dict[str, str]:
     return {"filename": filename, "title": title}
+
+
+async def insert_deletable_source(
+    db: Any, owner: Any, *, storage_path: str | None = None
+) -> dict[str, Any]:
+    """활성 parse 잡 없이 삭제 계약만 검증할 원문을 만든다."""
+    source_id = str(uuid4())
+    return await db.insert_one(
+        "raw_sources",
+        values={
+            "id": source_id,
+            "workspace_id": owner.workspace_id,
+            "created_by": owner.user_id,
+            "title": "삭제 대상 소스",
+            "source_type": "text",
+            "content": "삭제될 본문 내용",
+            "content_hash": uuid4().hex,
+            "storage_path": storage_path,
+        },
+    )
+
+
+def postgrest_user_headers(access_token: str) -> dict[str, str]:
+    """트리거의 원본 PostgREST 오류를 확인할 사용자 JWT 헤더를 만든다."""
+    return {
+        "apikey": LOCAL_STACK["publishable_key"],
+        "Authorization": f"Bearer {access_token}",
+        "Prefer": "return=representation",
+    }
 
 
 # 세 엔드포인트를 한 번에 도는 파라미터. 자격증명·격리 판정은 경로마다 다시 결정되는
@@ -593,3 +628,899 @@ async def test_budget_refusal_also_covers_the_file_path(
 
     assert response.status_code == 402, response.text
     assert response.json() == {"detail": "budget_exceeded"}
+
+
+@pytest.mark.asyncio
+async def test_delete_source_as_owner_succeeds(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+    raw_source_id = source["id"]
+
+    async with authed_client(owner) as client:
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{raw_source_id}")
+        assert del_res.status_code == 202, del_res.text
+        assert del_res.json()["id"] == raw_source_id
+
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"id": raw_source_id, "workspace_id": owner.workspace_id}
+        )
+    assert len(rows) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_source_cross_tenant_is_forbidden(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    victim, attacker = two_workspaces_two_users
+    async with authed_client(victim) as client:
+        ingest_res = await client.post(
+            TEXT_PATH.format(workspace_id=victim.workspace_id),
+            json=body(title="피해자 소스", text="비공개 내용"),
+        )
+        assert ingest_res.status_code == 202
+        raw_source_id = ingest_res.json()["raw_source_id"]
+
+    async with authed_client(attacker) as client:
+        del_res = await client.delete(f"/workspaces/{victim.workspace_id}/sources/{raw_source_id}")
+        assert del_res.status_code == 403, del_res.text
+    assert del_res.json() == FORBIDDEN_BODY
+
+
+@pytest.mark.asyncio
+async def test_wiki_reference_guard_hides_cross_tenant_source_existence(
+    two_workspaces_two_users: tuple[Any, ...],
+    user_db: Callable[..., Any],
+) -> None:
+    """외부 원문의 존재 여부가 트리거와 RLS의 오류 차이로 드러나지 않는다."""
+    victim, attacker = two_workspaces_two_users
+    async with user_db(victim) as db:
+        source = await insert_deletable_source(db, victim)
+
+    def page_payload(source_id: str) -> dict[str, Any]:
+        page_id = str(uuid4())
+        return {
+            "id": page_id,
+            "workspace_id": victim.workspace_id,
+            "created_by": attacker.user_id,
+            "slug": f"source-oracle-{page_id}",
+            "title": "외부 원문 탐색 시도",
+            "content": "저장되면 안 되는 본문",
+            "category": "concepts",
+            "sources": [source_id],
+        }
+
+    async with httpx.AsyncClient(base_url=LOCAL_STACK["url"], timeout=10.0) as client:
+        missing = await client.post(
+            "/rest/v1/wiki_pages",
+            headers=postgrest_user_headers(attacker.access_token),
+            json=page_payload(str(uuid4())),
+        )
+        cross_tenant = await client.post(
+            "/rest/v1/wiki_pages",
+            headers=postgrest_user_headers(attacker.access_token),
+            json=page_payload(source["id"]),
+        )
+
+    missing_error = missing.json()
+    cross_tenant_error = cross_tenant.json()
+    assert (missing_error["code"], missing_error["message"]) == (
+        "23503",
+        "참조할 원문이 존재하지 않는다",
+    )
+    assert (cross_tenant_error["code"], cross_tenant_error["message"]) == (
+        missing_error["code"],
+        missing_error["message"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_ask_reference_guard_hides_cross_tenant_chunk_existence(
+    two_workspaces_two_users: tuple[Any, ...],
+    user_db: Callable[..., Any],
+    seed_source_chunk: Callable[[str, str, str], str],
+) -> None:
+    """외부 청크와 없는 청크가 Ask 트리거에서 같은 오류로 거부된다."""
+    victim, attacker = two_workspaces_two_users
+    async with user_db(victim) as db:
+        source = await insert_deletable_source(db, victim)
+    chunk_id = seed_source_chunk(victim.workspace_id, source["id"], "비공개 Ask 근거")
+
+    def message_payload(citation_id: str) -> dict[str, Any]:
+        return {
+            "thread_id": str(uuid4()),
+            "workspace_id": victim.workspace_id,
+            "client_turn_id": str(uuid4()),
+            "question": "외부 청크가 있나요?",
+            "answer_text": "저장되면 안 되는 답변",
+            "citations": {
+                "text": "[[src:s1]]",
+                "resolved": [{"alias": "s1", "kind": "source", "id": citation_id}],
+            },
+            "status": "resolved",
+        }
+
+    async with httpx.AsyncClient(base_url=LOCAL_STACK["url"], timeout=10.0) as client:
+        missing = await client.post(
+            "/rest/v1/ask_messages",
+            headers=postgrest_user_headers(attacker.access_token),
+            json=message_payload(str(uuid4())),
+        )
+        cross_tenant = await client.post(
+            "/rest/v1/ask_messages",
+            headers=postgrest_user_headers(attacker.access_token),
+            json=message_payload(chunk_id),
+        )
+
+    missing_error = missing.json()
+    cross_tenant_error = cross_tenant.json()
+    assert (missing_error["code"], missing_error["message"]) == (
+        "23503",
+        "참조할 원문 청크가 존재하지 않는다",
+    )
+    assert (cross_tenant_error["code"], cross_tenant_error["message"]) == (
+        missing_error["code"],
+        missing_error["message"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_service_role_keeps_reference_guard_bypass_for_worker_jobs(
+    two_workspaces_two_users: tuple[Any, ...],
+    user_db: Callable[..., Any],
+) -> None:
+    """사용자 멤버십 선검사가 BYPASSRLS인 워커 잡 삽입을 막지 않는다."""
+    owner, _ = two_workspaces_two_users
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+
+    service_key = LOCAL_STACK["admin_key"]
+    async with httpx.AsyncClient(base_url=LOCAL_STACK["url"], timeout=10.0) as client:
+        response = await client.post(
+            "/rest/v1/jobs",
+            headers={
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Prefer": "return=representation",
+            },
+            json={
+                "workspace_id": owner.workspace_id,
+                "type": "compile",
+                "payload": {"raw_source_id": source["id"]},
+            },
+        )
+
+    assert response.status_code == 201, response.text
+    assert response.json()[0]["payload"]["raw_source_id"] == source["id"]
+
+
+@pytest.mark.asyncio
+async def test_delete_source_as_editor_is_forbidden_and_preserves_the_source(
+    two_workspaces_two_users: tuple[Any, ...],
+    workspace_member_with_role: Callable[..., Any],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    editor = workspace_member_with_role(owner, "editor")
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+
+    async with authed_client(editor) as client:
+        response = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{source['id']}")
+
+    assert response.status_code == 403, response.text
+    assert response.json() == FORBIDDEN_BODY
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources",
+            match={"workspace_id": owner.workspace_id, "id": source["id"]},
+        )
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_nonexistent_source_is_forbidden(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    non_existent_id = uuid4()
+    async with authed_client(owner) as client:
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{non_existent_id}")
+        assert del_res.status_code == 403, del_res.text
+        assert del_res.json() == FORBIDDEN_BODY
+
+
+@pytest.mark.asyncio
+async def test_delete_source_rejects_a_wiki_reference_without_mutating_either_row(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+        raw_source_id = source["id"]
+        page = await db.insert_one(
+            "wiki_pages",
+            values={
+                "workspace_id": owner.workspace_id,
+                "slug": f"test-page-{uuid4().hex[:8]}",
+                "title": "테스트 위키 문서",
+                "content": "이 문서는 소스를 참조합니다.",
+                "category": "concepts",
+                "sources": [raw_source_id],
+                "created_by": owner.user_id,
+            },
+        )
+        page_id = page["id"]
+
+    async with authed_client(owner) as client:
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{raw_source_id}")
+        assert del_res.status_code == 409, del_res.text
+        assert del_res.json() == {"detail": "source_in_use"}
+
+    async with user_db(owner) as db:
+        pages = await db.select("wiki_pages", match={"id": str(page_id)})
+        sources = await db.select(
+            "raw_sources",
+            match={"id": raw_source_id, "workspace_id": owner.workspace_id},
+        )
+        assert len(pages) == 1
+        assert raw_source_id in (pages[0].get("sources") or [])
+        assert len(sources) == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_waits_for_a_concurrent_reference_writer_then_returns_409(
+    two_workspaces_two_users: tuple[Any, ...],
+    workspace_member_with_role: Callable[..., Any],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    """검사 직전 시작된 참조 쓰기를 놓치고 202를 반환하는 경쟁 조건을 막는다."""
+    owner, _ = two_workspaces_two_users
+    editor = workspace_member_with_role(owner, "editor")
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("로컬 Supabase 동시성 검증에는 Docker CLI가 필요하다")
+
+    application_name = f"source-delete-race-{uuid4().hex}"
+    page_id = str(uuid4())
+    sql = f"""
+      begin;
+      set local application_name = '{application_name}';
+      set local role authenticated;
+      select set_config('request.jwt.claim.sub', '{editor.user_id}', true);
+      insert into public.wiki_pages (
+        id, workspace_id, created_by, slug, title, category, content, sources
+      ) values (
+        '{page_id}', '{owner.workspace_id}', '{editor.user_id}',
+        'race-{page_id}', '동시 참조', 'concepts', '동시 참조 본문',
+        '["{source["id"]}"]'::jsonb
+      );
+      select pg_sleep(1);
+      commit;
+    """  # noqa: S608 — 모든 보간값은 서버가 발급한 UUID 또는 uuid4다.
+    writer = await asyncio.create_subprocess_exec(  # noqa: S603
+        docker,
+        "exec",
+        "supabase_db_NexusWiki",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "postgres",
+        "-d",
+        "postgres",
+        "-c",
+        sql,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        deadline = asyncio.get_running_loop().time() + 5
+        while asyncio.get_running_loop().time() < deadline:
+            probe_sql = (
+                "select count(*) from pg_stat_activity "  # noqa: S608
+                f"where application_name = '{application_name}' "
+                "and wait_event_type = 'Timeout'"
+            )
+            probe = await asyncio.create_subprocess_exec(  # noqa: S603
+                docker,
+                "exec",
+                "supabase_db_NexusWiki",
+                "psql",
+                "-Atqc",
+                probe_sql,
+                "-U",
+                "postgres",
+                "-d",
+                "postgres",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            probe_stdout, probe_stderr = await probe.communicate()
+            assert probe.returncode == 0, probe_stderr.decode()
+            if probe_stdout.decode().strip() == "1":
+                break
+            if writer.returncode is not None:
+                stdout, stderr = await writer.communicate()
+                raise AssertionError(
+                    f"동시 참조 writer가 일찍 종료됐다: {stdout.decode()} {stderr.decode()}"
+                )
+            await asyncio.sleep(0.05)
+        else:
+            raise AssertionError("동시 참조 writer가 잠금을 잡지 못했다")
+
+        async with authed_client(owner) as client:
+            response = await client.delete(
+                f"/workspaces/{owner.workspace_id}/sources/{source['id']}"
+            )
+        stdout, stderr = await asyncio.wait_for(writer.communicate(), timeout=5)
+        assert writer.returncode == 0, f"{stdout.decode()} {stderr.decode()}"
+        assert response.status_code == 409, response.text
+        assert response.json() == {"detail": "source_in_use"}
+    finally:
+        if writer.returncode is None:
+            writer.terminate()
+            await asyncio.wait_for(writer.wait(), timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_reference_writer_fails_when_delete_holds_the_source_lock_first(
+    two_workspaces_two_users: tuple[Any, ...],
+    workspace_member_with_role: Callable[..., Any],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    """삭제 뒤 대기 중이던 writer가 끊어진 JSONB 참조를 저장하지 못한다."""
+    owner, _ = two_workspaces_two_users
+    editor = workspace_member_with_role(owner, "editor")
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("로컬 Supabase 동시성 검증에는 Docker CLI가 필요하다")
+
+    blocker_name = f"source-delete-blocker-{uuid4().hex}"
+    blocker_sql = f"""
+      begin;
+      set local application_name = '{blocker_name}';
+      select id from public.raw_sources where id = '{source["id"]}' for update;
+      select pg_sleep(2);
+      commit;
+    """  # noqa: S608 — 모든 보간값은 uuid4 또는 서버가 발급한 UUID다.
+    blocker = await asyncio.create_subprocess_exec(  # noqa: S603
+        docker,
+        "exec",
+        "supabase_db_NexusWiki",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "postgres",
+        "-d",
+        "postgres",
+        "-c",
+        blocker_sql,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    writer: asyncio.subprocess.Process | None = None
+    try:
+
+        async def probe_count(probe_sql: str) -> int:
+            probe = await asyncio.create_subprocess_exec(  # noqa: S603
+                docker,
+                "exec",
+                "supabase_db_NexusWiki",
+                "psql",
+                "-Atqc",
+                probe_sql,
+                "-U",
+                "postgres",
+                "-d",
+                "postgres",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await probe.communicate()
+            assert probe.returncode == 0, stderr.decode()
+            return int(stdout.decode().strip())
+
+        deadline = asyncio.get_running_loop().time() + 5
+        while asyncio.get_running_loop().time() < deadline:
+            blocker_probe = (
+                "select count(*) from pg_stat_activity "  # noqa: S608
+                f"where application_name = '{blocker_name}' "
+                "and wait_event_type = 'Timeout'"
+            )
+            if await probe_count(blocker_probe) == 1:
+                break
+            await asyncio.sleep(0.05)
+        else:
+            raise AssertionError("row blocker가 원문 잠금을 잡지 못했다")
+
+        async with authed_client(owner) as client:
+            delete_task = asyncio.create_task(
+                client.delete(f"/workspaces/{owner.workspace_id}/sources/{source['id']}")
+            )
+            deadline = asyncio.get_running_loop().time() + 5
+            while asyncio.get_running_loop().time() < deadline:
+                delete_probe = (
+                    "select count(*) from pg_stat_activity "
+                    "where query ilike '%delete_raw_source%' "
+                    "and wait_event_type = 'Lock'"
+                )
+                if await probe_count(delete_probe) >= 1:
+                    break
+                await asyncio.sleep(0.05)
+            else:
+                delete_task.cancel()
+                raise AssertionError("삭제 RPC가 advisory lock 뒤 row lock에서 대기하지 않았다")
+
+            page_id = str(uuid4())
+            writer_sql = f"""
+              begin;
+              set local role authenticated;
+              select set_config('request.jwt.claim.sub', '{editor.user_id}', true);
+              insert into public.wiki_pages (
+                id, workspace_id, created_by, slug, title, category, content, sources
+              ) values (
+                '{page_id}', '{owner.workspace_id}', '{editor.user_id}',
+                'after-delete-{page_id}', '삭제 후 참조', 'concepts', '본문',
+                '["{source["id"]}"]'::jsonb
+              );
+              commit;
+            """  # noqa: S608 — 모든 보간값은 uuid4 또는 서버가 발급한 UUID다.
+            writer = await asyncio.create_subprocess_exec(  # noqa: S603
+                docker,
+                "exec",
+                "supabase_db_NexusWiki",
+                "psql",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-U",
+                "postgres",
+                "-d",
+                "postgres",
+                "-c",
+                writer_sql,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            response = await asyncio.wait_for(delete_task, timeout=5)
+
+        blocker_stdout, blocker_stderr = await asyncio.wait_for(blocker.communicate(), timeout=5)
+        assert blocker.returncode == 0, f"{blocker_stdout.decode()} {blocker_stderr.decode()}"
+        writer_stdout, writer_stderr = await asyncio.wait_for(writer.communicate(), timeout=5)
+        assert writer.returncode != 0, writer_stdout.decode()
+        assert "참조할 원문이 존재하지 않는다" in writer_stderr.decode()
+        assert response.status_code == 202, response.text
+
+        async with user_db(owner) as db:
+            pages = await db.select("wiki_pages", match={"id": page_id})
+        assert pages == []
+    finally:
+        for process in (writer, blocker):
+            if process is not None and process.returncode is None:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_ask_reference_writer_revalidates_after_concurrent_delete_commits(
+    two_workspaces_two_users: tuple[Any, ...],
+    user_db: Callable[..., Any],
+    seed_source_chunk: Callable[[str, str, str], str],
+) -> None:
+    """첫 청크 조회 뒤 삭제된 인용이 두 번째 snapshot을 조용히 통과하지 않는다."""
+    owner, _ = two_workspaces_two_users
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+        thread = await db.insert_one(
+            "ask_threads",
+            values={
+                "workspace_id": owner.workspace_id,
+                "user_id": owner.user_id,
+                "title": "동시 삭제 재검증",
+            },
+        )
+    chunk_id = seed_source_chunk(owner.workspace_id, source["id"], "삭제 경쟁 근거")
+
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("로컬 Supabase 동시성 검증에는 Docker CLI가 필요하다")
+
+    blocker_name = f"ask-source-delete-{uuid4().hex}"
+    writer_name = f"ask-reference-writer-{uuid4().hex}"
+    blocker_sql = f"""
+      begin;
+      set local application_name = '{blocker_name}';
+      select public.lock_raw_source_reference('{owner.workspace_id}', '{source["id"]}');
+      select pg_sleep(3);
+      delete from public.raw_sources
+      where id = '{source["id"]}' and workspace_id = '{owner.workspace_id}';
+      commit;
+    """  # noqa: S608 — 모든 보간값은 서버가 발급한 UUID 또는 uuid4다.
+    blocker = await asyncio.create_subprocess_exec(  # noqa: S603
+        docker,
+        "exec",
+        "supabase_db_NexusWiki",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "postgres",
+        "-d",
+        "postgres",
+        "-c",
+        blocker_sql,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    writer: asyncio.subprocess.Process | None = None
+
+    async def probe_count(probe_sql: str) -> int:
+        probe = await asyncio.create_subprocess_exec(  # noqa: S603
+            docker,
+            "exec",
+            "supabase_db_NexusWiki",
+            "psql",
+            "-Atqc",
+            probe_sql,
+            "-U",
+            "postgres",
+            "-d",
+            "postgres",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await probe.communicate()
+        assert probe.returncode == 0, stderr.decode()
+        return int(stdout.decode().strip())
+
+    try:
+        deadline = asyncio.get_running_loop().time() + 5
+        while asyncio.get_running_loop().time() < deadline:
+            if (
+                await probe_count(
+                    "select count(*) from pg_stat_activity "  # noqa: S608
+                    f"where application_name = '{blocker_name}' "
+                    "and wait_event_type = 'Timeout'"
+                )
+                == 1
+            ):
+                break
+            await asyncio.sleep(0.05)
+        else:
+            raise AssertionError("삭제 트랜잭션이 원문 advisory lock을 잡지 못했다")
+
+        message_id = str(uuid4())
+        writer_sql = f"""
+          begin;
+          set local application_name = '{writer_name}';
+          set local role authenticated;
+          select set_config('request.jwt.claim.sub', '{owner.user_id}', true);
+          insert into public.ask_messages (
+            id, thread_id, workspace_id, client_turn_id, question,
+            answer_text, citations, status
+          ) values (
+            '{message_id}', '{thread["id"]}', '{owner.workspace_id}', '{uuid4()}',
+            '삭제 경쟁 질문', '삭제 경쟁 답변',
+            '{{"text":"[[src:s1]]","resolved":[{{"alias":"s1","kind":"source","id":"{chunk_id}"}}]}}'::jsonb,
+            'resolved'
+          );
+          commit;
+        """  # noqa: S608 — 모든 보간값은 서버가 발급한 UUID 또는 uuid4다.
+        writer = await asyncio.create_subprocess_exec(  # noqa: S603
+            docker,
+            "exec",
+            "supabase_db_NexusWiki",
+            "psql",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "postgres",
+            "-d",
+            "postgres",
+            "-c",
+            writer_sql,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        deadline = asyncio.get_running_loop().time() + 5
+        while asyncio.get_running_loop().time() < deadline:
+            if (
+                await probe_count(
+                    "select count(*) from pg_stat_activity "  # noqa: S608
+                    f"where application_name = '{writer_name}' "
+                    "and wait_event_type = 'Lock'"
+                )
+                == 1
+            ):
+                break
+            if writer.returncode is not None:
+                stdout, stderr = await writer.communicate()
+                raise AssertionError(
+                    f"Ask writer가 잠금 전에 종료됐다: {stdout.decode()} {stderr.decode()}"
+                )
+            await asyncio.sleep(0.05)
+        else:
+            raise AssertionError("Ask writer가 첫 조회 뒤 원문 잠금에서 대기하지 않았다")
+
+        blocker_stdout, blocker_stderr = await asyncio.wait_for(blocker.communicate(), timeout=5)
+        assert blocker.returncode == 0, f"{blocker_stdout.decode()} {blocker_stderr.decode()}"
+        writer_stdout, writer_stderr = await asyncio.wait_for(writer.communicate(), timeout=5)
+        assert writer.returncode != 0, writer_stdout.decode()
+        assert "참조할 원문 청크가 존재하지 않는다" in writer_stderr.decode()
+
+        async with user_db(owner) as db:
+            messages = await db.select("ask_messages", match={"id": message_id})
+            sources = await db.select("raw_sources", match={"id": source["id"]})
+        assert messages == []
+        assert sources == []
+    finally:
+        for process in (writer, blocker):
+            if process is not None and process.returncode is None:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_delete_source_rejects_an_active_pipeline_job(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with authed_client(owner) as client:
+        ingest_res = await client.post(
+            TEXT_PATH.format(workspace_id=owner.workspace_id),
+            json=body(title="처리 중 소스", text="처리 중인 본문"),
+        )
+        assert ingest_res.status_code == 202, ingest_res.text
+        raw_source_id = ingest_res.json()["raw_source_id"]
+
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{raw_source_id}")
+
+    assert del_res.status_code == 409, del_res.text
+    assert del_res.json() == {"detail": "source_in_use"}
+
+
+@pytest.mark.asyncio
+async def test_delete_source_rejects_a_publication_snapshot_reference(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+        page = await db.insert_one(
+            "wiki_pages",
+            values={
+                "workspace_id": owner.workspace_id,
+                "created_by": owner.user_id,
+                "slug": f"published-{uuid4().hex[:8]}",
+                "title": "공개 문서",
+                "content": "공개 본문",
+                "category": "concepts",
+                "verification_status": "verified",
+            },
+        )
+        await db.insert_one(
+            "wiki_page_publications",
+            values={
+                "wiki_page_id": page["id"],
+                "workspace_id": owner.workspace_id,
+                "published_slug": page["slug"],
+                "published_title": page["title"],
+                "published_content": page["content"],
+                "published_citations": [
+                    {
+                        "anchor": source["id"],
+                        "source_title": source["title"],
+                        "snippet": "근거",
+                    }
+                ],
+                "published_by": owner.user_id,
+            },
+        )
+
+    async with authed_client(owner) as client:
+        response = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{source['id']}")
+
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": "source_in_use"}
+
+
+@pytest.mark.asyncio
+async def test_delete_source_rejects_a_saved_ask_citation(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+    seed_source_chunk: Callable[[str, str, str], str],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    async with user_db(owner) as db:
+        source = await insert_deletable_source(db, owner)
+        chunk_id = seed_source_chunk(owner.workspace_id, source["id"], "Ask 근거")
+        await db.rpc(
+            "persist_ask_turn",
+            params={
+                "p_workspace_id": owner.workspace_id,
+                "p_thread_id": None,
+                "p_client_turn_id": str(uuid4()),
+                "p_question": "근거는 무엇인가요?",
+                "p_answer_text": "답변 [[src:s1]]",
+                "p_citations": {
+                    "text": "답변 [[src:s1]]",
+                    "resolved": [{"alias": "s1", "kind": "source", "id": chunk_id}],
+                },
+                "p_status": "resolved",
+            },
+        )
+
+    async with authed_client(owner) as client:
+        response = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{source['id']}")
+
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": "source_in_use"}
+
+
+@pytest.mark.asyncio
+async def test_delete_source_with_storage_path_durably_enqueues_cleanup(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    raw_source_id = str(uuid4())
+    storage_path = f"{owner.workspace_id}/{raw_source_id}/report.pdf"
+    async with user_db(owner) as db:
+        source = await db.insert_one(
+            "raw_sources",
+            values={
+                "id": raw_source_id,
+                "workspace_id": owner.workspace_id,
+                "created_by": owner.user_id,
+                "title": "파일 소스",
+                "source_type": "file",
+                "content": "추출 본문",
+                "content_hash": uuid4().hex,
+                "storage_path": storage_path,
+            },
+        )
+
+    async with authed_client(owner) as client:
+        del_res = await client.delete(f"/workspaces/{owner.workspace_id}/sources/{source['id']}")
+    assert del_res.status_code == 202, del_res.text
+    assert del_res.json()["cleanup_queued"] is True
+
+    async with user_db(owner) as db:
+        jobs = await db.select(
+            "jobs",
+            match={
+                "workspace_id": owner.workspace_id,
+                "type": "delete_source_storage",
+            },
+            columns="payload,status",
+        )
+    assert any(
+        job["payload"].get("storage_path") == storage_path and job["status"] == "queued"
+        for job in jobs
+    )
+
+
+@pytest.mark.asyncio
+async def test_two_storage_source_deletions_do_not_deadlock_each_other(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    source_ids = [str(uuid4()), str(uuid4())]
+    async with user_db(owner) as db:
+        for source_id in source_ids:
+            await db.insert_one(
+                "raw_sources",
+                values={
+                    "id": source_id,
+                    "workspace_id": owner.workspace_id,
+                    "created_by": owner.user_id,
+                    "title": f"동시 삭제 {source_id}",
+                    "source_type": "file",
+                    "content": "추출 본문",
+                    "content_hash": uuid4().hex,
+                    "storage_path": f"{owner.workspace_id}/{source_id}/source.pdf",
+                },
+            )
+
+    async with authed_client(owner) as client:
+        responses = await asyncio.wait_for(
+            asyncio.gather(
+                *(
+                    client.delete(f"/workspaces/{owner.workspace_id}/sources/{source_id}")
+                    for source_id in source_ids
+                )
+            ),
+            timeout=5,
+        )
+
+    assert [response.status_code for response in responses] == [202, 202]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_pending_storage_object_is_hidden_from_members(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    raw_source_id = str(uuid4())
+    storage_path = f"{owner.workspace_id}/{raw_source_id}/pending.pdf"
+    user_headers = {
+        "apikey": LOCAL_STACK["publishable_key"],
+        "Authorization": f"Bearer {owner.access_token}",
+    }
+    admin_headers = {
+        "apikey": LOCAL_STACK["admin_key"],
+        "Authorization": f"Bearer {LOCAL_STACK['admin_key']}",
+    }
+    object_url = f"/storage/v1/object/sources/{storage_path}"
+
+    async with httpx.AsyncClient(base_url=LOCAL_STACK["url"]) as storage_client:
+        storage = UserStorage(
+            storage_client,
+            supabase_url=LOCAL_STACK["url"],
+            publishable_key=LOCAL_STACK["publishable_key"],
+            access_token=owner.access_token,
+        )
+        await storage.upload(
+            path=storage_path,
+            data=b"private original",
+            content_type="application/pdf",
+        )
+        try:
+            async with user_db(owner) as db:
+                await db.insert_one(
+                    "raw_sources",
+                    values={
+                        "id": raw_source_id,
+                        "workspace_id": owner.workspace_id,
+                        "created_by": owner.user_id,
+                        "title": "정리 대기 파일",
+                        "source_type": "file",
+                        "content": "추출 본문",
+                        "content_hash": uuid4().hex,
+                        "storage_path": storage_path,
+                    },
+                )
+
+            assert (await storage_client.get(object_url, headers=user_headers)).status_code == 200
+
+            async with authed_client(owner) as client:
+                response = await client.delete(
+                    f"/workspaces/{owner.workspace_id}/sources/{raw_source_id}"
+                )
+            assert response.status_code == 202, response.text
+
+            member_read = await storage_client.get(object_url, headers=user_headers)
+            service_read = await storage_client.get(object_url, headers=admin_headers)
+            assert member_read.status_code in {400, 403, 404}
+            assert service_read.status_code == 200
+        finally:
+            await storage_client.delete(object_url, headers=admin_headers)
