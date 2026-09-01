@@ -43,6 +43,10 @@ vi.mock("@/lib/supabase/client", () => ({
     from: () => ({
       select: () => ({
         eq: () => ({
+          single: async () => ({
+            data: null,
+            error: { message: "not found" },
+          }),
           eq: () => ({ single: async () => ({ data: null, error: null }) }),
           // user_wiki_bookmarks 조회(UX-02)는 eq() 한 번 뒤 maybeSingle()이다.
           maybeSingle: async () => ({ data: null, error: null }),
@@ -88,6 +92,25 @@ describe("ContentViewer", () => {
     render(<ContentViewer workspaceId="ws-1" />);
 
     expect(screen.getByText("위키 문서를 선택하세요")).toBeInTheDocument();
+  });
+
+  it("삭제되거나 접근할 수 없는 위키 인용을 빈 선택으로 오인하지 않는다", () => {
+    currentParams = new URLSearchParams("tab=wiki&missingCitation=wiki");
+    render(<ContentViewer workspaceId="ws-1" />);
+
+    expect(
+      screen.getByText("삭제되었거나 접근할 수 없는 위키 문서입니다."),
+    ).toBeInTheDocument();
+  });
+
+  it("삭제되거나 접근할 수 없는 원문 인용에서 무한 로딩 대신 안내를 표시한다", async () => {
+    currentParams = new URLSearchParams("tab=source&chunkId=deleted-chunk");
+    render(<ContentViewer workspaceId="ws-1" />);
+
+    expect(
+      await screen.findByText("삭제되었거나 접근할 수 없는 원문 인용입니다."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("위키 탭에서 전체 리더로 가는 진입점을 조회에 쓴 slug 그대로 렌더링한다", async () => {

@@ -712,6 +712,21 @@ async def test_local_automated_dispute_retains_human_verification_audit(
     local_queue: LocalQueueStack, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A real service-role dispute must not overwrite an earlier requester audit stamp."""
+    source_id = str(uuid.uuid4())
+    source = await local_queue.client.post(
+        "/raw_sources",
+        json={
+            "id": source_id,
+            "workspace_id": local_queue.workspace_id,
+            "created_by": local_queue.user_id,
+            "title": "감사 기록 테스트 원문",
+            "source_type": "text",
+            "content": "감사 기록 테스트 본문",
+            "content_hash": uuid.uuid4().hex,
+        },
+        headers={"Prefer": "return=representation"},
+    )
+    source.raise_for_status()
     pages = []
     page_specs = (
         ("verified", "The policy permits this."),
@@ -726,7 +741,7 @@ async def test_local_automated_dispute_retains_human_verification_audit(
                 "title": slug,
                 "category": "concepts",
                 "content": content,
-                "sources": ["source-under-test"],
+                "sources": [source_id],
             },
             headers={"Prefer": "return=representation"},
         )
@@ -783,7 +798,7 @@ async def test_local_automated_dispute_retains_human_verification_audit(
         settings=_local_worker_settings(),
         job_id=str(uuid.uuid4()),
         workspace_id=local_queue.workspace_id,
-        payload={"raw_source_id": "source-under-test"},
+        payload={"raw_source_id": source_id},
     )
 
     current = await local_queue.db._select(  # noqa: SLF001

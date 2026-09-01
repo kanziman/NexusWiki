@@ -8,6 +8,14 @@ vi.mock("next/navigation", () => ({
 
 const apiFetch = vi.fn();
 vi.mock("@/lib/api-client", () => ({
+  ApiError: class ApiError extends Error {
+    constructor(
+      public status: number,
+      public detail: string,
+    ) {
+      super(detail);
+    }
+  },
   apiFetch: (...args: unknown[]) => apiFetch(...args),
 }));
 
@@ -27,6 +35,7 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: vi.fn(),
 }));
 
+import { ApiError } from "@/lib/api-client";
 import { SourceDetailContent } from "@/components/SourceDetailContent";
 import { SourcesList } from "@/components/SourcesList";
 
@@ -94,6 +103,27 @@ describe("Source Deletion", () => {
         );
         expect(push).toHaveBeenCalledWith("/w/ws-1/sources?deleted=true");
       });
+    });
+
+    it("참조 중인 원문의 삭제가 거부되면 정리할 항목을 안내한다", async () => {
+      apiFetch.mockRejectedValueOnce(new ApiError(409, "source_in_use"));
+      render(
+        <SourceDetailContent
+          workspaceId="ws-1"
+          source={sampleSource}
+          chunks={[]}
+          citingPages={[]}
+          isOwner={true}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("delete-source-btn"));
+      fireEvent.click(screen.getByTestId("confirm-delete-source-btn"));
+
+      expect(
+        await screen.findByText(/위키·공개본·대화 또는 진행 중 작업/),
+      ).toBeInTheDocument();
+      expect(push).not.toHaveBeenCalled();
     });
   });
 
@@ -199,6 +229,25 @@ describe("Source Deletion", () => {
         expect(screen.getByText("문서-1.pdf")).toBeInTheDocument();
         expect(screen.queryByText("문서-9.pdf")).not.toBeInTheDocument();
       });
+    });
+
+    it("참조 중인 원문은 목록에서 유지하고 정리할 항목을 안내한다", async () => {
+      apiFetch.mockRejectedValueOnce(new ApiError(409, "source_in_use"));
+      render(
+        <SourcesList
+          workspaceId="ws-1"
+          initialSources={sampleSources}
+          isOwner={true}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId("delete-source-btn-src-1"));
+      fireEvent.click(screen.getByTestId("confirm-delete-source-btn"));
+
+      expect(
+        await screen.findByText(/위키·공개본·대화 또는 진행 중 작업/),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("설계문서.pdf").length).toBeGreaterThan(0);
     });
   });
 });

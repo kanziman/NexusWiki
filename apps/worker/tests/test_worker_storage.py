@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from worker.errors import StorageObjectMissing
-from worker.storage import download_source_object, storage_client
+from worker.storage import delete_source_object, download_source_object, storage_client
 
 WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
 SOURCE_ID = "22222222-2222-4222-822222222222"
@@ -42,6 +42,34 @@ async def test_download_maps_missing_object_to_own_error() -> None:
     ) as client:
         with pytest.raises(StorageObjectMissing, match="storage_object_missing"):
             await download_source_object(client, path=PATH)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", [200, 204, 404])
+async def test_delete_object_is_idempotent(status_code: int) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(status_code)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="https://example.invalid/storage/v1"
+    ) as client:
+        await delete_source_object(client, path=PATH)
+
+    assert seen[0].method == "DELETE"
+    assert seen[0].url.raw_path.endswith(("/object/sources/" + PATH.replace(" ", "%20")).encode())
+
+
+@pytest.mark.asyncio
+async def test_delete_object_propagates_transient_storage_failure() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _request: httpx.Response(503)),
+        base_url="https://example.invalid/storage/v1",
+    ) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await delete_source_object(client, path=PATH)
 
 
 def test_storage_client_requires_worker_secret_and_carries_it() -> None:

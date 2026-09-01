@@ -11,7 +11,7 @@ from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker import handlers
 from worker.handlers import compile as compile_handler
-from worker.handlers import conflict, embed, link_sync, noop, parse
+from worker.handlers import conflict, delete_source_storage, embed, link_sync, noop, parse
 from worker.handlers.noop import handle_noop
 
 JOB_ID = "22222222-2222-4222-8222-222222222222"
@@ -35,6 +35,7 @@ def test_registry_holds_exactly_the_job_types_this_phase_registered() -> None:
         "link_sync",
         "embed",
         "conflict_check",
+        "delete_source_storage",
     }
 
 
@@ -48,6 +49,7 @@ def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> N
         "link_sync": link_sync.LINK_SYNC_JOB_TYPE,
         "embed": embed.EMBED_JOB_TYPE,
         "conflict_check": conflict.CONFLICT_CHECK_JOB_TYPE,
+        "delete_source_storage": delete_source_storage.DELETE_SOURCE_STORAGE_JOB_TYPE,
     }
 
     assert set(constants) == set(handlers.HANDLERS)

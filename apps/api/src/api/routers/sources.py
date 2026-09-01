@@ -40,12 +40,15 @@ from api.db.user import UserDb
 from api.errors import (
     BUDGET_SQLSTATE,
     DUPLICATE_SQLSTATE,
+    SOURCE_IN_USE_SQLSTATE,
     BudgetExceeded,
     DatabaseError,
     InvalidSourceInput,
     PayloadTooLarge,
     SourceAlreadyIngested,
+    SourceInUse,
     TextTooLarge,
+    WorkspaceForbidden,
 )
 from api.settings import ApiSettings
 from api.storage import UserStorage, sanitize_filename, storage_path_for
@@ -65,6 +68,7 @@ _logger = get_logger(__name__)
 
 _RAW_SOURCES_TABLE = "raw_sources"
 _ENQUEUE_FUNCTION = "enqueue_source_job"
+_DELETE_FUNCTION = "delete_raw_source"
 
 _TITLE_MAX_LENGTH: Final[int] = 200
 _FILENAME_MAX_LENGTH: Final[int] = 255
@@ -436,68 +440,27 @@ async def ingest_url_source(
     return await _insert_and_enqueue(db, workspace_id=workspace_id, values=values)
 
 
-@router.delete("/{workspace_id}/sources/{source_id}")
+@router.delete("/{workspace_id}/sources/{source_id}", status_code=status.HTTP_202_ACCEPTED)
 async def delete_source(
     workspace_id: UUID,
     source_id: UUID,
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
 ) -> dict[str, Any]:
-    """원문 소스를 영구 삭제한다.
-
-    소유자만 삭제할 수 있으며(RLS raw_sources_delete_owner),
-    DB 외래키 on delete cascade에 의해 source_chunks와 source_embeddings가 함께 삭제된다.
-    DB 행 삭제 성공 후 스토리지 원본 파일 및 wiki_pages.sources 인용 목록을 정리한다.
-    """
+    """참조가 없는 원문을 삭제하고 Storage 정리 잡을 원자적으로 남긴다."""
     db = _user_db(request, credentials)
     ws_id = str(workspace_id)
     s_id = str(source_id)
-
-    # 1. DB 행을 먼저 삭제하여 RLS 소유자 권한 확인 및 외래키 CASCADE 적용 (무결성 보장)
-    deleted_row = await db.delete_one(
-        _RAW_SOURCES_TABLE,
-        match={"id": s_id, "workspace_id": ws_id},
-    )
-
-    # 2. 스토리지 원본 파일 정리 (스토리지 삭제 실패가 DB 삭제 상태를 깨뜨리지 않도록 안전 처리)
-    storage_path = deleted_row.get("storage_path")
-    if storage_path:
-        try:
-            storage = _user_storage(request, credentials)
-            await storage.delete(path=storage_path)
-        except Exception as err:
-            _logger.warning(
-                "Failed to delete storage path %s for deleted raw source %s: %s",
-                storage_path,
-                s_id,
-                err,
-            )
-
-    # 3. wiki_pages.sources JSONB 인용 목록에서 삭제된 source_id 정리
     try:
-        wiki_rows = await db.select(
-            "wiki_pages",
-            match={"workspace_id": ws_id},
-            columns="id,sources",
+        rows = await db.rpc(
+            _DELETE_FUNCTION,
+            params={"p_workspace_id": ws_id, "p_source_id": s_id},
         )
-        for w in wiki_rows:
-            sources_list = w.get("sources") or []
-            if s_id in sources_list:
-                updated_sources = [sid for sid in sources_list if sid != s_id]
-                await db.update_one(
-                    "wiki_pages",
-                    match={"id": str(w["id"]), "workspace_id": ws_id},
-                    values={"sources": updated_sources},
-                )
-    except Exception as err:
-        _logger.warning(
-            "Failed to clean up wiki_pages.sources for deleted raw source %s: %s",
-            s_id,
-            err,
-        )
+    except DatabaseError as error:
+        if error.sqlstate == SOURCE_IN_USE_SQLSTATE:
+            raise SourceInUse() from error
+        raise
 
-    return {
-        "id": deleted_row["id"],
-        "workspace_id": deleted_row["workspace_id"],
-        "title": deleted_row["title"],
-    }
+    if len(rows) != 1:
+        raise WorkspaceForbidden(table=_RAW_SOURCES_TABLE, affected=len(rows))
+    return rows[0]

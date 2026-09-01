@@ -16,7 +16,7 @@ import React, { useEffect, useState } from "react";
 import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
 import { Pagination } from "@/components/Pagination";
-import { apiFetch } from "@/lib/api-client";
+import { ApiError, apiFetch } from "@/lib/api-client";
 import { formatDate, formatRelativeTime } from "@/lib/relative-time";
 import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
@@ -178,8 +178,9 @@ export function SourcesList({
     } catch (err: unknown) {
       setDeletingId(null);
       setDeleteError(
-        (err as { message?: string })?.message ||
-          "소스를 삭제하지 못했습니다. 다시 시도해주세요.",
+        err instanceof ApiError && err.detail === "source_in_use"
+          ? "이 원문을 참조하는 위키·공개본·대화 또는 진행 중 작업이 있습니다. 관련 항목을 먼저 정리해주세요."
+          : "소스를 삭제하지 못했습니다. 다시 시도해주세요.",
       );
     }
   }

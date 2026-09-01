@@ -468,6 +468,8 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         .single();
       if (data?.slug) {
         router.push(`${base}?slug=${encodeURIComponent(data.slug)}&tab=wiki`);
+      } else {
+        router.push(`${base}?tab=wiki&missingCitation=wiki`);
       }
       return;
     }
