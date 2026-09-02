@@ -126,26 +126,29 @@ export function KnowledgeGrid({
                 <Link
                   key={page.id}
                   href={`${base}/wiki/${page.slug}`}
-                  className="doc"
+                  className="doc group"
                   data-od-id={`wiki-document-${page.slug}`}
                 >
                   <div className="doc-body">
-                    <span className="doc-title">{page.title}</span>
-                    <span className="doc-meta">
-                      {catLabel}
-                      {citations > 0 && ` · 인용 원문 ${citations}개`}
+                    <span className="doc-meta flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold tracking-wide text-[var(--accent)]">
+                        {catLabel}
+                      </span>
                       {(verified || disputed || expired) && (
-                        <>
-                          {" "}
-                          ·{" "}
-                          <b className={verified ? "badge verified" : "badge"}>
-                            {verificationLabel(page)}
-                          </b>
-                        </>
+                        <b className={verified ? "badge verified" : "badge"}>
+                          {verificationLabel(page)}
+                        </b>
                       )}
+                      {citations > 0 && <span>인용 원문 {citations}개</span>}
+                    </span>
+                    <span className="doc-title group-hover:text-[var(--accent)]">
+                      {page.title}
                     </span>
                   </div>
-                  <ChevronRight className="nav-icon" aria-hidden="true" />
+                  <ChevronRight
+                    className="nav-icon transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
                 </Link>
               );
             })
@@ -188,22 +191,30 @@ export function KnowledgeGrid({
               };
 
               return (
-                <button
+                <div
                   key={item.target_slug}
-                  type="button"
-                  onClick={() => setOpenTopic(fullItem)}
                   className="doc w-full text-left"
                   data-od-id={`backlog-${item.target_slug}`}
-                  aria-haspopup="dialog"
                 >
-                  <div className="doc-body">
+                  <button
+                    type="button"
+                    onClick={() => setOpenTopic(fullItem)}
+                    className="doc-body min-w-0 flex-1 bg-transparent p-0 text-left"
+                    aria-haspopup="dialog"
+                  >
                     <span className="doc-title">{displayTitle}</span>
                     <span className="doc-meta">
-                      위키 {count}곳에서 인용됨 · 원본 소스 연결 필요
+                      위키 {count}곳에서 인용됨 · 원문 소스 연결 필요
                     </span>
-                  </div>
-                  <ChevronRight className="nav-icon" aria-hidden="true" />
-                </button>
+                  </button>
+                  <Link
+                    href={`${base}/sources?prefillTitle=${encodeURIComponent(displayTitle)}&tab=text`}
+                    className="button compact flex flex-none items-center gap-1"
+                  >
+                    <Plus size={13} aria-hidden="true" />
+                    <span>소스 추가</span>
+                  </Link>
+                </div>
               );
             })
           )}

@@ -41,7 +41,10 @@ describe("WikiLibrary Bulk Actions", () => {
 
     expect(screen.queryByTestId("select-all-checkbox")).not.toBeInTheDocument();
     expect(screen.queryByTestId("select-wiki-wiki-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("select-wiki-wiki-2")).not.toBeInTheDocument();
     expect(screen.queryByTestId("bulk-action-bar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bulk-verify-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bulk-publish-btn")).not.toBeInTheDocument();
   });
 
   it("canVerify=true 일 때 체크박스를 선택하면 일괄 작업 바가 노출되고 일괄 검증을 실행할 수 있다", async () => {
@@ -79,10 +82,15 @@ describe("WikiLibrary Bulk Actions", () => {
     // 전체 선택 클릭
     fireEvent.click(selectAllCheckbox);
 
-    expect(screen.getByTestId("bulk-action-bar")).toBeInTheDocument();
-    expect(screen.getByText("2개 문서 선택됨")).toBeInTheDocument();
+    const bulkBar = screen.getByTestId("bulk-action-bar");
+    expect(bulkBar).toBeInTheDocument();
+    expect(bulkBar).toHaveTextContent("2개 문서 선택됨");
+    expect(bulkBar).toHaveTextContent("선택 해제");
+    // 전체 선택은 리스트 위 서브 바에 남고, 플로팅 바로 옮겨지지 않는다.
+    expect(bulkBar).not.toContainElement(selectAllCheckbox);
 
     const bulkVerifyBtn = screen.getByTestId("bulk-verify-btn");
+    expect(bulkBar).toContainElement(bulkVerifyBtn);
     fireEvent.click(bulkVerifyBtn);
 
     await waitFor(() => {
@@ -128,9 +136,11 @@ describe("WikiLibrary Bulk Actions", () => {
     const selectDoc1 = screen.getByTestId("select-wiki-wiki-1");
     fireEvent.click(selectDoc1);
 
-    expect(screen.getByText("1개 문서 선택됨")).toBeInTheDocument();
+    const bulkBar = screen.getByTestId("bulk-action-bar");
+    expect(bulkBar).toHaveTextContent("1개 문서 선택됨");
 
     const bulkPublishBtn = screen.getByTestId("bulk-publish-btn");
+    expect(bulkBar).toContainElement(bulkPublishBtn);
     fireEvent.click(bulkPublishBtn);
 
     await waitFor(() => {
@@ -150,5 +160,21 @@ describe("WikiLibrary Bulk Actions", () => {
         screen.getByText("1개의 문서가 공개 발행되었습니다."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("선택 해제를 누르면 선택이 비고 플로팅 바가 사라진다", () => {
+    render(
+      <WikiLibrary pages={samplePages} workspaceId="ws-1" canVerify={true} />,
+    );
+
+    fireEvent.click(screen.getByTestId("select-wiki-wiki-1"));
+    expect(screen.getByTestId("bulk-action-bar")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "선택 해제" }));
+
+    expect(screen.queryByTestId("bulk-action-bar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bulk-verify-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bulk-publish-btn")).not.toBeInTheDocument();
+    expect(screen.getByTestId("select-wiki-wiki-1")).not.toBeChecked();
   });
 });

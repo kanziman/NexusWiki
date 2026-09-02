@@ -111,6 +111,7 @@ describe("Wiki Deletion (Individual)", () => {
       expect(
         screen.queryByTestId("delete-wiki-item-wiki-1"),
       ).not.toBeInTheDocument();
+      expect(screen.getByTestId("select-all-checkbox")).toBeInTheDocument();
     });
 
     it("isOwner=true 일 때 개별 삭제 아이콘을 클릭하여 문서를 영구 삭제하면 목록에서 제거된다", async () => {
