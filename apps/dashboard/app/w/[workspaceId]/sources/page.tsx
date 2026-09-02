@@ -44,7 +44,13 @@ export default async function SourcesPage({
   // 요구하는 역인용 인덱스는 아직 없으므로(마이그레이션 미적용) 위키 쪽도
   // 워크스페이스 단위로 한 번 읽어 JS 에서 매핑한다 — 인덱스가 생기면
   // 이 두 조회는 RPC 하나로 접을 수 있다.
-  const [chunkResult, wikiResult] = await Promise.all([
+  let user = null;
+  if (supabase.auth?.getUser) {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  }
+
+  const [chunkResult, wikiResult, memberResult] = await Promise.all([
     sourceIds.length
       ? supabase
           .from("source_chunks")
@@ -56,7 +62,17 @@ export default async function SourcesPage({
       .from("wiki_pages")
       .select("id,title,slug,sources")
       .eq("workspace_id", workspaceId),
+    user
+      ? supabase
+          .from("workspace_members")
+          .select("role")
+          .eq("workspace_id", workspaceId)
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  const isOwner = memberResult?.data?.role === "owner";
 
   const chunkStats = new Map<
     string,
@@ -102,6 +118,7 @@ export default async function SourcesPage({
       citingPages={Object.fromEntries(citingPages)}
       prefillTitle={prefillTitle}
       initialTab={tab === "text" ? "text" : undefined}
+      isOwner={isOwner}
     />
   );
 }

@@ -244,6 +244,10 @@ function PreviewHome() {
           ))}
         </div>
       </section>
+      {/* `.sections` 는 홈 KnowledgeGrid 와 같은 클래스다. 미리보기가 실제
+          홈의 비대칭(1.4fr / 1fr) 비율을 함께 받는 것이 맞다 — 클래스를
+          포크하면 미리보기가 실제 홈과 서서히 갈라져 "대표성 있는 미리보기"가
+          조용히 무너진다. */}
       <section className="sections">
         <div>
           <SectionHead

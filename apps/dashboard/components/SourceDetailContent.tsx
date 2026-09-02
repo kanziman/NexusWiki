@@ -1,6 +1,8 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import {
+  AlertTriangle,
   AlignLeft,
   ArrowLeft,
   BookOpen,
@@ -14,15 +16,19 @@ import {
   FileText,
   Hash,
   Layers,
+  Loader2,
   Search,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { JobStepper } from "@/components/JobStepper";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
+import { ApiError, apiFetch } from "@/lib/api-client";
 import { formatDate, formatRelativeTime } from "@/lib/relative-time";
 import { workspacePath } from "@/lib/workspace-path";
 
@@ -56,6 +62,7 @@ export type SourceDetailProps = {
   };
   chunks: SourceChunkItem[];
   citingPages: CitingWikiPageItem[];
+  isOwner?: boolean;
 };
 
 function formatBytes(bytes?: number | null): string | null {
@@ -98,7 +105,9 @@ export function SourceDetailContent({
   source,
   chunks = [],
   citingPages = [],
+  isOwner = false,
 }: SourceDetailProps) {
+  const router = useRouter();
   const isMdFormat =
     source.mime_type === "text/markdown" ||
     (source.title?.toLowerCase().endsWith(".md") ?? false) ||
@@ -118,6 +127,10 @@ export function SourceDetailContent({
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [copiedChunk, setCopiedChunk] = useState(false);
   const [copiedFull, setCopiedFull] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const format = getFormatBadge(
     source.title ?? "문서",
@@ -172,6 +185,27 @@ export function SourceDetailContent({
     setTimeout(() => setCopiedFull(false), 2000);
   }
 
+  async function handleDeleteSource() {
+    if (!isOwner || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiFetch(`/workspaces/${workspaceId}/sources/${source.id}`, {
+        method: "DELETE",
+      });
+      setDeleting(false);
+      setDeleteOpen(false);
+      router.push(`${basePath}/sources?deleted=true`);
+    } catch (err: unknown) {
+      setDeleting(false);
+      setDeleteError(
+        err instanceof ApiError && err.detail === "source_in_use"
+          ? "이 원문을 참조하는 위키·공개본·대화 또는 진행 중 작업이 있습니다. 관련 항목을 먼저 정리해주세요."
+          : "소스를 삭제하지 못했습니다. 다시 시도해주세요.",
+      );
+    }
+  }
+
   return (
     <div
       className="content source-detail flex flex-col gap-6"
@@ -222,24 +256,39 @@ export function SourceDetailContent({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={handleCopyTitle}
-              className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--fg)] hover:border-[var(--accent)] transition-all cursor-pointer shadow-2xs"
-              title="파일명 복사"
-            >
-              {copiedTitle ? (
-                <>
-                  <Check size={12} className="text-[var(--good)]" />
-                  <span className="text-[var(--good)]">복사됨</span>
-                </>
-              ) : (
-                <>
-                  <Copy size={12} />
-                  <span>파일명 복사</span>
-                </>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyTitle}
+                className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--fg)] hover:border-[var(--accent)] transition-all cursor-pointer shadow-2xs"
+                title="파일명 복사"
+              >
+                {copiedTitle ? (
+                  <>
+                    <Check size={12} className="text-[var(--good)]" />
+                    <span className="text-[var(--good)]">복사됨</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={12} />
+                    <span>파일명 복사</span>
+                  </>
+                )}
+              </button>
+
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(true)}
+                  className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--danger)]/30 bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:border-[var(--danger)] transition-all cursor-pointer shadow-2xs"
+                  title="원문 소스 삭제"
+                  data-testid="delete-source-btn"
+                >
+                  <Trash2 size={12} />
+                  <span>소스 삭제</span>
+                </button>
               )}
-            </button>
+            </div>
           </div>
 
           <h1
@@ -729,6 +778,71 @@ export function SourceDetailContent({
           </div>
         )}
       </section>
+
+      {/* 원문 소스 삭제 확인 모달 */}
+      <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md transition-all duration-200" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
+            <div className="modal-head mb-4 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-base font-bold text-[var(--danger)] flex items-center gap-1.5">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <span>원문 소스 영구 삭제</span>
+                </Dialog.Title>
+                <Dialog.Description className="mt-1.5 text-xs text-[var(--muted)] leading-relaxed">
+                  이 작업은 절대 되돌릴 수 없습니다.{" "}
+                  <b className="text-[var(--fg)]">
+                    &lsquo;{source.title}&rsquo;
+                  </b>{" "}
+                  소스와 연관된 모든 청크 데이터, 검색 색인 좌표 및 원본 파일이
+                  즉시 영구 삭제됩니다.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors cursor-pointer"
+                  aria-label="닫기"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            {deleteError && (
+              <p
+                role="alert"
+                className="invite-feedback error show mb-3 text-xs text-[var(--danger)]"
+              >
+                {deleteError}
+              </p>
+            )}
+
+            <div className="modal-foot flex items-center justify-end gap-2 mt-6">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  className="button compact"
+                >
+                  취소
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteSource}
+                className="button compact danger"
+                data-testid="confirm-delete-source-btn"
+              >
+                {deleting && <Loader2 size={13} className="animate-spin" />}
+                <span>영구 삭제</span>
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

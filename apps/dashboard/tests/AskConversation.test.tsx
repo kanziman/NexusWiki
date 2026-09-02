@@ -397,4 +397,32 @@ describe("AskConversation", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("ask-error-card")).toBeInTheDocument();
   });
+
+  it("삭제되거나 접근할 수 없는 wiki 마커를 콘텐츠 뷰어의 안내 상태로 연결한다", async () => {
+    wikiLookupResult.current = { data: null };
+    sseFrames.mockReturnValue(
+      toAsyncGenerator([
+        { event: "meta", data: { template_id: "t1", evidence_count: 1 } },
+        { event: "delta", data: { text: "본문 [[wiki:w1]] 끝" } },
+        {
+          event: "citations",
+          data: {
+            text: "본문 [[wiki:w1]] 끝",
+            resolved: [{ alias: "w1", kind: "wiki", id: "deleted-wiki" }],
+          },
+        },
+        { event: "done", data: {} },
+      ]),
+    );
+
+    render(<AskConversation workspaceId="ws-1" />);
+    await askQuestion("질문입니다");
+    fireEvent.click(await screen.findByRole("button", { name: "1" }));
+
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/w/ws-1/ask?tab=wiki&missingCitation=wiki",
+      ),
+    );
+  });
 });

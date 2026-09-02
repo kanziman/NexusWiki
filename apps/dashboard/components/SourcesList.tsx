@@ -1,13 +1,22 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Plus, Search, Sparkles, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Loader2,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
 import { Pagination } from "@/components/Pagination";
+import { ApiError, apiFetch } from "@/lib/api-client";
 import { formatDate, formatRelativeTime } from "@/lib/relative-time";
 import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
@@ -32,6 +41,7 @@ export type SourcesListProps = {
   citingPages?: Record<string, CitingPage[]>;
   prefillTitle?: string;
   initialTab?: "text";
+  isOwner?: boolean;
 };
 
 const EMPTY_HEADING = "아직 등록된 소스가 없습니다";
@@ -82,6 +92,7 @@ export function SourcesList({
   citingPages = {},
   prefillTitle,
   initialTab,
+  isOwner = false,
 }: SourcesListProps) {
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
   const [activeMime, setActiveMime] = useState<MimeFilter>("all");
@@ -91,7 +102,34 @@ export function SourcesList({
     Boolean(prefillTitle) || initialTab === "text",
   );
 
+  const [sourceToDelete, setSourceToDelete] = useState<SourceRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
   const PAGE_SIZE = 8;
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("deleted") === "true") {
+        setFeedback({
+          type: "success",
+          text: "원본 소스가 영구 삭제되었습니다.",
+        });
+        const url = new URL(window.location.href);
+        url.searchParams.delete("deleted");
+        window.history.replaceState(
+          null,
+          "",
+          url.pathname + (url.search ? url.search : ""),
+        );
+      }
+    }
+  }, []);
 
   async function handleIngested(_jobId: string, rawSourceId: string) {
     const supabase = createClient();
@@ -104,6 +142,46 @@ export function SourcesList({
     if (data) {
       setSources((prev) => [data, ...prev]);
       setUploadOpen(false);
+    }
+  }
+
+  async function handleDeleteSource(target: SourceRow) {
+    if (!isOwner || deletingId) return;
+    setDeletingId(target.id);
+    setDeleteError(null);
+    try {
+      await apiFetch(`/workspaces/${workspaceId}/sources/${target.id}`, {
+        method: "DELETE",
+      });
+      setSources((prev) => {
+        const next = prev.filter((s) => s.id !== target.id);
+        const nextSearched = query.trim()
+          ? next.filter((s) =>
+              s.title.toLowerCase().includes(query.trim().toLowerCase()),
+            )
+          : next;
+        const nextFiltered = nextSearched.filter((s) => {
+          if (activeMime === "all") return true;
+          if (activeMime === "pdf") return isPdf(s);
+          return isTextMd(s);
+        });
+        const maxPage = Math.max(1, Math.ceil(nextFiltered.length / PAGE_SIZE));
+        setPage((curr) => Math.min(curr, maxPage));
+        return next;
+      });
+      setDeletingId(null);
+      setSourceToDelete(null);
+      setFeedback({
+        type: "success",
+        text: `'${target.title}' 원본 소스가 영구 삭제되었습니다.`,
+      });
+    } catch (err: unknown) {
+      setDeletingId(null);
+      setDeleteError(
+        err instanceof ApiError && err.detail === "source_in_use"
+          ? "이 원문을 참조하는 위키·공개본·대화 또는 진행 중 작업이 있습니다. 관련 항목을 먼저 정리해주세요."
+          : "소스를 삭제하지 못했습니다. 다시 시도해주세요.",
+      );
     }
   }
 
@@ -181,6 +259,28 @@ export function SourcesList({
             <span>청크 생성 완료 소스</span>
           </div>
         </section>
+      )}
+
+      {/* 피드백 메시지 알림 */}
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-center justify-between gap-2 p-3 my-3 rounded-lg text-xs font-medium border ${
+            feedback.type === "success"
+              ? "bg-[var(--good-soft)] border-[var(--good)]/30 text-[var(--good)]"
+              : "bg-[var(--danger-soft)] border-[var(--danger)]/30 text-[var(--danger)]"
+          }`}
+        >
+          <span>{feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="p-1 hover:opacity-80 transition-opacity cursor-pointer"
+            aria-label="알림 닫기"
+          >
+            <X size={13} />
+          </button>
+        </div>
       )}
 
       {/* 툴바 & 테이블 섹션 */}
@@ -398,14 +498,31 @@ export function SourcesList({
                         </span>
                       </td>
 
-                      {/* 작업 (상세 보기) */}
+                      {/* 작업 (상세 보기 & 삭제) */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <Link
-                          href={`${workspacePath(workspaceId)}/sources/${source.id}`}
-                          className="text-button inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--accent)] hover:underline"
-                        >
-                          <span>상세 보기</span>
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`${workspacePath(workspaceId)}/sources/${source.id}`}
+                            className="text-button inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--accent)] hover:underline"
+                          >
+                            <span>상세 보기</span>
+                          </Link>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteError(null);
+                                setSourceToDelete(source);
+                              }}
+                              className="nw-focus-ring inline-flex items-center p-1 rounded text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors cursor-pointer"
+                              title="원문 소스 삭제"
+                              data-testid={`delete-source-btn-${source.id}`}
+                            >
+                              <Trash2 size={13} aria-hidden="true" />
+                              <span className="sr-only">삭제</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -456,6 +573,83 @@ export function SourcesList({
               prefillTitle={prefillTitle}
               initialTab={initialTab}
             />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* 소스 삭제 확인 모달 */}
+      <Dialog.Root
+        open={Boolean(sourceToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSourceToDelete(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md transition-all duration-200" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-2xl outline-none">
+            <div className="modal-head mb-4 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-base font-bold text-[var(--danger)] flex items-center gap-1.5">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <span>원문 소스 영구 삭제</span>
+                </Dialog.Title>
+                <Dialog.Description className="mt-1.5 text-xs text-[var(--muted)] leading-relaxed">
+                  이 작업은 절대 되돌릴 수 없습니다.{" "}
+                  <b className="text-[var(--fg)]">
+                    &lsquo;{sourceToDelete?.title}&rsquo;
+                  </b>{" "}
+                  소스와 연관된 모든 청크 데이터, 검색 색인 좌표 및 원본 파일이
+                  즉시 영구 삭제됩니다.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="icon-btn rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors cursor-pointer"
+                  aria-label="닫기"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            {deleteError && (
+              <p
+                role="alert"
+                className="invite-feedback error show mb-3 text-xs text-[var(--danger)]"
+              >
+                {deleteError}
+              </p>
+            )}
+
+            <div className="modal-foot flex items-center justify-end gap-2 mt-6">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  disabled={Boolean(deletingId)}
+                  className="button compact"
+                >
+                  취소
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={() =>
+                  sourceToDelete && handleDeleteSource(sourceToDelete)
+                }
+                className="button compact danger"
+                data-testid="confirm-delete-source-btn"
+              >
+                {Boolean(deletingId) && (
+                  <Loader2 size={13} className="animate-spin" />
+                )}
+                <span>영구 삭제</span>
+              </button>
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

@@ -40,12 +40,15 @@ from api.db.user import UserDb
 from api.errors import (
     BUDGET_SQLSTATE,
     DUPLICATE_SQLSTATE,
+    SOURCE_IN_USE_SQLSTATE,
     BudgetExceeded,
     DatabaseError,
     InvalidSourceInput,
     PayloadTooLarge,
     SourceAlreadyIngested,
+    SourceInUse,
     TextTooLarge,
+    WorkspaceForbidden,
 )
 from api.settings import ApiSettings
 from api.storage import UserStorage, sanitize_filename, storage_path_for
@@ -65,6 +68,7 @@ _logger = get_logger(__name__)
 
 _RAW_SOURCES_TABLE = "raw_sources"
 _ENQUEUE_FUNCTION = "enqueue_source_job"
+_DELETE_FUNCTION = "delete_raw_source"
 
 _TITLE_MAX_LENGTH: Final[int] = 200
 _FILENAME_MAX_LENGTH: Final[int] = 255
@@ -434,3 +438,29 @@ async def ingest_url_source(
         "metadata": {"url": url},
     }
     return await _insert_and_enqueue(db, workspace_id=workspace_id, values=values)
+
+
+@router.delete("/{workspace_id}/sources/{source_id}", status_code=status.HTTP_202_ACCEPTED)
+async def delete_source(
+    workspace_id: UUID,
+    source_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """참조가 없는 원문을 삭제하고 Storage 정리 잡을 원자적으로 남긴다."""
+    db = _user_db(request, credentials)
+    ws_id = str(workspace_id)
+    s_id = str(source_id)
+    try:
+        rows = await db.rpc(
+            _DELETE_FUNCTION,
+            params={"p_workspace_id": ws_id, "p_source_id": s_id},
+        )
+    except DatabaseError as error:
+        if error.sqlstate == SOURCE_IN_USE_SQLSTATE:
+            raise SourceInUse() from error
+        raise
+
+    if len(rows) != 1:
+        raise WorkspaceForbidden(table=_RAW_SOURCES_TABLE, affected=len(rows))
+    return rows[0]

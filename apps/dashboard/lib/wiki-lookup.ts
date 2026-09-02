@@ -111,6 +111,37 @@ export async function resolveCanVerify(
 }
 
 /**
+ * owner 여부 판정 — RPC 우선, 실패 시 자신의 workspace_members 행을
+ * 직접 읽는 폴백.
+ */
+export async function resolveIsOwner(
+  supabase: SupabaseClient,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("has_workspace_role", {
+    ws_id: workspaceId,
+    min_role: "owner",
+  });
+  if (!error && typeof data === "boolean") {
+    return data;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data: memberRow } = await supabase
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .single();
+
+  return memberRow?.role === "owner";
+}
+
+/**
  * 공개 URL 첫 세그먼트. 정본은 `workspaces.slug`다 — 사이드카 복제본은
  * 킬스위치 행이 아직 없으면 없다.
  */

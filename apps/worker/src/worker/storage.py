@@ -20,7 +20,12 @@ from worker.errors import StorageObjectMissing
 if TYPE_CHECKING:
     from worker.settings import WorkerSettings
 
-__all__ = ["StorageObjectMissing", "download_source_object", "storage_client"]
+__all__ = [
+    "StorageObjectMissing",
+    "delete_source_object",
+    "download_source_object",
+    "storage_client",
+]
 
 STORAGE_REQUEST_TIMEOUT_SECONDS: Final[float] = 20.0
 
@@ -48,3 +53,11 @@ async def download_source_object(client: httpx.AsyncClient, *, path: str) -> byt
         raise StorageObjectMissing()
     response.raise_for_status()
     return response.content
+
+
+async def delete_source_object(client: httpx.AsyncClient, *, path: str) -> None:
+    """`sources` 버킷 객체를 멱등 삭제한다. 이미 없으면 성공으로 취급한다."""
+    response = await client.delete(f"/object/sources/{quote(path, safe='/')}")
+    if response.status_code == 404:
+        return
+    response.raise_for_status()

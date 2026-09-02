@@ -18,6 +18,10 @@ from typing import Any, Final, Protocol, runtime_checkable
 
 from worker.handlers.compile import COMPILE_JOB_TYPE, handle_compile
 from worker.handlers.conflict import CONFLICT_CHECK_JOB_TYPE, handle_conflict_check
+from worker.handlers.delete_source_storage import (
+    DELETE_SOURCE_STORAGE_JOB_TYPE,
+    handle_delete_source_storage,
+)
 from worker.handlers.embed import EMBED_JOB_TYPE, handle_embed
 from worker.handlers.link_sync import LINK_SYNC_JOB_TYPE, handle_link_sync
 from worker.handlers.noop import NOOP_JOB_TYPE, handle_noop
@@ -75,6 +79,7 @@ HANDLERS: Final[dict[str, JobHandler]] = {
     LINK_SYNC_JOB_TYPE: handle_link_sync,
     EMBED_JOB_TYPE: handle_embed,
     CONFLICT_CHECK_JOB_TYPE: handle_conflict_check,
+    DELETE_SOURCE_STORAGE_JOB_TYPE: handle_delete_source_storage,
 }
 
 

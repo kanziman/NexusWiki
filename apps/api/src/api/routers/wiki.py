@@ -37,6 +37,24 @@ class VerifyRequest(BaseModel):
     expires_at: datetime | None = None
 
 
+class BulkVerifyRequest(BaseModel):
+    """선택한 위키 문서들의 검증 상태를 일괄 갱신한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    page_ids: list[UUID]
+    verification_status: VerificationStatus = VerificationStatus.VERIFIED
+    expires_at: datetime | None = None
+
+
+class BulkPublishRequest(BaseModel):
+    """선택한 위키 문서들 중 검증된 문서를 일괄 공개 발행한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    page_ids: list[UUID]
+
+
 def _user_db(request: Request, credentials: HTTPAuthorizationCredentials) -> UserDb:
     settings: ApiSettings = request.app.state.settings
     return UserDb(
@@ -75,6 +93,167 @@ async def verify_wiki_page(
             "expires_at",
             "disputed",
         )
+    }
+
+
+@router.post("/{workspace_id}/wiki/bulk-verify")
+async def bulk_verify_wiki_pages(
+    workspace_id: UUID,
+    body: BulkVerifyRequest,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """선택한 위키 문서들을 일괄 검증 처리한다.
+
+    RLS가 editor 이상 권한을 강제하며, 트리거가 검증 감사 필드를 기록한다.
+    """
+    db = _user_db(request, credentials)
+    ws_id = str(workspace_id)
+    values: dict[str, Any] = {"verification_status": body.verification_status.value}
+    if body.expires_at is not None:
+        values["expires_at"] = body.expires_at.isoformat()
+
+    verified_pages: list[dict[str, Any]] = []
+    for wiki_id in body.page_ids:
+        row = await db.update_one(
+            "wiki_pages",
+            match={"id": str(wiki_id), "workspace_id": ws_id},
+            values=values,
+        )
+        verified_pages.append(
+            {
+                key: row[key]
+                for key in (
+                    "id",
+                    "slug",
+                    "verification_status",
+                    "verified_by",
+                    "verified_at",
+                    "expires_at",
+                    "disputed",
+                )
+            }
+        )
+
+    return {
+        "verified_count": len(verified_pages),
+        "verified_pages": verified_pages,
+    }
+
+
+@router.post("/{workspace_id}/wiki/bulk-publish")
+async def bulk_publish_wiki_pages(
+    workspace_id: UUID,
+    body: BulkPublishRequest,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """선택한 위키 문서 중 검증 완료된 문서들을 일괄 공개 발행한다.
+
+    미검증, 분쟁, 만료 상태 문서는 제외하고 유효한 문서만 스냅샷을 생성/갱신한다.
+    """
+    db = _user_db(request, credentials)
+    ws_id = str(workspace_id)
+
+    workspaces = await db.select("workspaces", match={"id": ws_id}, columns="slug", limit=1)
+    if len(workspaces) != 1:
+        raise WorkspaceForbidden(table="workspaces", affected=len(workspaces))
+    workspace_slug = str(workspaces[0]["slug"])
+    user_id = _requester_user_id(credentials.credentials)
+    now_iso = datetime.now(UTC).isoformat()
+
+    published_pages: list[dict[str, Any]] = []
+
+    for wiki_id in body.page_ids:
+        page_id = str(wiki_id)
+        pages = await db.select(
+            "wiki_pages",
+            match={"id": page_id, "workspace_id": ws_id},
+            columns="id,slug,title,content,sources,verification_status,expires_at,disputed",
+            limit=1,
+        )
+        if not pages:
+            continue
+        page = pages[0]
+        if (
+            page.get("verification_status") != VerificationStatus.VERIFIED.value
+            or page.get("disputed") is True
+            or _is_expired(page.get("expires_at"))
+        ):
+            continue
+
+        citations = await _citation_snapshot(
+            db, workspace_id=ws_id, source_ids=_source_ids(page.get("sources"))
+        )
+
+        values: dict[str, Any] = {
+            "wiki_page_id": page_id,
+            "workspace_id": ws_id,
+            "published_slug": page["slug"],
+            "published_title": page["title"],
+            "published_content": page["content"],
+            "published_citations": citations,
+            "published_by": user_id,
+            "published_at": now_iso,
+        }
+
+        existing = await db.select(
+            _PUBLICATIONS_TABLE,
+            match={"wiki_page_id": page_id, "workspace_id": ws_id},
+            columns="wiki_page_id",
+            limit=1,
+        )
+        if existing:
+            row = await db.update_one(
+                _PUBLICATIONS_TABLE,
+                match={"wiki_page_id": page_id, "workspace_id": ws_id},
+                values=values,
+            )
+        else:
+            try:
+                row = await db.insert_one(_PUBLICATIONS_TABLE, values=values)
+            except DatabaseError as exc:
+                if exc.sqlstate != DUPLICATE_SQLSTATE:
+                    raise
+                row = await db.update_one(
+                    _PUBLICATIONS_TABLE,
+                    match={"wiki_page_id": page_id, "workspace_id": ws_id},
+                    values=values,
+                )
+
+        published_pages.append(_publication_response(row, workspace_slug=workspace_slug))
+
+    return {
+        "published_count": len(published_pages),
+        "published_pages": published_pages,
+    }
+
+
+@router.delete("/{workspace_id}/wiki/{wiki_id}")
+async def delete_wiki_page(
+    workspace_id: UUID,
+    wiki_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """위키 문서를 영구 삭제한다.
+
+    소유자만 삭제할 수 있으며(RLS wiki_pages_delete_owner),
+    DB 외래키 on delete cascade에 의해 연관 청크, 그래프 엣지, 발행 스냅샷, 북마크가 함께 삭제된다.
+    """
+    db = _user_db(request, credentials)
+    ws_id = str(workspace_id)
+    page_id = str(wiki_id)
+
+    deleted_row = await db.delete_one(
+        "wiki_pages",
+        match={"id": page_id, "workspace_id": ws_id},
+    )
+    return {
+        "id": deleted_row["id"],
+        "workspace_id": deleted_row["workspace_id"],
+        "slug": deleted_row.get("slug", ""),
+        "title": deleted_row.get("title", ""),
     }
 
 

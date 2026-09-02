@@ -47,7 +47,7 @@
 
 ## 마이그레이션
 
-`supabase/migrations/`에 `0001` ~ `0018`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 번호 간격은 없다.
+`supabase/migrations/`에 `0001` ~ `0019`와 `0021`이 있다. **파일명 번호 순서가 곧 적용 순서다.** `0020`은 병렬 BYOK 변경이 예약했으므로 이 브랜치에서는 충돌을 피하려고 비워 두었다.
 
 주요 지점만:
 
@@ -64,6 +64,8 @@
 | `0016` | 공개 공유 사이드카 — `workspace_public_settings` · `wiki_page_publications` |
 | `0017` | 사용자별 위키 즐겨찾기 — `user_wiki_bookmarks` |
 | `0018` | Ask 대화 스레드 이력 — `ask_threads` `ask_messages` |
+| `0019` | Ask 스트리밍 턴 영속화와 멱등 재연결 |
+| `0021` | 참조 보호 원문 삭제 RPC · Storage 정리 잡 읽기 차단 |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 

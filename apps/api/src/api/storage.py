@@ -271,6 +271,22 @@ class UserStorage:
         # 회귀이며, 사용자가 고칠 수 있는 것이 없으므로 5xx가 맞다.
         raise StorageUnavailable
 
+    async def delete(self, *, path: str) -> None:
+        """path의 원본 파일을 버킷에서 삭제한다. 파일이 없거나 성공하면 조용히 반환한다."""
+        response = await self._client.request(
+            "DELETE",
+            f"{self._base_url}/object/{SOURCES_BUCKET}/{_encode_path(path)}",
+            headers=self._headers,
+            timeout=UPLOAD_TIMEOUT_SECONDS,
+        )
+        if response.is_success or response.status_code == 404:
+            return
+
+        code = _error_code(response)
+        if code in _DENIED_CODES or response.status_code in _DENIED_STATUS_CODES:
+            raise WorkspaceForbidden(table=_OBJECTS_TABLE, affected=0)
+        raise StorageUnavailable
+
 
 def _error_code(response: httpx.Response) -> str | None:
     """실패 응답의 `code`만 꺼낸다. 본문의 나머지는 읽지도 옮기지도 않는다."""
