@@ -15,6 +15,7 @@ const fixtures = vi.hoisted(() => ({
 
 const state = vi.hoisted(() => ({
   wikiPagesQueried: false,
+  wikiPageColumns: "",
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -22,7 +23,12 @@ vi.mock("@/lib/supabase/server", () => ({
     from: (table: string) => {
       let inIds: string[] | null = null;
       const query = {
-        select: () => query,
+        select: (columns?: string) => {
+          if (table === "wiki_pages" && columns) {
+            state.wikiPageColumns = columns;
+          }
+          return query;
+        },
         eq: () => query,
         in: (_column: string, ids: string[]) => {
           inIds = ids;
@@ -88,11 +94,14 @@ describe("WikiIndexPage route", () => {
     ];
     fixtures.bookmarks = [];
     state.wikiPagesQueried = false;
+    state.wikiPageColumns = "";
   });
 
   it("bookmarked 파라미터가 없으면 전체 위키 목록을 그대로 넘긴다", async () => {
     const props = await renderWikiIndexPage();
     expect(props.pages.map((p) => p.id)).toEqual(["wiki-1", "wiki-2"]);
+    expect(state.wikiPageColumns).toContain("sources");
+    expect(state.wikiPageColumns).toContain("expires_at");
   });
 
   it("bookmarked=true면 즐겨찾기한 위키만 wiki_pages에서 in()으로 좁혀 조회한다", async () => {
@@ -100,6 +109,7 @@ describe("WikiIndexPage route", () => {
 
     const props = await renderWikiIndexPage("true");
     expect(props.pages.map((p) => p.id)).toEqual(["wiki-2"]);
+    expect(state.wikiPageColumns).toContain("sources");
   });
 
   it("bookmarked=true인데 즐겨찾기가 없으면 wiki_pages 조회 자체를 생략한다", async () => {

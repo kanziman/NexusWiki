@@ -30,8 +30,12 @@ export default async function WikiIndexPage({
   // ⚠️ expires_at 을 빼지 않는다 — 빼면 만료된 검증이 목록·통계에서 계속
   // "검증됨"으로 잡힌다(0007 §5: "만료된 검증을 검증으로 세면 오래된 위키가
   // 영원히 verified 로 남습니다").
+  // sources 는 행 인용 수(배열 길이)용이다. 조회수 컬럼은 스키마에 없고,
+  // 새 RPC 를 만들면 사용자 경로가 service_role 쪽으로 새기 쉽다.
+  // 즐겨찾기 분기와 전체 조회가 이 문자열 하나만 쓰게 해 두 경로가
+  // 어긋나지 않게 한다.
   const pageColumns =
-    "id,slug,title,category,content,verification_status,disputed,expires_at";
+    "id,slug,title,category,content,verification_status,disputed,expires_at,sources";
   let pages: {
     id: string;
     slug: string;
@@ -40,6 +44,8 @@ export default async function WikiIndexPage({
     content: string;
     verification_status: string;
     disputed: boolean;
+    expires_at?: string | null;
+    sources?: unknown;
   }[];
 
   if (bookmarkedOnly) {

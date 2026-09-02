@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { KnowledgeGrid } from "@/components/KnowledgeGrid";
@@ -41,6 +41,7 @@ describe("KnowledgeGrid", () => {
 
     expect(screen.getByText("테넌트 격리 아키텍처")).toBeInTheDocument();
     expect(screen.getByText("검증됨")).toBeInTheDocument();
+    expect(screen.getByText("개념")).toBeInTheDocument();
     expect(screen.getByText(/인용 원문 3개/)).toBeInTheDocument();
 
     expect(screen.getByText("cache-layer-strategy")).toBeInTheDocument();
@@ -48,6 +49,10 @@ describe("KnowledgeGrid", () => {
     expect(
       screen.getByRole("button", { name: /cache-layer-strategy/ }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "소스 추가" })).toHaveAttribute(
+      "href",
+      "/w/ws-1/sources?prefillTitle=cache-layer-strategy&tab=text",
+    );
     expect(screen.getByRole("link", { name: "소스 연결" })).toHaveAttribute(
       "href",
       "/w/ws-1/sources",
@@ -92,7 +97,11 @@ describe("KnowledgeGrid", () => {
     expect(
       screen.getByText("캐시 계층 전략", { selector: "mark" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "소스 추가" })).toHaveAttribute(
+    expect(
+      within(screen.getByRole("dialog")).getByRole("link", {
+        name: "소스 추가",
+      }),
+    ).toHaveAttribute(
       "href",
       "/w/ws-1/sources?prefillTitle=%EC%BA%90%EC%8B%9C%20%EA%B3%84%EC%B8%B5%20%EC%A0%84%EB%9E%B5&tab=text",
     );

@@ -23,6 +23,18 @@ describe("PreviewWorkspace", () => {
     expect(screen.getByText("4개 노드 · 4개 연결")).toBeInTheDocument();
   });
 
+  it("미리보기 홈은 실제 홈과 같은 .sections 그리드를 공유한다", () => {
+    const { container } = render(<PreviewWorkspace path={[]} />);
+    const sections = container.querySelector(".sections");
+
+    expect(sections).not.toBeNull();
+    expect(sections?.children).toHaveLength(2);
+    expect(screen.getByText(/컴파일된 위키 문서/)).toBeInTheDocument();
+    expect(screen.getByText(/작성 대기 백로그/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /이중 인용/ })).toBeInTheDocument();
+    expect(screen.getByText("평가 루프")).toBeInTheDocument();
+  });
+
   it("shows deterministic Ask evidence without a network request", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
