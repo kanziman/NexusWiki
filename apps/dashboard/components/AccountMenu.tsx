@@ -1,13 +1,24 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { LogOut, Plus, Settings, UserRound } from "lucide-react";
+import { LogOut, Plus, Settings, UserRound, Zap } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { apiFetch } from "@/lib/api-client";
+import { formatCredits } from "@/lib/credits";
 import { createClient } from "@/lib/supabase/client";
 
 import { CreateWorkspaceModal } from "@/components/CreateWorkspaceModal";
+
+type WorkspaceBudget = {
+  cap_micros: number;
+  spent_micros: number;
+  remaining_micros: number;
+  month_start: string;
+  truncated: boolean;
+  authoritative: boolean;
+};
 
 type AccountMenuProps = {
   email: string;
@@ -22,10 +33,28 @@ export function AccountMenu({
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [budget, setBudget] = useState<WorkspaceBudget | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const maxReached = typeof workspaceCount === "number" && workspaceCount >= 3;
+
+  useEffect(() => {
+    if (!open || !workspaceId) return;
+    let cancelled = false;
+    apiFetch<WorkspaceBudget>(`/workspaces/${workspaceId}/budget`)
+      .then((res) => {
+        if (!cancelled && res && typeof res.cap_micros === "number") {
+          setBudget(res);
+        }
+      })
+      .catch(() => {
+        // 오류 시 조용히 무시
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workspaceId]);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -47,6 +76,14 @@ export function AccountMenu({
 
   const initial = email ? email[0].toUpperCase() : "U";
   const username = email ? email.split("@")[0] : "사용자";
+
+  const percent =
+    budget && budget.cap_micros > 0
+      ? Math.min(
+          100,
+          Math.max(0, (budget.spent_micros / budget.cap_micros) * 100),
+        )
+      : 0;
 
   return (
     <>
@@ -80,6 +117,71 @@ export function AccountMenu({
                 </span>
               </div>
             </div>
+
+            {/* 무료 크레딧 또는 BYOK 무제한 현황 카드 */}
+            {workspaceId &&
+              budget &&
+              (budget.cap_micros < 0 ? (
+                <Link
+                  href={`/w/${workspaceId}/settings`}
+                  className="block mx-0.5 my-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-2.5 space-y-1 hover:border-[var(--accent)] transition-all group"
+                  title="내 API 키 관리"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-[var(--fg)]">
+                      <Zap
+                        size={13}
+                        className="text-[var(--accent)]"
+                        aria-hidden="true"
+                      />
+                      <span>내 API 키 연결됨</span>
+                    </div>
+                    <span className="font-bold text-[var(--accent)] text-[11px]">
+                      무제한 이용 중
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-[var(--muted)]">
+                    크레딧 차감 없이 무제한으로 사용 가능합니다.
+                  </p>
+                </Link>
+              ) : budget.cap_micros > 0 ? (
+                <Link
+                  href={`/w/${workspaceId}/settings?tab=operations`}
+                  className="block mx-0.5 my-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]/60 p-2.5 space-y-2 hover:border-[var(--accent)]/60 hover:bg-[var(--soft)]/40 transition-all group"
+                  title="운영 현황 및 크레딧 확인"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-[var(--fg)]">
+                      <Zap
+                        size={13}
+                        className="text-[var(--accent)]"
+                        aria-hidden="true"
+                      />
+                      <span>무료 크레딧</span>
+                    </div>
+                    <span className="font-bold text-[var(--accent)] text-[11px]">
+                      {formatCredits(budget.remaining_micros)} 남음
+                    </span>
+                  </div>
+                  <div
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]"
+                    role="progressbar"
+                    aria-valuenow={Math.round(percent)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="크레딧 사용률"
+                  >
+                    <div
+                      className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10.5px] text-[var(--muted)]">
+                    <span>사용 {formatCredits(budget.spent_micros)}</span>
+                    <span>한도 {formatCredits(budget.cap_micros)}</span>
+                  </div>
+                </Link>
+              ) : null)}
 
             <DropdownMenu.Separator className="my-1.5 h-px bg-[var(--border)]" />
 

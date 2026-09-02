@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
+import { CreditLimitModal } from "@/components/CreditLimitModal";
 import { ApiError, apiFetch } from "@/lib/api-client";
 
 export type DropzoneProps = {
@@ -112,6 +113,7 @@ export function Dropzone({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [creditLimitOpen, setCreditLimitOpen] = useState(false);
 
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,6 +170,13 @@ export function Dropzone({
       onIngested?.(result.job_id, result.raw_source_id);
       updateFileUploadItem(item.id, { status: "completed" });
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 402 &&
+        error.detail === "budget_exceeded"
+      ) {
+        setCreditLimitOpen(true);
+      }
       const errorMessage = mapIngestError(error);
       updateFileUploadItem(item.id, {
         status:
@@ -244,6 +253,13 @@ export function Dropzone({
       setUrl("");
       setUrlTitle("");
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 402 &&
+        error.detail === "budget_exceeded"
+      ) {
+        setCreditLimitOpen(true);
+      }
       setErrorMessage(mapIngestError(error));
     } finally {
       setSubmitting(false);
@@ -272,6 +288,13 @@ export function Dropzone({
       setTextTitle("");
       setText("");
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 402 &&
+        error.detail === "budget_exceeded"
+      ) {
+        setCreditLimitOpen(true);
+      }
       setErrorMessage(mapIngestError(error));
     } finally {
       setSubmitting(false);
@@ -629,16 +652,33 @@ export function Dropzone({
         <div
           role="alert"
           data-testid="dropzone-error-banner"
-          className="flex items-start gap-2.5 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/5 p-3 text-xs font-medium text-[var(--danger)] leading-snug"
+          className="flex items-start justify-between gap-2.5 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/5 p-3 text-xs font-medium text-[var(--danger)] leading-snug"
         >
-          <AlertCircle
-            size={15}
-            className="shrink-0 mt-0.5"
-            aria-hidden="true"
-          />
-          <span>{errorMessage}</span>
+          <div className="flex items-start gap-2.5">
+            <AlertCircle
+              size={15}
+              className="shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <span>{errorMessage}</span>
+          </div>
+          {errorMessage === BUDGET_EXCEEDED_MESSAGE && (
+            <button
+              type="button"
+              onClick={() => setCreditLimitOpen(true)}
+              className="underline font-semibold shrink-0 cursor-pointer hover:opacity-80 ml-2"
+            >
+              사용량 확인
+            </button>
+          )}
         </div>
       ) : null}
+
+      <CreditLimitModal
+        open={creditLimitOpen}
+        onOpenChange={setCreditLimitOpen}
+        workspaceId={workspaceId}
+      />
     </div>
   );
 }

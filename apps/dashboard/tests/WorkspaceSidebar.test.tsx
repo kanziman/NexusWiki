@@ -27,6 +27,22 @@ vi.mock("@/components/WorkspaceSwitcher", () => ({
   ),
 }));
 
+vi.mock("@/lib/api-client", () => ({
+  apiFetch: vi.fn(async (path: string) => {
+    if (path.includes("/budget")) {
+      return {
+        cap_micros: 5000000,
+        spent_micros: 1500000,
+        remaining_micros: 3500000,
+        month_start: "2026-08-01T00:00:00Z",
+        truncated: false,
+        authoritative: false,
+      };
+    }
+    return [];
+  }),
+}));
+
 vi.mock("@/lib/ask-threads", () => ({
   listAskThreads: vi.fn(async () => [
     {
@@ -242,5 +258,30 @@ describe("WorkspaceSidebar", () => {
     fireEvent.click(homeLink);
 
     expect(onCloseMobile).toHaveBeenCalledTimes(1);
+  });
+
+  it("사이드바 하단에 잔여 무료 크레딧 위젯을 렌더링한다", async () => {
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    expect(await screen.findByText("무료 크레딧")).toBeInTheDocument();
+    expect(screen.getByText("350 크레딧 남음")).toBeInTheDocument();
+    expect(screen.getByText("30%")).toBeInTheDocument();
+  });
+
+  it("커스텀 API 키가 등록된 워크스페이스는 '내 API 키 연결됨 (무제한)' 위젯을 렌더링한다", async () => {
+    const { apiFetch } = await import("@/lib/api-client");
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      cap_micros: -1,
+      spent_micros: 0,
+      remaining_micros: -1,
+      month_start: "2026-08-01T00:00:00Z",
+      truncated: false,
+      authoritative: false,
+    });
+
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    expect(await screen.findByText("내 API 키 연결됨")).toBeInTheDocument();
+    expect(screen.getByText("무제한 이용 중")).toBeInTheDocument();
   });
 });

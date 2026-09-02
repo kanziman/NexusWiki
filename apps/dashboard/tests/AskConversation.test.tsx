@@ -260,7 +260,7 @@ describe("AskConversation", () => {
     expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
   });
 
-  it("citations.error(budget_exceeded)는 no-evidence 카드와 구분되는 에러 카드를 재시도 버튼과 함께 렌더링한다", async () => {
+  it("citations.error(budget_exceeded)는 no-evidence 카드와 구분되는 에러 카드를 사용량 확인 버튼과 함께 렌더링한다", async () => {
     sseFrames.mockReturnValue(
       toAsyncGenerator([
         { event: "meta", data: { template_id: "t1", evidence_count: 1 } },
@@ -277,8 +277,13 @@ describe("AskConversation", () => {
 
     const errorCard = await screen.findByTestId("ask-error-card");
     expect(errorCard).toHaveAttribute("data-variant", "error");
+    expect(errorCard).toHaveTextContent(
+      "이번 달 무료 크레딧을 모두 소진했습니다.",
+    );
     expect(screen.queryByTestId("no-evidence-card")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
+    expect(
+      screen.getByText("이번 달 무료 크레딧을 모두 소진했습니다"),
+    ).toBeInTheDocument();
   });
 
   it("meta.missing_channels가 비어있지 않으면 인라인 안내 문구를 렌더링한다", async () => {
@@ -371,6 +376,26 @@ describe("AskConversation", () => {
     );
     expect(wikiLookupCalls).toHaveBeenCalledWith("workspace_id", "ws-1");
     expect(wikiLookupCalls).toHaveBeenCalledWith("id", "wiki-uuid-1");
+  });
+
+  it("402 budget_exceeded 에러 시 에러 카드와 크레딧 한도 모달을 표시한다", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 402,
+      text: () =>
+        Promise.resolve(JSON.stringify({ detail: "budget_exceeded" })),
+    } as unknown as Response);
+
+    render(<AskConversation workspaceId="ws-1" />);
+    await askQuestion("질문입니다");
+
+    expect(
+      await screen.findByText("이번 달 무료 크레딧을 모두 소진했습니다."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("이번 달 무료 크레딧을 모두 소진했습니다"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("ask-error-card")).toBeInTheDocument();
   });
 
   it("삭제되거나 접근할 수 없는 wiki 마커를 콘텐츠 뷰어의 안내 상태로 연결한다", async () => {

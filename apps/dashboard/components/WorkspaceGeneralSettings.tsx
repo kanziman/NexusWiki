@@ -3,7 +3,17 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AlertTriangle, Loader2, Trash2, User, Users, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  Trash2,
+  User,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { PublicSharingSettings } from "@/components/PublicSharingSettings";
@@ -13,6 +23,7 @@ export type WorkspaceGeneralSettingsProps = {
   initialName: string;
   initialSlug: string;
   initialKind?: "personal" | "team";
+  initialCustomApiKey?: string | null;
   onKindChange?: (kind: "personal" | "team") => void;
   isOwner: boolean;
   allowPublicSharing?: boolean;
@@ -22,11 +33,20 @@ export type WorkspaceGeneralSettingsProps = {
 
 const SLUG_REGEX = /^[0-9a-z가-힣][0-9a-z가-힣-]*$/;
 
+function maskApiKey(key: string): string {
+  if (!key) return "";
+  if (key.length <= 10) return "••••••••";
+  const prefix = key.slice(0, 8);
+  const suffix = key.slice(-4);
+  return `${prefix}••••••••${suffix}`;
+}
+
 export function WorkspaceGeneralSettings({
   workspaceId,
   initialName,
   initialSlug,
   initialKind = "personal",
+  initialCustomApiKey = null,
   onKindChange,
   isOwner,
   allowPublicSharing = false,
@@ -40,6 +60,14 @@ export function WorkspaceGeneralSettings({
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // BYOK (Bring Your Own Key) 상태
+  const [customApiKey, setCustomApiKey] = useState(initialCustomApiKey ?? "");
+  const [isEditingKey, setIsEditingKey] = useState(false);
+  const [inputKey, setInputKey] = useState("");
+  const [keySaving, setKeySaving] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
+  const [keySuccess, setKeySuccess] = useState<string | null>(null);
 
   // 워크스페이스 삭제 상태
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -151,6 +179,71 @@ export function WorkspaceGeneralSettings({
     } else {
       router.push("/onboarding");
     }
+  }
+
+  async function handleSaveApiKey() {
+    if (!isOwner || keySaving) return;
+    const trimmed = inputKey.trim();
+    if (!trimmed) {
+      setKeyError("API 키를 입력해주세요.");
+      return;
+    }
+    if (trimmed.length < 20 || trimmed.length > 500) {
+      setKeyError("올바른 API 키 형식이 아닙니다 (20자 이상 500자 이하).");
+      return;
+    }
+
+    setKeySaving(true);
+    setKeyError(null);
+    setKeySuccess(null);
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("workspaces")
+      .update({ custom_api_key: trimmed })
+      .eq("id", workspaceId)
+      .select();
+
+    setKeySaving(false);
+    if (error || !data || data.length === 0) {
+      setKeyError(error?.message || "API 키를 저장하지 못했습니다.");
+      return;
+    }
+
+    setCustomApiKey(trimmed);
+    setInputKey("");
+    setIsEditingKey(false);
+    setKeySuccess(
+      "내 API 키가 등록되었습니다! 이제 크레딧 차감 없이 무제한으로 이용할 수 있습니다.",
+    );
+    router.refresh();
+  }
+
+  async function handleDeleteApiKey() {
+    if (!isOwner || keySaving) return;
+    setKeySaving(true);
+    setKeyError(null);
+    setKeySuccess(null);
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("workspaces")
+      .update({ custom_api_key: null })
+      .eq("id", workspaceId)
+      .select();
+
+    setKeySaving(false);
+    if (error || !data || data.length === 0) {
+      setKeyError(error?.message || "API 키를 삭제하지 못했습니다.");
+      return;
+    }
+
+    setCustomApiKey("");
+    setIsEditingKey(false);
+    setKeySuccess(
+      "API 키가 삭제되었습니다. 기본 무료 크레딧 쿼터로 전환되었습니다.",
+    );
+    router.refresh();
   }
 
   return (
@@ -324,6 +417,164 @@ export function WorkspaceGeneralSettings({
             </div>
           )}
         </form>
+      </section>
+
+      {/* AI 모델 및 커스텀 API 키 (BYOK) */}
+      <section
+        className="settings-card mt-6"
+        aria-label="AI 모델 및 API 키 설정"
+        data-od-id="byok-settings-card"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)]/10 text-[var(--accent)] flex-none">
+              <KeyRound size={20} aria-hidden="true" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[var(--fg)]">
+                AI 모델 및 커스텀 API 키 (BYOK)
+              </h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                개인 OpenRouter / OpenAI API 키를 등록하면 월간 크레딧 차감 없이
+                무제한으로 이용할 수 있습니다.
+              </p>
+            </div>
+          </div>
+          {customApiKey && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 flex-none">
+              <Zap size={12} aria-hidden="true" />
+              <span>무제한 활성화됨</span>
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[var(--border)]">
+          {customApiKey && !isEditingKey ? (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[var(--surface-subtle)]/60 border border-[var(--border)]">
+              <div>
+                <span className="block text-[11px] font-semibold text-[var(--muted)]">
+                  연결된 OpenRouter API 키
+                </span>
+                <span className="block font-mono text-xs text-[var(--fg)] mt-0.5 font-medium">
+                  {maskApiKey(customApiKey)}
+                </span>
+              </div>
+              {isOwner && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="API 키 변경"
+                    onClick={() => {
+                      setInputKey("");
+                      setKeyError(null);
+                      setKeySuccess(null);
+                      setIsEditingKey(true);
+                    }}
+                    className="button compact"
+                  >
+                    키 변경
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="API 키 삭제"
+                    disabled={keySaving}
+                    onClick={handleDeleteApiKey}
+                    className="button compact danger"
+                  >
+                    {keySaving ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      "삭제"
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label
+                  htmlFor="custom-api-key-input"
+                  className="block text-xs font-semibold text-[var(--fg)] mb-1.5"
+                >
+                  OpenRouter API 키 등록
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="custom-api-key-input"
+                    type="password"
+                    disabled={!isOwner || keySaving}
+                    value={inputKey}
+                    onChange={(e) => setInputKey(e.target.value)}
+                    placeholder="sk-or-v1-..."
+                    className="field flex-1 font-mono text-xs"
+                    autoComplete="off"
+                  />
+                  {isEditingKey && (
+                    <button
+                      type="button"
+                      disabled={keySaving}
+                      onClick={() => {
+                        setIsEditingKey(false);
+                        setInputKey("");
+                        setKeyError(null);
+                      }}
+                      className="button compact"
+                    >
+                      취소
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label="API 키 저장"
+                    disabled={!isOwner || keySaving || !inputKey.trim()}
+                    onClick={handleSaveApiKey}
+                    className="button compact primary disabled:opacity-50"
+                  >
+                    {keySaving && (
+                      <Loader2 size={13} className="animate-spin" />
+                    )}
+                    <span>API 키 저장</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-[var(--muted)]">
+                <span>
+                  {!isOwner
+                    ? "소유자(Owner)만 API 키를 등록하거나 수정할 수 있습니다."
+                    : "입력된 키는 안전하게 암호화되어 해당 워크스페이스에서만 사용됩니다."}
+                </span>
+                <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--accent)] hover:underline inline-flex items-center gap-1 font-medium"
+                >
+                  <span>OpenRouter 키 발급받기</span>
+                  <ExternalLink size={11} aria-hidden="true" />
+                </a>
+              </div>
+            </div>
+          )}
+
+          {keyError && (
+            <p
+              role="alert"
+              className="invite-feedback error show mt-3 text-xs text-[var(--danger)]"
+            >
+              {keyError}
+            </p>
+          )}
+          {keySuccess && (
+            <p
+              role="status"
+              className="invite-feedback success show mt-3 text-xs text-[var(--success)]"
+            >
+              {keySuccess}
+            </p>
+          )}
+        </div>
       </section>
 
       <PublicSharingSettings

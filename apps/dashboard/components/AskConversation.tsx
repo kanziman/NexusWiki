@@ -5,6 +5,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
+import { CreditLimitModal } from "@/components/CreditLimitModal";
 import { MarkdownAnswer } from "@/components/MarkdownAnswer";
 import { ThreadDrawer } from "@/components/ThreadDrawer";
 import {
@@ -141,6 +142,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
     {},
   );
   const [threads, setThreads] = useState<AskThreadSummary[]>([]);
+  const [creditLimitOpen, setCreditLimitOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
@@ -362,6 +364,9 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
 
       if (!response.ok) {
         const errorToken = await readAskErrorToken(response);
+        if (response.status === 402 || errorToken === "budget_exceeded") {
+          setCreditLimitOpen(true);
+        }
         patchTurn({ status: "error", errorToken });
         return;
       }
@@ -400,6 +405,9 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           if (noEvidence) {
             patchTurn({ status: "no-evidence" });
           } else if (citations.error) {
+            if (citations.error === "budget_exceeded") {
+              setCreditLimitOpen(true);
+            }
             patchTurn({ status: "error", errorToken: citations.error });
           } else {
             accumulatedText = citations.text ?? accumulatedText;
@@ -621,16 +629,30 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                   data-testid="ask-error-card"
                   className="answer notice"
                 >
-                  <p>{GENERIC_ERROR_MESSAGE}</p>
-                  <button
-                    type="button"
-                    className="button compact"
-                    onClick={() =>
-                      void submitQuestion(turn.question, activeKey)
-                    }
-                  >
-                    재시도
-                  </button>
+                  <p>
+                    {turn.errorToken === "budget_exceeded"
+                      ? "이번 달 무료 크레딧을 모두 소진했습니다."
+                      : GENERIC_ERROR_MESSAGE}
+                  </p>
+                  {turn.errorToken === "budget_exceeded" ? (
+                    <button
+                      type="button"
+                      className="button compact"
+                      onClick={() => setCreditLimitOpen(true)}
+                    >
+                      사용량 확인
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button compact"
+                      onClick={() =>
+                        void submitQuestion(turn.question, activeKey)
+                      }
+                    >
+                      재시도
+                    </button>
+                  )}
                 </article>
               ) : turn.status === "dropped" ? (
                 <article
@@ -833,6 +855,12 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <CreditLimitModal
+        open={creditLimitOpen}
+        onOpenChange={setCreditLimitOpen}
+        workspaceId={workspaceId}
+      />
     </section>
   );
 }
