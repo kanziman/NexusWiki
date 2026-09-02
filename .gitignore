@@ -42,3 +42,10 @@ dist/
 .pnpm-store/
 .planning/research/.cache/
 HANDOFF.md
+
+# --- 디자인 프로토타입 HTML ---
+# ⚠️ apps/dashboard/public/ 은 인증 게이트 밖이다 — middleware.ts 의 matcher 는
+# ["/w/:path*", "/login", "/signup", "/"] 뿐이라 public/ 정적 파일은 미들웨어를
+# 지나지 않는다. 프로토타입이 여기로 커밋되면 로그인 없이 열리는 URL 이 된다.
+# 커밋할 프로토타입은 docs/design-systems/ 에 둔다.
+apps/dashboard/public/*-preview.html

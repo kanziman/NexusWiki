@@ -97,7 +97,7 @@ export default function WorkspaceHomeLoading() {
         {/* 우측: 작성 대기 백로그 (3개 행) */}
         <section
           className="backlog animate-pulse"
-          aria-label="작성 대기 백로그 로딩 중"
+          aria-label="지식 공백 로딩 중"
         >
           <div className="section-head">
             <div className="h-5 w-32 rounded-md bg-[var(--surface)]" />

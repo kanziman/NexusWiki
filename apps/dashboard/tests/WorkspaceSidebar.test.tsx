@@ -101,9 +101,12 @@ describe("WorkspaceSidebar", () => {
     expect(screen.getByRole("link", { name: /원문 소스/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /질문하기/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /위키 문서/ })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /미완성 백로그/ }),
-    ).toBeInTheDocument();
+    // aria-label 이 접근성 이름을 덮으므로 getByRole 은 그쪽만 본다. 보이는
+    // 라벨을 따로 단언해, 둘이 갈라지면(예: 눈에 보이는 문구만 바꾸는 경우)
+    // 스크린리더 사용자에게 옛 명칭이 남는 상황을 잡는다.
+    const backlogLink = screen.getByRole("link", { name: "지식 공백" });
+    expect(backlogLink).toBeInTheDocument();
+    expect(backlogLink).toHaveTextContent("지식 공백");
     expect(screen.getByRole("link", { name: /즐겨찾기/ })).toHaveAttribute(
       "href",
       "/w/ws-1/wiki?bookmarked=true",

@@ -69,7 +69,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
       {/* 헤더 영역 */}
       <section className="hero" data-od-id="backlog-header">
         <div>
-          <h1>미완성 백로그</h1>
+          <h1>지식 공백</h1>
           <p>
             위키 문서에서 참조되었으나 아직 작성되지 않은 레드링크 목록입니다.
             관련 소스를 추가하면 자동으로 컴파일되어 해결됩니다.
@@ -78,7 +78,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
       </section>
 
       {/* 요약 통계 */}
-      <section className="stats" aria-label="백로그 요약">
+      <section className="stats" aria-label="지식 공백 요약">
         <div className="stat">
           <b>{items.length}</b>
           <span>미해결 백로그</span>
@@ -92,7 +92,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
       {/* 툴바 & 테이블 섹션 */}
       <section data-od-id="backlog-table-section">
         <div className="toolbar flex items-center justify-between gap-4">
-          <nav className="tabs" role="tablist" aria-label="백로그 필터">
+          <nav className="tabs" role="tablist" aria-label="지식 공백 필터">
             <button
               type="button"
               role="tab"
@@ -117,7 +117,7 @@ export function BacklogList({ workspaceId, initialItems }: BacklogListProps) {
                 setPage(1);
               }}
               placeholder="주제 또는 참조 문서로 검색"
-              aria-label="백로그 검색"
+              aria-label="지식 공백 검색"
             />
           </div>
         </div>

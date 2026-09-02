@@ -22,9 +22,9 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { Pagination } from "@/components/Pagination";
 import {
-  isExpiredVerification,
   isVerified,
   verificationLabel,
+  verificationToneClass,
 } from "@/lib/verification-label";
 import {
   bulkPublishWikiPages,
@@ -114,14 +114,6 @@ function getCategoryIcon(category: string) {
     default:
       return <FileText size={13} className="opacity-75 flex-none" />;
   }
-}
-
-function verificationToneClass(page: WikiLibraryPage): string {
-  if (page.disputed) return "text-[var(--danger)]";
-  if (isVerified(page)) return "text-[var(--good)]";
-  // 만료는 미검증(muted)과 겹치면 목록에서 경고가 사라진다.
-  if (isExpiredVerification(page)) return "text-[var(--warning)]";
-  return "text-[var(--muted)]";
 }
 
 /**

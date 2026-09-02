@@ -4,6 +4,16 @@ import { describe, expect, it } from "vitest";
 import { BacklogItem, BacklogList } from "@/components/BacklogList";
 
 describe("BacklogList", () => {
+  it("화면 제목은 정본 명칭 지식 공백을 쓴다", () => {
+    render(<BacklogList workspaceId="ws-1" initialItems={[]} />);
+
+    // 목적지 이름이 표면마다 갈리지 않아야 한다. 이 단언이 없으면 heading 만
+    // 옛 명칭으로 되돌아가도 전체 테스트가 통과한다.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "지식 공백" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders empty state when there are no backlog items", () => {
     render(<BacklogList workspaceId="ws-1" initialItems={[]} />);
 
@@ -57,7 +67,9 @@ describe("BacklogList", () => {
 
     // 상단 통계. ⚠️ 화면 전체에서 "3"을 찾으면 안 된다 — 인용 빈도 열이 같은
     // 숫자를 렌더하므로 요약 영역 안으로 좁힌다.
-    const summary = within(screen.getByRole("region", { name: "백로그 요약" }));
+    const summary = within(
+      screen.getByRole("region", { name: "지식 공백 요약" }),
+    );
     expect(summary.getByText("2")).toBeInTheDocument(); // 2개 주제
     expect(summary.getByText("3")).toBeInTheDocument(); // 3개 문서
 
@@ -119,7 +131,7 @@ describe("BacklogList", () => {
 
     render(<BacklogList workspaceId="ws-1" initialItems={items} />);
 
-    const searchInput = screen.getByRole("textbox", { name: "백로그 검색" });
+    const searchInput = screen.getByRole("textbox", { name: "지식 공백 검색" });
 
     fireEvent.change(searchInput, { target: { value: "캐시" } });
     expect(screen.getByText("캐시 계층 전략")).toBeInTheDocument();

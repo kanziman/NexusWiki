@@ -134,7 +134,7 @@ describe("KnowledgeGrid", () => {
     ).toBeInTheDocument();
   });
 
-  it("홈 대시보드 피드에서 위키 문서는 최대 10개, 백로그 항목은 최대 8개로 노출을 제한한다", () => {
+  it("홈 대시보드 피드에서 위키 문서는 최대 5개, 백로그 항목은 최대 4개로 노출을 제한한다", () => {
     const manyPages = Array.from({ length: 15 }, (_, i) => ({
       id: `page-${i + 1}`,
       title: `위키 문서 ${i + 1}`,
@@ -162,14 +162,42 @@ describe("KnowledgeGrid", () => {
     expect(screen.getByText("15")).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
 
-    // 위키 문서는 1~10까지만 렌더링되고 11~15는 렌더링되지 않는다
+    // 위키 문서는 1~5까지만 렌더링되고 6~15는 렌더링되지 않는다
     expect(screen.getByText("위키 문서 1")).toBeInTheDocument();
-    expect(screen.getByText("위키 문서 10")).toBeInTheDocument();
-    expect(screen.queryByText("위키 문서 11")).not.toBeInTheDocument();
+    expect(screen.getByText("위키 문서 5")).toBeInTheDocument();
+    expect(screen.queryByText("위키 문서 6")).not.toBeInTheDocument();
 
-    // 백로그는 1~8까지만 렌더링되고 9~12는 렌더링되지 않는다
+    // 백로그는 1~4까지만 렌더링되고 5~12는 렌더링되지 않는다
     expect(screen.getByText("백로그 주제 1")).toBeInTheDocument();
-    expect(screen.getByText("백로그 주제 8")).toBeInTheDocument();
-    expect(screen.queryByText("백로그 주제 9")).not.toBeInTheDocument();
+    expect(screen.getByText("백로그 주제 4")).toBeInTheDocument();
+    expect(screen.queryByText("백로그 주제 5")).not.toBeInTheDocument();
+
+    // 상한을 넘긴 항목은 각 열의 전용 화면에서 계속 도달할 수 있어야 한다.
+    // 이 단언이 없으면 링크를 지워도 테스트가 통과해, 잘린 항목이 조용히
+    // 도달 불가능해진다.
+    expect(
+      document.querySelector('[data-od-id="view-all-documents"]'),
+    ).toHaveAttribute("href", "/w/ws-1/wiki");
+    expect(
+      document.querySelector('[data-od-id="view-all-backlog"]'),
+    ).toHaveAttribute("href", "/w/ws-1/backlog");
+
+    // 두 열의 탈출구 링크는 같은 역할이므로 같은 라벨을 쓴다. href 만 단언하면
+    // 라벨이 조용히 갈라져도 통과한다 — 상한을 낮춘 화면에서 이 링크는 잘린
+    // 항목에 도달하는 유일한 경로다.
+    expect(
+      document.querySelector('[data-od-id="view-all-documents"]'),
+    ).toHaveTextContent("전체 보기");
+    expect(
+      document.querySelector('[data-od-id="view-all-backlog"]'),
+    ).toHaveTextContent("전체 보기");
+
+    // 홈 요약 섹션도 목적지의 정본 명칭으로 시작해야 한다. 괄호 보조 설명은
+    // 허용되지만 정본 명칭을 대체할 수는 없다.
+    const backlogSection = document.querySelector(
+      '[data-od-id="writing-backlog-section"]',
+    );
+    expect(backlogSection).toHaveTextContent("지식 공백");
+    expect(backlogSection).not.toHaveTextContent("미완성 백로그");
   });
 });

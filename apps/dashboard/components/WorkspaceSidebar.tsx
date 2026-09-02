@@ -340,14 +340,14 @@ export function WorkspaceSidebar({
             href={`${base}/backlog`}
             prefetch={true}
             onClick={handleItemClick}
-            aria-label="미완성 백로그"
+            aria-label="지식 공백"
             aria-current={
               pathname.startsWith(`${base}/backlog`) ? "page" : undefined
             }
             className={`nav-item ${pathname.startsWith(`${base}/backlog`) ? "active" : ""}`}
           >
             <CircleAlert className="nav-icon" aria-hidden="true" />
-            <span>미완성 백로그</span>
+            <span>지식 공백</span>
           </Link>
 
           <Link

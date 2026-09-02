@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
+  BookOpen,
   ChevronRight,
   CircleAlert,
   FileText,
   HelpCircle,
   Home,
+  Link2,
   LogOut,
   Plus,
   Search,
@@ -50,7 +52,7 @@ const navigation = [
   { href: "/preview/wiki", label: "위키 문서", icon: FileText, screen: "wiki" },
   {
     href: "/preview/backlog",
-    label: "미완성 백로그",
+    label: "지식 공백",
     icon: CircleAlert,
     screen: "backlog",
   },
@@ -244,56 +246,110 @@ function PreviewHome() {
           ))}
         </div>
       </section>
-      {/* `.sections` 는 홈 KnowledgeGrid 와 같은 클래스다. 미리보기가 실제
-          홈의 비대칭(1.4fr / 1fr) 비율을 함께 받는 것이 맞다 — 클래스를
-          포크하면 미리보기가 실제 홈과 서서히 갈라져 "대표성 있는 미리보기"가
-          조용히 무너진다. */}
+      {/* `.sections` 는 홈 KnowledgeGrid 와 같은 클래스이고, 행 마크업도 홈과
+          같은 카드 형태를 따른다. 클래스만 공유하고 마크업이 갈라지면 미리보기가
+          실제 홈과 다른 화면을 보여 주게 되어 "대표성 있는 미리보기"가 조용히
+          무너진다 — 홈 카드 구조를 바꿀 때 이 블록도 함께 고친다. */}
       <section className="sections">
-        <div>
-          <SectionHead
-            title="컴파일된 위키 문서"
-            count={visiblePages.length}
-            href="/preview/wiki"
-          />
-          <div className="doc-list">
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80">
+            <div className="flex items-center gap-2">
+              <BookOpen size={17} className="text-[var(--accent)] flex-none" />
+              <h2 className="text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-2 m-0">
+                <span>컴파일된 위키 문서</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+                  {String(visiblePages.length).padStart(2, "0")}
+                </span>
+              </h2>
+            </div>
+            <Link
+              href="/preview/wiki"
+              className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity"
+            >
+              <span>전체 보기</span>
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+
+          <div className="flex flex-col gap-2">
             {visiblePages.map((page) => (
               <Link
                 key={page.id}
                 href={`/preview/wiki/${page.slug}`}
-                className="doc"
+                className="group flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all"
               >
-                <div className="doc-body">
-                  <span className="doc-title">{page.title}</span>
-                  <span className="doc-meta">
-                    {page.category} · 인용 원문 {page.sourceCount}개
+                <div className="flex-1 min-w-0 pr-3">
+                  <div className="flex items-center gap-1.5 mb-1 leading-none flex-wrap">
+                    <span className="text-[10.5px] font-bold tracking-wider uppercase text-[var(--accent)]">
+                      {page.category}
+                    </span>
+                    <span className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"></span>
+                    <span className="inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)]">
+                      <Link2 size={9} />
+                      <span>인용 원문 {page.sourceCount}개</span>
+                    </span>
+                  </div>
+                  <span className="text-[14.5px] sm:text-[15px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
+                    {page.title}
                   </span>
                 </div>
-                <ChevronRight className="nav-icon" aria-hidden="true" />
+                <ChevronRight
+                  size={16}
+                  className="text-[var(--muted)] group-hover:translate-x-0.5 group-hover:text-[var(--accent)] transition-all flex-none ml-2"
+                  aria-hidden="true"
+                />
               </Link>
             ))}
           </div>
-        </div>
-        <div className="backlog">
-          <SectionHead
-            title="작성 대기 백로그"
-            count={previewBacklog.length}
-            href="/preview/backlog"
-          />
-          <div className="doc-list">
+        </section>
+
+        <section className="backlog rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80">
+            <div className="flex items-center gap-2">
+              <CircleAlert
+                size={17}
+                className="text-[var(--warning)] flex-none"
+              />
+              <h2 className="text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-2 m-0">
+                <span>지식 공백 (작성 대기 백로그)</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25">
+                  {String(previewBacklog.length).padStart(2, "0")}
+                </span>
+              </h2>
+            </div>
+            <Link
+              href="/preview/backlog"
+              className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity"
+            >
+              <span>전체 보기</span>
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+
+          <div className="flex flex-col gap-2">
             {previewBacklog.map((item) => (
-              <Link key={item.slug} href="/preview/backlog" className="doc">
-                <div className="doc-body">
-                  <span className="doc-title">{item.title}</span>
-                  <span className="doc-meta">
-                    위키 {item.references}곳에서 인용됨 · {item.firstDetected}{" "}
-                    감지
+              <Link
+                key={item.slug}
+                href="/preview/backlog"
+                className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] border-l-[3px] border-l-[var(--warning)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:border-l-[var(--warning)] hover:shadow-2xs transition-all gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <span className="text-[13.5px] sm:text-[14px] font-bold font-mono text-[var(--fg)] block truncate">
+                    {item.title}
+                  </span>
+                  <span className="text-xs text-[var(--muted)] mt-0.5 block">
+                    위키 {item.references}곳에서 인용됨 · 원문 소스 연결 필요
                   </span>
                 </div>
-                <ChevronRight className="nav-icon" aria-hidden="true" />
+                <ChevronRight
+                  size={16}
+                  className="text-[var(--muted)] flex-none"
+                  aria-hidden="true"
+                />
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       </section>
     </div>
   );
@@ -582,7 +638,7 @@ function PreviewBacklog({ onAction }: { onAction: (action: Notice) => void }) {
   return (
     <div className="content backlog">
       <PageHero
-        title="미완성 백로그"
+        title="지식 공백"
         body="위키에서 참조되었지만 아직 작성되지 않은 지식을 확인합니다."
       />
       <section className="table-wrap">
@@ -696,28 +752,6 @@ function Stat({ value, label }: { value: string; label: string }) {
     <div className="stat">
       <b>{value}</b>
       <span>{label}</span>
-    </div>
-  );
-}
-
-function SectionHead({
-  title,
-  count,
-  href,
-}: {
-  title: string;
-  count: number;
-  href: string;
-}) {
-  return (
-    <div className="section-head">
-      <h2>
-        {title}
-        <span>{String(count).padStart(2, "0")}</span>
-      </h2>
-      <Link href={href} className="text-button">
-        전체 보기 →
-      </Link>
     </div>
   );
 }

@@ -102,3 +102,20 @@ export function isExpiredVerification(
     isExpired(page, now)
   );
 }
+
+/**
+ * 검증 상태 → 화면 색(Tailwind 클래스). **이 매핑의 유일한 출처다.**
+ *
+ * ⚠️ 라벨과 같은 이유로 중앙화한다. 컴포넌트가 삼항으로 색을 직접 들고 있으면,
+ * 한쪽만 고쳤을 때 같은 `disputed` 문서가 위키 라이브러리에서는 빨강, 홈에서는
+ * 회색으로 보인다 — 라벨을 통일해 놓고 색으로 같은 문제를 다시 만드는 셈이다.
+ *
+ * 토큰만 돌려준다. 크기·굵기·아이콘은 목적지가 정한다.
+ */
+export function verificationToneClass(page: VerificationLabelInput): string {
+  if (page.disputed) return "text-[var(--danger)]";
+  if (isVerified(page)) return "text-[var(--good)]";
+  // 만료는 미검증(muted)과 겹치면 목록에서 경고가 사라진다.
+  if (isExpiredVerification(page)) return "text-[var(--warning)]";
+  return "text-[var(--muted)]";
+}
