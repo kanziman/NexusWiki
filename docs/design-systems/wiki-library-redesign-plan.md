@@ -134,8 +134,10 @@
 
 ```tsx
 // 디자인 콘셉트 코드
-// Tailwind `/30`은 var()에 적용되지 않으므로 투명도 대신 토큰 두 개로 elevation을 만든다.
-// base는 `--bg`(순백), 호버는 `--surface`(살짝 틴트) — 같은 토큰을 양쪽에 쓰면 hover가 죽는다.
+// elevation은 실재 토큰 두 개로 만든다 — base는 `--bg`(순백), 호버는 `--surface`(살짝 틴트).
+// 같은 토큰을 양쪽에 쓰면 hover가 죽는다.
+// (참고: Tailwind v4는 `bg-[var(--x)]/30` 같은 불투명도 수식어를 color-mix 로 컴파일하므로
+//  var() 값에도 쓸 수 있다. 이 저장소에도 이미 여러 곳에서 쓰인다.)
 <div className="group relative flex items-start gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs transition-all">
   {/* 1. 체크박스 (왼쪽 고정 정렬) */}
   <div className="pt-1 flex-none">

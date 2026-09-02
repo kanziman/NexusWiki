@@ -2,10 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.hoisted(() => vi.fn());
+// 브레드크럼은 pathname 으로 목적지 이름을 고르므로 테스트마다 바꿀 수 있어야
+// 한다. 기본값은 기존 테스트가 기대하는 홈 경로다.
+const pathnameRef = vi.hoisted(() => ({ current: "/w/ws-1" }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
-  usePathname: () => "/w/ws-1",
+  usePathname: () => pathnameRef.current,
   useSearchParams: () => ({
     get: () => null,
   }),
@@ -36,6 +39,22 @@ describe("WorkspaceShell", () => {
   beforeEach(() => {
     push.mockReset();
     sessionStorage.clear();
+    pathnameRef.current = "/w/ws-1";
+  });
+
+  it("백로그 목적지의 브레드크럼은 정본 명칭 지식 공백을 쓴다", () => {
+    pathnameRef.current = "/w/ws-1/backlog";
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <div />
+      </WorkspaceShell>,
+    );
+
+    // 목적지 이름이 표면마다 갈리지 않아야 한다. 이 단언이 없으면 브레드크럼만
+    // 옛 명칭으로 되돌아가도 전체 테스트가 통과한다.
+    const topbar = document.querySelector('[data-od-id="workspace-topbar"]');
+    expect(topbar).toHaveTextContent("지식 공백");
+    expect(topbar).not.toHaveTextContent("미완성 백로그");
   });
 
   it("상단 질문 시작 버튼도 세션의 활성 스레드로 이동한다", () => {

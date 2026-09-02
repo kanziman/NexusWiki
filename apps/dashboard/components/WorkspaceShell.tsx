@@ -28,7 +28,7 @@ function getSectionTitle(pathname: string, isBookmarked: boolean): string {
   if (sub.startsWith("sources")) return "원문 소스";
   if (sub.startsWith("wiki")) return isBookmarked ? "즐겨찾기" : "위키 문서";
   if (sub.startsWith("ask")) return "질문하기";
-  if (sub.startsWith("backlog")) return "미완성 백로그";
+  if (sub.startsWith("backlog")) return "지식 공백";
   if (sub.startsWith("graph")) return "지식 그래프";
   if (sub.startsWith("settings")) return "설정";
   return "홈 대시보드";
