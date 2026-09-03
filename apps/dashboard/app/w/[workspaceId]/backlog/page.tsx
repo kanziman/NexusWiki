@@ -64,7 +64,7 @@ export default async function BacklogPage({ params }: BacklogPageProps) {
   const supabase = await createClient();
 
   // 1. 미해결 위키 링크 조회
-  const { data: linksData } = await supabase
+  const { data: linksData, error: linksError } = await supabase
     .from("wiki_links")
     .select("id,target_slug,from_wiki_id,created_at")
     .eq("workspace_id", workspaceId)
@@ -73,10 +73,22 @@ export default async function BacklogPage({ params }: BacklogPageProps) {
   const links = linksData ?? [];
 
   // 2. 출발지 위키 페이지 메타데이터 조회 — 인용 칩·정렬에 쓰인다.
-  const { data: pagesData } = await supabase
+  const { data: pagesData, error: pagesError } = await supabase
     .from("wiki_pages")
     .select("id,slug,title")
     .eq("workspace_id", workspaceId);
+
+  // ⚠️ error 를 흘려보내면 안 된다. `linksData ?? []`만 쓰면 조회 실패가
+  // "미해결 링크 없음"과 똑같은 빈 배열이 되어, 화면이 "모든 위키 링크가
+  // 정상적으로 연결되어 있습니다"라고 단정하게 된다 — 안심시키는 거짓말이다.
+  const loadFailed = Boolean(linksError) || Boolean(pagesError);
+  if (loadFailed) {
+    console.error("지식 공백 목록 조회 실패", {
+      workspaceId,
+      linksError,
+      pagesError,
+    });
+  }
 
   const pagesMap = new Map<string, ReferencingPage>(
     (pagesData ?? []).map((page) => [page.id, page]),
@@ -181,5 +193,11 @@ export default async function BacklogPage({ params }: BacklogPageProps) {
           new Date(b.first_detected_at).getTime(),
     );
 
-  return <BacklogList workspaceId={workspaceId} initialItems={items} />;
+  return (
+    <BacklogList
+      workspaceId={workspaceId}
+      initialItems={items}
+      loadFailed={loadFailed}
+    />
+  );
 }
