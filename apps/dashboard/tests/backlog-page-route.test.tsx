@@ -18,6 +18,8 @@ const fixtures = vi.hoisted(() => ({
   }[],
   pages: [] as { id: string; slug: string; title: string }[],
   contents: {} as Record<string, string>,
+  linksError: null as { message: string } | null,
+  pagesError: null as { message: string } | null,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -39,9 +41,17 @@ vi.mock("@/lib/supabase/server", () => ({
           }
           return query;
         },
-        then: (resolve: (value: { data: unknown; error: null }) => unknown) => {
+        then: (
+          resolve: (value: {
+            data: unknown;
+            error: { message: string } | null;
+          }) => unknown,
+        ) => {
           if (table === "wiki_links") {
-            return resolve({ data: fixtures.links, error: null });
+            return resolve({
+              data: fixtures.linksError ? null : fixtures.links,
+              error: fixtures.linksError,
+            });
           }
           if (table === "wiki_pages" && columns.includes("content")) {
             const rows = inIds
@@ -50,7 +60,10 @@ vi.mock("@/lib/supabase/server", () => ({
             return resolve({ data: rows, error: null });
           }
           if (table === "wiki_pages") {
-            return resolve({ data: fixtures.pages, error: null });
+            return resolve({
+              data: fixtures.pagesError ? null : fixtures.pages,
+              error: fixtures.pagesError,
+            });
           }
           return resolve({ data: [], error: null });
         },
@@ -80,6 +93,7 @@ type RenderedProps = {
       excerpt: string | null;
     }[];
   }[];
+  loadFailed?: boolean;
 };
 
 async function renderBacklogPage(): Promise<RenderedProps> {
@@ -96,6 +110,8 @@ describe("BacklogPage route", () => {
     fixtures.links = [];
     fixtures.pages = [];
     fixtures.contents = {};
+    fixtures.linksError = null;
+    fixtures.pagesError = null;
   });
 
   it("본문 조회를 미해결 링크가 실제로 가리키는 from_wiki_id 집합으로 제한한다", async () => {
@@ -126,9 +142,40 @@ describe("BacklogPage route", () => {
       { id: "wiki-a", slug: "arch-guide", title: "아키텍처 가이드" },
     ];
 
-    await renderBacklogPage();
+    const props = await renderBacklogPage();
 
     expect(state.contentInCalls).toHaveLength(0);
+    expect(props.loadFailed).toBe(false);
+  });
+
+  it("미해결 링크 조회가 운영 오류를 반환하면 빈 결과와 구분되는 loadFailed 를 전달한다", async () => {
+    fixtures.linksError = { message: "connection reset" };
+    fixtures.pages = [
+      { id: "wiki-a", slug: "arch-guide", title: "아키텍처 가이드" },
+    ];
+
+    const props = await renderBacklogPage();
+
+    expect(props.loadFailed).toBe(true);
+    // 실패한 조회 결과를 빈 배열인 척 넘기지 않는다 — items 는 비어 있을
+    // 수 있지만 loadFailed 로만 "실패"와 "정상 빈 상태"가 구분된다.
+    expect(props.initialItems).toEqual([]);
+  });
+
+  it("위키 페이지 메타데이터 조회가 실패해도 loadFailed 를 전달한다", async () => {
+    fixtures.links = [
+      {
+        id: "l1",
+        target_slug: "캐시-계층-전략",
+        from_wiki_id: "wiki-a",
+        created_at: "2026-08-15T00:00:00Z",
+      },
+    ];
+    fixtures.pagesError = { message: "boom" };
+
+    const props = await renderBacklogPage();
+
+    expect(props.loadFailed).toBe(true);
   });
 
   it("행 라벨이 인용 문서 본문에서 복원한 [[표기]]를 쓴다", async () => {

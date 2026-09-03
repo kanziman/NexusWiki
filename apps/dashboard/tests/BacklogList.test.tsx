@@ -65,17 +65,22 @@ describe("BacklogList", () => {
 
     render(<BacklogList workspaceId="ws-1" initialItems={items} />);
 
-    // 상단 통계. ⚠️ 화면 전체에서 "3"을 찾으면 안 된다 — 인용 빈도 열이 같은
-    // 숫자를 렌더하므로 요약 영역 안으로 좁힌다.
-    const summary = within(
-      screen.getByRole("region", { name: "지식 공백 요약" }),
-    );
-    expect(summary.getByText("2")).toBeInTheDocument(); // 2개 주제
-    expect(summary.getByText("3")).toBeInTheDocument(); // 3개 문서
+    // 상단 통계. ⚠️ 화면 전체에서 "3"을 찾으면 안 된다 — 인용 빈도 열과
+    // 최다 인용 카드가 같은 숫자를 렌더할 수 있으므로 각 지표 카드로 좁힌다.
+    expect(
+      within(screen.getByTestId("backlog-metric-unresolved")).getByText("2"),
+    ).toBeInTheDocument(); // 2개 주제
+    expect(
+      within(screen.getByTestId("backlog-metric-affected-wikis")).getByText(
+        "3",
+      ),
+    ).toBeInTheDocument(); // 3개 문서
 
     // 항목 렌더링. 인용 빈도는 배지가 아니라 표의 정렬 축 열이다(PRD §3.2).
+    // ⚠️ 주제명은 최다 인용/최장 대기 벤토 카드에도 나타날 수 있으므로 표
+    // 안으로 좁힌다.
     const table = within(screen.getByRole("table"));
-    expect(screen.getByText("캐시 계층 전략")).toBeInTheDocument();
+    expect(table.getByText("캐시 계층 전략")).toBeInTheDocument();
     expect(table.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("인증 흐름")).toBeInTheDocument();
     expect(table.getByText("1")).toBeInTheDocument();
@@ -134,11 +139,216 @@ describe("BacklogList", () => {
     const searchInput = screen.getByRole("textbox", { name: "지식 공백 검색" });
 
     fireEvent.change(searchInput, { target: { value: "캐시" } });
-    expect(screen.getByText("캐시 계층 전략")).toBeInTheDocument();
-    expect(screen.queryByText("인증 흐름")).not.toBeInTheDocument();
+    // ⚠️ 벤토 요약은 검색어와 무관하게 전체 데이터를 반영하므로, 최다
+    // 인용/최장 대기 카드가 같은 주제명을 계속 보여줄 수 있다. 표 안으로
+    // 좁혀 필터링된 행만 확인한다.
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("캐시 계층 전략")).toBeInTheDocument();
+    expect(table.queryByText("인증 흐름")).not.toBeInTheDocument();
 
     fireEvent.change(searchInput, { target: { value: "존재하지않음" } });
     expect(screen.getByText("검색 결과가 없습니다")).toBeInTheDocument();
+  });
+
+  describe("우선순위 요약 벤토", () => {
+    const bentoItems: BacklogItem[] = [
+      {
+        target_slug: "캐시-계층-전략",
+        display_title: "캐시 계층 전략",
+        impact: 3,
+        first_detected_at: "2026-08-16T00:00:00Z",
+        referencing_pages: [
+          {
+            id: "page-1",
+            slug: "arch-guide",
+            title: "아키텍처 가이드",
+            excerpt: null,
+          },
+          {
+            id: "page-2",
+            slug: "perf-tuning",
+            title: "성능 튜닝",
+            excerpt: null,
+          },
+        ],
+      },
+      {
+        target_slug: "인증-흐름",
+        display_title: "인증 흐름",
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [
+          {
+            id: "page-3",
+            slug: "auth-spec",
+            title: "인증 명세",
+            excerpt: null,
+          },
+        ],
+      },
+    ];
+
+    it("네 지표가 목록과 일치한다 — 최다 인용과 최장 대기가 서로 다른 주제를 가리킨다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={bentoItems} />);
+
+      expect(
+        within(screen.getByTestId("backlog-metric-unresolved")).getByText("2"),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("backlog-metric-affected-wikis")).getByText(
+          "3",
+        ),
+      ).toBeInTheDocument();
+      // 최다 인용 — impact 3인 "캐시 계층 전략"
+      expect(
+        within(screen.getByTestId("backlog-metric-most-cited")).getByText(
+          "캐시 계층 전략",
+        ),
+      ).toBeInTheDocument();
+      // 최장 대기 — first_detected_at 이 더 이른 "인증 흐름"
+      expect(
+        within(screen.getByTestId("backlog-metric-longest-waiting")).getByText(
+          "인증 흐름",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("최다 인용이 동률이면 target_slug 오름차순으로 결정적으로 고른다", () => {
+      const tiedItems: BacklogItem[] = [
+        {
+          target_slug: "나중-주제",
+          display_title: "나중 주제",
+          impact: 2,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [],
+        },
+        {
+          target_slug: "가장-먼저-주제",
+          display_title: "가장 먼저 주제",
+          impact: 2,
+          first_detected_at: "2026-08-15T00:00:00Z",
+          referencing_pages: [],
+        },
+      ];
+
+      render(<BacklogList workspaceId="ws-1" initialItems={tiedItems} />);
+
+      expect(
+        within(screen.getByTestId("backlog-metric-most-cited")).getByText(
+          "가장 먼저 주제",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("주제가 없으면 벤토를 렌더하지 않는다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={[]} />);
+
+      expect(screen.queryByLabelText("지식 공백 요약")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("인용 빈도 필터", () => {
+    const filterItems: BacklogItem[] = [
+      {
+        target_slug: "다중-인용-a",
+        display_title: "다중 인용 주제 A",
+        impact: 2,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [],
+      },
+      {
+        target_slug: "다중-인용-b",
+        display_title: "다중 인용 주제 B",
+        impact: 3,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [],
+      },
+      {
+        target_slug: "단일-인용",
+        display_title: "단일 인용 주제",
+        impact: 1,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [],
+      },
+    ];
+
+    it("다중 인용 필터를 고르면 impact 2 이상인 주제만 남는다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={filterItems} />);
+
+      const multiTab = screen.getByRole("tab", { name: "다중 인용 2" });
+      fireEvent.click(multiTab);
+
+      const table = within(screen.getByRole("table"));
+      expect(table.getByText("다중 인용 주제 A")).toBeInTheDocument();
+      expect(table.getByText("다중 인용 주제 B")).toBeInTheDocument();
+      expect(table.queryByText("단일 인용 주제")).not.toBeInTheDocument();
+    });
+
+    it("단일 인용 필터를 고르면 impact 1인 주제만 남는다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={filterItems} />);
+
+      const singleTab = screen.getByRole("tab", { name: "단일 인용 1" });
+      fireEvent.click(singleTab);
+
+      const table = within(screen.getByRole("table"));
+      expect(table.getByText("단일 인용 주제")).toBeInTheDocument();
+      expect(table.queryByText("다중 인용 주제 A")).not.toBeInTheDocument();
+      expect(table.queryByText("다중 인용 주제 B")).not.toBeInTheDocument();
+    });
+
+    it("필터와 검색어가 함께 걸린다 — 한쪽이 다른 쪽을 리셋하지 않는다", () => {
+      render(<BacklogList workspaceId="ws-1" initialItems={filterItems} />);
+
+      fireEvent.click(screen.getByRole("tab", { name: "다중 인용 2" }));
+      fireEvent.change(
+        screen.getByRole("textbox", { name: "지식 공백 검색" }),
+        { target: { value: "B" } },
+      );
+
+      const table = within(screen.getByRole("table"));
+      expect(table.getByText("다중 인용 주제 B")).toBeInTheDocument();
+      expect(table.queryByText("다중 인용 주제 A")).not.toBeInTheDocument();
+      expect(table.queryByText("단일 인용 주제")).not.toBeInTheDocument();
+    });
+  });
+
+  it("인용 위키가 많아도 칩 2개와 잔여 개수만 렌더한다", () => {
+    const items: BacklogItem[] = [
+      {
+        target_slug: "다중-인용-공백",
+        display_title: "다중 인용 공백",
+        impact: 4,
+        first_detected_at: "2026-08-15T00:00:00Z",
+        referencing_pages: [
+          { id: "p1", slug: "one", title: "위키 하나", excerpt: null },
+          { id: "p2", slug: "two", title: "위키 둘", excerpt: null },
+          { id: "p3", slug: "three", title: "위키 셋", excerpt: null },
+          { id: "p4", slug: "four", title: "위키 넷", excerpt: null },
+        ],
+      },
+    ];
+
+    render(<BacklogList workspaceId="ws-1" initialItems={items} />);
+
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("위키 하나")).toBeInTheDocument();
+    expect(table.getByText("위키 둘")).toBeInTheDocument();
+    expect(table.queryByText("위키 셋")).not.toBeInTheDocument();
+    expect(table.getByText("+2개 더")).toBeInTheDocument();
+  });
+
+  it("조회가 실패하면 빈 상태 문구 대신 불러오지 못했음을 알린다", () => {
+    render(<BacklogList workspaceId="ws-1" initialItems={[]} loadFailed />);
+
+    expect(
+      screen.getByText("지식 공백을 불러오지 못했습니다"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("작성 대기 중인 백로그가 없습니다"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("모든 위키 링크가 정상적으로 연결되어 있습니다."),
+    ).not.toBeInTheDocument();
   });
 
   it("행 라벨은 서버가 복원한 원문 표기를 쓰고, 원본 slug는 보조 줄에 병기한다", () => {
@@ -164,7 +374,11 @@ describe("BacklogList", () => {
 
     render(<BacklogList workspaceId="ws-1" initialItems={items} />);
 
-    expect(screen.getByText("RLS 정책(v2)")).toBeInTheDocument();
+    // ⚠️ 단일 항목이면 최다 인용·최장 대기 카드가 모두 같은 주제를 가리켜
+    // 표기가 벤토와 표 양쪽에 나타난다. 표 안으로 좁힌다.
+    expect(
+      within(screen.getByRole("table")).getByText("RLS 정책(v2)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("rls-정책v2")).toBeInTheDocument();
 
     // 소스 추가 동선도 slug가 아니라 표기를 prefill한다.
@@ -190,7 +404,11 @@ describe("BacklogList", () => {
 
     render(<BacklogList workspaceId="ws-1" initialItems={items} />);
 
-    expect(screen.getByText("아직 못 찾은 주제")).toBeInTheDocument();
+    // ⚠️ 단일 항목이면 최다 인용·최장 대기 카드가 모두 같은 주제를 가리켜
+    // 표기가 벤토와 표 양쪽에 나타난다. 표 안으로 좁힌다.
+    expect(
+      within(screen.getByRole("table")).getByText("아직 못 찾은 주제"),
+    ).toBeInTheDocument();
     expect(screen.getByText("아직-못-찾은-주제")).toBeInTheDocument();
   });
 
@@ -363,18 +581,24 @@ describe("BacklogList", () => {
 
       render(<BacklogList workspaceId="ws-1" initialItems={manyItems} />);
 
+      // ⚠️ 벤토 요약(최다 인용·최장 대기 카드)은 페이지네이션과 무관하게
+      // 전체 14개 항목 중 하나(동률 결정 규칙상 "백로그 주제 1")를 계속
+      // 보여준다. 표 안으로 좁혀 현재 페이지에 실제로 렌더된 행만 확인한다.
+      let table = within(screen.getByRole("table"));
+
       // 1페이지 항목(1~8) 확인
-      expect(screen.getByText("백로그 주제 1")).toBeInTheDocument();
-      expect(screen.getByText("백로그 주제 8")).toBeInTheDocument();
-      expect(screen.queryByText("백로그 주제 9")).not.toBeInTheDocument();
+      expect(table.getByText("백로그 주제 1")).toBeInTheDocument();
+      expect(table.getByText("백로그 주제 8")).toBeInTheDocument();
+      expect(table.queryByText("백로그 주제 9")).not.toBeInTheDocument();
 
       // 2페이지로 이동
       const page2Btn = screen.getByRole("button", { name: "2 페이지" });
       fireEvent.click(page2Btn);
 
-      expect(screen.queryByText("백로그 주제 1")).not.toBeInTheDocument();
-      expect(screen.getByText("백로그 주제 9")).toBeInTheDocument();
-      expect(screen.getByText("백로그 주제 14")).toBeInTheDocument();
+      table = within(screen.getByRole("table"));
+      expect(table.queryByText("백로그 주제 1")).not.toBeInTheDocument();
+      expect(table.getByText("백로그 주제 9")).toBeInTheDocument();
+      expect(table.getByText("백로그 주제 14")).toBeInTheDocument();
     });
   });
 });
