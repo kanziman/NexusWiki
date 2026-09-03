@@ -34,6 +34,21 @@ describe("Loading Skeletons", () => {
     expect(skeleton).toHaveAttribute("aria-busy", "true");
   });
 
+  it("소스 스켈레톤은 벤토 4칸과 5열 그리드 카드 행 골격을 쓴다", () => {
+    render(<SourcesLoading />);
+    const skeleton = screen.getByTestId("sources-loading-skeleton");
+    const metrics = screen.getByTestId("sources-metric-skeleton");
+    const rows = screen.getByTestId("sources-rows-skeleton");
+
+    // 옛 3칸 통계 바와 6열 테이블이 남아 있으면 로딩→렌더 전환에서 튄다
+    expect(skeleton.querySelector(".stats")).toBeNull();
+    expect(skeleton.querySelector("table")).toBeNull();
+    expect(metrics).toHaveClass("grid", "grid-cols-2", "md:grid-cols-4");
+    expect(metrics.children).toHaveLength(4);
+    // 헤더 행 1 + 데이터 행 래퍼 1
+    expect(rows.children).toHaveLength(2);
+  });
+
   it("위키 라이브러리 스켈레톤을 정상적으로 렌더링한다", () => {
     render(<WikiLibraryLoading />);
     const skeleton = screen.getByTestId("wiki-library-loading-skeleton");

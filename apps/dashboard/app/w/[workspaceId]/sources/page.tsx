@@ -74,6 +74,24 @@ export default async function SourcesPage({
 
   const isOwner = memberResult?.data?.role === "owner";
 
+  // ⚠️ 아래 두 집계는 실패해도 `?? []`로 흘러가 빈 결과와 구분되지 않는다.
+  // 목록 요약이 "고아 소스 없음"·"전 소스 청킹 완료" 같은 단정을 하므로, 조회
+  // 실패를 그대로 두면 화면이 거짓을 확언한다. 소스 상세 라우트가 이미
+  // `sources/[id]/page.tsx`에서 같은 분기를 하고 있다 — 목록도 실패 사실을
+  // 내려보내 해당 칸이 단정 대신 집계 불가를 말하게 한다.
+  const chunkStatsUnavailable = Boolean(
+    (chunkResult as { error?: unknown } | null)?.error,
+  );
+  const citingPagesUnavailable = Boolean(wikiResult.error);
+
+  if (chunkStatsUnavailable || citingPagesUnavailable) {
+    console.error("소스 목록 집계 조회 실패", {
+      workspaceId,
+      chunkError: (chunkResult as { error?: unknown } | null)?.error,
+      wikiError: wikiResult.error,
+    });
+  }
+
   const chunkStats = new Map<
     string,
     { count: number; charStart: number; charEnd: number }
@@ -116,6 +134,8 @@ export default async function SourcesPage({
       initialSources={sources}
       chunkStats={Object.fromEntries(chunkStats)}
       citingPages={Object.fromEntries(citingPages)}
+      chunkStatsUnavailable={chunkStatsUnavailable}
+      citingPagesUnavailable={citingPagesUnavailable}
       prefillTitle={prefillTitle}
       initialTab={tab === "text" ? "text" : undefined}
       isOwner={isOwner}
