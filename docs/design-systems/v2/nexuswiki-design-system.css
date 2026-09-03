@@ -1692,9 +1692,36 @@ textarea:focus-visible {
  * 아직 앱에 대응 화면이 없어 옮기지 않았다. 쓰지 않는 규칙을 미리 넣으면
  * "정의는 있는데 아무도 안 쓰는 CSS"가 쌓여 다음 사람이 어느 쪽이 정본인지
  * 판단할 수 없게 된다 — 그 화면을 만들 때 함께 옮긴다.
+ *
+ * 📍 sources-redesign(소스 목록을 벤토 + 5열 CSS Grid 카드-로우로 교체) 이후의
+ *    사용처 현황. 어느 규칙이 살아 있는지 몰라 손대지 못하는 상태를 막으려고
+ *    남긴다.
+ *
+ *    아직 쓰인다:
+ *      .content.sources        — SourcesList.tsx · sources/loading.tsx 의 루트
+ *      .content.sources .toolbar — 두 파일의 툴바 줄 (여백만 제공)
+ *      .field.search           — 소스·위키 라이브러리 검색창 공용. ⚠️ 높이
+ *                                36px 는 두 화면이 함께 쓴다. 여기를 고치면
+ *                                위키 라이브러리 툴바가 같이 밀린다.
+ *      .format · .doc-chip     — 소스 행의 포맷 배지와 인용 위키 칩
+ *      .stats · .stat          — BacklogList.tsx · PreviewWorkspace.tsx
+ *      .table · .table-wrap    — BacklogList.tsx · PreviewWorkspace.tsx, 그리고
+ *                                SourcesList 의 "조건에 맞는 소스 없음" 블록
+ *      .doc-chips              — BacklogList.tsx
+ *
+ *    소스 화면에서는 떨어져 나갔다(다른 화면에도 사용처 없음):
+ *      .content.sources .stats — 3열 그리드. 벤토는 4칸이라 쓰지 않는다.
+ *      .content.sources .tabs
+ *      .content.sources .tab   — 밑줄 탭. 세그먼트 칩으로 바뀌면서 빠졌다.
+ *
+ *    지우지 않는 이유: 백로그 리디자인 change 가 이 블록을 건드릴 예정이라,
+ *    지금 지우면 두 change 가 같은 파일에서 충돌한다. 그쪽이 끝난 뒤 한 번에
+ *    정리한다.
  * -------------------------------------------------------------------------- */
 
 .content.sources { padding: 42px }
+
+/* ⚠️ 미사용 — 위 📍 참조. 소스 화면은 4칸 벤토를 쓴다. */
 .content.sources .stats { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)) }
 
 /* 필터 툴바 */
@@ -1707,6 +1734,9 @@ textarea:focus-visible {
   margin-bottom: 16px;
 }
 
+/* ⚠️ .tabs/.tab 은 미사용 — 위 📍 참조. 소스 필터는 세그먼트 칩으로 바뀌었다.
+   밑줄 탭은 높이가 컨텐츠에 따라 흔들려 옆의 .field.search(36px)와 수평선이
+   맞지 않았다. */
 .content.sources .tabs { display: flex; gap: 4px; flex-wrap: wrap }
 
 .content.sources .tab {

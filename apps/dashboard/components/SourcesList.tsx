@@ -2,7 +2,11 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  Activity,
   AlertTriangle,
+  FileText,
+  Layers,
+  Link2,
   Loader2,
   Plus,
   Search,
@@ -39,6 +43,10 @@ export type SourcesListProps = {
   initialSources: SourceRow[];
   chunkStats?: Record<string, ChunkStat>;
   citingPages?: Record<string, CitingPage[]>;
+  // 집계 조회가 실패했는지. 빈 결과와 구분하지 못하면 요약이 "고아 소스 없음"
+  // 같은 단정을 사실인 것처럼 표시한다.
+  chunkStatsUnavailable?: boolean;
+  citingPagesUnavailable?: boolean;
   prefillTitle?: string;
   initialTab?: "text";
   isOwner?: boolean;
@@ -47,6 +55,10 @@ export type SourcesListProps = {
 const EMPTY_HEADING = "아직 등록된 소스가 없습니다";
 const EMPTY_BODY =
   "파일을 드래그하거나 URL/텍스트를 붙여넣어 첫 소스를 추가하세요.";
+
+// 집계 조회가 실패했을 때의 문구. 빈 결과인 척 0을 보여주거나 "고아 소스 없음"
+// 같은 단정을 하면 화면이 모르는 것을 아는 것처럼 말하게 된다.
+const AGGREGATE_UNAVAILABLE = "집계를 불러오지 못했습니다";
 
 const SELECT_COLUMNS =
   "id,title,source_type,mime_type,byte_size,created_at,content_hash";
@@ -90,6 +102,8 @@ export function SourcesList({
   initialSources,
   chunkStats = {},
   citingPages = {},
+  chunkStatsUnavailable = false,
+  citingPagesUnavailable = false,
   prefillTitle,
   initialTab,
   isOwner = false,
@@ -204,13 +218,34 @@ export function SourcesList({
 
   const pdfCount = sources.filter(isPdf).length;
   const textMdCount = sources.filter(isTextMd).length;
-  const totalChunks = Object.values(chunkStats).reduce(
-    (sum, stat) => sum + stat.count,
+  // ⚠️ Object.values(chunkStats) 전량을 합치면 안 된다. chunkStats 는 서버
+  // props 라 삭제된 소스의 항목이 그대로 남아 있어, 행은 사라졌는데 청크
+  // 합계만 그 소스분을 계속 포함하는 모순이 생긴다. 요약은 항상 지금 그리는
+  // sources 에서 파생시킨다.
+  const totalChunks = sources.reduce(
+    (sum, source) => sum + (chunkStats[source.id]?.count ?? 0),
     0,
   );
   const indexedCount = sources.filter(
     (source) => (chunkStats[source.id]?.count ?? 0) > 0,
   ).length;
+
+  // 벤토 네 지표는 전부 이미 내려온 props에서 나온다 — 새 조회를 만들지 않는다.
+  //
+  // ⚠️ chunkStats·citingPages 는 서버 props 라 업로드 직후 새 소스에는 값이
+  // 없다. 이때 분모만 늘고 분자는 그대로여서 연결률이 잠깐 내려가는데, 이는
+  // 실제 상태다(방금 올린 소스는 아직 청킹·인용 전이다) — 보정하지 않는다.
+  const citedCount = sources.filter(
+    (source) => (citingPages[source.id]?.length ?? 0) > 0,
+  ).length;
+  const orphanCount = sources.length - citedCount;
+  const pendingChunkCount = sources.length - indexedCount;
+  const citationRate =
+    sources.length === 0 ? 0 : Math.round((citedCount / sources.length) * 100);
+  const indexingRate =
+    sources.length === 0
+      ? 0
+      : Math.round((indexedCount / sources.length) * 100);
 
   const TABS: { id: MimeFilter; label: string }[] = [
     { id: "all", label: `전체 ${sources.length}` },
@@ -241,22 +276,136 @@ export function SourcesList({
         )}
       </section>
 
-      {/* 요약 통계 (소스가 있을 때만 표시) */}
+      {/* 파이프라인 요약 벤토 (소스가 있을 때만 표시).
+          네 칸 모두 수치와 라벨을 텍스트로 함께 둔다 — 색만으로 상태를
+          전달하면 색을 구분하지 못하는 사용자에게 지표가 사라진다. */}
       {sources.length > 0 && (
-        <section className="stats" data-od-id="pipeline-stats">
-          <div className="stat">
-            <b>{sources.length}</b>
-            <span>총 등록 소스</span>
+        <section
+          className="mt-8 mb-2 grid grid-cols-2 gap-3.5 md:grid-cols-4"
+          aria-label="파이프라인 요약"
+          data-od-id="pipeline-stats"
+        >
+          {/* 1. 총 등록 원문 */}
+          <div className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4">
+            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+              <span>총 등록 원문</span>
+              <FileText size={16} aria-hidden="true" />
+            </div>
+            <div className="flex flex-wrap items-baseline gap-2">
+              <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+                {sources.length}
+              </b>
+              <span className="text-[11px] text-[var(--muted)]">개 문서</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+              <span className="rounded-md bg-[var(--soft)] px-1.5 py-0.5 text-[var(--accent)]">
+                {`텍스트·마크다운 ${textMdCount}`}
+              </span>
+              <span className="rounded-md bg-[var(--border)]/50 px-1.5 py-0.5 text-[var(--muted)]">
+                {`PDF ${pdfCount}`}
+              </span>
+            </div>
           </div>
-          <div className="stat">
-            <b>{totalChunks}</b>
-            <span>생성된 청크</span>
+
+          {/* 2. 생성된 청크 */}
+          <div className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4">
+            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+              <span>생성된 청크</span>
+              <Layers size={16} aria-hidden="true" />
+            </div>
+            {chunkStatsUnavailable ? (
+              <span className="text-[12px] font-semibold text-[var(--muted)]">
+                {AGGREGATE_UNAVAILABLE}
+              </span>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+                    {totalChunks}
+                  </b>
+                  <span className="text-[11px] text-[var(--muted)]">청크</span>
+                </div>
+                <span className="text-[11px] text-[var(--muted)]">
+                  {`${indexedCount}/${sources.length} 소스 청킹 완료`}
+                </span>
+              </>
+            )}
           </div>
-          <div className="stat">
-            <b>
-              {indexedCount}/{sources.length}
-            </b>
-            <span>청크 생성 완료 소스</span>
+
+          {/* 3. 위키 인용 연결률 */}
+          <div className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4">
+            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+              <span>위키 인용 연결률</span>
+              <Link2 size={16} aria-hidden="true" />
+            </div>
+            {citingPagesUnavailable ? (
+              <span className="text-[12px] font-semibold text-[var(--muted)]">
+                {AGGREGATE_UNAVAILABLE}
+              </span>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+                    {`${citedCount}/${sources.length}`}
+                  </b>
+                  <span className="text-[11px] text-[var(--muted)]">
+                    {`인용됨 (${citationRate}%)`}
+                  </span>
+                </div>
+                <span className="text-[11px] text-[var(--muted)]">
+                  {orphanCount === 0
+                    ? "고아 소스 없음"
+                    : `아직 인용되지 않은 소스 ${orphanCount}개`}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* 4. 파이프라인 상태 — 워크스페이스 단위 5단계 집계는 jobs 를 새로
+              읽어야 하므로, 이미 있는 신호인 청킹 완료율로 정의한다. 행 단위
+              5단계 진행은 아래 목록의 JobStepper 가 계속 담당한다. */}
+          <div className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4">
+            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+              <span>파이프라인 상태</span>
+              <Activity
+                size={16}
+                className={
+                  !chunkStatsUnavailable && pendingChunkCount === 0
+                    ? "text-[var(--good)]"
+                    : "text-[var(--muted)]"
+                }
+                aria-hidden="true"
+              />
+            </div>
+            {chunkStatsUnavailable ? (
+              <span className="text-[12px] font-semibold text-[var(--muted)]">
+                {AGGREGATE_UNAVAILABLE}
+              </span>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+                    {`${indexingRate}%`}
+                  </b>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${
+                      pendingChunkCount === 0
+                        ? "bg-[var(--good)]/12 text-[var(--good)]"
+                        : "bg-[var(--border)]/50 text-[var(--muted)]"
+                    }`}
+                  >
+                    {pendingChunkCount === 0
+                      ? "전 소스 청킹 완료"
+                      : "청킹 진행 중"}
+                  </span>
+                </div>
+                <span className="text-[11px] text-[var(--muted)]">
+                  {pendingChunkCount === 0
+                    ? "청킹 대기 중인 소스 없음"
+                    : `청킹 대기 ${pendingChunkCount}개`}
+                </span>
+              </>
+            )}
           </div>
         </section>
       )}
@@ -287,7 +436,16 @@ export function SourcesList({
       <section data-od-id="source-table-section">
         {sources.length > 0 && (
           <div className="toolbar flex items-center justify-between gap-4">
-            <nav className="tabs" role="tablist" aria-label="파일 형식 필터">
+            {/* ⚠️ 공용 .tabs/.tab 클래스를 쓰지 않는다. .content.sources .tab 은
+                밑줄 탭(padding 8px 10px, border-bottom)이라 높이가 컨텐츠에
+                따라 흔들리고, 옆의 .field.search(36px 고정)와 수평선이
+                어긋난다. 세그먼트 칩은 h-9(36px)로 직접 못박는다.
+                필터는 상호배타적 단일 선택이므로 tab 시맨틱을 유지한다. */}
+            <nav
+              className="flex h-9 flex-wrap items-center gap-1"
+              role="tablist"
+              aria-label="파일 형식 필터"
+            >
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
@@ -298,15 +456,20 @@ export function SourcesList({
                     setActiveMime(tab.id);
                     setPage(1);
                   }}
-                  className={`tab ${activeMime === tab.id ? "active" : ""}`}
+                  className={`nw-focus-ring box-border inline-flex h-9 cursor-pointer items-center rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                    activeMime === tab.id
+                      ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
+                  }`}
                 >
                   {tab.label}
                 </button>
               ))}
             </nav>
 
-            {/* 검색창 */}
-            <div className="relative w-full max-w-[280px] flex-none">
+            {/* 검색창. .field.search 가 높이 36px 를 고정한다 — 이 규칙은 위키
+                라이브러리 검색창과 공유하므로 여기서 고치지 않는다. */}
+            <div className="relative h-9 w-full max-w-[360px] flex-none">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
@@ -363,172 +526,178 @@ export function SourcesList({
             </span>
           </div>
         ) : (
-          <div className="table-wrap overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--bg)] mt-3">
-            <table
-              className="table w-full text-left border-collapse"
-              id="sources-library"
+          /* 일체형 목록 컨테이너.
+             ⚠️ 컬럼 정의는 --sources-cols 한 곳에만 쓴다. 헤더 행과 데이터 행이
+             각자 폭을 선언하면 한쪽만 고쳤을 때 축이 어긋난다(계획서 §3.2 가
+             지적한 '작업' 헤더와 삭제 아이콘의 어긋남이 바로 그 증상이다).
+             md 미만에서는 컬럼을 풀어 세로로 쌓는다 — 5열을 좁은 화면에
+             밀어 넣으면 페이지 가로 스크롤이 강제된다. */
+          <div
+            className="mt-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]"
+            id="sources-library"
+            style={
+              {
+                "--sources-cols":
+                  "minmax(0,26fr) minmax(0,24fr) minmax(0,14fr) minmax(0,20fr) minmax(0,16fr)",
+              } as React.CSSProperties
+            }
+          >
+            {/* 컬럼 헤더 — 좁은 화면에서는 행이 세로로 쌓이므로 감춘다 */}
+            <div
+              className="hidden items-center gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-[11px] font-bold tracking-wider text-[var(--muted)] uppercase md:grid"
+              style={{ gridTemplateColumns: "var(--sources-cols)" }}
             >
-              <colgroup>
-                <col style={{ width: "24%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "23%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "9%" }} />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--surface)]/60 text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                  <th scope="col" className="py-2.5 px-4">
-                    소스 파일
-                  </th>
-                  <th scope="col" className="py-2.5 px-4">
-                    연결된 위키 문서
-                  </th>
-                  <th scope="col" className="py-2.5 px-4">
-                    청크 및 좌표
-                  </th>
-                  <th scope="col" className="py-2.5 px-4">
-                    파이프라인 상태
-                  </th>
-                  <th scope="col" className="py-2.5 px-4">
-                    업로드
-                  </th>
-                  <th scope="col" className="py-2.5 px-4 text-right">
-                    <span className="sr-only">작업</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)] text-xs">
-                {paginatedSources.map((source) => {
-                  const format = formatLabel(source);
-                  const size = formatBytes(source.byte_size);
-                  const stat = chunkStats[source.id];
-                  const cited = citingPages[source.id] ?? [];
+              <span>소스 파일</span>
+              <span>연결된 위키 문서</span>
+              <span className="text-right">청크 및 좌표</span>
+              <span>파이프라인</span>
+              <span className="text-right">작업</span>
+            </div>
 
-                  return (
-                    <tr
-                      key={source.id}
-                      className="hover:bg-[var(--surface)]/40 transition-colors"
-                    >
-                      {/* 소스 파일 */}
-                      <td className="py-3 px-4">
-                        <div className="file flex items-center gap-2.5 min-w-0">
-                          <span
-                            className={`format ${format.variant} flex-none px-1.5 py-0.5 rounded font-mono text-[10px] font-bold uppercase border`}
+            <div className="divide-y divide-[var(--border)]">
+              {paginatedSources.map((source) => {
+                const format = formatLabel(source);
+                const size = formatBytes(source.byte_size);
+                const stat = chunkStats[source.id];
+                const cited = citingPages[source.id] ?? [];
+                // 인용 수에 따라 행이 세로로 늘어나는 것이 목록 리듬이 깨지는
+                // 직접 원인이다. 두 개만 그리고 나머지는 개수로 접는다 —
+                // 전체 인용 목록은 소스 상세에서 볼 수 있다.
+                const visibleCited = cited.slice(0, 2);
+                const hiddenCitedCount = cited.length - visibleCited.length;
+
+                return (
+                  <article
+                    key={source.id}
+                    className="grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface)]/40 md:h-[72px] md:gap-4 md:py-0 md:[grid-template-columns:var(--sources-cols)]"
+                  >
+                    {/* 1. 소스 파일 */}
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className={`format ${format.variant}`}>
+                        {format.label}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`${workspacePath(workspaceId)}/sources/${source.id}`}
+                          className="group block truncate"
+                        >
+                          <b
+                            title={source.title}
+                            aria-label={source.title}
+                            className="block truncate text-[13px] font-bold text-[var(--fg)] transition-colors group-hover:text-[var(--accent)] group-hover:underline"
                           >
-                            {format.label}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <Link
-                              href={`${workspacePath(workspaceId)}/sources/${source.id}`}
-                              className="group block truncate"
-                            >
-                              <b
-                                title={source.title}
-                                aria-label={source.title}
-                                className="text-[13px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] group-hover:underline transition-colors block truncate"
-                              >
-                                {source.title}
-                              </b>
-                            </Link>
-                            <span className="block text-[11px] text-[var(--muted)] truncate mt-0.5">
-                              {size ? `${size} · ` : ""}
-                              {source.source_type}
-                            </span>
-                          </div>
+                            {source.title}
+                          </b>
+                        </Link>
+                        {/* 업로드 열을 없애지 않고 여기로 접었다. 절대 일자를
+                            빼면 정확한 출처 시점을 행에서 되짚을 수 없다. */}
+                        <div className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[11px] text-[var(--muted)]">
+                          {size && (
+                            <>
+                              <span>{size}</span>
+                              <span aria-hidden="true">·</span>
+                            </>
+                          )}
+                          <span>{source.source_type}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{formatRelativeTime(source.created_at)}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{formatDate(source.created_at)}</span>
                         </div>
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* 연결된 위키 문서 */}
-                      <td className="py-3 px-4">
-                        {cited.length === 0 ? (
-                          <span className="sub text-[11px] text-[var(--muted)] italic">
-                            인용한 위키 없음
-                          </span>
-                        ) : (
-                          <div className="doc-chips flex flex-wrap gap-1.5">
-                            {cited.map((page) => (
-                              <Link
-                                key={page.slug}
-                                href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                                className="doc-chip"
-                                title={page.title}
-                              >
-                                <span className="truncate">{page.title}</span>
-                              </Link>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* 청크 및 좌표 */}
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {stat ? (
-                          <>
-                            <b className="mono block text-[12.5px] font-bold text-[var(--fg)]">
-                              {stat.count} 청크
-                            </b>
-                            <span className="sub block text-[10.5px] text-[var(--muted)] font-mono mt-0.5">
-                              {stat.charStart.toLocaleString("ko-KR")}–
-                              {stat.charEnd.toLocaleString("ko-KR")} char
-                            </span>
-                          </>
-                        ) : (
-                          <span className="sub text-[11px] text-[var(--muted)]">
-                            청크 없음
-                          </span>
-                        )}
-                      </td>
-
-                      {/* 파이프라인 상태 */}
-                      <td className="py-3 px-4">
-                        <JobStepper
-                          workspaceId={workspaceId}
-                          rawSourceId={source.id}
-                        />
-                      </td>
-
-                      {/* 업로드 일시 */}
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="block text-xs font-medium text-[var(--fg)]">
-                          {formatRelativeTime(source.created_at)}
+                    {/* 2. 연결된 위키 문서 */}
+                    <div className="min-w-0">
+                      {citingPagesUnavailable ? (
+                        <span className="text-[11px] text-[var(--muted)] italic">
+                          인용 정보를 불러오지 못했습니다
                         </span>
-                        <span className="sub block text-[10.5px] text-[var(--muted)] mt-0.5">
-                          {formatDate(source.created_at)}
+                      ) : cited.length === 0 ? (
+                        <span className="text-[11px] text-[var(--muted)] italic">
+                          인용한 위키 없음
                         </span>
-                      </td>
-
-                      {/* 작업 (상세 보기 & 삭제) */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`${workspacePath(workspaceId)}/sources/${source.id}`}
-                            className="text-button inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--accent)] hover:underline"
-                          >
-                            <span>상세 보기</span>
-                          </Link>
-                          {isOwner && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDeleteError(null);
-                                setSourceToDelete(source);
-                              }}
-                              className="nw-focus-ring inline-flex items-center p-1 rounded text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors cursor-pointer"
-                              title="원문 소스 삭제"
-                              data-testid={`delete-source-btn-${source.id}`}
+                      ) : (
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                          {visibleCited.map((page) => (
+                            <Link
+                              key={page.slug}
+                              href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                              className="doc-chip min-w-0"
+                              title={page.title}
                             >
-                              <Trash2 size={13} aria-hidden="true" />
-                              <span className="sr-only">삭제</span>
-                            </button>
+                              <span className="truncate">{page.title}</span>
+                            </Link>
+                          ))}
+                          {hiddenCitedCount > 0 && (
+                            <span className="flex-none text-[11px] font-semibold text-[var(--muted)]">
+                              {`+${hiddenCitedCount}개 더`}
+                            </span>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      )}
+                    </div>
+
+                    {/* 3. 청크 및 좌표 */}
+                    <div className="whitespace-nowrap md:text-right">
+                      {chunkStatsUnavailable ? (
+                        <span className="text-[11px] text-[var(--muted)]">
+                          집계 불가
+                        </span>
+                      ) : stat ? (
+                        <>
+                          <b className="block text-[12.5px] font-bold text-[var(--fg)]">
+                            {stat.count} 청크
+                          </b>
+                          <span className="mt-0.5 block font-mono text-[10.5px] text-[var(--muted)]">
+                            {stat.charStart.toLocaleString("ko-KR")}–
+                            {stat.charEnd.toLocaleString("ko-KR")} char
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-[var(--muted)]">
+                          청크 없음
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 4. 파이프라인 — 행 단위 5단계 진행은 계속 JobStepper 가
+                        담당한다. 벤토의 요약 지표는 청킹 완료율일 뿐이다. */}
+                    <div className="min-w-0">
+                      <JobStepper
+                        workspaceId={workspaceId}
+                        rawSourceId={source.id}
+                      />
+                    </div>
+
+                    {/* 5. 작업 (상세 보기 & 삭제) */}
+                    <div className="flex items-center gap-2 whitespace-nowrap md:justify-end">
+                      <Link
+                        href={`${workspacePath(workspaceId)}/sources/${source.id}`}
+                        className="text-button inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--accent)] hover:underline"
+                      >
+                        <span>상세 보기</span>
+                      </Link>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setSourceToDelete(source);
+                          }}
+                          className="nw-focus-ring inline-flex w-[30px] flex-none cursor-pointer items-center justify-center rounded p-1 text-[var(--muted)] transition-colors hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                          title="원문 소스 삭제"
+                          data-testid={`delete-source-btn-${source.id}`}
+                        >
+                          <Trash2 size={13} aria-hidden="true" />
+                          <span className="sr-only">삭제</span>
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         )}
 
