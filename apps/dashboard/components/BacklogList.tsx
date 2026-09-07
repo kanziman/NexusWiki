@@ -151,7 +151,7 @@ export function BacklogList({
             data-testid="backlog-metric-unresolved"
             className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4"
           >
-            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+            <div className="flex h-5 items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
               <span>미해결 레드링크</span>
               <AlertTriangle
                 size={16}
@@ -159,15 +159,17 @@ export function BacklogList({
                 aria-hidden="true"
               />
             </div>
-            <div className="flex flex-wrap items-baseline gap-2">
-              <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+            <div className="flex h-8 items-baseline gap-1.5 min-w-0">
+              <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)] leading-none">
                 {items.length}
               </b>
               <span className="text-[11px] text-[var(--muted)]">개 주제</span>
             </div>
-            <span className="w-fit rounded-md bg-[var(--warning)]/12 px-1.5 py-0.5 text-[11px] font-bold text-[var(--warning)]">
-              우선 해결 필요
-            </span>
+            <div className="flex h-6 items-center min-w-0">
+              <span className="w-fit rounded-md bg-[var(--warning)]/12 px-1.5 py-0.5 text-[11px] font-bold text-[var(--warning)] leading-normal">
+                우선 해결 필요
+              </span>
+            </div>
           </div>
 
           {/* 2. 영향받는 위키 */}
@@ -175,7 +177,7 @@ export function BacklogList({
             data-testid="backlog-metric-affected-wikis"
             className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4"
           >
-            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+            <div className="flex h-5 items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
               <span>영향받는 위키</span>
               <BookOpen
                 size={16}
@@ -183,15 +185,17 @@ export function BacklogList({
                 aria-hidden="true"
               />
             </div>
-            <div className="flex flex-wrap items-baseline gap-2">
-              <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+            <div className="flex h-8 items-baseline gap-1.5 min-w-0">
+              <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)] leading-none">
                 {distinctReferringPages.size}
               </b>
               <span className="text-[11px] text-[var(--muted)]">개 문서</span>
             </div>
-            <span className="w-fit rounded-md bg-[var(--soft)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
-              링크 결손 발생
-            </span>
+            <div className="flex h-6 items-center min-w-0">
+              <span className="w-fit rounded-md bg-[var(--soft)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--accent)] leading-normal">
+                링크 결손 발생
+              </span>
+            </div>
           </div>
 
           {/* 3. 최다 인용 공백 */}
@@ -199,7 +203,7 @@ export function BacklogList({
             data-testid="backlog-metric-most-cited"
             className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4"
           >
-            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+            <div className="flex h-5 items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
               <span>최다 인용 공백</span>
               <TrendingUp
                 size={16}
@@ -207,15 +211,19 @@ export function BacklogList({
                 aria-hidden="true"
               />
             </div>
-            <b
-              title={mostCited.display_title}
-              className="block truncate font-mono text-[16px] font-extrabold tracking-tight text-[var(--fg)]"
-            >
-              {mostCited.display_title}
-            </b>
-            <span className="w-fit rounded-md bg-[var(--danger)]/12 px-1.5 py-0.5 text-[11px] font-bold text-[var(--danger)]">
-              {`${mostCited.impact}회 인용 집중`}
-            </span>
+            <div className="flex h-8 items-baseline gap-1.5 min-w-0">
+              <b
+                title={mostCited.display_title}
+                className="truncate font-mono text-[18px] font-extrabold tracking-tight text-[var(--fg)] leading-none"
+              >
+                {mostCited.display_title}
+              </b>
+            </div>
+            <div className="flex h-6 items-center min-w-0">
+              <span className="w-fit rounded-md bg-[var(--danger)]/12 px-1.5 py-0.5 text-[11px] font-bold text-[var(--danger)] leading-normal">
+                {`${mostCited.impact}회 인용 집중`}
+              </span>
+            </div>
           </div>
 
           {/* 4. 가장 오래 대기 중 */}
@@ -223,7 +231,7 @@ export function BacklogList({
             data-testid="backlog-metric-longest-waiting"
             className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4"
           >
-            <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
+            <div className="flex h-5 items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
               <span>가장 오래 대기 중</span>
               <Clock
                 size={16}
@@ -231,15 +239,19 @@ export function BacklogList({
                 aria-hidden="true"
               />
             </div>
-            <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
-              {formatRelativeTime(longestWaiting.first_detected_at)}
-            </b>
-            <span
-              title={longestWaiting.display_title}
-              className="block truncate text-[11px] text-[var(--muted)]"
-            >
-              {longestWaiting.display_title}
-            </span>
+            <div className="flex h-8 items-baseline gap-1.5 min-w-0">
+              <b className="font-mono text-[22px] font-extrabold tracking-tight text-[var(--fg)] leading-none">
+                {formatRelativeTime(longestWaiting.first_detected_at)}
+              </b>
+            </div>
+            <div className="flex h-6 items-center min-w-0">
+              <span
+                title={longestWaiting.display_title}
+                className="block truncate max-w-full rounded-md bg-[var(--surface-hover)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--muted)] leading-normal"
+              >
+                {longestWaiting.display_title}
+              </span>
+            </div>
           </div>
         </section>
       )}
@@ -349,9 +361,9 @@ export function BacklogList({
                     인용 빈도
                   </span>
                   <span role="columnheader">최초 감지</span>
-                  <span role="columnheader" className="text-right">
-                    해결 액션
-                  </span>
+                  <div role="columnheader" className="flex justify-end">
+                    <span className="w-[86px] text-center">해결 액션</span>
+                  </div>
                 </div>
 
                 <div className="divide-y divide-[var(--border)]">
@@ -440,13 +452,13 @@ export function BacklogList({
                         {/* 5. 해결 액션 */}
                         <div
                           role="cell"
-                          className="whitespace-nowrap md:text-right"
+                          className="whitespace-nowrap md:flex md:justify-end"
                         >
                           <Link
                             href={`${workspacePath(workspaceId)}/sources?prefillTitle=${encodeURIComponent(
                               item.display_title,
                             )}&tab=text`}
-                            className="button compact inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-[11.5px] font-semibold shadow-2xs transition-all hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+                            className="button compact inline-flex w-[86px] items-center justify-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[11.5px] font-semibold shadow-2xs transition-all hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
                           >
                             <Plus size={11} className="opacity-70" />
                             <span>소스 추가</span>

@@ -331,7 +331,7 @@ function PreviewHome() {
               <Link
                 key={item.slug}
                 href="/preview/backlog"
-                className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] border-l-[3px] border-l-[var(--warning)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:border-l-[var(--warning)] hover:shadow-2xs transition-all gap-3"
+                className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all gap-3"
               >
                 <div className="flex-1 min-w-0">
                   <span className="text-[13.5px] sm:text-[14px] font-bold font-mono text-[var(--fg)] block truncate">

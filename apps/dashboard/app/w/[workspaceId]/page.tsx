@@ -86,26 +86,32 @@ function MetricCard({
           {icon}
         </span>
       </div>
-      <div className="flex items-baseline gap-2">
-        <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
+      <div className="flex items-baseline gap-2 min-h-[34px]">
+        <b
+          className={`text-[22px] sm:text-[26px] font-extrabold tracking-tight text-[var(--fg)] ${
+            /^\d+$/.test(value) ? "font-mono" : "font-sans"
+          }`}
+        >
           {value}
         </b>
         {tag && tagTone ? (
           <span
-            className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${METRIC_TAG_TONE[tagTone]}`}
+            className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${METRIC_TAG_TONE[tagTone]} whitespace-nowrap`}
           >
             {tag}
           </span>
         ) : null}
       </div>
-      {width != null && progressTone ? (
-        <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--border)]">
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--border)]">
+        {width != null && progressTone ? (
           <div
             className={`h-full rounded-full ${METRIC_BAR_TONE[progressTone]}`}
             style={{ width: `${width}%` }}
           />
-        </div>
-      ) : null}
+        ) : (
+          <div className="h-full rounded-full bg-transparent" />
+        )}
+      </div>
     </div>
   );
 }
@@ -321,7 +327,7 @@ export default async function WorkspaceHomePage({
       {/* 2. 벤토 지식 건강 메트릭. 최종 업데이트는 이 요청의 서버 렌더
           스냅샷이다 — realtime 구독이 없으므로 "라이브" 카피를 붙이지 않는다. */}
       <section
-        className="mt-8 mb-7 grid grid-cols-2 gap-3.5 lg:grid-cols-4"
+        className="mt-8 mb-7 grid grid-cols-2 gap-3.5 xl:grid-cols-4"
         data-od-id="workspace-summary"
         aria-label="워크스페이스 현황"
       >
