@@ -59,7 +59,7 @@ export default function WikiLibraryLoading() {
           <div className="h-9 w-full max-w-[280px] rounded-lg bg-[var(--surface)]" />
         </div>
 
-        <div className="wiki-cards">
+        <div className="wiki-cards grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}

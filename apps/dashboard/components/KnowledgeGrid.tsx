@@ -83,19 +83,19 @@ export function KnowledgeGrid({
         className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5"
         data-od-id="compiled-wiki-section"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <BookOpen size={17} className="text-[var(--accent)] flex-none" />
-            <h2 className="text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-2 m-0">
-              <span>컴파일된 위키 문서</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+            <h2 className="text-sm sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
+              <span className="truncate">컴파일된 위키 문서</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] flex-none">
                 <span>{String(filteredPages.length).padStart(2, "0")}</span>
               </span>
             </h2>
           </div>
           <Link
             href={`${base}/wiki`}
-            className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity"
+            className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none whitespace-nowrap"
             data-od-id="view-all-documents"
           >
             <span>전체 보기</span>
@@ -176,22 +176,25 @@ export function KnowledgeGrid({
         className="backlog rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5"
         data-od-id="writing-backlog-section"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <CircleAlert
               size={17}
               className="text-[var(--warning)] flex-none"
             />
-            <h2 className="text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-2 m-0">
-              <span>지식 공백 (작성 대기 백로그)</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25">
+            <h2 className="text-sm sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
+              <span className="whitespace-nowrap">지식 공백</span>
+              <span className="hidden xl:inline text-xs font-normal text-[var(--muted)] whitespace-nowrap">
+                (작성 대기 백로그)
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25 flex-none">
                 <span>{String(backlogItems.length).padStart(2, "0")}</span>
               </span>
             </h2>
           </div>
           <Link
             href={`${base}/backlog`}
-            className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity"
+            className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none whitespace-nowrap"
             data-od-id="view-all-backlog"
           >
             <span>전체 보기</span>
@@ -220,7 +223,7 @@ export function KnowledgeGrid({
               return (
                 <div
                   key={item.target_slug}
-                  className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] border-l-[3px] border-l-[var(--warning)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:border-l-[var(--warning)] hover:shadow-2xs transition-all gap-3"
+                  className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all gap-2 sm:gap-3"
                   data-od-id={`backlog-${item.target_slug}`}
                 >
                   <button
@@ -232,13 +235,13 @@ export function KnowledgeGrid({
                     <span className="text-[13.5px] sm:text-[14px] font-bold font-mono text-[var(--fg)] hover:text-[var(--accent)] transition-colors block truncate">
                       {displayTitle}
                     </span>
-                    <span className="text-xs text-[var(--muted)] mt-0.5 block">
+                    <span className="text-xs text-[var(--muted)] mt-0.5 block truncate">
                       위키 {count}곳에서 인용됨 · 원문 소스 연결 필요
                     </span>
                   </button>
                   <Link
                     href={`${base}/sources?prefillTitle=${encodeURIComponent(displayTitle)}&tab=text`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)] hover:text-[var(--accent)] transition-all flex-none shadow-2xs"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)] hover:text-[var(--accent)] transition-all flex-none shrink-0 whitespace-nowrap shadow-2xs"
                   >
                     <Plus size={12} aria-hidden="true" />
                     <span>소스 추가</span>

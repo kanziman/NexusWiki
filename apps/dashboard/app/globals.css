@@ -30,7 +30,8 @@
   --color-success-text: var(--color-success-text);
   --color-warning-text: var(--color-warning-text);
 
-  /* Spacing — UI-SPEC의 4의 배수 서브셋 (xxs/md 제외) */
+  /* Spacing — UI-SPEC의 4의 배수 서브셋 (xxs/md 제외) 및 Tailwind 4 기본 spacing 단위 */
+  --spacing: 4px;
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-base: 16px;
@@ -799,5 +800,68 @@
 
   .login-visual-highlighted::after {
     transform: scaleX(1) rotate(-0.35deg);
+  }
+}
+
+/* 위키 라이브러리 플로팅 일괄 작업 바 */
+.bulk-floating-bar {
+  position: fixed !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 60 !important;
+}
+
+@media (min-width: 900px) {
+  .bulk-floating-bar {
+    left: calc(50% + 132px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .bulk-floating-bar {
+    bottom: 16px !important;
+    left: 12px !important;
+    right: 12px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+}
+
+/* 홈 대시보드 반응형 (태블릿 & 모바일) */
+@media (max-width: 1200px) {
+  .sections {
+    gap: 20px !important;
+    margin-top: 36px !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .sections {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .chips {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 2px !important;
+  }
+  .chips::-webkit-scrollbar {
+    display: none !important;
+  }
+  .chips .chip {
+    flex: none !important;
+    width: auto !important;
+    text-align: center !important;
+    padding: 6px 12px !important;
+    min-height: 32px !important;
+    white-space: nowrap !important;
   }
 }

@@ -18,7 +18,9 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Pagination } from "@/components/Pagination";
 import {
@@ -130,6 +132,7 @@ export function WikiLibrary({
   canVerify?: boolean;
   isOwner?: boolean;
 }) {
+  const router = useRouter();
   const [pages, setPages] = useState<WikiLibraryPage[]>(initialPages);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
@@ -142,6 +145,11 @@ export function WikiLibrary({
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -252,14 +260,26 @@ export function WikiLibrary({
     paginatedPages.length > 0 &&
     paginatedPages.every((p) => selectedIds.has(p.id));
 
+  const somePaginatedSelected =
+    paginatedPages.some((p) => selectedIds.has(p.id)) && !allPaginatedSelected;
+
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = somePaginatedSelected;
+    }
+  }, [somePaginatedSelected]);
+
   function applyCategoryFilter(next: string | null) {
     setCategory(next);
     setPage(1);
   }
 
-  function handleToggleSelect(id: string, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+  function handleToggleSelect(id: string, e?: React.SyntheticEvent) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -476,7 +496,7 @@ export function WikiLibrary({
           <div className="toolbar flex items-center justify-between gap-4">
             {/* 카테고리 필터 */}
             <div
-              className="chips flex items-center gap-1.5 flex-wrap"
+              className="chips flex items-center gap-1.5 flex-nowrap overflow-x-auto max-w-full pb-1 -mb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mb-0"
               role="group"
               aria-label="카테고리 필터"
             >
@@ -484,7 +504,7 @@ export function WikiLibrary({
                 type="button"
                 aria-pressed={category === null}
                 aria-label={`전체 ${pages.length}`}
-                className="chip transition-colors"
+                className="chip transition-colors flex-none whitespace-nowrap"
                 onClick={() => applyCategoryFilter(null)}
               >
                 전체
@@ -498,7 +518,7 @@ export function WikiLibrary({
                   type="button"
                   aria-pressed={category === item}
                   aria-label={`${CATEGORY_LABELS[item]} ${categoryCounts[item]}`}
-                  className="chip transition-colors"
+                  className="chip transition-colors flex-none whitespace-nowrap"
                   onClick={() =>
                     applyCategoryFilter(category === item ? null : item)
                   }
@@ -512,7 +532,7 @@ export function WikiLibrary({
             </div>
 
             {/* 검색창. / 키 포커스 단축키는 신설하지 않는다. */}
-            <div className="relative w-full max-w-[280px] flex-none">
+            <div className="relative w-full sm:max-w-[280px] flex-none">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
@@ -548,36 +568,54 @@ export function WikiLibrary({
         {visible.length ? (
           <>
             {canVerify && paginatedPages.length > 0 && (
-              <div
-                className={`flex items-center min-h-[44px] py-2 px-1 text-xs ${
-                  selectedIds.size > 0
-                    ? "font-medium text-[var(--fg)]"
-                    : "text-[var(--muted)]"
-                }`}
-              >
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={allPaginatedSelected}
-                    onChange={handleToggleSelectAll}
-                    className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
-                    aria-label="현재 페이지 전체 선택"
-                    data-testid="select-all-checkbox"
-                  />
-                  <span
-                    className={
-                      selectedIds.size > 0 ? "font-bold text-[var(--fg)]" : ""
-                    }
+              <div className="flex items-center justify-between min-h-[42px] py-2 px-0.5 select-none">
+                <div className="flex items-center gap-2.5">
+                  <label
+                    className={`group inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all cursor-pointer shadow-2xs ${
+                      allPaginatedSelected
+                        ? "border-[var(--accent)]/40 bg-[var(--soft)] text-[var(--accent)] shadow-xs"
+                        : selectedIds.size > 0
+                          ? "border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)]"
+                          : "border-[var(--border)] bg-[var(--surface)]/70 hover:bg-[var(--surface)] hover:border-[var(--border-strong)] text-[var(--muted)] hover:text-[var(--fg)]"
+                    }`}
                   >
-                    {selectedIds.size > 0
-                      ? `${selectedIds.size}개 문서 선택됨`
-                      : `현재 페이지 전체 선택 (${paginatedPages.length}개)`}
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allPaginatedSelected}
+                      onChange={handleToggleSelectAll}
+                      className="w-3.5 h-3.5 rounded border-[var(--border)] text-[var(--accent)] focus:ring-0 focus:ring-offset-0 cursor-pointer accent-[var(--accent)]"
+                      aria-label="현재 페이지 전체 선택"
+                      data-testid="select-all-checkbox"
+                    />
+                    <span className="text-[11.5px] font-semibold tracking-tight">
+                      {selectedIds.size > 0
+                        ? `${selectedIds.size}개 문서 선택됨`
+                        : "현재 페이지 전체 선택"}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold transition-colors ${
+                        allPaginatedSelected
+                          ? "bg-[var(--accent)] text-white"
+                          : selectedIds.size > 0
+                            ? "bg-[var(--surface-hover)] text-[var(--fg)] border border-[var(--border)]"
+                            : "bg-[var(--bg)] text-[var(--muted)] border border-[var(--border)] group-hover:text-[var(--fg)]"
+                      }`}
+                    >
+                      {paginatedPages.length}
+                    </span>
+                  </label>
+                </div>
+
+                {selectedIds.size > 0 && (
+                  <span className="text-[11px] text-[var(--muted)] font-mono hidden sm:inline-block">
+                    {`전체 ${visible.length}개 중 ${selectedIds.size}개 선택됨`}
                   </span>
-                </label>
+                )}
               </div>
             )}
 
-            <div className="wiki-cards">
+            <div className="wiki-cards grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {paginatedPages.map((item) => {
                 const verified = isVerified(item);
                 const label = stateLabel(item);
@@ -587,98 +625,129 @@ export function WikiLibrary({
                 return (
                   <div
                     key={item.id}
-                    className={`wiki-card group relative flex items-start gap-4 p-4 rounded-xl border bg-[var(--bg)] transition-all ${
+                    data-od-id={`wiki-document-${item.slug}`}
+                    onClick={() => {
+                      if (canVerify) {
+                        handleToggleSelect(item.id);
+                      } else {
+                        router.push(
+                          `${workspacePath(workspaceId)}/wiki/${item.slug}`,
+                        );
+                      }
+                    }}
+                    className={`wiki-card group relative flex flex-col justify-between p-4 sm:p-4.5 rounded-xl border transition-all min-w-0 cursor-pointer ${
+                      canVerify ? "select-none" : ""
+                    } ${
                       isSelected
-                        ? "border-[var(--border-strong)] bg-[var(--surface)]"
-                        : "border-[var(--border)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs"
+                        ? "border-[var(--accent)] bg-[var(--soft)]/40 ring-1 ring-[var(--accent)]/40 shadow-xs"
+                        : "border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs"
                     }`}
                   >
                     {canVerify && (
-                      <div className="pt-1 flex-none">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) =>
-                            handleToggleSelect(
-                              item.id,
-                              e as unknown as React.MouseEvent,
-                            )
-                          }
-                          className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
-                          aria-label={`${item.title} 선택`}
-                          data-testid={`select-wiki-${item.id}`}
-                        />
-                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelect(item.id);
+                        }}
+                        className="sr-only"
+                        aria-label={`${item.title} 선택`}
+                        data-testid={`select-wiki-${item.id}`}
+                      />
                     )}
 
-                    <Link
-                      className="flex-1 min-w-0 pr-3 block"
-                      href={`${workspacePath(workspaceId)}/wiki/${item.slug}`}
-                      data-od-id={`wiki-document-${item.slug}`}
-                    >
-                      <div className="flex flex-wrap items-center gap-1.5 mb-1 leading-none">
-                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-wider text-[var(--accent)]">
-                          {getCategoryIcon(item.category)}
-                          <span>
-                            {CATEGORY_LABELS[item.category] ?? item.category}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex flex-wrap items-center gap-1.5 leading-none min-w-0">
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-bold tracking-wider text-[var(--accent)]">
+                            {getCategoryIcon(item.category)}
+                            <span>
+                              {CATEGORY_LABELS[item.category] ?? item.category}
+                            </span>
                           </span>
-                        </span>
-                        <span
-                          className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"
-                          aria-hidden="true"
-                        />
-                        <span
-                          className={`inline-flex items-center gap-1 text-[10.5px] font-semibold ${verificationToneClass(item)}`}
-                        >
-                          {verified && <CheckCircle2 size={10} />}
-                          <span>{label}</span>
-                        </span>
-                        <span
-                          className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"
-                          aria-hidden="true"
-                        />
-                        <span className="inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)]">
-                          <Link2 size={9} aria-hidden="true" />
-                          <span>인용 {citations}개</span>
-                        </span>
+                          <span
+                            className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"
+                            aria-hidden="true"
+                          />
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10.5px] font-semibold ${verificationToneClass(item)}`}
+                          >
+                            {verified && <CheckCircle2 size={10} />}
+                            <span>{label}</span>
+                          </span>
+                          {citations > 0 && (
+                            <>
+                              <span
+                                className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"
+                                aria-hidden="true"
+                              />
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)]">
+                                <Link2 size={9} aria-hidden="true" />
+                                <span>인용 {citations}개</span>
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {canVerify && (
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all flex-none ${
+                              isSelected
+                                ? "bg-[var(--accent)] text-white shadow-2xs scale-100"
+                                : "border border-[var(--border-strong)] bg-[var(--surface)] opacity-0 group-hover:opacity-70 scale-90"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {isSelected ? "✓" : ""}
+                          </div>
+                        )}
                       </div>
 
-                      <h3 className="text-[17px] font-bold tracking-tight text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors mb-1">
+                      <h3
+                        title={item.title}
+                        className="text-[16px] font-bold tracking-tight text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors mb-1 truncate block"
+                      >
                         {item.title}
                       </h3>
 
-                      <p className="text-xs text-[var(--muted)] leading-relaxed line-clamp-2 max-w-3xl">
+                      <p className="text-xs text-[var(--muted)] leading-relaxed line-clamp-2 max-w-3xl overflow-hidden text-ellipsis mb-3.5">
                         {cleanExcerpt(item.content)}
                       </p>
-                    </Link>
+                    </div>
 
-                    <div className="flex items-center gap-2 pt-1 flex-none">
-                      {isOwner && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDeleteError(null);
-                            setDeleteTarget(item);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/12 transition-all cursor-pointer"
-                          title="문서 삭제"
-                          aria-label={`${item.title} 삭제`}
-                          data-testid={`delete-wiki-item-${item.id}`}
-                        >
-                          <Trash2 size={15} aria-hidden="true" />
-                        </button>
-                      )}
+                    <div className="flex items-center justify-between pt-2.5 border-t border-[var(--border)]/60 mt-auto gap-2">
+                      <div className="flex items-center gap-1">
+                        {isOwner && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setDeleteError(null);
+                              setDeleteTarget(item);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 rounded-md text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger)]/12 transition-all cursor-pointer"
+                            title="문서 삭제"
+                            aria-label={`${item.title} 삭제`}
+                            data-testid={`delete-wiki-item-${item.id}`}
+                          >
+                            <Trash2 size={13} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
 
                       <Link
                         href={`${workspacePath(workspaceId)}/wiki/${item.slug}`}
-                        aria-hidden="true"
-                        tabIndex={-1}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`${item.title} 상세 보기`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-strong)] text-xs font-semibold text-[var(--fg)] hover:text-[var(--accent)] transition-all flex-none shadow-2xs group/btn"
                       >
+                        <span>상세 보기</span>
                         <ChevronRight
-                          className="text-[var(--muted)] group-hover:translate-x-0.5 group-hover:text-[var(--accent)] transition-all flex-none"
-                          size={16}
+                          size={13}
+                          className="text-[var(--muted)] group-hover/btn:text-[var(--accent)] group-hover/btn:translate-x-0.5 transition-all"
                         />
                       </Link>
                     </div>
@@ -711,54 +780,70 @@ export function WikiLibrary({
       {/* 일괄 검증·발행·선택 해제는 플로팅 바가 담당한다. 인라인에 두면
           목록 높이가 밀려 카드 리듬이 깨진다. 게이트는 위치가 바뀌어도
           canVerify 그대로다. */}
-      {showFloatingBulk && (
-        <div
-          className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-5 py-3 shadow-xl backdrop-blur-md"
-          data-testid="bulk-action-bar"
-          role="toolbar"
-          aria-label="선택한 문서 일괄 작업"
-        >
-          <span className="text-xs font-bold text-[var(--fg)] whitespace-nowrap">
-            {selectedIds.size}개 문서 선택됨
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer whitespace-nowrap"
-          >
-            선택 해제
-          </button>
-          <span className="h-4 w-px bg-[var(--border)]" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={handleBulkVerify}
-            disabled={bulkLoading !== null}
-            className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good)]/12 px-2.5 py-1 text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-            data-testid="bulk-verify-btn"
-          >
-            {bulkLoading === "verify" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Check size={13} />
-            )}
-            <span>선택 일괄 검증</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleBulkPublish}
-            disabled={bulkLoading !== null}
-            className="nw-focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-            data-testid="bulk-publish-btn"
-          >
-            {bulkLoading === "publish" ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Globe size={13} />
-            )}
-            <span>선택 일괄 발행</span>
-          </button>
-        </div>
-      )}
+      {showFloatingBulk &&
+        (() => {
+          const floatingBar = (
+            <div
+              className="bulk-floating-bar flex items-center justify-between sm:justify-start gap-2 sm:gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-md px-3.5 py-2.5 sm:px-5 sm:py-3 shadow-2xl"
+              data-testid="bulk-action-bar"
+              role="toolbar"
+              aria-label="선택한 문서 일괄 작업"
+            >
+              <div className="flex items-center gap-2 flex-none min-w-0">
+                <span className="text-xs font-bold text-[var(--fg)] whitespace-nowrap">
+                  {selectedIds.size}개 문서 선택됨
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer whitespace-nowrap"
+                >
+                  선택 해제
+                </button>
+              </div>
+
+              <span
+                className="hidden sm:block h-4 w-px bg-[var(--border)] flex-none"
+                aria-hidden="true"
+              />
+
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-none">
+                <button
+                  type="button"
+                  onClick={handleBulkVerify}
+                  disabled={bulkLoading !== null}
+                  className="nw-focus-ring inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good)]/12 px-2.5 py-1.5 text-[11.5px] sm:text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50 whitespace-nowrap flex-none shrink-0"
+                  data-testid="bulk-verify-btn"
+                >
+                  {bulkLoading === "verify" ? (
+                    <Loader2 size={13} className="animate-spin flex-none" />
+                  ) : (
+                    <Check size={13} className="flex-none" />
+                  )}
+                  <span className="whitespace-nowrap">선택 일괄 검증</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkPublish}
+                  disabled={bulkLoading !== null}
+                  className="nw-focus-ring inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--soft)] px-2.5 py-1.5 text-[11.5px] sm:text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50 whitespace-nowrap flex-none shrink-0"
+                  data-testid="bulk-publish-btn"
+                >
+                  {bulkLoading === "publish" ? (
+                    <Loader2 size={13} className="animate-spin flex-none" />
+                  ) : (
+                    <Globe size={13} className="flex-none" />
+                  )}
+                  <span className="whitespace-nowrap">선택 일괄 발행</span>
+                </button>
+              </div>
+            </div>
+          );
+
+          return mounted
+            ? createPortal(floatingBar, document.body)
+            : floatingBar;
+        })()}
 
       {/* 개별 위키 문서 삭제 확인 모달 */}
       <Dialog.Root

@@ -163,12 +163,15 @@ export function AskHero({
         </section>
       </div>
 
-      <div className="chips" data-od-id="suggested-questions">
+      <div
+        className="chips flex items-center gap-2 flex-nowrap overflow-x-auto max-w-full pb-1 -mb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mb-0"
+        data-od-id="suggested-questions"
+      >
         {defaultChips.map((chip) => (
           <button
             key={chip}
             type="button"
-            className="chip"
+            className="chip flex-none whitespace-nowrap text-xs"
             onClick={() => handleChipClick(chip)}
           >
             {chip}
