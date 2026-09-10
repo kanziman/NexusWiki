@@ -1978,17 +1978,8 @@ textarea:focus-visible {
 .pipe-bar::-webkit-progress-bar { background: var(--surface); border-radius: 999px; }
 .pipe-bar::-webkit-progress-value { background: var(--good); border-radius: 999px; transition: width 300ms ease; }
 .pipe-bar::-moz-progress-bar { background: var(--good); border-radius: 999px; transition: width 300ms ease; }
-
-.pipe-error { display: flex; align-items: flex-start; gap: 6px }
-
-.pipe-error p {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  color: var(--danger);
-  font-size: 10px;
-  line-height: 1.5;
-}
+.pipe-bar.failed::-webkit-progress-value { background: var(--danger); }
+.pipe-bar.failed::-moz-progress-bar { background: var(--danger); }
 
 /* 로드 전 자리를 잡아 둔다 — 높이가 없으면 폴링 첫 응답에서 행 높이가 튄다. */
 .pipe-skeleton { height: 30px; border-radius: 6px; background: var(--surface) }

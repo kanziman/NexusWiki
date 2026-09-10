@@ -247,4 +247,74 @@ describe("JobStepper", () => {
       "진행 중인 작업을 취소하시겠습니까? 이미 사용된 비용은 환불되지 않습니다.",
     );
   });
+
+  it("크레딧 소진 실패 시 한국어 안내를 노출하고 충전 후 재시도할 수 있도록 버튼을 표시한다 (신규 토큰)", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({
+          id: "j-compile",
+          type: "compile",
+          step_label: "위키 컴파일",
+          chain_position: 2,
+          status: "dead",
+          last_error:
+            "provider_credit_exhausted provider=openrouter kind=chat_completion",
+        }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "AI 크레딧이 소진되었습니다. 크레딧 충전 또는 API 키 확인 후 재시도해 주세요.",
+    );
+    expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
+  });
+
+  it("기존 DB의 provider_error 402 에러 문자열도 크레딧 소진 안내로 매핑하고 재시도 버튼을 표시한다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({
+          id: "j-compile",
+          type: "compile",
+          step_label: "위키 컴파일",
+          chain_position: 2,
+          status: "dead",
+          last_error:
+            "provider_error kind=chat_completion provider=openrouter status=402",
+        }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "AI 크레딧이 소진되었습니다. 크레딧 충전 또는 API 키 확인 후 재시도해 주세요.",
+    );
+    expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
+  });
+
+  it("upstream_error status=402는 AI 크레딧 소진으로 오인하지 않고 일반 실패 문구를 노출한다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({
+          id: "j-parse",
+          type: "parse",
+          step_label: "원문 파싱",
+          chain_position: 1,
+          status: "dead",
+          last_error: "upstream_error status=402",
+        }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).not.toHaveTextContent("AI 크레딧이 소진되었습니다");
+    expect(alert).toHaveTextContent("원문 파싱 단계에서 실패했습니다");
+    expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
+  });
 });

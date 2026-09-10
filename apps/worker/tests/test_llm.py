@@ -226,3 +226,15 @@ def test_render_template_does_not_rescan_substituted_content() -> None:
     rendered = llm.render_template("{{content}}", {"content": "{{source_title}}"})
 
     assert rendered == "{{source_title}}"
+
+
+@pytest.mark.asyncio
+async def test_llm_raises_provider_credit_exhausted_on_402() -> None:
+    seen: list[dict[str, Any]] = []
+    resp = httpx.Response(402, json={"error": {"message": "Credit exhausted"}})
+    async with scripted_client([resp], seen) as client:
+        with pytest.raises(llm.ProviderCreditExhausted) as exc_info:
+            await run(client)
+        assert exc_info.value.status_code == 402
+        assert exc_info.value.provider == llm.PROVIDER_NAME
+        assert isinstance(exc_info.value, llm.ProviderError)

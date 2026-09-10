@@ -133,7 +133,7 @@ describe("AccountMenu", () => {
     expect(screen.getByText("한도 500 크레딧")).toBeInTheDocument();
   });
 
-  it("커스텀 API 키가 등록된 워크스페이스는 '내 API 키 연결됨 (무제한)' 카드를 렌더링한다", async () => {
+  it("BYOK는 폐지됐다 — cap_micros가 음수여도 '무제한' 카드를 렌더링하지 않는다", async () => {
     const user = userEvent.setup();
     apiFetch.mockResolvedValue({
       cap_micros: -1,
@@ -148,10 +148,8 @@ describe("AccountMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "계정 메뉴" }));
 
-    expect(await screen.findByText("내 API 키 연결됨")).toBeInTheDocument();
-    expect(screen.getByText("무제한 이용 중")).toBeInTheDocument();
-    expect(
-      screen.getByText("크레딧 차감 없이 무제한으로 사용 가능합니다."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    expect(screen.queryByText("무제한 이용 중")).not.toBeInTheDocument();
+    expect(screen.queryByText("내 API 키 연결됨")).not.toBeInTheDocument();
   });
 });

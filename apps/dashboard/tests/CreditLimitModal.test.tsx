@@ -22,8 +22,9 @@ describe("CreditLimitModal", () => {
       screen.getByText(/월간 무료 AI 질의 및 소스 분석 한도에 도달했습니다/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /내 API 키 등록 \(무제한\)/ }),
+      screen.getByRole("link", { name: /설정에서 사용량 확인/ }),
     ).toHaveAttribute("href", "/w/ws-test/settings");
+    expect(screen.queryByText(/무제한/)).not.toBeInTheDocument();
   });
 
   it("calls onOpenChange when close button is clicked", async () => {

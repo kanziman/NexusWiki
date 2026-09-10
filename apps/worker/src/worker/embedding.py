@@ -12,7 +12,7 @@ from typing import Final
 
 import httpx
 
-from worker.errors import EmbeddingProviderMismatch, ProviderError
+from worker.errors import EmbeddingProviderMismatch, ProviderCreditExhausted, ProviderError
 from worker.settings import WorkerSettings
 
 EMBEDDING_DIMENSIONS: Final[int] = 1024
@@ -52,6 +52,8 @@ async def embed_texts(
     }
     response = await client.post("/embeddings", json=body)
     if response.is_error:
+        if response.status_code == 402:
+            raise ProviderCreditExhausted(provider="openrouter", kind="embedding")
         raise ProviderError(
             provider="openrouter", status_code=response.status_code, kind="embedding"
         )

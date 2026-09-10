@@ -28,7 +28,12 @@ import pytest
 from worker import __main__ as worker_main
 from worker import handlers, queue
 from worker.db.service import ServiceDb, service_client
-from worker.errors import ProviderError, UnsafeFetchTarget
+from worker.errors import (
+    NON_RETRYABLE_ERRORS,
+    ProviderCreditExhausted,
+    ProviderError,
+    UnsafeFetchTarget,
+)
 from worker.handlers import conflict
 from worker.handlers.noop import handle_noop
 from worker.settings import WorkerSettings
@@ -285,6 +290,29 @@ async def test_missing_transcript_does_not_burn_the_retry_budget(
 
 
 @pytest.mark.asyncio
+async def test_provider_credit_exhausted_is_dead_lettered_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = FakeQueue()
+    db.enqueue(job_type="compile", max_attempts=5)
+
+    async def out_of_credits(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        raise ProviderCreditExhausted(provider="openrouter", kind="chat_completion")
+
+    install_handler(monkeypatch, out_of_credits, job_type="compile")
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    row = db.rows[JOB_ID]
+    assert row["status"] == "dead"
+    assert row["attempts"] == 1
+    assert db.called("dead_letter_job") == [JOB_ID]
+    assert db.called("fail_job") == []
+    assert row["last_error"] == "provider_credit_exhausted provider=openrouter kind=chat_completion"
+
+
+@pytest.mark.asyncio
 async def test_provider_outage_keeps_its_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     db = FakeQueue()
     db.enqueue(job_type="parse", max_attempts=5)
@@ -363,6 +391,13 @@ def test_sanitize_error_hides_provider_response_and_credentials() -> None:
 def test_sanitize_error_keeps_our_reason_token() -> None:
     result = queue.sanitize_error(UnsafeFetchTarget(reason="private_address"))
     assert "private_address" in result
+
+
+def test_sanitize_error_formats_provider_credit_exhausted() -> None:
+    error = ProviderCreditExhausted(provider="openrouter", kind="chat_completion")
+    sanitized = queue.sanitize_error(error)
+    assert sanitized == "provider_credit_exhausted provider=openrouter kind=chat_completion"
+    assert isinstance(error, NON_RETRYABLE_ERRORS)
 
 
 # -----------------------------------------------------------------------------

@@ -184,9 +184,12 @@ async def test_queued_cancel_is_immediate_and_second_cancel_is_conflict(
 
 @pytest.mark.asyncio
 async def test_budget_is_display_only_and_empty_usage_costs_zero(
-    two_workspaces_two_users: tuple[Any, ...], authed_client: Callable[..., Any]
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    set_workspace_budget: Callable[[Any, int], None],
 ) -> None:
     owner, _ = two_workspaces_two_users
+    set_workspace_budget(owner, 7_000_000)
     async with authed_client(owner) as client:
         response = await client.get(BUDGET_PATH.format(workspace_id=owner.workspace_id))
     assert response.status_code == status.HTTP_200_OK
@@ -196,6 +199,10 @@ async def test_budget_is_display_only_and_empty_usage_costs_zero(
     )
     assert body["spent_micros"] == 0
     assert body["authoritative"] is False
+    # BYOK("무제한") 표시는 폐지됐다 — custom_api_key 등록 여부와 무관하게 cap_micros는
+    # 항상 실제 monthly_budget_micros를 반영하고 -1(무제한 표시)이어서는 안 된다.
+    assert body["cap_micros"] == 7_000_000
+    assert body["remaining_micros"] == 7_000_000
 
 
 def test_operations_pipeline_is_fixed_order_and_safe_allowlist() -> None:

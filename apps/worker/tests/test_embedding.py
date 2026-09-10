@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from worker.embedding import EMBEDDING_DIMENSIONS, embed_texts
+from worker.errors import ProviderCreditExhausted, ProviderError
 from worker.settings import WorkerSettings
 
 
@@ -42,3 +43,20 @@ async def test_embedding_request_locks_provider_and_checks_dimensions() -> None:
         result = await embed_texts(client, settings=settings(), texts=["x"])
     assert result.vectors and seen[0]["provider"]["allow_fallbacks"] is False
     assert seen[0]["provider"]["order"] == ["p"] and "dimensions" not in seen[0]
+
+
+@pytest.mark.asyncio
+async def test_embedding_raises_provider_credit_exhausted_on_402() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(402, json={"error": {"message": "Credit exhausted"}})
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="https://x"
+    ) as client:
+        with pytest.raises(ProviderCreditExhausted) as exc_info:
+            await embed_texts(client, settings=settings(), texts=["x"])
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.kind == "embedding"
+    assert exc_info.value.provider == "openrouter"
+    assert isinstance(exc_info.value, ProviderError)

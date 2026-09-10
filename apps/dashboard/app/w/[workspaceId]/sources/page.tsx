@@ -50,29 +50,36 @@ export default async function SourcesPage({
     user = data?.user ?? null;
   }
 
-  const [chunkResult, wikiResult, memberResult] = await Promise.all([
-    sourceIds.length
-      ? supabase
-          .from("source_chunks")
-          .select("raw_source_id,char_start,char_end")
-          .eq("workspace_id", workspaceId)
-          .in("raw_source_id", sourceIds)
-      : Promise.resolve({ data: [] }),
-    supabase
-      .from("wiki_pages")
-      .select("id,title,slug,sources")
-      .eq("workspace_id", workspaceId),
-    user
-      ? supabase
-          .from("workspace_members")
-          .select("role")
-          .eq("workspace_id", workspaceId)
-          .eq("user_id", user.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
+  const [chunkResult, wikiResult, memberResult, deadJobsResult] =
+    await Promise.all([
+      sourceIds.length
+        ? supabase
+            .from("source_chunks")
+            .select("raw_source_id,char_start,char_end")
+            .eq("workspace_id", workspaceId)
+            .in("raw_source_id", sourceIds)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("wiki_pages")
+        .select("id,title,slug,sources")
+        .eq("workspace_id", workspaceId),
+      user
+        ? supabase
+            .from("workspace_members")
+            .select("role")
+            .eq("workspace_id", workspaceId)
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("status", "dead"),
+    ]);
 
   const isOwner = memberResult?.data?.role === "owner";
+  const deadJobCount = deadJobsResult?.count ?? 0;
 
   // ⚠️ 아래 두 집계는 실패해도 `?? []`로 흘러가 빈 결과와 구분되지 않는다.
   // 목록 요약이 "고아 소스 없음"·"전 소스 청킹 완료" 같은 단정을 하므로, 조회
@@ -139,6 +146,7 @@ export default async function SourcesPage({
       prefillTitle={prefillTitle}
       initialTab={tab === "text" ? "text" : undefined}
       isOwner={isOwner}
+      deadJobCount={deadJobCount}
     />
   );
 }

@@ -29,6 +29,7 @@ from nexuswiki_core.extract import ExtractionQualityError
 from nexuswiki_core.logging import bind_job_context, clear_job_context, get_logger
 from worker.errors import (
     NON_RETRYABLE_ERRORS,
+    ProviderCreditExhausted,
     ProviderError,
     StorageObjectMissing,
     UnsafeFetchTarget,
@@ -116,7 +117,10 @@ def sanitize_error(error: BaseException) -> str:
 
     Provider/HTTP 오류의 응답 본문과 자격증명은 숨기고, 우리가 만든 사유 토큰은 남긴다.
     """
-    if isinstance(error, ProviderError):
+    if isinstance(error, ProviderCreditExhausted):
+        kind = f" kind={error.kind}" if error.kind else ""
+        text = f"provider_credit_exhausted provider={error.provider}{kind}"
+    elif isinstance(error, ProviderError):
         status = "none" if error.status_code is None else str(error.status_code)
         text = f"provider_error kind={error.kind} provider={error.provider} status={status}"
     elif isinstance(error, ExtractionQualityError):

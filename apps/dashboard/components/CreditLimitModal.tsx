@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertCircle, CheckCircle2, KeyRound, X, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, Settings, X } from "lucide-react";
 import Link from "next/link";
 
 type CreditLimitModalProps = {
@@ -66,17 +66,6 @@ export function CreditLimitModal({
                   복사할 수 있습니다.
                 </span>
               </div>
-              <div className="flex items-start gap-2 pt-1 border-t border-[var(--border)] text-[var(--fg)] font-medium">
-                <Zap
-                  size={15}
-                  className="text-[var(--accent)] flex-none mt-0.5"
-                />
-                <span>
-                  <b>내 OpenRouter API 키 등록 시 무제한 사용:</b> 워크스페이스
-                  설정에서 개인 키를 연결하면 크레딧 제한 없이 바로 작업을
-                  이어갈 수 있습니다.
-                </span>
-              </div>
             </div>
           </div>
 
@@ -93,8 +82,8 @@ export function CreditLimitModal({
                     href={`/w/${workspaceId}/settings`}
                     className="button compact primary inline-flex items-center gap-1.5"
                   >
-                    <KeyRound size={13} aria-hidden="true" />
-                    <span>내 API 키 등록 (무제한)</span>
+                    <Settings size={13} aria-hidden="true" />
+                    <span>설정에서 사용량 확인</span>
                   </Link>
                 </Dialog.Close>
               </>
