@@ -313,7 +313,7 @@ describe("JobStepper", () => {
     render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).not.toHaveTextContent("AI 사용 크레딧이 소진되어");
+    expect(alert).not.toHaveTextContent("AI 크레딧이 소진되었습니다");
     expect(alert).toHaveTextContent("원문 파싱 단계에서 실패했습니다");
     expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
   });

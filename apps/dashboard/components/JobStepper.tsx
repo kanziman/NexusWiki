@@ -64,19 +64,22 @@ function isChainSettled(rows: JobRow[]): boolean {
 //    이유로 끝난다 — 사용자를 결과가 정해진 루프에 묶어두는 버튼이 된다.
 const TRANSCRIPT_FAILURES: Record<
   string,
-  { message: string; retryable: boolean }
+  { shortLabel: string; message: string; retryable: boolean }
 > = {
   no_transcript: {
+    shortLabel: "자막 없음",
     message:
       "이 영상에는 사용할 수 있는 자막이 없습니다. 다시 시도해도 결과가 같으니 이 소스를 삭제해 주세요.",
     retryable: false,
   },
   video_unavailable: {
+    shortLabel: "영상 접근 불가",
     message:
       "영상이 비공개이거나 삭제되어 자막을 가져올 수 없습니다. 다시 시도해도 결과가 같으니 이 소스를 삭제해 주세요.",
     retryable: false,
   },
   provider_unavailable: {
+    shortLabel: "자막 서비스 오류",
     message:
       "자막 서비스에 일시적으로 연결하지 못했습니다. 잠시 후 재시도해 주세요.",
     retryable: true,
@@ -86,13 +89,14 @@ const TRANSCRIPT_FAILURES: Record<
 export function describeFailure(job: {
   step_label: string;
   last_error: string | null;
-}): { message: string; retryable: boolean } {
+}): { shortLabel: string; message: string; retryable: boolean } {
   const error = job.last_error ?? "";
   if (
     error.startsWith("provider_credit_exhausted") ||
     (error.startsWith("provider_error") && error.includes("status=402"))
   ) {
     return {
+      shortLabel: "AI 크레딧 소진",
       message:
         "AI 크레딧이 소진되었습니다. 크레딧 충전 또는 API 키 확인 후 재시도해 주세요.",
       retryable: true,
@@ -101,6 +105,7 @@ export function describeFailure(job: {
   const known = TRANSCRIPT_FAILURES[error];
   if (known) return known;
   return {
+    shortLabel: `${job.step_label} 실패`,
     message: `${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
       job.last_error,
     )}. 재시도를 눌러 다시 시도하세요.`,
@@ -238,6 +243,11 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       job !== undefined && CURRENT_CANDIDATE_STATUSES.has(job.status),
   );
   const failedJobs = jobs.filter((job) => job.status === "dead");
+  const failures = failedJobs.map((job) => ({
+    job,
+    ...describeFailure(job),
+  }));
+  const primaryFailure = failures[0] ?? null;
   const completedStages =
     1 + jobs.filter((job) => job.status === "succeeded").length;
   const progressValue = Math.min(completedStages, 5);
@@ -255,8 +265,10 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       ? "처리가 완료되었습니다"
       : wasCanceled
         ? "처리가 취소되었습니다"
-        : failedJobs.length > 0
-          ? "처리에 실패했습니다"
+        : primaryFailure
+          ? failures.length > 1
+            ? `${primaryFailure.shortLabel} 외 ${failures.length - 1}건`
+            : primaryFailure.shortLabel
           : "처리 상태를 확인하고 있습니다";
 
   // PRD §3.3 상태 표기 계약 — 색을 직접 지정하지 않고 .status 변형만 고른다
@@ -272,7 +284,10 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       <div className="pipe-line" role="status">
         {/* 상태 색은 .dot 이 .status 변형에서 상속받는다 — 아이콘 컴포넌트를
             쓰면 색을 다시 지정해야 하고, 그 순간 표기 계약이 두 곳으로 갈린다. */}
-        <span className={`status${statusVariant}`}>
+        <span
+          className={`status${statusVariant}`}
+          title={primaryFailure?.message}
+        >
           <i className="dot" aria-hidden="true" />
           {statusText} · {progressValue}/5단계 완료
         </span>
@@ -297,33 +312,33 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
         />
       )}
 
-      {failedJobs.map((job) => {
-        const failure = describeFailure(job);
-        return (
-          <div
-            key={job.id}
-            className="pipe-error mt-1 flex items-center justify-between gap-2 rounded-md border border-[var(--danger)]/20 bg-[var(--danger-soft)]/40 px-2 py-1.5"
+      {failures.map(({ job, message, retryable }) => (
+        <div key={job.id} className="flex min-w-0 items-center gap-sm">
+          <p
+            role="alert"
+            title={message}
+            className="min-w-0 flex-1 truncate whitespace-nowrap text-[11px] font-medium leading-none text-[var(--danger)]"
           >
-            <p
-              role="alert"
-              className="text-[11px] font-medium leading-snug text-[var(--danger)]"
+            {message}
+          </p>
+          {retryable && (
+            <button
+              type="button"
+              aria-label="재시도"
+              onClick={() => handleRetry(job.id)}
+              disabled={retryingId === job.id}
+              className="nw-focus-ring pipe-action danger"
+              title="재시도"
             >
-              {failure.message}
-            </p>
-            {failure.retryable ? (
-              <button
-                type="button"
-                aria-label="재시도"
-                onClick={() => handleRetry(job.id)}
-                disabled={retryingId === job.id}
-                className="nw-focus-ring flex h-6 w-6 flex-none items-center justify-center rounded bg-[var(--danger)]/10 text-[var(--danger)] transition-colors hover:bg-[var(--danger)] hover:text-white"
-              >
-                <RefreshCw size={12} aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-        );
-      })}
+              <RefreshCw
+                size={13}
+                className={retryingId === job.id ? "animate-spin" : ""}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+        </div>
+      ))}
 
       <Dialog.Root
         open={cancelTarget !== null}
