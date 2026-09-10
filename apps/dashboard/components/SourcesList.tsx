@@ -47,6 +47,7 @@ export type SourcesListProps = {
   // 같은 단정을 사실인 것처럼 표시한다.
   chunkStatsUnavailable?: boolean;
   citingPagesUnavailable?: boolean;
+  deadJobsUnavailable?: boolean;
   prefillTitle?: string;
   initialTab?: "text";
   isOwner?: boolean;
@@ -105,6 +106,7 @@ export function SourcesList({
   citingPages = {},
   chunkStatsUnavailable = false,
   citingPagesUnavailable = false,
+  deadJobsUnavailable = false,
   prefillTitle,
   initialTab,
   isOwner = false,
@@ -249,7 +251,7 @@ export function SourcesList({
       ? 0
       : Math.round((indexedCount / sources.length) * 100);
 
-  const hasDeadJobs = deadJobCount > 0;
+  const hasDeadJobs = !deadJobsUnavailable && deadJobCount > 0;
 
   const TABS: { id: MimeFilter; label: string }[] = [
     { id: "all", label: `전체 ${sources.length}` },
@@ -387,7 +389,7 @@ export function SourcesList({
                 />
               )}
             </div>
-            {chunkStatsUnavailable ? (
+            {chunkStatsUnavailable || deadJobsUnavailable ? (
               <span className="text-[12px] font-semibold text-[var(--muted)]">
                 {AGGREGATE_UNAVAILABLE}
               </span>

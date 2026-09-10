@@ -111,7 +111,7 @@ export function YoutubeChannelSearch({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="mt-8 flex flex-col gap-6">
       <form onSubmit={handleSearch} className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search
