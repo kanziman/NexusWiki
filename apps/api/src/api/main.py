@@ -22,6 +22,7 @@ from api.routers.retrieval import router as retrieval_router
 from api.routers.sources import router as sources_router
 from api.routers.wiki import router as wiki_router
 from api.routers.workspaces import router as workspaces_router
+from api.routers.youtube import router as youtube_router
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import configure_logging
@@ -80,6 +81,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     app.include_router(ask_router)
     app.include_router(graph_router)
     app.include_router(wiki_router)
+    app.include_router(youtube_router)
     return app
 
 

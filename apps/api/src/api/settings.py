@@ -74,3 +74,15 @@ class ApiSettings(BaseAppSettings):
     # ⚠️ 워커 자신의 OpenRouter 타임아웃(120초)보다 **반드시 커야** API가 워커보다
     #    먼저 끊지 않는다.
     LLM_STREAM_TIMEOUT_SECONDS: float = 130.0
+
+    # Private worker-bound YouTube channel-search capability
+    # (youtube-channel-import change의 design.md > D5). YouTube API 키 자체는 워커만
+    # 소유한다 — 여기 있는 것은 provider 자격증명이 아니라 내부 호출자 자격이며,
+    # QUERY_EMBEDDING_INTERNAL_TOKEN·LLM_STREAM_INTERNAL_TOKEN과 같은 성격이다.
+    YOUTUBE_SEARCH_INTERNAL_URL: str | None = None
+    YOUTUBE_SEARCH_INTERNAL_TOKEN: str | None = None
+    YOUTUBE_SEARCH_TIMEOUT_SECONDS: float = 12.0
+    # ⚠️ 캐시 TTL은 자격증명이 아니라 쿼터 보존 정책이다. `search.list`가 호출당
+    #    100유닛이라 이 값이 곧 하루에 감당 가능한 서로 다른 검색어 수를 정한다.
+    YOUTUBE_SEARCH_CACHE_TTL_SECONDS: float = 21_600.0  # 6시간
+    YOUTUBE_SEARCH_CACHE_MAX_ENTRIES: int = 512

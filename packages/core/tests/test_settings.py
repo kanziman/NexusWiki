@@ -55,6 +55,17 @@ NON_SECRET_API_FIELDS = frozenset(
         #  자체가 없었음이 라이브 테스트로 드러났다. 자격증명이 아니라 배포별 도메인
         #  목록이라는 운영 토글이다.)
         "CORS_ALLOWED_ORIGINS",
+        # (2026-09-10, youtube-channel-import: YOUTUBE_SEARCH_INTERNAL_URL/_TOKEN/
+        #  _TIMEOUT_SECONDS — worker의 /internal/youtube-search 호출 캐퍼빌리티.
+        #  YouTube API 키 자체는 WorkerSettings.YOUTUBE_API_KEY에만 있고, 여기 토큰은
+        #  QUERY_EMBEDDING_INTERNAL_TOKEN과 같은 내부 호출자 자격이다.
+        #  _CACHE_* 둘은 쿼터 보존 정책값으로 자격증명이 아니다. 근거: 같은 change의
+        #  design.md > D3, D5.)
+        "YOUTUBE_SEARCH_INTERNAL_URL",
+        "YOUTUBE_SEARCH_INTERNAL_TOKEN",
+        "YOUTUBE_SEARCH_TIMEOUT_SECONDS",
+        "YOUTUBE_SEARCH_CACHE_TTL_SECONDS",
+        "YOUTUBE_SEARCH_CACHE_MAX_ENTRIES",
     }
 )
 
