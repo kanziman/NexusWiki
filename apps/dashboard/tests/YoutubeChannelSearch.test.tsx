@@ -147,6 +147,64 @@ describe("YoutubeChannelSearch", () => {
     expect(screen.getByText("채널1")).toBeInTheDocument();
   });
 
+  it("채널을 고르면 그 채널의 영상 목록으로 넘어간다", async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      channels: [channel("UC1", "쿠킹채널")],
+      next_page_token: null,
+    });
+    render(<YoutubeChannelSearch workspaceId="ws-1" />);
+    await search();
+    await screen.findByTestId("youtube-channel-UC1");
+
+    mockApiFetch.mockResolvedValueOnce({
+      videos: [
+        {
+          video_id: "v1",
+          title: "김치찌개 끓이기",
+          published_at: null,
+          duration_seconds: 600,
+          thumbnail_url: null,
+        },
+      ],
+      next_page_token: null,
+    });
+    fireEvent.click(screen.getByTestId("youtube-channel-UC1"));
+
+    await waitFor(() => {
+      expect(screen.getByText("김치찌개 끓이기")).toBeInTheDocument();
+    });
+    expect(mockApiFetch.mock.calls[1][0] as string).toContain(
+      "/workspaces/ws-1/youtube/channels/UC1/videos",
+    );
+    // 검색 UI는 대체된다 — 두 목록이 같은 화면에 있으면 "더 보기"가 어느 쪽을 늘리는지
+    // 알 수 없다.
+    expect(
+      screen.queryByTestId("youtube-search-submit"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("뒤로 가면 방금 검색한 결과가 그대로 남는다", async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      channels: [channel("UC1", "쿠킹채널")],
+      next_page_token: null,
+    });
+    render(<YoutubeChannelSearch workspaceId="ws-1" />);
+    await search();
+    await screen.findByTestId("youtube-channel-UC1");
+
+    mockApiFetch.mockResolvedValueOnce({ videos: [], next_page_token: null });
+    fireEvent.click(screen.getByTestId("youtube-channel-UC1"));
+    await screen.findByTestId("youtube-videos-back");
+
+    fireEvent.click(screen.getByTestId("youtube-videos-back"));
+
+    // 검색을 다시 부르지 않는다 — 부르면 100유닛짜리 호출이 뒤로 가기마다 나간다.
+    await waitFor(() => {
+      expect(screen.getByText("쿠킹채널")).toBeInTheDocument();
+    });
+    expect(mockApiFetch).toHaveBeenCalledTimes(2);
+  });
+
   it("빈 키워드로는 요청하지 않는다", async () => {
     render(<YoutubeChannelSearch workspaceId="ws-1" />);
     fireEvent.change(screen.getByTestId("youtube-search-input"), {

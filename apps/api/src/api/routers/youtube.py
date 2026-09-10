@@ -1,12 +1,16 @@
-"""YouTube 채널 검색 경계.
+"""YouTube 채널 검색·영상 목록 경계.
 
-관련 태스크: openspec/changes/youtube-channel-import/tasks.md Task 1.2 · 1.3 · 1.4
-설계 근거: 같은 change의 `design.md` > D3, D5
+관련 태스크: openspec/changes/youtube-channel-import/tasks.md Task 1.2 · 1.3 · 1.4 · 2.1
+설계 근거: 같은 change의 `design.md` > D3, D4, D5
 
 ⚠️ 이 라우터는 YouTube를 **직접 호출하지 않는다.** provider 키는 워커만 소유하므로
 (`ApiSettings`에는 키를 담을 필드가 없다 — SEC-01) 여기서는 워커의 사설 리스너를
 내부 호출자 토큰으로 부르기만 한다. 키를 이 프로세스로 옮기고 싶어지면 그것이 곧
 SEC-01을 깨는 순간이다.
+
+⚠️ 이 라우터는 `raw_sources`를 만들지 않는다. 선택 영상 등록은 `routers/sources.py`가
+소유한다 — 원문 행을 만드는 경로가 두 라우터로 갈라지면 `_insert_and_enqueue`가 함께
+들고 있는 중복 판정·예산 프리플라이트도 갈라진다.
 """
 
 from __future__ import annotations
@@ -22,13 +26,23 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from api.db.user import UserDb
-from api.errors import WorkspaceForbidden, YoutubeQuotaExceeded, YoutubeUnavailable
+from api.errors import (
+    WorkspaceForbidden,
+    YoutubeChannelNotFound,
+    YoutubeQuotaExceeded,
+    YoutubeUnavailable,
+)
 
 router = APIRouter(prefix="/workspaces", tags=["youtube"])
 
 _bearer = HTTPBearer(auto_error=True)
 
 _MAX_QUERY_CHARS = 100
+
+# `UC` + base64url 22자가 채널 id의 형태다. 길이를 못 박지 않고 문자 집합과 상한만 재는
+# 이유는 형태가 바뀌어도 이 값이 **경로 조각이 아니라 업스트림 쿼리 파라미터**로만
+# 쓰이기 때문이다 — 여기서 막는 것은 위조가 아니라 의미 없는 업스트림 호출이다.
+_MAX_CHANNEL_ID_CHARS = 64
 
 
 class YoutubeChannel(BaseModel):
@@ -40,6 +54,19 @@ class YoutubeChannel(BaseModel):
 
 class ChannelSearchResponse(BaseModel):
     channels: list[YoutubeChannel]
+    next_page_token: str | None = None
+
+
+class YoutubeVideo(BaseModel):
+    video_id: str
+    title: str
+    published_at: str | None = None
+    duration_seconds: int | None = None
+    thumbnail_url: str | None = None
+
+
+class ChannelVideosResponse(BaseModel):
+    videos: list[YoutubeVideo]
     next_page_token: str | None = None
 
 
@@ -115,10 +142,29 @@ def _cache(request: Request) -> SearchCache:
     return cache
 
 
-async def _call_worker_search(
-    request: Request, *, query: str, region_code: str, page_token: str | None
+def _error_detail(response: httpx.Response) -> str:
+    """오류 응답의 `detail` 토큰만 꺼낸다. 못 읽으면 빈 문자열이다."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return detail if isinstance(detail, str) else ""
+
+
+async def _call_worker(
+    request: Request, *, path: str, payload: dict[str, Any], timeout_seconds: float
 ) -> dict[str, Any]:
-    """워커의 사설 검색 리스너를 부른다. 업스트림 사유는 두 갈래로만 올린다."""
+    """워커의 사설 리스너 하나를 부른다. 업스트림 사유는 세 갈래로만 올린다.
+
+    ⚠️ 상태 코드**만으로** 사유를 읽지 않는다. 503과 404는 우리 워커가 각각 쿼터 소진과
+    채널 소멸에만 쓰는 코드지만, 그 앞에 프록시나 로드밸런서가 끼는 순간 같은 코드가
+    전혀 다른 뜻으로 도착한다 — 게이트웨이의 503은 워커 장애이고, `YOUTUBE_API_KEY`가
+    없으면 워커가 이 라우트를 아예 등록하지 않아 FastAPI 기본 404가 온다. 뭉개면 워커
+    장애가 "내일 다시 시도하세요"로, 배포 설정 누락이 "그 채널은 삭제됐습니다"로
+    위장되고 그 화면에서는 원인을 영원히 찾을 수 없다. 그래서 두 코드 모두 워커 자신이
+    붙인 토큰까지 대조한다.
+    """
     settings = request.app.state.settings
     url = settings.YOUTUBE_SEARCH_INTERNAL_URL
     token = settings.YOUTUBE_SEARCH_INTERNAL_TOKEN
@@ -129,24 +175,50 @@ async def _call_worker_search(
     client: httpx.AsyncClient = request.app.state.http_client
     try:
         response = await client.post(
-            f"{url.rstrip('/')}/internal/youtube-search",
-            json={"query": query, "region_code": region_code, "page_token": page_token},
+            f"{url.rstrip('/')}{path}",
+            json=payload,
             headers={"Authorization": f"Bearer {token}"},
-            timeout=settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
         )
     except httpx.HTTPError as error:
         raise YoutubeUnavailable from error
 
-    if response.status_code == 503:
-        # 워커가 쿼터 소진에만 쓰는 코드다 (`worker.youtube`). 다른 5xx와 섞지 않는다.
-        raise YoutubeQuotaExceeded
     if response.is_error:
+        detail = _error_detail(response)
+        if response.status_code == 503 and detail == "youtube_quota_exceeded":
+            raise YoutubeQuotaExceeded
+        if response.status_code == 404 and detail == "youtube_channel_not_found":
+            raise YoutubeChannelNotFound
         raise YoutubeUnavailable
 
-    payload = response.json()
-    if not isinstance(payload, dict):
+    body = response.json()
+    if not isinstance(body, dict):
         raise YoutubeUnavailable
-    return payload
+    return body
+
+
+async def _call_worker_search(
+    request: Request, *, query: str, region_code: str, page_token: str | None
+) -> dict[str, Any]:
+    """워커의 사설 채널 검색 리스너를 부른다."""
+    return await _call_worker(
+        request,
+        path="/internal/youtube-search",
+        payload={"query": query, "region_code": region_code, "page_token": page_token},
+        timeout_seconds=request.app.state.settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
+    )
+
+
+async def _call_worker_videos(
+    request: Request, *, channel_id: str, page_token: str | None
+) -> dict[str, Any]:
+    """워커의 사설 영상 목록 리스너를 부른다."""
+    return await _call_worker(
+        request,
+        path="/internal/youtube-videos",
+        payload={"channel_id": channel_id, "page_token": page_token},
+        timeout_seconds=request.app.state.settings.YOUTUBE_VIDEOS_TIMEOUT_SECONDS,
+    )
 
 
 @router.get("/{workspace_id}/youtube/channels", response_model=ChannelSearchResponse)
@@ -182,3 +254,34 @@ async def search_channels(
     result = ChannelSearchResponse.model_validate(payload)
     cache.put(key, result.model_dump(), now=now)
     return result
+
+
+@router.get(
+    "/{workspace_id}/youtube/channels/{channel_id}/videos",
+    response_model=ChannelVideosResponse,
+)
+async def list_channel_videos(
+    workspace_id: UUID,
+    channel_id: str,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    page_token: Annotated[str | None, Query(max_length=512)] = None,
+) -> ChannelVideosResponse:
+    """선택한 채널의 영상 한 페이지를 돌려준다.
+
+    ⚠️ 검색과 달리 캐시하지 않는다. 목록 한 페이지는 3유닛이라 캐시가 지킬 쿼터가 거의
+    없는 반면(`search.list`는 100유닛), 캐시가 있으면 방금 올라온 영상이 TTL 동안 목록에
+    나타나지 않는다 — 지킬 것보다 잃을 것이 큰 교환이다.
+
+    ⚠️ 멤버십 확인은 검색과 같은 이유로 여기서도 필수다. 이 경로 역시 DB를 읽지 않아
+    RLS가 저절로 막아주지 않으므로, 묻지 않으면 비멤버가 워크스페이스 id만으로 서비스
+    공용 쿼터를 태울 수 있다.
+    """
+    identifier = channel_id.strip()
+    if not identifier or len(identifier) > _MAX_CHANNEL_ID_CHARS:
+        raise HTTPException(status_code=422, detail="invalid_channel_id")
+
+    await _require_membership(_user_db(request, credentials), workspace_id=workspace_id)
+
+    payload = await _call_worker_videos(request, channel_id=identifier, page_token=page_token)
+    return ChannelVideosResponse.model_validate(payload)

@@ -18,11 +18,13 @@ COMP-02의 기동 가드가 `public.enum_check_values(table, column)`(`0009` §7
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Final
 
 __all__ = [
     "DB_CHECK_ENUMS",
+    "YOUTUBE_VIDEO_ID_PATTERN",
     "EmbeddingScope",
     "JobStatus",
     "JobType",
@@ -34,6 +36,16 @@ __all__ = [
     "WikiCategory",
     "WikiConfidence",
 ]
+
+
+# YouTube 영상 id의 형태 — base64url 11자 (youtube-channel-import).
+#
+# ⚠️ 이 상수가 core에 있는 이유는 **api와 worker가 각각 독립적으로 검증해야 하기**
+# 때문이다. api가 걸러도 `authenticated`에게 `raw_sources` INSERT 권한이 있어(`0007` §8)
+# 사용자가 `metadata.video_id`에 임의 문자열을 실은 행을 직접 만들 수 있고, 그 값을
+# 최종적으로 소비하는 것은 워커다. 형태를 한쪽에만 두면 다른 쪽이 검증 없이 그 값을
+# 외부 URL 조각으로 쓰게 된다. 값을 소비하는 경계마다 재검증하는 것이 규약이다.
+YOUTUBE_VIDEO_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 class WikiCategory(StrEnum):

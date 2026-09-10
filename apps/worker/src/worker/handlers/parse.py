@@ -25,7 +25,7 @@ import httpx
 
 from nexuswiki_core.chunking import CHUNKER_VERSION, chunk_text
 from nexuswiki_core.citations import strip_forged_anchors
-from nexuswiki_core.domain import SourceType
+from nexuswiki_core.domain import YOUTUBE_VIDEO_ID_PATTERN, SourceType
 from nexuswiki_core.extract import ExtractionQualityError, assert_extraction_quality, extract_text
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
@@ -34,6 +34,7 @@ from worker.errors import StorageObjectMissing
 from worker.fetch import fetch_source
 from worker.settings import WorkerSettings
 from worker.storage import download_source_object, storage_client
+from worker.transcript import TranscriptProvider, fetch_transcript
 
 __all__ = ["PARSE_JOB_TYPE", "SourceNotExtractedError", "handle_parse", "run_parse"]
 
@@ -73,6 +74,9 @@ async def handle_parse(*, job_id: str, workspace_id: str, payload: dict[str, Any
             settings=settings,
             fetch_client=fetch_client,
             object_client=object_client,
+            # 자막 공급자는 자기 HTTP 클라이언트를 어댑터 뒤에서 직접 관리한다
+            # (`worker.transcript`) — 위 두 클라이언트를 넘기지 않는 것이 의도다.
+            transcript_provider=fetch_transcript,
         )
 
 
@@ -85,6 +89,7 @@ async def run_parse(
     settings: WorkerSettings | None = None,
     fetch_client: httpx.AsyncClient | None = None,
     object_client: httpx.AsyncClient | None = None,
+    transcript_provider: TranscriptProvider | None = None,
 ) -> None:
     raw_source_id = str(payload.get("raw_source_id") or payload.get("target_id") or "")
     if not raw_source_id:
@@ -146,6 +151,34 @@ async def run_parse(
             _logger.info(
                 "worker.parse_url_redirected", requested_url=url, final_url=fetched.final_url
             )
+    elif source_type is SourceType.TRANSCRIPT:
+        # ⚠️ URL 분기의 `fetch_source` 경로와 섞지 않는다. 그쪽은 사용자가 준 임의의
+        #    주소로 워커가 나가는 경로라 SSRF 가드가 붙어 있고, 여기는 우리가 만든
+        #    영상 id로 자막 공급자 어댑터만 부른다. 하나로 합치면 "URL 소스는
+        #    `fetch_source`를 거쳐 읽는다"는 불변식에 조건부 예외가 생긴다 (design D1).
+        metadata = source.get("metadata") or {}
+        video_id = metadata.get("video_id") if isinstance(metadata, dict) else None
+        # ⚠️ 라우터가 이미 형태를 걸렀지만 여기서 **다시** 잰다. `authenticated`에는
+        #    `raw_sources` INSERT 권한이 있어(`0007` §8) 사용자가 라우터를 거치지 않고
+        #    임의 `metadata.video_id`를 실은 행을 직접 만들 수 있고, 그 값을 외부 URL
+        #    조각으로 실제로 쓰는 것은 여기다. 값을 소비하는 경계가 스스로 재검증한다.
+        if not isinstance(video_id, str) or not YOUTUBE_VIDEO_ID_PATTERN.match(video_id):
+            raise ExtractionQualityError(reason="unsupported_source_type")
+        if transcript_provider is None:
+            raise RuntimeError("자막 parse에는 transcript provider가 필요하다")
+        # 실패는 `TranscriptUnavailable`로 그대로 올라간다 — 여기서 잡아 빈 본문으로
+        # 이어가면 청크 0개짜리 "성공"이 되고, 사용자는 수집됐는데 아무것도 없는 원문을
+        # 보게 된다. 사유별 재시도 처리는 큐의 몫이다.
+        content = await transcript_provider(video_id)
+        await db.update_raw_source_content(
+            raw_source_id, workspace_id=workspace_id, content=content
+        )
+        _logger.info(
+            "worker.parse_transcript_fetched",
+            raw_source_id=raw_source_id,
+            video_id=video_id,
+            chars=len(content),
+        )
     else:
         raise ExtractionQualityError(reason="unsupported_source_type")
 

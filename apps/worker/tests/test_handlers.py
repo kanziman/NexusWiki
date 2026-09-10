@@ -4,15 +4,18 @@ import inspect
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
+from unittest import mock
 
 import pytest
 
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN
+from nexuswiki_core.extract import ExtractionQualityError
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker import handlers
 from worker.handlers import compile as compile_handler
 from worker.handlers import conflict, delete_source_storage, embed, link_sync, noop, parse
 from worker.handlers.noop import handle_noop
+from worker.transcript import NO_TRANSCRIPT, TranscriptUnavailable
 
 JOB_ID = "22222222-2222-4222-8222-222222222222"
 WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
@@ -423,6 +426,164 @@ async def test_parse_strips_forged_anchors_before_chunk_offsets_are_calculated()
         stripped_content[int(row["char_start"]) : int(row["char_end"])] == row["content"]
         for row in db.rows
     )
+
+
+# -----------------------------------------------------------------------------
+# transcript 분기 (youtube-channel-import Task 2.3)
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_parse_transcript_fills_content_from_the_adapter() -> None:
+    """자막이 원문 본문이 되고, 인용 좌표가 저장된 본문과 정확히 일치한다."""
+
+    transcript = "첫 문장입니다. 둘째 문장입니다. 셋째 문장입니다."
+
+    class Db(_ParseDb):
+        def __init__(self) -> None:
+            super().__init__(
+                {
+                    "source_type": "transcript",
+                    "content": "",
+                    "metadata": {
+                        "video_id": "abc12345678",
+                        "channel_id": "UC1",
+                        "url": "https://www.youtube.com/watch?v=abc12345678",
+                    },
+                }
+            )
+            self.rows: list[dict[str, Any]] = []
+
+        async def upsert_source_chunks(self, **values: Any) -> list[dict[str, str]]:
+            self.rows = list(values["rows"])
+            return [
+                {"id": f"chunk-{row['chunk_index']}", "content": str(row["content"])}
+                for row in self.rows
+            ]
+
+    db = Db()
+    seen: list[str] = []
+
+    async def provider(video_id: str) -> str:
+        seen.append(video_id)
+        return transcript
+
+    await parse.run_parse(
+        db,  # type: ignore[arg-type]
+        job_id=JOB_ID,
+        workspace_id=WORKSPACE_ID,
+        payload={"raw_source_id": "raw-source"},
+        transcript_provider=provider,
+    )
+
+    assert seen == ["abc12345678"]
+    assert db.updated is not None
+    assert db.updated["content"] == transcript
+    # ⚠️ 이 단언이 이중 Citation의 절반이다. 저장된 자막을 char 구간으로 자른 것이
+    #    청크 본문과 다르면 답변에서 원문 영상으로 되짚을 수 없다.
+    assert db.rows
+    assert all(
+        transcript[int(row["char_start"]) : int(row["char_end"])] == row["content"]
+        for row in db.rows
+    )
+    assert db.chained
+
+
+@pytest.mark.asyncio
+async def test_parse_transcript_does_not_use_the_url_fetch_path() -> None:
+    """URL 분기의 `fetch_source`와 섞이지 않는다 (design D1)."""
+
+    class Db(_ParseDb):
+        def __init__(self) -> None:
+            super().__init__(
+                {
+                    "source_type": "transcript",
+                    "content": "",
+                    # URL 소스와 같은 키를 실어 두어도 페치 경로로 새면 안 된다.
+                    "metadata": {"video_id": "abc12345678", "url": "http://example.invalid/x"},
+                }
+            )
+
+    async def boom(*_args: Any, **_kwargs: Any) -> Any:  # pragma: no cover - 도달하면 안 된다
+        raise AssertionError("자막 소스는 fetch_source를 거치지 않는다")
+
+    async def provider(video_id: str) -> str:
+        return "자막 본문"
+
+    with mock.patch.object(parse, "fetch_source", boom):
+        await parse.run_parse(
+            Db(),  # type: ignore[arg-type]
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+            transcript_provider=provider,
+        )
+
+
+@pytest.mark.asyncio
+async def test_parse_transcript_failure_stops_before_creating_empty_chunks() -> None:
+    """자막 실패는 그대로 올라간다 — 청크 0개짜리 "성공"을 만들지 않는다."""
+
+    class Db(_ParseDb):
+        def __init__(self) -> None:
+            super().__init__(
+                {
+                    "source_type": "transcript",
+                    "content": "",
+                    "metadata": {"video_id": "abc12345678"},
+                }
+            )
+            self.upserted = False
+
+        async def upsert_source_chunks(self, **values: Any) -> list[dict[str, str]]:
+            self.upserted = True
+            return []
+
+    db = Db()
+
+    async def provider(video_id: str) -> str:
+        raise TranscriptUnavailable(reason=NO_TRANSCRIPT)
+
+    with pytest.raises(TranscriptUnavailable) as excinfo:
+        await parse.run_parse(
+            db,  # type: ignore[arg-type]
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+            transcript_provider=provider,
+        )
+
+    assert excinfo.value.reason == NO_TRANSCRIPT
+    assert not db.upserted
+    assert not db.chained
+
+
+@pytest.mark.parametrize("metadata", [{}, {"video_id": "abc/../../evil"}, {"video_id": "짧다"}])
+@pytest.mark.asyncio
+async def test_parse_transcript_revalidates_the_video_id(metadata: dict[str, Any]) -> None:
+    """워커가 형태를 **다시** 잰다 — 라우터를 거치지 않은 행이 존재할 수 있다.
+
+    ⚠️ `authenticated`에는 `raw_sources` INSERT 권한이 있어(`0007` §8) 사용자가 라우터의
+    검증을 우회해 임의 `metadata.video_id`를 실은 행을 직접 만들 수 있다. 그 값을 외부
+    URL 조각으로 실제로 쓰는 것은 여기이므로, 소비하는 경계가 스스로 재검증한다.
+    """
+
+    class Db(_ParseDb):
+        def __init__(self) -> None:
+            super().__init__({"source_type": "transcript", "content": "", "metadata": metadata})
+
+    async def provider(video_id: str) -> str:  # pragma: no cover - 도달하면 안 된다
+        raise AssertionError("형태가 틀린 video_id로 공급자를 부르지 않는다")
+
+    # 재시도로 고쳐지지 않는 데이터 상태이므로 재시도 불가 사유로 끝낸다.
+    with pytest.raises(ExtractionQualityError):
+        await parse.run_parse(
+            Db(),  # type: ignore[arg-type]
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+            transcript_provider=provider,
+        )
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 import { Loader2, MonitorPlay, Search, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 
+import { YoutubeVideoList } from "@/components/YoutubeVideoList";
 import { ApiError, apiFetch } from "@/lib/api-client";
 
 export type YoutubeChannel = {
@@ -50,6 +51,7 @@ export function YoutubeChannelSearch({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [selected, setSelected] = useState<YoutubeChannel | null>(null);
 
   async function fetchPage(pageToken: string | null) {
     const params = new URLSearchParams({ q: query.trim() });
@@ -93,6 +95,19 @@ export function YoutubeChannelSearch({
     } finally {
       setLoadingMore(false);
     }
+  }
+
+  // ⚠️ 채널을 고르면 검색 UI를 **대체한다.** 두 목록을 같은 화면에 두면 "영상 더 보기"와
+  //    "채널 더 보기"가 나란히 놓여 어느 목록이 늘어나는지가 사라진다. 검색 상태는
+  //    언마운트되지 않으므로 뒤로 가면 방금 검색한 결과가 그대로 남는다.
+  if (selected) {
+    return (
+      <YoutubeVideoList
+        workspaceId={workspaceId}
+        channel={selected}
+        onBack={() => setSelected(null)}
+      />
+    );
   }
 
   return (
@@ -146,34 +161,37 @@ export function YoutubeChannelSearch({
       {channels.length > 0 ? (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {channels.map((channel) => (
-            <li
-              key={channel.channel_id}
-              className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3.5"
-              data-testid={`youtube-channel-${channel.channel_id}`}
-            >
-              {channel.thumbnail_url ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 외부 CDN 썸네일이라 next/image 도메인 설정 대상이 아니다
-                <img
-                  src={channel.thumbnail_url}
-                  alt=""
-                  className="h-11 w-11 flex-none rounded-full object-cover"
-                />
-              ) : (
-                <span
-                  className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-[var(--surface)]"
-                  aria-hidden="true"
-                >
-                  <MonitorPlay size={16} className="text-[var(--muted)]" />
-                </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-[var(--fg)]">
-                  {channel.title}
-                </p>
-                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[var(--muted)]">
-                  {channel.description || "설명이 없는 채널입니다."}
-                </p>
-              </div>
+            <li key={channel.channel_id}>
+              <button
+                type="button"
+                onClick={() => setSelected(channel)}
+                className="flex w-full items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3.5 text-left transition-colors hover:border-[var(--accent)]"
+                data-testid={`youtube-channel-${channel.channel_id}`}
+              >
+                {channel.thumbnail_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- 외부 CDN 썸네일이라 next/image 도메인 설정 대상이 아니다
+                  <img
+                    src={channel.thumbnail_url}
+                    alt=""
+                    className="h-11 w-11 flex-none rounded-full object-cover"
+                  />
+                ) : (
+                  <span
+                    className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-[var(--surface)]"
+                    aria-hidden="true"
+                  >
+                    <MonitorPlay size={16} className="text-[var(--muted)]" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-[var(--fg)]">
+                    {channel.title}
+                  </p>
+                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[var(--muted)]">
+                    {channel.description || "설명이 없는 채널입니다."}
+                  </p>
+                </div>
+              </button>
             </li>
           ))}
         </ul>

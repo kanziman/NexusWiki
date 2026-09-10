@@ -393,6 +393,32 @@ def set_workspace_budget(local_stack: httpx.Client) -> Callable[[TenantActor, in
     return _set
 
 
+@pytest.fixture
+def dead_letter_job(local_stack: httpx.Client) -> Callable[[str, str], None]:
+    """잡 하나를 워커가 dead-letter 한 상태로 만든다.
+
+    ⚠️ admin 키를 쓰는 이유는 `jobs`에 **어느 사용자 롤에도 UPDATE 권한이 없기**
+    때문이다(`0007` 섹션 8). 실제 전이는 `dead_letter_job` definer RPC가 하고 그것은
+    `service_role` 전용이라, 준비 단계에서 그 결과 상태만 재현한다.
+
+    ⚠️ 이 픽스처는 준비 전용이다. 프로덕션 코드가 `jobs`를 직접 UPDATE 하는 근거로
+    쓰이면 안 된다 — 시도 회계와 lock 일관성 CHECK가 네 RPC 안에만 산다.
+    """
+
+    def _dead_letter(job_id: str, last_error: str) -> None:
+        _expect(
+            local_stack.patch(
+                "/rest/v1/jobs",
+                params={"id": f"eq.{job_id}"},
+                headers={**_admin_headers(), "Prefer": "return=representation"},
+                json={"status": "dead", "last_error": last_error, "locked_by": None},
+            ),
+            what="잡 dead-letter 재현",
+        )
+
+    return _dead_letter
+
+
 def _local_settings(**overrides: Any) -> ApiSettings:
     # ⚠️ `overrides`로 넘길 수 있는 것은 secret이 아닌 운영 토글뿐이다 — `ApiSettings`에
     #    secret 필드가 애초에 존재하지 않으므로(02-CONTEXT.md > D-06) 이 seam이 그 경계를

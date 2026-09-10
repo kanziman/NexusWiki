@@ -36,7 +36,12 @@ from worker.youtube import (
     YoutubeSearchRequest,
     YoutubeSearchResponse,
     YoutubeSearchService,
+    YoutubeVideoListRequest,
+    YoutubeVideoListResponse,
+    YoutubeVideoListService,
     add_youtube_search_route,
+    add_youtube_videos_route,
+    list_channel_videos,
     search_channels,
 )
 
@@ -66,6 +71,23 @@ async def _search_youtube_channels(
             region_code=request.region_code,
             page_token=request.page_token,
             timeout_seconds=settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
+        )
+
+
+async def _list_youtube_videos(
+    settings: WorkerSettings, request: YoutubeVideoListRequest
+) -> YoutubeVideoListResponse:
+    """`_search_youtube_channels`와 같은 형태 — 키 단정도 같은 이유로 여기 둔다."""
+    api_key = settings.YOUTUBE_API_KEY
+    if not api_key:
+        raise RuntimeError("YOUTUBE_API_KEY 없이 영상 목록 라우트가 등록됐다")
+    async with httpx.AsyncClient() as client:
+        return await list_channel_videos(
+            client,
+            api_key=api_key,
+            channel_id=request.channel_id,
+            page_token=request.page_token,
+            timeout_seconds=settings.YOUTUBE_VIDEOS_TIMEOUT_SECONDS,
         )
 
 
@@ -171,6 +193,17 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
                 max_concurrency=settings.YOUTUBE_SEARCH_MAX_CONCURRENCY,
                 rate_capacity=settings.YOUTUBE_SEARCH_RATE_CAPACITY,
                 refill_tokens_per_second=settings.YOUTUBE_SEARCH_RATE_REFILL_TOKENS_PER_SECOND,
+            ),
+        )
+        add_youtube_videos_route(
+            app,
+            YoutubeVideoListService(
+                lambda request: _list_youtube_videos(settings, request),
+                internal_token=settings.YOUTUBE_SEARCH_INTERNAL_TOKEN,
+                timeout_seconds=settings.YOUTUBE_VIDEOS_TIMEOUT_SECONDS,
+                max_concurrency=settings.YOUTUBE_VIDEOS_MAX_CONCURRENCY,
+                rate_capacity=settings.YOUTUBE_VIDEOS_RATE_CAPACITY,
+                refill_tokens_per_second=settings.YOUTUBE_VIDEOS_RATE_REFILL_TOKENS_PER_SECOND,
             ),
         )
     server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=8081, log_level="warning"))

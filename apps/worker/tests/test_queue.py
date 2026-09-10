@@ -32,6 +32,7 @@ from worker.errors import ProviderError, UnsafeFetchTarget
 from worker.handlers import conflict
 from worker.handlers.noop import handle_noop
 from worker.settings import WorkerSettings
+from worker.transcript import NO_TRANSCRIPT, PROVIDER_UNAVAILABLE, transcript_failure
 
 WORKER_ID = "worker-under-test"
 WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
@@ -249,6 +250,84 @@ async def test_unknown_type_never_reaches_a_handler(monkeypatch: pytest.MonkeyPa
     await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
 
     assert invoked == []
+
+
+# -----------------------------------------------------------------------------
+# 2-2. 자막 실패의 재시도 판정과 배치 격리 (youtube-channel-import Task 4.2 · 4.3)
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_missing_transcript_does_not_burn_the_retry_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """자막 없는 영상은 한 번에 끝난다 — `max_attempts`까지 헛돌지 않는다."""
+    db = FakeQueue()
+    db.enqueue(job_type="parse", max_attempts=5)
+
+    async def no_transcript(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        raise transcript_failure(NO_TRANSCRIPT)
+
+    install_handler(monkeypatch, no_transcript, job_type="parse")
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    row = db.rows[JOB_ID]
+    assert row["status"] == "dead"
+    assert row["attempts"] == 1
+    # ⚠️ `fail_job`으로 가면 남은 4번의 시도가 결과가 뻔한 호출에 쓰이고, 그동안 정상
+    #    잡의 처리량을 갉아먹는다.
+    assert db.called("dead_letter_job") == [JOB_ID]
+    assert db.called("fail_job") == []
+    # 사유 토큰만 남는다 — 대시보드가 이 값으로 문구를 고른다 (Task 4.4).
+    assert row["last_error"] == NO_TRANSCRIPT
+
+
+@pytest.mark.asyncio
+async def test_provider_outage_keeps_its_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = FakeQueue()
+    db.enqueue(job_type="parse", max_attempts=5)
+
+    async def blocked(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        raise transcript_failure(PROVIDER_UNAVAILABLE)
+
+    install_handler(monkeypatch, blocked, job_type="parse")
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    row = db.rows[JOB_ID]
+    # ⚠️ dead로 확정하면 프록시 교체로 풀릴 수 있었던 영상이 되살아날 수 없다.
+    assert row["status"] == "failed"
+    assert db.called("dead_letter_job") == []
+    assert row["last_error"] == PROVIDER_UNAVAILABLE
+
+
+@pytest.mark.asyncio
+async def test_one_failed_video_does_not_stop_the_rest_of_the_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """같은 배치의 나머지 영상은 영향 없이 끝난다 (spec: Distinguishable transcript failure)."""
+    db = FakeQueue()
+    failing_id = "33333333-3333-4333-8333-333333333333"
+    db.enqueue(job_id=failing_id, job_type="parse", payload={"video": "no-captions"})
+    db.enqueue(job_id=JOB_ID, job_type="parse", payload={"video": "fine"})
+
+    async def per_video(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id
+        if payload["video"] == "no-captions":
+            raise transcript_failure(NO_TRANSCRIPT)
+
+    install_handler(monkeypatch, per_video, job_type="parse")
+
+    # 한 잡이 dead로 끝나도 루프는 다음 잡을 그대로 집는다 — 영상마다 독립된
+    # `raw_sources` 행과 독립된 `parse` 잡이라 서로를 막을 경로가 없다.
+    assert await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event()) is True
+    assert await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event()) is True
+
+    assert db.rows[failing_id]["status"] == "dead"
+    assert db.rows[JOB_ID]["status"] == "succeeded"
 
 
 @pytest.mark.asyncio

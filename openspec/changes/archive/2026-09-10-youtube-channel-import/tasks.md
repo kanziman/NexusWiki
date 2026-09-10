@@ -23,11 +23,11 @@ GitHub sub-issue: https://github.com/kanziman/NexusWiki/issues/127
 
 **검증:** `uv run pytest apps/api/tests apps/worker/tests -k "youtube or transcript"` · `pnpm --dir apps/dashboard test -- tests/YoutubeVideoList.test.tsx`
 
-- [ ] 2.1 채널 영상 목록 엔드포인트를 추가한다 — `channels.list`로 uploads 재생목록을 얻고 `playlistItems.list`로 페이징한다(design D4, `search.list` 금지).
-- [ ] 2.2 `TranscriptProvider` 어댑터 경계를 워커에 정의한다 — 자막 본문을 돌려주거나 구분 가능한 사유로 실패한다(design D2). 스펙·태스크에 공급자 이름을 남기지 않는다.
-- [ ] 2.3 `parse` 핸들러에 `transcript` 분기를 추가해 어댑터로 본문을 채운다. URL 분기의 `fetch_source` 경로와 섞지 않는다.
-- [ ] 2.4 선택 영상 등록 경로를 추가한다 — `source_type='transcript'`, `content=""` sentinel, `metadata{video_id, channel_id, url}`, 중복 키는 정규화된 영상 URL 해시(design D1). 기존 `_insert_and_enqueue`를 재사용한다.
-- [ ] 2.5 채널 선택 시 영상 목록(제목·게시일·길이·썸네일)과 더 보기를 렌더하고, 영상 한 편을 수집할 수 있게 한다.
+- [x] 2.1 채널 영상 목록 엔드포인트를 추가한다 — `channels.list`로 uploads 재생목록을 얻고 `playlistItems.list`로 페이징한다(design D4, `search.list` 금지).
+- [x] 2.2 `TranscriptProvider` 어댑터 경계를 워커에 정의한다 — 자막 본문을 돌려주거나 구분 가능한 사유로 실패한다(design D2). 스펙·태스크에 공급자 이름을 남기지 않는다.
+- [x] 2.3 `parse` 핸들러에 `transcript` 분기를 추가해 어댑터로 본문을 채운다. URL 분기의 `fetch_source` 경로와 섞지 않는다.
+- [x] 2.4 선택 영상 등록 경로를 추가한다 — `source_type='transcript'`, `content=""` sentinel, `metadata{video_id, channel_id, url}`, 중복 키는 정규화된 영상 URL 해시(design D1). 기존 `_insert_and_enqueue`를 재사용한다.
+- [x] 2.5 채널 선택 시 영상 목록(제목·게시일·길이·썸네일)과 더 보기를 렌더하고, 영상 한 편을 수집할 수 있게 한다.
 
 ## 3. 다중 선택 일괄 등록과 영상별 결과
 
@@ -37,11 +37,11 @@ GitHub sub-issue: https://github.com/kanziman/NexusWiki/issues/128
 
 **검증:** `uv run pytest apps/api/tests -k "youtube_batch or already_collected"` · `pnpm --dir apps/dashboard test -- tests/YoutubeBatchImport.test.tsx`
 
-- [ ] 3.1 등록 엔드포인트를 다중 영상으로 확장하고 영상별 결과를 돌려준다 — 한 건의 결과가 다른 건의 결과를 가리지 않는다.
-- [ ] 3.2 이미 수집된 영상을 구분 가능한 결과로 돌려준다(기존 `SourceAlreadyIngested` 계약 재사용).
-- [ ] 3.3 워크스페이스 경계를 검증한다 — 요청자가 속하지 않은 워크스페이스 지정 시 소스를 만들지 않고 거부한다(RLS 0행 → 403 매핑).
-- [ ] 3.4 예산 상한에 닿은 경우 기존 402 경로와 `CreditLimitModal`이 그대로 동작하는지 확인한다.
-- [ ] 3.5 영상 다중 선택 UI와 일괄 수집 실행, 영상별 결과 요약을 구현한다.
+- [x] 3.1 등록 엔드포인트를 다중 영상으로 확장하고 영상별 결과를 돌려준다 — 한 건의 결과가 다른 건의 결과를 가리지 않는다.
+- [x] 3.2 이미 수집된 영상을 구분 가능한 결과로 돌려준다(기존 `SourceAlreadyIngested` 계약 재사용).
+- [x] 3.3 워크스페이스 경계를 검증한다 — 요청자가 속하지 않은 워크스페이스 지정 시 소스를 만들지 않고 거부한다(RLS 0행 → 403 매핑).
+- [x] 3.4 예산 상한에 닿은 경우 기존 402 경로와 `CreditLimitModal`이 그대로 동작하는지 확인한다.
+- [x] 3.5 영상 다중 선택 UI와 일괄 수집 실행, 영상별 결과 요약을 구현한다.
 
 ## 4. 자막 실패 사유 구분과 부분 실패 격리
 
@@ -51,7 +51,7 @@ GitHub sub-issue: https://github.com/kanziman/NexusWiki/issues/129
 
 **검증:** `uv run pytest apps/worker/tests -k "transcript_failure or partial"` · `openspec validate youtube-channel-import --strict`
 
-- [ ] 4.1 어댑터 실패를 최소 3종(자막 없음 · 접근 불가 · 공급자 일시 장애)으로 구분해 올린다.
-- [ ] 4.2 재시도가 무의미한 사유는 `max_attempts`를 소진하지 않고 종결시킨다 — 자막 없는 영상이 헛도는 것을 막는다(design D2).
-- [ ] 4.3 한 영상의 실패가 같은 배치의 다른 영상 처리를 막지 않는지 검증한다.
-- [ ] 4.4 원문 소스 목록에서 실패 사유를 사용자가 이해할 수 있는 문구로 표시하고, 실패한 소스를 지울 수 있게 한다.
+- [x] 4.1 어댑터 실패를 최소 3종(자막 없음 · 접근 불가 · 공급자 일시 장애)으로 구분해 올린다.
+- [x] 4.2 재시도가 무의미한 사유는 `max_attempts`를 소진하지 않고 종결시킨다 — 자막 없는 영상이 헛도는 것을 막는다(design D2).
+- [x] 4.3 한 영상의 실패가 같은 배치의 다른 영상 처리를 막지 않는지 검증한다.
+- [x] 4.4 원문 소스 목록에서 실패 사유를 사용자가 이해할 수 있는 문구로 표시하고, 실패한 소스를 지울 수 있게 한다.

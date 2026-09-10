@@ -66,6 +66,10 @@ NON_SECRET_API_FIELDS = frozenset(
         "YOUTUBE_SEARCH_TIMEOUT_SECONDS",
         "YOUTUBE_SEARCH_CACHE_TTL_SECONDS",
         "YOUTUBE_SEARCH_CACHE_MAX_ENTRIES",
+        # (2026-09-10, youtube-channel-import 슬라이스 2: YOUTUBE_VIDEOS_TIMEOUT_SECONDS —
+        #  worker의 /internal/youtube-videos 호출 타임아웃. 자격증명이 아니라 운영 토글이며,
+        #  URL·토큰은 위 YOUTUBE_SEARCH_INTERNAL_* 둘을 그대로 공유한다.)
+        "YOUTUBE_VIDEOS_TIMEOUT_SECONDS",
     }
 )
 

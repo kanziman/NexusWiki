@@ -86,3 +86,9 @@ class ApiSettings(BaseAppSettings):
     #    100유닛이라 이 값이 곧 하루에 감당 가능한 서로 다른 검색어 수를 정한다.
     YOUTUBE_SEARCH_CACHE_TTL_SECONDS: float = 21_600.0  # 6시간
     YOUTUBE_SEARCH_CACHE_MAX_ENTRIES: int = 512
+    # ⚠️ 워커의 `YOUTUBE_VIDEOS_TIMEOUT_SECONDS`(15.0)보다 **반드시 커야** API가 워커보다
+    #    먼저 끊지 않는다 — `LLM_STREAM_TIMEOUT_SECONDS`가 세운 규약과 같다. 영상 목록은
+    #    `channels.list` → `playlistItems.list` → `videos.list` 세 호출이 순차라 검색보다
+    #    오래 걸린다.
+    #    내부 호출자 토큰과 URL은 검색과 공유한다(같은 리스너 앱의 같은 경계).
+    YOUTUBE_VIDEOS_TIMEOUT_SECONDS: float = 18.0

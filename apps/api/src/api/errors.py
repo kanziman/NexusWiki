@@ -33,6 +33,7 @@ __all__ = [
     "StorageUnavailable",
     "TextTooLarge",
     "WorkspaceForbidden",
+    "YoutubeChannelNotFound",
     "YoutubeQuotaExceeded",
     "YoutubeUnavailable",
     "register_error_handlers",
@@ -194,6 +195,19 @@ class YoutubeUnavailable(Exception):
     ⚠️ 업스트림 응답 본문을 담을 필드를 두지 않는다. 그 본문에는 키가 실린 요청 URL이
     되비쳐 나올 수 있어, 그대로 올리면 그것이 그대로 노출 경로가 된다 —
     `StorageUnavailable`이 세운 규약과 같다.
+    """
+
+
+class YoutubeChannelNotFound(Exception):
+    """고른 채널이 없거나 업로드 재생목록을 노출하지 않는다 (youtube-channel-import).
+
+    ⚠️ "영상 0건"으로도, `YoutubeUnavailable`로도 뭉개지 않는다. 이 셋은 사용자가 취할
+    다음 행동이 각각 다르다 — 다른 채널을 고른다 / 이 채널은 아직 영상이 없다 /
+    잠시 후 다시 시도한다. 뭉개는 순간 화면에서는 전부 같은 빈 목록이 된다.
+
+    404가 테넌트 경계를 새게 하지 않는 이유: 여기서 존재 여부가 드러나는 것은 워크스페이스
+    리소스가 아니라 **공개된 YouTube 채널**이다. D-12가 404를 금지한 대상(다른 테넌트의
+    리소스 열거)과 축이 다르다.
     """
 
 
@@ -378,6 +392,16 @@ async def _render_youtube_unavailable(request: Request, exc: Exception) -> JSONR
     )
 
 
+async def _render_youtube_channel_not_found(request: Request, exc: Exception) -> JSONResponse:
+    """채널 소멸 — 업스트림 장애(502)와도 빈 목록(200)과도 구분되는 404."""
+    del exc
+    _logger.info("youtube.channel_not_found", path=request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": "youtube_channel_not_found"},
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """격리 관련 예외를 앱에 붙인다.
 
@@ -403,3 +427,4 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(JobNotCancellable, _render_job_not_cancellable)  # type: ignore[arg-type]
     app.add_exception_handler(YoutubeQuotaExceeded, _render_youtube_quota_exceeded)  # type: ignore[arg-type]
     app.add_exception_handler(YoutubeUnavailable, _render_youtube_unavailable)  # type: ignore[arg-type]
+    app.add_exception_handler(YoutubeChannelNotFound, _render_youtube_channel_not_found)  # type: ignore[arg-type]
