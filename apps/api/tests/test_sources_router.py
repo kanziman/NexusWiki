@@ -30,6 +30,12 @@ from tests.conftest import LOCAL_STACK
 TEXT_PATH = "/workspaces/{workspace_id}/sources/text"
 FILE_PATH = "/workspaces/{workspace_id}/sources/file"
 URL_PATH = "/workspaces/{workspace_id}/sources/url"
+YOUTUBE_PATH = "/workspaces/{workspace_id}/sources/youtube-videos"
+
+# base64url 11자 — 실제 YouTube 영상 id의 형태다.
+VIDEO_ID = "dQw4w9WgXcQ"
+OTHER_VIDEO_ID = "9bZkp7q19f0"
+CHANNEL_ID = "UCuAXFkgsw1L7xaCfnd5JJOw"
 
 # 상한 경계를 정확히 때리기 위한 작은 값. 기본값(500,000자 / 20MiB)을 그대로
 # 왕복시키면 테스트가 느려지기만 하고 경계에 대해 아무것도 더 말해주지 않는다.
@@ -43,6 +49,21 @@ def body(**overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {"title": "수집 테스트", "text": "본문 한 줄."}
     payload.update(overrides)
     return payload
+
+
+def video_body(videos: list[dict[str, Any]] | None = None, **overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "channel_id": CHANNEL_ID,
+        "videos": videos
+        if videos is not None
+        else [{"video_id": VIDEO_ID, "title": "수집 테스트 영상"}],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def results_by_video(response: httpx.Response) -> dict[str, dict[str, Any]]:
+    return {item["video_id"]: item for item in response.json()["results"]}
 
 
 def file_query(filename: str = "report.pdf", title: str = "보고서") -> dict[str, str]:
@@ -537,6 +558,378 @@ async def test_url_source_is_recorded_without_being_fetched(
     assert row["content"] == ""
     # `raw_sources.title`이 not null이므로 제목이 없으면 URL이 제목이 된다.
     assert row["title"] == url
+
+
+# -----------------------------------------------------------------------------
+# 6-2. 영상 자막 경로 (youtube-channel-import Task 2.4 · 3.1 ~ 3.4)
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_youtube_video_is_registered_as_a_transcript_source(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(),
+        )
+
+    assert response.status_code == 202, response.text
+    result = results_by_video(response)[VIDEO_ID]
+    assert result["status"] == "registered"
+
+    async with user_db(owner) as db:
+        rows = await db.select("raw_sources", match={"id": result["raw_source_id"]})
+
+    row = rows[0]
+    assert row["source_type"] == "transcript"
+    assert row["storage_path"] is None
+    # `content = ""`는 "아직 추출되지 않음" sentinel이다 — 자막은 워커가 채운다.
+    assert row["content"] == ""
+    assert row["metadata"] == {
+        "video_id": VIDEO_ID,
+        "channel_id": CHANNEL_ID,
+        "url": f"https://www.youtube.com/watch?v={VIDEO_ID}",
+    }
+
+
+@pytest.mark.asyncio
+async def test_only_the_selected_videos_are_registered(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    """고른 영상만, 영상당 하나의 독립된 소스로 등록된다 (spec: Selective batch registration)."""
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(
+                [
+                    {"video_id": VIDEO_ID, "title": "첫 영상"},
+                    {"video_id": OTHER_VIDEO_ID, "title": "둘째 영상"},
+                ]
+            ),
+        )
+
+    assert response.status_code == 202, response.text
+    results = results_by_video(response)
+    assert set(results) == {VIDEO_ID, OTHER_VIDEO_ID}
+    assert all(item["status"] == "registered" for item in results.values())
+    # 영상마다 **독립적으로 인용 가능한** 원문이어야 하므로 행이 공유되면 안 된다.
+    assert results[VIDEO_ID]["raw_source_id"] != results[OTHER_VIDEO_ID]["raw_source_id"]
+
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"workspace_id": owner.workspace_id, "source_type": "transcript"}
+        )
+    assert len(rows) == 2
+
+
+@pytest.mark.asyncio
+async def test_already_collected_video_is_a_distinguishable_outcome(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        first = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id), json=video_body()
+        )
+        # ⚠️ 제목이 달라도 같은 영상이다. 중복 판정의 기준은 제목이나 자막 본문이 아니라
+        #    **정규화된 영상 URL**이며(design D1), 그래서 자막이 나중에 수정돼도 같은
+        #    영상이 두 번 수집되지 않는다.
+        second = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body([{"video_id": VIDEO_ID, "title": "같은 영상, 다른 제목"}]),
+        )
+
+    assert first.status_code == 202, first.text
+    assert second.status_code == 202, second.text
+
+    repeated = results_by_video(second)[VIDEO_ID]
+    # 실패가 아니라 구분되는 결과여야 한다.
+    assert repeated["status"] == "already_collected"
+    assert repeated["raw_source_id"] == results_by_video(first)[VIDEO_ID]["raw_source_id"]
+
+    # 파생 레코드를 늘리지 않는다 (spec: Already collected video).
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"workspace_id": owner.workspace_id, "source_type": "transcript"}
+        )
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_one_bad_video_does_not_hide_the_others(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    """부분 실패가 전체 실패와 구분된다 (spec: Some selected videos cannot be registered)."""
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(
+                [
+                    # ⚠️ 첫 건이 실패한다. 여기서 요청 전체를 끊으면 뒤 영상은 등록되지
+                    #    않고, 사용자는 무엇이 왜 막혔는지 알 수 없다.
+                    {"video_id": "짧다", "title": "형태가 틀린 영상"},
+                    {"video_id": VIDEO_ID, "title": "멀쩡한 영상"},
+                ]
+            ),
+        )
+
+    assert response.status_code == 202, response.text
+    results = results_by_video(response)
+    assert results["짧다"]["status"] == "failed"
+    assert results["짧다"]["reason"] == "bad_video_id"
+    assert results[VIDEO_ID]["status"] == "registered"
+
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"workspace_id": owner.workspace_id, "source_type": "transcript"}
+        )
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_duplicate_selection_in_one_request_yields_one_result(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(
+                [
+                    {"video_id": VIDEO_ID, "title": "한 번"},
+                    {"video_id": VIDEO_ID, "title": "두 번"},
+                ]
+            ),
+        )
+
+    assert response.status_code == 202, response.text
+    # ⚠️ 두 줄로 돌려주면 두 번째가 "이미 수집됨"이 되는데, 그것은 **이전에 수집해 둔
+    #    것**과 구분되지 않는 거짓 결과다.
+    assert len(response.json()["results"]) == 1
+    assert results_by_video(response)[VIDEO_ID]["status"] == "registered"
+
+
+@pytest.mark.asyncio
+async def test_other_workspace_video_registration_creates_nothing(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    owner, outsider = two_workspaces_two_users
+
+    async with authed_client(outsider) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(
+                [
+                    {"video_id": VIDEO_ID, "title": "첫 영상"},
+                    {"video_id": OTHER_VIDEO_ID, "title": "둘째 영상"},
+                ]
+            ),
+        )
+
+    # RLS의 `WITH CHECK` 위반(42501)이 403으로 렌더된다.
+    # ⚠️ 200 응답 안의 영상별 `failed`로 접히면 안 된다 — 격리 위반이 "일부 실패"로
+    #    위장되고, 호출자는 워크스페이스를 잘못 지정했다는 사실을 알 수 없다.
+    assert response.status_code == 403, response.text
+    assert response.json() == FORBIDDEN_BODY
+
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"workspace_id": owner.workspace_id, "source_type": "transcript"}
+        )
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_all_malformed_selection_still_denies_another_workspace(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    """INSERT가 한 번도 시도되지 않아도 워크스페이스 경계는 판정된다.
+
+    ⚠️ 이 경로의 격리 판정자는 원래 INSERT의 `WITH CHECK` 하나다. 고른 영상이 전부
+    형태 불량이면 RLS가 물어볼 기회를 못 얻으므로, 명시적 멤버십 확인이 없으면
+    비멤버가 남의 워크스페이스에 대해 202를 받는다.
+    """
+    owner, outsider = two_workspaces_two_users
+
+    async with authed_client(outsider) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body([{"video_id": "짧다", "title": "형태가 틀린 영상"}]),
+        )
+
+    assert response.status_code == 403, response.text
+    assert response.json() == FORBIDDEN_BODY
+
+
+@pytest.mark.asyncio
+async def test_viewer_is_denied_on_both_paths_alike(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    workspace_member_with_role: Callable[..., Any],
+) -> None:
+    """폴백 판정이 자기가 대신하는 정책보다 느슨하지 않다.
+
+    ⚠️ `raw_sources_insert_editor`(`0004_rls_policies.sql:217-219`)가 `editor`를 요구하므로
+    viewer는 정상 선택에서 403을 받는다. 폴백이 `viewer`를 물으면 형태 불량 선택만
+    보냈을 때만 202가 돌아와, 같은 사용자가 입력에 따라 다른 경계를 만나게 된다.
+    """
+    owner, _ = two_workspaces_two_users
+    viewer = workspace_member_with_role(owner, "viewer")
+
+    async with authed_client(viewer) as client:
+        valid = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id), json=video_body()
+        )
+        malformed = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body([{"video_id": "짧다", "title": "형태가 틀린 영상"}]),
+        )
+
+    assert valid.status_code == 403, valid.text
+    assert malformed.status_code == 403, malformed.text
+
+
+@pytest.mark.asyncio
+async def test_member_with_only_malformed_selection_gets_per_video_results(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    # 멤버에게는 위 확인이 통과하므로 영상별 결과가 그대로 돌아온다 — 멤버십 확인이
+    # 정상 경로를 403으로 바꾸지 않는지 함께 못 박는다.
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body([{"video_id": "짧다", "title": "형태가 틀린 영상"}]),
+        )
+
+    assert response.status_code == 202, response.text
+    assert results_by_video(response)["짧다"]["reason"] == "bad_video_id"
+
+
+@pytest.mark.asyncio
+async def test_budget_cap_stops_the_batch_and_leaves_earlier_rows(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    set_workspace_budget: Callable[..., None],
+    user_db: Callable[..., Any],
+) -> None:
+    """상한에 닿는 순간부터 거부되고, 그 전에 만들어진 행은 남는다 (design의 Risks)."""
+    owner, _ = two_workspaces_two_users
+
+    # 상한 0이면 첫 인큐부터 거부된다 — `enqueue_source_job`의 포함 경계와 같다.
+    set_workspace_budget(owner, 0)
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(
+                [
+                    {"video_id": VIDEO_ID, "title": "첫 영상"},
+                    {"video_id": OTHER_VIDEO_ID, "title": "둘째 영상"},
+                ]
+            ),
+        )
+
+    assert response.status_code == 202, response.text
+    results = results_by_video(response)
+    assert results[VIDEO_ID]["reason"] == "budget_exceeded"
+    assert results[OTHER_VIDEO_ID]["reason"] == "budget_exceeded"
+
+    # ⚠️ 상한에 닿은 뒤에는 시도조차 하지 않는다. 계속 시도하면 인큐되지 못할
+    #    `raw_sources` 행만 늘어난다. 남는 것은 상한을 처음 만난 한 건뿐이다.
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"workspace_id": owner.workspace_id, "source_type": "transcript"}
+        )
+    assert len(rows) == 1
+    assert rows[0]["metadata"]["video_id"] == VIDEO_ID
+
+
+@pytest.mark.asyncio
+async def test_malformed_channel_id_rejects_the_whole_request(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body(channel_id="UC 1 스페이스"),
+        )
+
+    # 채널 id는 요청 단위라 영상별 결과로 접을 대상이 아니다.
+    assert response.status_code == 422, response.text
+    assert response.json() == {"detail": "invalid_source", "reason": "bad_channel_id"}
+
+
+@pytest.mark.parametrize("video_id", ["짧다", "abc/../../evil"])
+@pytest.mark.asyncio
+async def test_malformed_video_id_never_reaches_metadata(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+    video_id: str,
+) -> None:
+    # ⚠️ 형태를 안 재면 이 문자열이 그대로 URL 조각이 되어 `metadata`에 저장되고,
+    #    사용자에게 원문 링크로 되비친다.
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id),
+            json=video_body([{"video_id": video_id, "title": "형태가 틀린 영상"}]),
+        )
+
+    assert response.status_code == 202, response.text
+    assert results_by_video(response)[video_id]["reason"] == "bad_video_id"
+
+    async with user_db(owner) as db:
+        rows = await db.select(
+            "raw_sources", match={"workspace_id": owner.workspace_id, "source_type": "transcript"}
+        )
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_batch_larger_than_the_cap_is_rejected(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    owner, _ = two_workspaces_two_users
+    # 상한이 없으면 요청 하나가 임의 개수의 INSERT와 인큐를 돌린다.
+    videos = [{"video_id": f"vid{index:08d}"[:11], "title": f"영상 {index}"} for index in range(51)]
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id), json=video_body(videos)
+        )
+
+    assert response.status_code == 422, response.text
 
 
 @pytest.mark.asyncio
@@ -1379,6 +1772,43 @@ async def test_delete_source_rejects_a_saved_ask_citation(
 
     assert response.status_code == 409, response.text
     assert response.json() == {"detail": "source_in_use"}
+
+
+@pytest.mark.asyncio
+async def test_dead_lettered_transcript_source_can_be_deleted(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+    dead_letter_job: Callable[[str, str], None],
+) -> None:
+    """자막을 못 얻은 소스는 사용자가 치울 수 있어야 한다 (Task 4.4).
+
+    ⚠️ 이것이 4.2(재시도 미소진)와 한 몸인 이유: `delete_raw_source`의 참조 가드는
+    `queued`·`running`·**`failed`** 잡을 전부 NW409로 막는다. 자막 없는 영상이 dead로
+    종결되지 않고 `failed`로 재시도를 돌고 있으면, 사용자는 그동안 그 소스를 지울 수도
+    없다 — 고칠 수 없는 실패에 묶여 아무것도 할 수 없는 상태가 된다.
+    """
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        created = await client.post(
+            YOUTUBE_PATH.format(workspace_id=owner.workspace_id), json=video_body()
+        )
+    assert created.status_code == 202, created.text
+    result = results_by_video(created)[VIDEO_ID]
+
+    # 워커가 자막 없음으로 dead-letter 한 상태를 재현한다 (`NON_RETRYABLE_ERRORS`).
+    dead_letter_job(result["job_id"], "no_transcript")
+
+    async with authed_client(owner) as client:
+        response = await client.delete(
+            f"/workspaces/{owner.workspace_id}/sources/{result['raw_source_id']}"
+        )
+
+    assert response.status_code == 202, response.text
+    async with user_db(owner) as db:
+        rows = await db.select("raw_sources", match={"id": result["raw_source_id"]})
+    assert rows == []
 
 
 @pytest.mark.asyncio

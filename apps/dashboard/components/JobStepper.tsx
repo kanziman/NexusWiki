@@ -53,6 +53,50 @@ function isChainSettled(rows: JobRow[]): boolean {
   });
 }
 
+// 자막 수집 경로의 실패 사유 (youtube-channel-import Task 4.4).
+//
+// ⚠️ 토큰은 워커가 `jobs.last_error`에 그대로 쓴 값이다(`worker.transcript`의 세 상수,
+//    `sanitize_error`가 사유만 남긴다). 문구는 여기 살고 토큰은 저기 산다 — 서버가
+//    문장을 내려주기 시작하면 UI 문구를 고치는 데 워커 배포가 필요해진다.
+//
+// ⚠️ `retryable: false`인 사유에 재시도 버튼을 남기면 안 된다. 그 잡은 이미
+//    dead-letter로 종결됐고(`NON_RETRYABLE_ERRORS`), 다시 눌러도 같은 자리에서 같은
+//    이유로 끝난다 — 사용자를 결과가 정해진 루프에 묶어두는 버튼이 된다.
+const TRANSCRIPT_FAILURES: Record<
+  string,
+  { message: string; retryable: boolean }
+> = {
+  no_transcript: {
+    message:
+      "이 영상에는 사용할 수 있는 자막이 없습니다. 다시 시도해도 결과가 같으니 이 소스를 삭제해 주세요.",
+    retryable: false,
+  },
+  video_unavailable: {
+    message:
+      "영상이 비공개이거나 삭제되어 자막을 가져올 수 없습니다. 다시 시도해도 결과가 같으니 이 소스를 삭제해 주세요.",
+    retryable: false,
+  },
+  provider_unavailable: {
+    message:
+      "자막 서비스에 일시적으로 연결하지 못했습니다. 잠시 후 재시도해 주세요.",
+    retryable: true,
+  },
+};
+
+export function describeFailure(job: {
+  step_label: string;
+  last_error: string | null;
+}): { message: string; retryable: boolean } {
+  const known = TRANSCRIPT_FAILURES[job.last_error ?? ""];
+  if (known) return known;
+  return {
+    message: `${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
+      job.last_error,
+    )}. 재시도를 눌러 다시 시도하세요.`,
+    retryable: true,
+  };
+}
+
 function truncateLastError(message: string | null): string {
   if (!message) return "";
   return message.length > LAST_ERROR_TRUNCATE_LENGTH
@@ -242,24 +286,25 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
         />
       )}
 
-      {failedJobs.map((job) => (
-        <div key={job.id} className="pipe-error">
-          <p role="alert">
-            {`${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
-              job.last_error,
-            )}. 재시도를 눌러 다시 시도하세요.`}
-          </p>
-          <button
-            type="button"
-            aria-label="재시도"
-            onClick={() => handleRetry(job.id)}
-            disabled={retryingId === job.id}
-            className="nw-focus-ring pipe-action danger"
-          >
-            <RefreshCw size={15} aria-hidden="true" />
-          </button>
-        </div>
-      ))}
+      {failedJobs.map((job) => {
+        const failure = describeFailure(job);
+        return (
+          <div key={job.id} className="pipe-error">
+            <p role="alert">{failure.message}</p>
+            {failure.retryable ? (
+              <button
+                type="button"
+                aria-label="재시도"
+                onClick={() => handleRetry(job.id)}
+                disabled={retryingId === job.id}
+                className="nw-focus-ring pipe-action danger"
+              >
+                <RefreshCw size={15} aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
 
       <Dialog.Root
         open={cancelTarget !== null}

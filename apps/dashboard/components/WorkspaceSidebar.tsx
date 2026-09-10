@@ -9,6 +9,7 @@ import {
   HelpCircle,
   Layers,
   Map,
+  MonitorPlay,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -201,6 +202,20 @@ export function WorkspaceSidebar({
           >
             <Upload className="nav-icon" aria-hidden="true" />
             <span>원문 소스</span>
+          </Link>
+
+          <Link
+            href={`${base}/youtube`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="YouTube 수집"
+            aria-current={
+              pathname.startsWith(`${base}/youtube`) ? "page" : undefined
+            }
+            className={`nav-item ${pathname.startsWith(`${base}/youtube`) ? "active" : ""}`}
+          >
+            <MonitorPlay className="nav-icon" aria-hidden="true" />
+            <span>YouTube 수집</span>
           </Link>
 
           {/* 질문하기 + 새 대화 액션 */}

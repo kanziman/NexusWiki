@@ -24,6 +24,10 @@ from typing import Final
 
 from nexuswiki_core.extract import ExtractionQualityError
 
+# 자막 어댑터의 예외는 어댑터가 소유한다 (`worker.transcript`). 여기서는 재시도 판정에
+# 쓰려고 이름만 가져온다 — 그 모듈은 worker의 다른 것을 import 하지 않으므로 순환이 없다.
+from worker.transcript import TranscriptPermanentlyUnavailable
+
 __all__ = [
     "EmbeddingProviderMismatch",
     "LlmSchemaError",
@@ -140,8 +144,15 @@ class EmbeddingProviderMismatch(ProviderError):
 
 # ⚠️ 이 목록은 재시도해도 결과가 같은 실패만 담는다. ProviderError는 공급자 복구로
 # 성공할 수 있어 넣지 않는다. queue가 이 목록으로 즉시 dead-letter 하는 배선은 03-08 몫이다.
+#
+# ⚠️ `TranscriptPermanentlyUnavailable`만 담고 그 기반 클래스 `TranscriptUnavailable`은
+#    담지 않는다. 기반 클래스를 담으면 공급자 일시 장애(IP 차단·요청 실패)까지 한 번에
+#    dead로 확정되어, 프록시 교체로 풀릴 수 있었던 영상이 되살아날 수 없게 된다.
+#    반대로 아무것도 담지 않으면 자막 없는 영상이 `max_attempts`까지 헛돌며 그동안
+#    정상 잡의 처리량을 갉아먹는다 (youtube-channel-import Task 4.2, design D2).
 NON_RETRYABLE_ERRORS: Final[tuple[type[BaseException], ...]] = (
     ExtractionQualityError,
     UnsafeFetchTarget,
     StorageObjectMissing,
+    TranscriptPermanentlyUnavailable,
 )

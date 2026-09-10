@@ -32,12 +32,63 @@ from worker.queue_baseline import measure_queue_roundtrip
 from worker.rtt import measure_rtt
 from worker.schema_guard import assert_enums_match_db
 from worker.settings import WorkerSettings
+from worker.youtube import (
+    YoutubeSearchRequest,
+    YoutubeSearchResponse,
+    YoutubeSearchService,
+    YoutubeVideoListRequest,
+    YoutubeVideoListResponse,
+    YoutubeVideoListService,
+    add_youtube_search_route,
+    add_youtube_videos_route,
+    list_channel_videos,
+    search_channels,
+)
 
 
 async def _embed_query(settings: WorkerSettings, text: str) -> list[float]:
     async with openrouter_client(settings) as client:
         result = await embed_texts(client, settings=settings, texts=[text])
     return result.vectors[0]
+
+
+async def _search_youtube_channels(
+    settings: WorkerSettings, request: YoutubeSearchRequest
+) -> YoutubeSearchResponse:
+    """`_embed_query`와 같은 형태 — per-call client를 열고 검색 한 번에 닫는다.
+
+    ⚠️ 키가 없으면 라우트 자체가 등록되지 않으므로(`_serve_internal_listeners`) 여기서는
+    키가 있다고 단정한다. 그 단정이 깨지면 조용한 오동작이 아니라 예외로 드러나야 한다.
+    """
+    api_key = settings.YOUTUBE_API_KEY
+    if not api_key:
+        raise RuntimeError("YOUTUBE_API_KEY 없이 검색 라우트가 등록됐다")
+    async with httpx.AsyncClient() as client:
+        return await search_channels(
+            client,
+            api_key=api_key,
+            query=request.query,
+            region_code=request.region_code,
+            page_token=request.page_token,
+            timeout_seconds=settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
+        )
+
+
+async def _list_youtube_videos(
+    settings: WorkerSettings, request: YoutubeVideoListRequest
+) -> YoutubeVideoListResponse:
+    """`_search_youtube_channels`와 같은 형태 — 키 단정도 같은 이유로 여기 둔다."""
+    api_key = settings.YOUTUBE_API_KEY
+    if not api_key:
+        raise RuntimeError("YOUTUBE_API_KEY 없이 영상 목록 라우트가 등록됐다")
+    async with httpx.AsyncClient() as client:
+        return await list_channel_videos(
+            client,
+            api_key=api_key,
+            channel_id=request.channel_id,
+            page_token=request.page_token,
+            timeout_seconds=settings.YOUTUBE_VIDEOS_TIMEOUT_SECONDS,
+        )
 
 
 async def _stream_llm_chat(
@@ -92,7 +143,11 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
     두 번째 `uvicorn.Server`를 추가하면 SIGTERM 종료 표면만 두 배가 되고 격리 이득은
     없다(`railway.json`의 private-networking 토글은 서비스 단위이지 포트 단위가 아니다).
     """
-    if not settings.QUERY_EMBEDDING_INTERNAL_TOKEN and not settings.LLM_STREAM_INTERNAL_TOKEN:
+    if (
+        not settings.QUERY_EMBEDDING_INTERNAL_TOKEN
+        and not settings.LLM_STREAM_INTERNAL_TOKEN
+        and not settings.YOUTUBE_SEARCH_INTERNAL_TOKEN
+    ):
         # No listener is safer than an unauthenticated listener during local setup.
         return
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
@@ -122,6 +177,33 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
                 max_concurrency=settings.LLM_STREAM_MAX_CONCURRENCY,
                 rate_capacity=settings.LLM_STREAM_RATE_CAPACITY,
                 refill_tokens_per_second=settings.LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND,
+            ),
+        )
+    # ⚠️ 키가 없으면 라우트를 아예 등록하지 않는다. 등록해두고 호출 시점에 실패시키면
+    #    쿼터 소진과 "키 미설정"이 같은 502로 뭉개져, 배포 설정 실수가 업스트림 장애로
+    #    위장된다.
+    if settings.YOUTUBE_SEARCH_INTERNAL_TOKEN and settings.YOUTUBE_API_KEY:
+        add_youtube_search_route(
+            app,
+            YoutubeSearchService(
+                lambda request: _search_youtube_channels(settings, request),
+                internal_token=settings.YOUTUBE_SEARCH_INTERNAL_TOKEN,
+                max_query_chars=settings.YOUTUBE_SEARCH_MAX_QUERY_CHARS,
+                timeout_seconds=settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
+                max_concurrency=settings.YOUTUBE_SEARCH_MAX_CONCURRENCY,
+                rate_capacity=settings.YOUTUBE_SEARCH_RATE_CAPACITY,
+                refill_tokens_per_second=settings.YOUTUBE_SEARCH_RATE_REFILL_TOKENS_PER_SECOND,
+            ),
+        )
+        add_youtube_videos_route(
+            app,
+            YoutubeVideoListService(
+                lambda request: _list_youtube_videos(settings, request),
+                internal_token=settings.YOUTUBE_SEARCH_INTERNAL_TOKEN,
+                timeout_seconds=settings.YOUTUBE_VIDEOS_TIMEOUT_SECONDS,
+                max_concurrency=settings.YOUTUBE_VIDEOS_MAX_CONCURRENCY,
+                rate_capacity=settings.YOUTUBE_VIDEOS_RATE_CAPACITY,
+                refill_tokens_per_second=settings.YOUTUBE_VIDEOS_RATE_REFILL_TOKENS_PER_SECOND,
             ),
         )
     server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=8081, log_level="warning"))

@@ -37,6 +37,7 @@ def test_worker_settings_secret_fields_stay_inside_the_denylist() -> None:
         "SUPABASE_SECRET_KEY",
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
+        "YOUTUBE_API_KEY",
     }
 
     assert secret_fields <= set(WorkerSettings.model_fields)

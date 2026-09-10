@@ -139,6 +139,74 @@ describe("JobStepper", () => {
     );
   });
 
+  it("자막 없음을 기계 토큰이 아니라 사람이 읽는 문구로 표시한다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({
+          id: "j-parse",
+          type: "parse",
+          step_label: "원문 파싱",
+          chain_position: 1,
+          status: "dead",
+          last_error: "no_transcript",
+        }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("사용할 수 있는 자막이 없습니다");
+    expect(alert).not.toHaveTextContent("no_transcript");
+    // ⚠️ 재시도해도 같은 자리에서 같은 이유로 끝난다. 버튼을 남기면 사용자를
+    //    결과가 정해진 루프에 묶어두게 된다 — 대신 삭제를 안내한다.
+    expect(screen.queryByRole("button", { name: "재시도" })).toBeNull();
+    expect(alert).toHaveTextContent("삭제해 주세요");
+  });
+
+  it("공급자 일시 장애에는 재시도를 남긴다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({
+          id: "j-parse",
+          type: "parse",
+          step_label: "원문 파싱",
+          chain_position: 1,
+          status: "dead",
+          last_error: "provider_unavailable",
+        }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("일시적으로 연결하지 못했습니다");
+    // 자막 없음과 달리 이쪽은 재시도로 풀린다.
+    expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
+  });
+
+  it("비공개·삭제된 영상을 자막 없음과 다른 문구로 구분한다", async () => {
+    apiFetch.mockResolvedValue({
+      jobs: [
+        makeJob({
+          id: "j-parse",
+          type: "parse",
+          step_label: "원문 파싱",
+          chain_position: 1,
+          status: "dead",
+          last_error: "video_unavailable",
+        }),
+      ],
+    });
+
+    render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("비공개이거나 삭제되어");
+    expect(screen.queryByRole("button", { name: "재시도" })).toBeNull();
+  });
+
   it("실패하지 않은 작업에는 오류와 재시도 행동을 표시하지 않는다", async () => {
     apiFetch.mockResolvedValue({
       jobs: [makeJob({ status: "running" })],

@@ -1,6 +1,7 @@
-"""원문 수집 라우터 — 텍스트·파일·URL 세 경로를 받아 즉시 202로 인큐한다.
+"""원문 수집 라우터 — 텍스트·파일·URL·영상 자막 네 경로를 받아 즉시 202로 인큐한다.
 
 관련 태스크: P2-ING-01 (ING-01, ING-02, ING-03, OPS-01)
+관련 태스크: openspec/changes/youtube-channel-import/tasks.md Task 2.4 (`transcript` 경로)
 설계 근거: 02-CONTEXT.md > D-11, D-12, D-13
 설계 근거: 03-04-PLAN.md > D-P10 (잡 4종과 dedup 키 규약)
 설계 근거: 03-05-PLAN.md > D-P11 (원시 바이트 본문), D-P12 (업로드 순서), D-P13 (상한값)
@@ -28,6 +29,7 @@ INSERT 권한이 없어(`0007` 섹션 8) 이 definer RPC가 유일한 통로이�
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Annotated, Any, Final
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
@@ -40,6 +42,7 @@ from api.db.user import UserDb
 from api.errors import (
     BUDGET_SQLSTATE,
     DUPLICATE_SQLSTATE,
+    FORBIDDEN_SQLSTATE,
     SOURCE_IN_USE_SQLSTATE,
     BudgetExceeded,
     DatabaseError,
@@ -52,7 +55,7 @@ from api.errors import (
 )
 from api.settings import ApiSettings
 from api.storage import UserStorage, sanitize_filename, storage_path_for
-from nexuswiki_core.domain import SourceType
+from nexuswiki_core.domain import YOUTUBE_VIDEO_ID_PATTERN, SourceType
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.tokenizer import normalize
 
@@ -77,6 +80,21 @@ _FILENAME_MAX_LENGTH: Final[int] = 255
 #    곧 로컬 파일 읽기가 된다.
 _FETCHABLE_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
+# ⚠️ 영상 id는 **정규화된 URL로 조립되어 `metadata`에 저장되고 워커가 그 값을 그대로
+#    쓴다.** 형태를 여기서 못 박지 않으면 임의의 문자열이 URL 조각으로 들어가고, 그
+#    문자열이 사용자에게 링크로 되비친다. 형태 자체는 core가 소유한다 — 워커도 같은
+#    값을 소비 시점에 재검증해야 하고(`0007` §8의 직접 INSERT 경로), 두 곳에 각각
+#    적어두면 한쪽만 고쳐진 채 갈라진다.
+_VIDEO_ID_PATTERN: Final[re.Pattern[str]] = YOUTUBE_VIDEO_ID_PATTERN
+# 채널 id는 링크로 조립하지 않고 보관만 하므로 문자 집합과 상한만 잰다.
+_CHANNEL_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+# 한 번에 등록할 수 있는 영상 수. `playlistItems.list` 한 페이지(50)와 같은 값이라
+# 화면에 보이는 목록을 통째로 고른 경우가 상한에 걸리지 않는다.
+# ⚠️ 상한이 없으면 요청 하나가 임의 개수의 `raw_sources` INSERT와 인큐를 돌린다 —
+#    ING-01의 "즉시 202"가 선택 개수에 비례해 무너진다.
+_MAX_BATCH_VIDEOS: Final[int] = 50
+
 
 class TextSourceRequest(BaseModel):
     """텍스트 직접 입력 요청.
@@ -91,6 +109,35 @@ class TextSourceRequest(BaseModel):
     title: str = Field(min_length=1, max_length=_TITLE_MAX_LENGTH)
     text: str = Field(min_length=1)
     source_type: SourceType = SourceType.TEXT
+    collection_purpose: str | None = Field(default=None, max_length=500)
+
+
+class YoutubeVideoSelection(BaseModel):
+    """일괄 등록에서 고른 영상 한 편."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    video_id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=_TITLE_MAX_LENGTH)
+
+
+class YoutubeVideoBatchRequest(BaseModel):
+    """선택한 영상들의 등록 요청 (youtube-channel-import Task 2.4 · 3.1).
+
+    ⚠️ 자막 본문은 여기 오지 않는다. 등록 시점에 자막을 받으면 요청 하나가 외부 왕복에
+    인질이 되어 ING-01의 "즉시 202"가 깨진다 — URL 경로가 페치를 워커로 미룬 것과 같은
+    이유이며, `design.md` D1이 그 대안을 명시적으로 기각했다. 영상 20편이면 그 요청은
+    외부 왕복 20회에 인질이 된다.
+
+    ⚠️ `channel_id`는 영상별이 아니라 요청 단위다. 영상마다 받으면 한 채널을 보고 있는
+    화면에서 다른 채널 id를 실은 요청을 만들 수 있고, 그 값은 검증할 방법 없이
+    `metadata`에 그대로 저장된다.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    channel_id: str = Field(min_length=1, max_length=64)
+    videos: list[YoutubeVideoSelection] = Field(min_length=1, max_length=_MAX_BATCH_VIDEOS)
     collection_purpose: str | None = Field(default=None, max_length=500)
 
 
@@ -438,6 +485,174 @@ async def ingest_url_source(
         "metadata": {"url": url},
     }
     return await _insert_and_enqueue(db, workspace_id=workspace_id, values=values)
+
+
+def _canonical_video_url(video_id: str) -> str:
+    """중복 판정의 기준이 되는 **정규화된** 영상 URL (design D1).
+
+    ⚠️ 사용자가 본 주소(`youtu.be/…`, `…&t=90s`, `m.youtube.com/…`)를 그대로 쓰지 않는다.
+    같은 영상이 표기만 달라 여러 번 수집되면 위키 컴파일 입력이 같은 내용으로 부풀고,
+    그것은 `raw_sources`에서 사후에 되돌릴 수 없다.
+
+    ⚠️ 해시 대상이 **자막 본문이 아니라 영상 신원**인 것도 의도다. 자막은 나중에 수정될
+    수 있고, 본문 해시로 잡으면 그때 같은 영상이 새 원문으로 한 번 더 들어온다.
+    """
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+async def _assert_membership(db: UserDb, *, workspace_id: UUID) -> None:
+    """멤버십을 명시적으로 묻는다 — **INSERT가 한 번도 시도되지 않았을 때만.**
+
+    ⚠️ 이 경로의 격리 판정자는 원래 INSERT의 `WITH CHECK` 하나다. 그런데 고른 영상이
+    전부 형태 불량이면 INSERT가 한 번도 일어나지 않아 RLS가 물어볼 기회를 못 얻고,
+    그러면 비멤버가 남의 `workspace_id`에 대해 202를 받는다 — 행은 안 만들어지지만
+    "타 워크스페이스 지정 요청은 거부된다"는 계약이 그 입력에서만 조용히 깨진다.
+    항상 앞세우지 않는 이유는 조회와 INSERT 사이의 창(TOCTOU)을 만들지 않기 위해서다.
+
+    ⚠️ `min_role`이 `editor`인 것은 이 폴백이 대신하는 판정자가
+    `raw_sources_insert_editor` 정책(`0004_rls_policies.sql:217-219`)이기 때문이다.
+    `viewer`로 두면 폴백이 자기가 대신하는 판정자보다 느슨해져, viewer 멤버가 형태 불량
+    선택만 보냈을 때만 202를 받고 정상 선택에서는 403을 받는 어긋난 경계가 생긴다.
+    """
+    result = await db.rpc(
+        "has_workspace_role",
+        params={"ws_id": str(workspace_id), "min_role": "editor"},
+    )
+    if not result or result[0] is not True:
+        raise WorkspaceForbidden(table=_RAW_SOURCES_TABLE, affected=0)
+
+
+async def _register_one_video(
+    db: UserDb,
+    *,
+    workspace_id: UUID,
+    video: YoutubeVideoSelection,
+    channel_id: str,
+    collection_purpose: str | None,
+) -> dict[str, Any]:
+    """영상 한 편을 등록한다. 워크스페이스 경계 위반만 예외로 올라간다.
+
+    호출부가 영상 id 형태를 이미 검증했다고 전제한다 — 이 함수는 반드시 INSERT를
+    시도하며, 그 사실이 위 `_assert_membership`의 "시도 0건" 판정을 성립시킨다.
+    """
+    video_id = video.video_id.strip()
+    url = _canonical_video_url(video_id)
+    values: dict[str, Any] = {
+        "id": str(uuid4()),
+        "workspace_id": str(workspace_id),
+        "title": video.title[:_TITLE_MAX_LENGTH],
+        "source_type": SourceType.TRANSCRIPT.value,
+        # 파일·URL 경로와 같은 sentinel — 자막은 워커의 `parse` 분기가 채운다 (design D1).
+        "content": "",
+        "content_hash": _text_content_hash(url),
+        "storage_path": None,
+        "collection_purpose": collection_purpose,
+        # 워커의 `transcript` 분기가 `video_id`를 읽고, `url`은 사용자가 원문 영상으로
+        # 되돌아가는 경로다 — 인용이 원문까지 닿으려면 이 값이 행에 남아 있어야 한다.
+        "metadata": {"video_id": video_id, "channel_id": channel_id, "url": url},
+    }
+
+    try:
+        created = await _insert_and_enqueue(db, workspace_id=workspace_id, values=values)
+    except SourceAlreadyIngested as error:
+        # ⚠️ 실패가 아니라 **구분되는 결과**다. 실패로 뭉개면 사용자는 무엇을 고쳐야
+        #    하는지 모르는 채 같은 영상을 계속 다시 고른다 (ING-02의 기존 계약 재사용).
+        return {
+            "video_id": video_id,
+            "status": "already_collected",
+            "raw_source_id": error.raw_source_id,
+        }
+    except BudgetExceeded:
+        # 상한에 닿은 시점이다. 호출부가 이 결과를 보고 남은 영상의 시도를 멈춘다.
+        return {"video_id": video_id, "status": "failed", "reason": "budget_exceeded"}
+    except DatabaseError as error:
+        if error.sqlstate == FORBIDDEN_SQLSTATE:
+            # ⚠️ 격리 위반만 예외로 올린다. 이것을 영상별 `failed`로 접으면 200 응답
+            #    안에 403이 숨고, 타 워크스페이스를 지정한 요청이 "일부 실패"로 보인다.
+            raise
+        # ⚠️ 조용히 삼키지 않는다 — 영상별 결과로도 알리고 로그에도 남긴다. 여기서
+        #    끊고 500을 내면 이미 등록된 앞쪽 영상들의 결과가 응답에서 사라진다.
+        _logger.error(
+            "sources.youtube_video_failed",
+            video_id=video_id,
+            sqlstate=error.sqlstate,
+        )
+        return {"video_id": video_id, "status": "failed", "reason": "internal"}
+
+    return {"video_id": video_id, "status": "registered", **created}
+
+
+@router.post("/{workspace_id}/sources/youtube-videos", status_code=status.HTTP_202_ACCEPTED)
+async def ingest_youtube_video_sources(
+    workspace_id: UUID,
+    payload: YoutubeVideoBatchRequest,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    """선택한 영상들을 각각 `transcript` 원문으로 등록하고 영상별 결과를 돌려준다.
+
+    ⚠️ 등록 대상은 언제나 경로의 워크스페이스이며, 그 경계는 주로 이 함수가 아니라 RLS가
+    강제한다 — `_insert_and_enqueue`가 요청자 JWT로 INSERT 하므로 비멤버의 요청은 **첫
+    INSERT에서** `WITH CHECK` 위반(42501)이 되고, 그 예외가 그대로 올라가 `api.errors`가
+    403으로 렌더한다. 첫 건에서 끊기므로 "아무 소스도 만들지 않는다"가 성립한다.
+    멤버십을 항상 앞세우지 않는 것은 판정자를 하나로 유지하고 TOCTOU 창을 만들지 않기
+    위해서이며, RLS가 물어볼 기회를 못 얻은 경우에만 `_assert_membership`이 뒤를 받친다.
+
+    ⚠️ 한 건의 결과가 다른 건의 결과를 가리지 않는다. 첫 실패에서 요청 전체를 끊으면
+    이미 등록된 앞쪽 영상은 DB에 남는데 응답은 그 사실을 말해주지 않아, 사용자가 다시
+    누르는 것 말고는 상태를 알 방법이 없어진다.
+    """
+    channel_id = payload.channel_id.strip()
+    if not _CHANNEL_ID_PATTERN.match(channel_id):
+        raise InvalidSourceInput(reason="bad_channel_id")
+
+    db = _user_db(request, credentials)
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    budget_reached = False
+    attempted = 0
+
+    for video in payload.videos:
+        # 같은 영상을 두 번 고른 요청이 결과 두 줄을 만들지 않게 한다. 첫 건이 만든 행이
+        # 두 번째 건에서 23505로 잡혀 "이미 수집됨"이 되는데, 그것은 사용자가 이전에
+        # 수집해 둔 것과 구분되지 않는 거짓 결과다.
+        key = video.video_id.strip()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        # ⚠️ 형태 검증이 DB를 만지기 **전에** 일어나므로, 이 분기만 타는 요청은 RLS에
+        #    한 번도 닿지 않는다. 그래서 아래 `attempted`를 센다.
+        if not _VIDEO_ID_PATTERN.match(key):
+            results.append(
+                {"video_id": video.video_id, "status": "failed", "reason": "bad_video_id"}
+            )
+            continue
+
+        if budget_reached:
+            # ⚠️ 상한에 닿은 뒤에는 시도하지 않는다. `_insert_and_enqueue`는 행을 만든
+            #    **뒤에** 인큐에서 거부되므로, 계속 시도하면 인큐되지 못할 `raw_sources`
+            #    행만 늘어난다.
+            results.append({"video_id": key, "status": "failed", "reason": "budget_exceeded"})
+            continue
+
+        attempted += 1
+        result = await _register_one_video(
+            db,
+            workspace_id=workspace_id,
+            video=video,
+            channel_id=channel_id,
+            collection_purpose=payload.collection_purpose,
+        )
+        if result.get("reason") == "budget_exceeded":
+            budget_reached = True
+        results.append(result)
+
+    if attempted == 0:
+        # RLS가 물어볼 기회를 못 얻었다 — 여기서 묻지 않으면 비멤버가 202를 받는다.
+        await _assert_membership(db, workspace_id=workspace_id)
+
+    return {"results": results}
 
 
 @router.delete("/{workspace_id}/sources/{source_id}", status_code=status.HTTP_202_ACCEPTED)

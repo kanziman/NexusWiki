@@ -52,6 +52,37 @@ class WorkerSettings(BaseAppSettings):
     LLM_STREAM_RATE_CAPACITY: int = Field(default=20, gt=0)
     LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=0.2, gt=0)
 
+    # YouTube Data API 키 — provider 자격증명이라 워커만 소유한다(youtube-channel-import
+    # change의 design.md > D5). 이름의 casefold가 `REDACTED_KEYS`에 있어야 로그 마스킹이
+    # 동작한다 — 위 세 secret 필드와 같은 커플링이며 test_logging_redaction.py가 단언한다.
+    # ⚠️ `str | None`인 것이 의도다. 키가 없으면 검색 리스너를 아예 띄우지 않을 뿐,
+    #    워커의 나머지 파이프라인은 그대로 떠야 한다.
+    YOUTUBE_API_KEY: str | None = None
+
+    # Dedicated caller credential for the private API-to-worker channel-search
+    # boundary — never a provider credential, never in ApiSettings.
+    # 레이트가 QUERY_EMBEDDING_*보다 훨씬 낮은 이유: `search.list`는 호출당 100유닛이고
+    # 일일 한도가 10,000유닛이라, 이 경계의 처리량 상한이 곧 서비스 전체의 검색 예산이다.
+    YOUTUBE_SEARCH_INTERNAL_TOKEN: str | None = None
+    YOUTUBE_SEARCH_MAX_QUERY_CHARS: int = 100
+    YOUTUBE_SEARCH_TIMEOUT_SECONDS: float = 10.0
+    YOUTUBE_SEARCH_MAX_CONCURRENCY: int = 4
+    YOUTUBE_SEARCH_RATE_CAPACITY: int = Field(default=60, gt=0)
+    YOUTUBE_SEARCH_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=0.2, gt=0)
+
+    # 채널 영상 목록 경계의 상한 (youtube-channel-import 슬라이스 2, design D4).
+    # ⚠️ 검색과 **다른 예산**인 것이 요점이다. 목록 한 페이지는 `channels.list` +
+    #    `playlistItems.list` + `videos.list`로 3유닛, 검색 한 번은 100유닛이다. 같은
+    #    버킷에 묶으면 목록을 몇 페이지 넘기는 정상 사용이 검색 예산을 태우거나, 반대로
+    #    검색 기준의 좁은 버킷이 목록 탐색을 막는다.
+    # 타임아웃이 검색보다 큰 이유: 위 세 호출이 **순차**다.
+    # 내부 호출자 토큰은 검색과 공유한다 — 같은 리스너 앱의 같은 경계라 토큰을 쪼개면
+    # 배포 설정만 늘고 격리는 늘지 않는다.
+    YOUTUBE_VIDEOS_TIMEOUT_SECONDS: float = 15.0
+    YOUTUBE_VIDEOS_MAX_CONCURRENCY: int = 4
+    YOUTUBE_VIDEOS_RATE_CAPACITY: int = Field(default=120, gt=0)
+    YOUTUBE_VIDEOS_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=2.0, gt=0)
+
     # 자격증명이 아니라 운영 토글이므로 기본값을 갖는다 — 없다고 worker가 못 뜰
     # 이유가 없다. 배포 환경에서 RTT 프로브만 끄고 싶을 때 쓴다.
     RTT_PROBE_ENABLED: bool = True

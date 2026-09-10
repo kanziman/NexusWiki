@@ -35,6 +35,7 @@ from worker.errors import (
     scrub_credentials,
 )
 from worker.handlers import UnknownJobTypeError, resolve_handler
+from worker.transcript import TranscriptUnavailable
 
 __all__ = [
     "DEAD_LETTER_BACKOFF",
@@ -120,6 +121,12 @@ def sanitize_error(error: BaseException) -> str:
         text = f"provider_error kind={error.kind} provider={error.provider} status={status}"
     elif isinstance(error, ExtractionQualityError):
         text = f"{error.reason} chars={error.chars} pages={error.pages} threshold={error.threshold}"
+    elif isinstance(error, TranscriptUnavailable):
+        # ⚠️ 클래스명이 아니라 **사유 토큰만** 남긴다. `last_error`는 워크스페이스 멤버가
+        #    SELECT할 수 있고 대시보드가 그 값으로 문구를 고르므로(4.4), 여기에
+        #    `TranscriptPermanentlyUnavailable: no_transcript`처럼 내부 타입 이름이 섞이면
+        #    화면 문구가 구현 클래스명에 묶인다.
+        text = error.reason
     elif isinstance(error, (UnsafeFetchTarget, StorageObjectMissing)):
         text = str(error)
     elif isinstance(error, httpx.HTTPStatusError):

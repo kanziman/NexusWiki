@@ -28,6 +28,10 @@ REDACTED_KEYS: frozenset[str] = frozenset(
         "supabase_secret_key",
         "openrouter_api_key",
         "openai_api_key",
+        # ⚠️ 위의 `api_key`가 이것을 덮지 않는다 — 마스킹은 부분 일치가 아니라
+        #    casefold한 **정확한 키 일치**다. 이름을 여기 더하지 않으면 워커의
+        #    YouTube 키가 에러 없이 로그에 그대로 찍힌다.
+        "youtube_api_key",
         "database_url",
     }
 )
