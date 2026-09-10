@@ -50,6 +50,7 @@ export type SourcesListProps = {
   prefillTitle?: string;
   initialTab?: "text";
   isOwner?: boolean;
+  deadJobCount?: number;
 };
 
 const EMPTY_HEADING = "아직 등록된 소스가 없습니다";
@@ -107,6 +108,7 @@ export function SourcesList({
   prefillTitle,
   initialTab,
   isOwner = false,
+  deadJobCount = 0,
 }: SourcesListProps) {
   const [sources, setSources] = useState<SourceRow[]>(initialSources);
   const [activeMime, setActiveMime] = useState<MimeFilter>("all");
@@ -247,6 +249,8 @@ export function SourcesList({
       ? 0
       : Math.round((indexedCount / sources.length) * 100);
 
+  const hasDeadJobs = deadJobCount > 0;
+
   const TABS: { id: MimeFilter; label: string }[] = [
     { id: "all", label: `전체 ${sources.length}` },
     { id: "pdf", label: `PDF ${pdfCount}` },
@@ -361,26 +365,46 @@ export function SourcesList({
             )}
           </div>
 
-          {/* 4. 파이프라인 상태 — 워크스페이스 단위 5단계 집계는 jobs 를 새로
-              읽어야 하므로, 이미 있는 신호인 청킹 완료율로 정의한다. 행 단위
-              5단계 진행은 아래 목록의 JobStepper 가 계속 담당한다. */}
+          {/* 4. 파이프라인 상태 — dead 잡이 있으면 경고를 띄워 100% 정상으로 오인되지 않게 한다. */}
           <div className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4">
             <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
               <span>파이프라인 상태</span>
-              <Activity
-                size={16}
-                className={
-                  !chunkStatsUnavailable && pendingChunkCount === 0
-                    ? "text-[var(--good)]"
-                    : "text-[var(--muted)]"
-                }
-                aria-hidden="true"
-              />
+              {hasDeadJobs ? (
+                <AlertTriangle
+                  size={16}
+                  className="text-[var(--danger)]"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Activity
+                  size={16}
+                  className={
+                    !chunkStatsUnavailable && pendingChunkCount === 0
+                      ? "text-[var(--good)]"
+                      : "text-[var(--muted)]"
+                  }
+                  aria-hidden="true"
+                />
+              )}
             </div>
             {chunkStatsUnavailable ? (
               <span className="text-[12px] font-semibold text-[var(--muted)]">
                 {AGGREGATE_UNAVAILABLE}
               </span>
+            ) : hasDeadJobs ? (
+              <>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--danger)]">
+                    오류 발생
+                  </b>
+                  <span className="rounded-md bg-[var(--danger-soft)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--danger)]">
+                    {`파이프라인 실패 (${deadJobCount}건)`}
+                  </span>
+                </div>
+                <span className="text-[11px] text-[var(--muted)]">
+                  실패한 작업의 재시도 또는 오류 확인 필요
+                </span>
+              </>
             ) : (
               <>
                 <div className="flex flex-wrap items-baseline gap-2">
@@ -395,13 +419,13 @@ export function SourcesList({
                     }`}
                   >
                     {pendingChunkCount === 0
-                      ? "전 소스 청킹 완료"
-                      : "청킹 진행 중"}
+                      ? "전 소스 처리 완료"
+                      : "처리 진행 중"}
                   </span>
                 </div>
                 <span className="text-[11px] text-[var(--muted)]">
                   {pendingChunkCount === 0
-                    ? "청킹 대기 중인 소스 없음"
+                    ? "대기 중인 작업 없음"
                     : `청킹 대기 ${pendingChunkCount}개`}
                 </span>
               </>
@@ -569,7 +593,7 @@ export function SourcesList({
                 return (
                   <article
                     key={source.id}
-                    className="grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface)]/40 md:h-[72px] md:gap-4 md:py-0 md:[grid-template-columns:var(--sources-cols)]"
+                    className="grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface)]/40 md:min-h-[72px] md:gap-4 md:py-3 md:[grid-template-columns:var(--sources-cols)]"
                   >
                     {/* 1. 소스 파일 */}
                     <div className="flex min-w-0 items-center gap-2.5">

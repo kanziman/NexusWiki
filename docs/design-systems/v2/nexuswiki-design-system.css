@@ -1075,10 +1075,6 @@ textarea:focus-visible {
 /* 작성 대기 백로그 */
 .backlog .doc {
   align-items: flex-start;
-  /* 지식 공백 행의 주목 보더. 하드코딩 앰버를 쓰면 --warning 토큰이
-     죽은 선언이 되어 이후 경고 상태가 다시 흩어진다. */
-  border-left: 3px solid var(--warning);
-  padding-left: 10px;
 }
 
 .backlog .doc-title:before {
@@ -1978,6 +1974,8 @@ textarea:focus-visible {
 .pipe-bar::-webkit-progress-bar { background: var(--surface); border-radius: 999px; }
 .pipe-bar::-webkit-progress-value { background: var(--good); border-radius: 999px; transition: width 300ms ease; }
 .pipe-bar::-moz-progress-bar { background: var(--good); border-radius: 999px; transition: width 300ms ease; }
+.pipe-bar.failed::-webkit-progress-value { background: var(--danger); }
+.pipe-bar.failed::-moz-progress-bar { background: var(--danger); }
 
 .pipe-error { display: flex; align-items: flex-start; gap: 6px }
 

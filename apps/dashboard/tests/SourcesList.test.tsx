@@ -168,8 +168,31 @@ describe("SourcesList", () => {
         bento.getByText("아직 인용되지 않은 소스 1개"),
       ).toBeInTheDocument();
       // 파이프라인
-      expect(bento.getByText("청킹 진행 중")).toBeInTheDocument();
+      expect(bento.getByText("파이프라인 상태")).toBeInTheDocument();
+      expect(bento.getByText("처리 진행 중")).toBeInTheDocument();
       expect(bento.getByText("청킹 대기 1개")).toBeInTheDocument();
+    });
+
+    it("실패한(dead) 잡이 있으면 파이프라인 상태 카드에 오류 경고를 표시한다", () => {
+      render(
+        <SourcesList
+          workspaceId="ws-1"
+          initialSources={bentoSources}
+          chunkStats={bentoChunkStats}
+          citingPages={bentoCitingPages}
+          deadJobCount={3}
+        />,
+      );
+
+      const bento = within(screen.getByLabelText("파이프라인 요약"));
+      expect(bento.getByText("파이프라인 상태")).toBeInTheDocument();
+      expect(bento.getByText("오류 발생")).toBeInTheDocument();
+      expect(bento.getByText("파이프라인 실패 (3건)")).toBeInTheDocument();
+      expect(
+        bento.getByText("실패한 작업의 재시도 또는 오류 확인 필요"),
+      ).toBeInTheDocument();
+      // 정상 상태의 백분율이나 완료 배지가 노출되지 않는다
+      expect(bento.queryByText("전 소스 처리 완료")).not.toBeInTheDocument();
     });
 
     it("청크 합계는 목록에 남은 소스에서만 파생된다", () => {

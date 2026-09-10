@@ -28,7 +28,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from nexuswiki_core.logging import get_logger
-from worker.errors import LlmSchemaError, ProviderError
+from worker.errors import LlmSchemaError, ProviderCreditExhausted, ProviderError
 from worker.settings import WorkerSettings
 
 __all__ = [
@@ -170,6 +170,11 @@ async def stream_chat(
     body = _chat_stream_body(settings=settings, messages=messages)
     async with client.stream("POST", "/chat/completions", json=body) as response:
         if response.status_code >= 400:
+            if response.status_code == 402:
+                raise ProviderCreditExhausted(
+                    provider=PROVIDER_NAME,
+                    kind="chat_completion",
+                )
             raise ProviderError(
                 provider=PROVIDER_NAME,
                 status_code=response.status_code,
@@ -304,7 +309,7 @@ async def _post_chat(
     )
     response = await _send(client, body)
 
-    if structured_supported and 400 <= response.status_code < 500:
+    if structured_supported and 400 <= response.status_code < 500 and response.status_code != 402:
         # 능력 탐지 실패 — `response_format`/`provider`를 빼고 프롬프트 전용으로 내려간다.
         # ⚠️ 상태 코드만 로그에 남긴다. 응답 본문에는 라우팅된 엔드포인트 목록이 실릴 수
         #    있고 그것은 우리 계정의 내부 정보다.
@@ -323,6 +328,11 @@ async def _post_chat(
         response = await _send(client, body)
 
     if response.status_code >= 400:
+        if response.status_code == 402:
+            raise ProviderCreditExhausted(
+                provider=PROVIDER_NAME,
+                kind="chat_completion",
+            )
         raise ProviderError(
             provider=PROVIDER_NAME,
             status_code=response.status_code,

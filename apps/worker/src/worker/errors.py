@@ -32,6 +32,7 @@ __all__ = [
     "EmbeddingProviderMismatch",
     "LlmSchemaError",
     "NON_RETRYABLE_ERRORS",
+    "ProviderCreditExhausted",
     "ProviderError",
     "StorageObjectMissing",
     "UnsafeFetchTarget",
@@ -142,8 +143,23 @@ class EmbeddingProviderMismatch(ProviderError):
         )
 
 
-# ⚠️ 이 목록은 재시도해도 결과가 같은 실패만 담는다. ProviderError는 공급자 복구로
-# 성공할 수 있어 넣지 않는다. queue가 이 목록으로 즉시 dead-letter 하는 배선은 03-08 몫이다.
+class ProviderCreditExhausted(ProviderError):
+    """외부 모델 공급자 계정 크레딧이 소진되었다 (HTTP 402 Payment Required).
+
+    크레딧 충전 또는 워크스페이스 BYOK API 키 등록 없이는 재시도해도 동일하게
+    실패하므로, NON_RETRYABLE_ERRORS로 분류해 1회 시도로 즉시 dead-letter 종결한다.
+    """
+
+    def __init__(self, *, provider: str, kind: str) -> None:
+        super().__init__(provider=provider, status_code=402, kind=kind)
+
+    def _describe(self) -> str:
+        return f"{self.provider} 모델 공급자 크레딧 소진 (kind={self.kind}, status=402)"
+
+
+# ⚠️ 이 목록은 재시도해도 결과가 같은 실패만 담는다. 일반 ProviderError는 공급자 일시
+# 장애 복구로 성공할 수 있어 넣지 않으나, 402(크레딧 소진)는 충전 없이는 성공할 수 없으므로
+# ProviderCreditExhausted만 선별하여 즉시 dead-letter 종결 목록에 포함한다.
 #
 # ⚠️ `TranscriptPermanentlyUnavailable`만 담고 그 기반 클래스 `TranscriptUnavailable`은
 #    담지 않는다. 기반 클래스를 담으면 공급자 일시 장애(IP 차단·요청 실패)까지 한 번에
@@ -155,4 +171,5 @@ NON_RETRYABLE_ERRORS: Final[tuple[type[BaseException], ...]] = (
     UnsafeFetchTarget,
     StorageObjectMissing,
     TranscriptPermanentlyUnavailable,
+    ProviderCreditExhausted,
 )

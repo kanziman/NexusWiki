@@ -87,7 +87,18 @@ export function describeFailure(job: {
   step_label: string;
   last_error: string | null;
 }): { message: string; retryable: boolean } {
-  const known = TRANSCRIPT_FAILURES[job.last_error ?? ""];
+  const error = job.last_error ?? "";
+  if (
+    error.startsWith("provider_credit_exhausted") ||
+    (error.startsWith("provider_error") && error.includes("status=402"))
+  ) {
+    return {
+      message:
+        "AI 크레딧이 소진되었습니다. 크레딧 충전 또는 API 키 확인 후 재시도해 주세요.",
+      retryable: true,
+    };
+  }
+  const known = TRANSCRIPT_FAILURES[error];
   if (known) return known;
   return {
     message: `${job.step_label} 단계에서 실패했습니다 — ${truncateLastError(
@@ -280,7 +291,7 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
         <progress
           aria-label={`처리 진행률 ${progressValue}/5단계 완료`}
           aria-valuetext={`${progressValue}/5단계 완료`}
-          className="pipe-bar"
+          className={`pipe-bar${failedJobs.length > 0 ? " failed" : ""}`}
           max={5}
           value={progressValue}
         />
@@ -289,17 +300,25 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
       {failedJobs.map((job) => {
         const failure = describeFailure(job);
         return (
-          <div key={job.id} className="pipe-error">
-            <p role="alert">{failure.message}</p>
+          <div
+            key={job.id}
+            className="pipe-error mt-1 flex items-center justify-between gap-2 rounded-md border border-[var(--danger)]/20 bg-[var(--danger-soft)]/40 px-2 py-1.5"
+          >
+            <p
+              role="alert"
+              className="text-[11px] font-medium leading-snug text-[var(--danger)]"
+            >
+              {failure.message}
+            </p>
             {failure.retryable ? (
               <button
                 type="button"
                 aria-label="재시도"
                 onClick={() => handleRetry(job.id)}
                 disabled={retryingId === job.id}
-                className="nw-focus-ring pipe-action danger"
+                className="nw-focus-ring flex h-6 w-6 flex-none items-center justify-center rounded bg-[var(--danger)]/10 text-[var(--danger)] transition-colors hover:bg-[var(--danger)] hover:text-white"
               >
-                <RefreshCw size={15} aria-hidden="true" />
+                <RefreshCw size={12} aria-hidden="true" />
               </button>
             ) : null}
           </div>
