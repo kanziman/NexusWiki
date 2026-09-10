@@ -195,6 +195,24 @@ describe("SourcesList", () => {
       expect(bento.queryByText("전 소스 처리 완료")).not.toBeInTheDocument();
     });
 
+    it("잡 상태 조회가 실패하면 거짓 정상이 아닌 집계 불가 문구를 표시한다", () => {
+      render(
+        <SourcesList
+          workspaceId="ws-1"
+          initialSources={bentoSources}
+          chunkStats={bentoChunkStats}
+          citingPages={bentoCitingPages}
+          deadJobsUnavailable={true}
+        />,
+      );
+
+      const bento = within(screen.getByLabelText("파이프라인 요약"));
+      expect(bento.getByText("파이프라인 상태")).toBeInTheDocument();
+      expect(bento.getByText("집계를 불러오지 못했습니다")).toBeInTheDocument();
+      expect(bento.queryByText("전 소스 처리 완료")).not.toBeInTheDocument();
+      expect(bento.queryByText("오류 발생")).not.toBeInTheDocument();
+    });
+
     it("청크 합계는 목록에 남은 소스에서만 파생된다", () => {
       // chunkStats 에 목록에 없는 소스가 섞여 있어도 합계에 들어가면 안 된다 —
       // 삭제된 소스의 청크가 요약에만 남아 행과 모순되는 상태가 된다.

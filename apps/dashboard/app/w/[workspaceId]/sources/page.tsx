@@ -71,18 +71,22 @@ export default async function SourcesPage({
             .eq("user_id", user.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
-      supabase
-        .from("jobs")
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId)
-        .eq("status", "dead"),
+      sourceIds.length
+        ? supabase
+            .from("jobs")
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .in("raw_source_id", sourceIds)
+            .eq("status", "dead")
+        : Promise.resolve({ count: 0, error: null }),
     ]);
 
   const isOwner = memberResult?.data?.role === "owner";
-  const deadJobCount = deadJobsResult?.count ?? 0;
+  const deadJobsUnavailable = Boolean(deadJobsResult?.error);
+  const deadJobCount = deadJobsUnavailable ? 0 : (deadJobsResult?.count ?? 0);
 
-  // ⚠️ 아래 두 집계는 실패해도 `?? []`로 흘러가 빈 결과와 구분되지 않는다.
-  // 목록 요약이 "고아 소스 없음"·"전 소스 청킹 완료" 같은 단정을 하므로, 조회
+  // ⚠️ 아래 집계들은 실패해도 `?? []` 또는 `?? 0`으로 흘러가 빈 결과와 구분되지 않는다.
+  // 목록 요약이 "고아 소스 없음"·"전 소스 청킹 완료"·"정상" 같은 단정을 하므로, 조회
   // 실패를 그대로 두면 화면이 거짓을 확언한다. 소스 상세 라우트가 이미
   // `sources/[id]/page.tsx`에서 같은 분기를 하고 있다 — 목록도 실패 사실을
   // 내려보내 해당 칸이 단정 대신 집계 불가를 말하게 한다.
@@ -91,11 +95,12 @@ export default async function SourcesPage({
   );
   const citingPagesUnavailable = Boolean(wikiResult.error);
 
-  if (chunkStatsUnavailable || citingPagesUnavailable) {
+  if (chunkStatsUnavailable || citingPagesUnavailable || deadJobsUnavailable) {
     console.error("소스 목록 집계 조회 실패", {
       workspaceId,
       chunkError: (chunkResult as { error?: unknown } | null)?.error,
       wikiError: wikiResult.error,
+      deadJobsError: deadJobsResult?.error,
     });
   }
 
@@ -147,6 +152,7 @@ export default async function SourcesPage({
       initialTab={tab === "text" ? "text" : undefined}
       isOwner={isOwner}
       deadJobCount={deadJobCount}
+      deadJobsUnavailable={deadJobsUnavailable}
     />
   );
 }

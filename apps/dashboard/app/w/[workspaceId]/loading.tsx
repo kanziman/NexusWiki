@@ -106,7 +106,7 @@ export default function WorkspaceHomeLoading() {
 
           <div className="doc-list">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="doc">
+              <div key={i} className="doc border-l-0 pl-0">
                 <div className="doc-body">
                   <div className="h-4 w-44 max-w-full rounded-md bg-[var(--surface)]" />
                   <div className="h-3 w-36 rounded bg-[var(--surface)] opacity-70" />
