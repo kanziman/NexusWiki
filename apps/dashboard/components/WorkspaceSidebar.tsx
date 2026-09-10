@@ -422,32 +422,10 @@ export function WorkspaceSidebar({
           </Link>
         </nav>
 
-        {/* 무료 크레딧 또는 BYOK 무제한 미니 위젯 */}
+        {/* 무료 크레딧 미니 위젯 */}
         {!collapsed &&
           budget &&
-          (budget.cap_micros < 0 ? (
-            <Link
-              href={`${base}/settings`}
-              prefetch={true}
-              onClick={handleItemClick}
-              className="mx-3 mb-2 flex items-center justify-between rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-2.5 text-xs text-[var(--fg)] hover:border-[var(--accent)] transition-all group"
-              title="내 API 키 연결됨 (무제한)"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent)] text-white flex-none">
-                  <Zap size={14} aria-hidden="true" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-bold text-[var(--accent)] truncate">
-                    내 API 키 연결됨
-                  </span>
-                  <span className="text-[11px] font-medium text-[var(--fg)] truncate">
-                    무제한 이용 중
-                  </span>
-                </div>
-              </div>
-            </Link>
-          ) : budget.cap_micros > 0 ? (
+          (budget.cap_micros > 0 ? (
             <Link
               href={`${base}/settings?tab=operations`}
               prefetch={true}

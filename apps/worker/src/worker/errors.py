@@ -146,8 +146,9 @@ class EmbeddingProviderMismatch(ProviderError):
 class ProviderCreditExhausted(ProviderError):
     """외부 모델 공급자 계정 크레딧이 소진되었다 (HTTP 402 Payment Required).
 
-    크레딧 충전 또는 워크스페이스 BYOK API 키 등록 없이는 재시도해도 동일하게
-    실패하므로, NON_RETRYABLE_ERRORS로 분류해 1회 시도로 즉시 dead-letter 종결한다.
+    운영자가 크레딧을 충전하지 않는 한 재시도해도 동일하게 실패하므로,
+    NON_RETRYABLE_ERRORS로 분류해 1회 시도로 즉시 dead-letter 종결한다.
+    BYOK(워크스페이스 개인 API 키)는 폐지됐다 — 등록해도 이 경로에 영향을 주지 않는다.
     """
 
     def __init__(self, *, provider: str, kind: str) -> None:

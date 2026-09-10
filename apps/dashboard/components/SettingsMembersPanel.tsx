@@ -14,7 +14,6 @@ export type SettingsMembersPanelProps = {
   workspaceName?: string;
   workspaceSlug?: string;
   workspaceKind?: "personal" | "team";
-  initialCustomApiKey?: string | null;
   allowPublicSharing?: boolean;
   publicDisplayName?: string;
   publicDescription?: string;
@@ -37,7 +36,6 @@ export function SettingsMembersPanel({
   workspaceName = "",
   workspaceSlug = "",
   workspaceKind = "personal",
-  initialCustomApiKey = null,
   allowPublicSharing = false,
   publicDisplayName = "",
   publicDescription = "",
@@ -116,7 +114,6 @@ export function SettingsMembersPanel({
             initialName={workspaceName}
             initialSlug={workspaceSlug}
             initialKind={currentKind}
-            initialCustomApiKey={initialCustomApiKey}
             onKindChange={setCurrentKind}
             isOwner={isOwner}
             allowPublicSharing={allowPublicSharing}
