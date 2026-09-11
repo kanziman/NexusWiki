@@ -34,7 +34,7 @@ VIDEOS_PATH = "/workspaces/{workspace_id}/youtube/channels/{channel_id}/videos"
 
 def test_cache_returns_stored_payload_within_ttl() -> None:
     cache = SearchCache(ttl_seconds=10.0, max_entries=4)
-    key = ("요리", "KR", "")
+    key = ("요리", "KR", "", "relevance", "")
     cache.put(key, {"channels": [], "next_page_token": None}, now=100.0)
 
     assert cache.get(key, now=105.0) is not None
@@ -42,7 +42,7 @@ def test_cache_returns_stored_payload_within_ttl() -> None:
 
 def test_cache_entry_expires_after_ttl() -> None:
     cache = SearchCache(ttl_seconds=10.0, max_entries=4)
-    key = ("요리", "KR", "")
+    key = ("요리", "KR", "", "relevance", "")
     cache.put(key, {"channels": []}, now=100.0)
 
     assert cache.get(key, now=111.0) is None
@@ -50,24 +50,34 @@ def test_cache_entry_expires_after_ttl() -> None:
 
 def test_cache_distinguishes_query_region_and_page_token() -> None:
     cache = SearchCache(ttl_seconds=10.0, max_entries=8)
-    cache.put(("요리", "KR", ""), {"channels": ["a"]}, now=0.0)
+    cache.put(("요리", "KR", "", "relevance", ""), {"channels": ["a"]}, now=0.0)
 
-    # ⚠️ 세 축 중 하나라도 키에서 빠지면 다른 검색 결과가 서로를 덮어쓴다.
-    assert cache.get(("요리", "US", ""), now=1.0) is None
-    assert cache.get(("요리", "KR", "PAGE2"), now=1.0) is None
-    assert cache.get(("베이킹", "KR", ""), now=1.0) is None
+    # ⚠️ 다섯 축 중 하나라도 키에서 빠지면 다른 검색 결과가 서로를 덮어쓴다.
+    assert cache.get(("요리", "US", "", "relevance", ""), now=1.0) is None
+    assert cache.get(("요리", "KR", "PAGE2", "relevance", ""), now=1.0) is None
+    assert cache.get(("베이킹", "KR", "", "relevance", ""), now=1.0) is None
+
+
+def test_cache_distinguishes_order_and_relevance_language() -> None:
+    cache = SearchCache(ttl_seconds=10.0, max_entries=8)
+    cache.put(("요리", "KR", "", "relevance", ""), {"channels": ["a"]}, now=0.0)
+
+    # ⚠️ 정렬이나 언어를 바꿨는데 캐시가 이전 조합의 결과를 그대로 돌려주면
+    #    사용자에게는 "바꿨는데 안 바뀜"으로 보이는 조용한 실패다.
+    assert cache.get(("요리", "KR", "", "videoCount", ""), now=1.0) is None
+    assert cache.get(("요리", "KR", "", "relevance", "ko"), now=1.0) is None
 
 
 def test_cache_evicts_least_recently_used_entry() -> None:
     cache = SearchCache(ttl_seconds=100.0, max_entries=2)
-    cache.put(("a", "KR", ""), {"channels": []}, now=0.0)
-    cache.put(("b", "KR", ""), {"channels": []}, now=1.0)
-    cache.get(("a", "KR", ""), now=2.0)  # a를 최근 사용으로 올린다
-    cache.put(("c", "KR", ""), {"channels": []}, now=3.0)
+    cache.put(("a", "KR", "", "relevance", ""), {"channels": []}, now=0.0)
+    cache.put(("b", "KR", "", "relevance", ""), {"channels": []}, now=1.0)
+    cache.get(("a", "KR", "", "relevance", ""), now=2.0)  # a를 최근 사용으로 올린다
+    cache.put(("c", "KR", "", "relevance", ""), {"channels": []}, now=3.0)
 
-    assert cache.get(("a", "KR", ""), now=4.0) is not None
-    assert cache.get(("b", "KR", ""), now=4.0) is None
-    assert cache.get(("c", "KR", ""), now=4.0) is not None
+    assert cache.get(("a", "KR", "", "relevance", ""), now=4.0) is not None
+    assert cache.get(("b", "KR", "", "relevance", ""), now=4.0) is None
+    assert cache.get(("c", "KR", "", "relevance", ""), now=4.0) is not None
 
 
 # -----------------------------------------------------------------------------
@@ -155,7 +165,35 @@ async def test_worker_receives_query_region_and_page_token() -> None:
         region_code="KR",
         page_token="PAGE2",  # noqa: S106 - 페이지 토큰은 자격증명이 아니다
     )
-    assert seen == {"query": "요리", "region_code": "KR", "page_token": "PAGE2"}
+    assert seen == {
+        "query": "요리",
+        "region_code": "KR",
+        "page_token": "PAGE2",
+        "order": "relevance",
+        "relevance_language": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_worker_receives_order_and_relevance_language() -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, json={"channels": [], "next_page_token": None})
+
+    await _call_worker_search(
+        _request(handler),
+        query="요리",
+        region_code="KR",
+        page_token=None,
+        order="videoCount",
+        relevance_language="ko",
+    )
+    assert seen["order"] == "videoCount"
+    assert seen["relevance_language"] == "ko"
 
 
 # -----------------------------------------------------------------------------

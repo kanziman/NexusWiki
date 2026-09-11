@@ -27,6 +27,9 @@ const CHANNEL = {
   title: "쿠킹채널",
   description: "설명",
   thumbnail_url: null,
+  subscriber_count: null,
+  video_count: null,
+  handle: null,
 };
 
 function video(id: string) {
@@ -36,6 +39,9 @@ function video(id: string) {
     published_at: null,
     duration_seconds: 600,
     thumbnail_url: null,
+    has_captions: null,
+    view_count: null,
+    like_count: null,
   };
 }
 

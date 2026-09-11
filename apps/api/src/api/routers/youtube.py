@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import time
 from collections import OrderedDict
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import httpx
@@ -50,6 +50,9 @@ class YoutubeChannel(BaseModel):
     title: str
     description: str
     thumbnail_url: str | None = None
+    subscriber_count: int | None = None
+    video_count: int | None = None
+    handle: str | None = None
 
 
 class ChannelSearchResponse(BaseModel):
@@ -63,6 +66,9 @@ class YoutubeVideo(BaseModel):
     published_at: str | None = None
     duration_seconds: int | None = None
     thumbnail_url: str | None = None
+    has_captions: bool | None = None
+    view_count: int | None = None
+    like_count: int | None = None
 
 
 class ChannelVideosResponse(BaseModel):
@@ -96,23 +102,27 @@ async def _require_membership(db: UserDb, *, workspace_id: UUID) -> None:
 
 
 class SearchCache:
-    """`(질의, 지역, 페이지 토큰)` → 응답. TTL과 최대 항목 수를 둘 다 가진 LRU.
+    """`(질의, 지역, 페이지 토큰, 정렬, 언어)` → 응답. TTL과 최대 항목 수를 둘 다 가진 LRU.
 
     ⚠️ 프로세스 메모리다 — 재배포하면 사라지고 인스턴스 사이에 공유되지 않는다.
     그래도 DB 캐시 테이블을 쓰지 않는 이유는 `design.md` D3에 있다: 이 데이터는
     테넌트 데이터가 아니라 격리할 `workspace_id`가 없는데, 사용자 경로가 RLS 하에서
     쓰려면 `authenticated`에게 공유 테이블 INSERT를 줘야 하고 그 순간 임의의 멤버가
     캐시를 오염시킬 수 있는 표면이 생긴다.
+
+    ⚠️ 키의 다섯 축 중 하나라도 빠지면 정렬이나 언어를 바꿔 재검색했을 때 이전
+    조합으로 캐시된 결과가 그대로 나온다 — 사용자에게는 "정렬을 바꿨는데 안 바뀜"으로
+    보이는 조용한 실패다.
     """
 
     def __init__(self, *, ttl_seconds: float, max_entries: int) -> None:
         self._ttl_seconds = ttl_seconds
         self._max_entries = max_entries
-        self._entries: OrderedDict[tuple[str, str, str], tuple[float, dict[str, Any]]] = (
+        self._entries: OrderedDict[tuple[str, str, str, str, str], tuple[float, dict[str, Any]]] = (
             OrderedDict()
         )
 
-    def get(self, key: tuple[str, str, str], *, now: float) -> dict[str, Any] | None:
+    def get(self, key: tuple[str, str, str, str, str], *, now: float) -> dict[str, Any] | None:
         entry = self._entries.get(key)
         if entry is None:
             return None
@@ -123,7 +133,9 @@ class SearchCache:
         self._entries.move_to_end(key)
         return payload
 
-    def put(self, key: tuple[str, str, str], payload: dict[str, Any], *, now: float) -> None:
+    def put(
+        self, key: tuple[str, str, str, str, str], payload: dict[str, Any], *, now: float
+    ) -> None:
         self._entries[key] = (now, payload)
         self._entries.move_to_end(key)
         while len(self._entries) > self._max_entries:
@@ -198,13 +210,25 @@ async def _call_worker(
 
 
 async def _call_worker_search(
-    request: Request, *, query: str, region_code: str, page_token: str | None
+    request: Request,
+    *,
+    query: str,
+    region_code: str,
+    page_token: str | None,
+    order: str = "relevance",
+    relevance_language: str | None = None,
 ) -> dict[str, Any]:
     """워커의 사설 채널 검색 리스너를 부른다."""
     return await _call_worker(
         request,
         path="/internal/youtube-search",
-        payload={"query": query, "region_code": region_code, "page_token": page_token},
+        payload={
+            "query": query,
+            "region_code": region_code,
+            "page_token": page_token,
+            "order": order,
+            "relevance_language": relevance_language,
+        },
         timeout_seconds=request.app.state.settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
     )
 
@@ -229,6 +253,8 @@ async def search_channels(
     q: Annotated[str, Query(min_length=1, max_length=_MAX_QUERY_CHARS)],
     region_code: Annotated[str, Query(min_length=2, max_length=2)] = "KR",
     page_token: Annotated[str | None, Query(max_length=512)] = None,
+    order: Annotated[Literal["relevance", "videoCount", "viewCount"], Query()] = "relevance",
+    relevance_language: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
 ) -> ChannelSearchResponse:
     """키워드로 채널 후보를 돌려준다.
 
@@ -242,14 +268,19 @@ async def search_channels(
     await _require_membership(_user_db(request, credentials), workspace_id=workspace_id)
 
     cache = _cache(request)
-    key = (query, region_code.upper(), page_token or "")
+    key = (query, region_code.upper(), page_token or "", order, relevance_language or "")
     now = time.monotonic()
     cached = cache.get(key, now=now)
     if cached is not None:
         return ChannelSearchResponse.model_validate(cached)
 
     payload = await _call_worker_search(
-        request, query=query, region_code=region_code.upper(), page_token=page_token
+        request,
+        query=query,
+        region_code=region_code.upper(),
+        page_token=page_token,
+        order=order,
+        relevance_language=relevance_language,
     )
     result = ChannelSearchResponse.model_validate(payload)
     cache.put(key, result.model_dump(), now=now)

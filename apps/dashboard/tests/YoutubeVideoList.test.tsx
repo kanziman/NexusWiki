@@ -14,6 +14,7 @@ vi.mock("@/lib/api-client", async () => {
 import { ApiError } from "@/lib/api-client";
 import {
   YoutubeVideoList,
+  formatCount,
   formatDuration,
   resultLabel,
   summarize,
@@ -24,6 +25,9 @@ const CHANNEL = {
   title: "쿠킹채널",
   description: "설명",
   thumbnail_url: null,
+  subscriber_count: null,
+  video_count: null,
+  handle: null,
 };
 
 function video(id: string, overrides: Record<string, unknown> = {}) {
@@ -33,6 +37,9 @@ function video(id: string, overrides: Record<string, unknown> = {}) {
     published_at: "2026-01-02T03:04:05Z",
     duration_seconds: 754,
     thumbnail_url: null,
+    has_captions: null,
+    view_count: null,
+    like_count: null,
     ...overrides,
   };
 }
@@ -57,6 +64,16 @@ describe("formatDuration", () => {
   it("한 시간을 넘으면 시:분:초로 쓴다", () => {
     expect(formatDuration(754)).toBe("12:34");
     expect(formatDuration(3725)).toBe("1:02:05");
+  });
+});
+
+describe("formatCount", () => {
+  it("null은 빈 문자열이다 — 0으로 접지 않는다", () => {
+    expect(formatCount(null)).toBe("");
+  });
+
+  it("천 단위 구분자를 붙인다", () => {
+    expect(formatCount(12345)).toBe("12,345");
   });
 });
 
@@ -116,6 +133,57 @@ describe("YoutubeVideoList", () => {
     expect(mockApiFetch.mock.calls[0][0] as string).toContain(
       "/workspaces/ws-1/youtube/channels/UC1/videos",
     );
+  });
+
+  it("자막이 없을 수 있는 영상에 배지를 표시하고 선택은 막지 않는다", async () => {
+    mockApiFetch.mockResolvedValue({
+      videos: [video("v1", { has_captions: false })],
+      next_page_token: null,
+    });
+
+    renderList();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("youtube-video-no-captions-v1"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("youtube-video-select-v1")).not.toBeDisabled();
+  });
+
+  it("자막 유무를 모르는 영상에는 배지를 표시하지 않는다", async () => {
+    mockApiFetch.mockResolvedValue({
+      videos: [video("v1", { has_captions: null })],
+      next_page_token: null,
+    });
+
+    renderList();
+
+    await waitFor(() => {
+      expect(screen.getByText("영상 v1")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("youtube-video-no-captions-v1"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("조회수·좋아요 수를 표시하고, 없는 값은 조용히 생략한다", async () => {
+    mockApiFetch.mockResolvedValue({
+      videos: [
+        video("v1", { view_count: 12345, like_count: 678 }),
+        video("v2", { view_count: 99, like_count: null }),
+      ],
+      next_page_token: null,
+    });
+
+    renderList();
+
+    await waitFor(() => {
+      expect(screen.getByText("조회수 12,345회")).toBeInTheDocument();
+    });
+    expect(screen.getByText("좋아요 678개")).toBeInTheDocument();
+    expect(screen.getByText("조회수 99회")).toBeInTheDocument();
+    expect(screen.queryByText(/좋아요 0개/)).not.toBeInTheDocument();
   });
 
   it("다음 페이지를 이어서 붙인다", async () => {

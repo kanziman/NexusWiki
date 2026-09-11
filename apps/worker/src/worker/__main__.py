@@ -71,6 +71,8 @@ async def _search_youtube_channels(
             region_code=request.region_code,
             page_token=request.page_token,
             timeout_seconds=settings.YOUTUBE_SEARCH_TIMEOUT_SECONDS,
+            order=request.order,
+            relevance_language=request.relevance_language,
         )
 
 
