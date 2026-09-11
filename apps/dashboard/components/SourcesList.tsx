@@ -21,7 +21,11 @@ import { Dropzone } from "@/components/Dropzone";
 import { JobStepper } from "@/components/JobStepper";
 import { Pagination } from "@/components/Pagination";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import { formatDate, formatRelativeTime } from "@/lib/relative-time";
+import {
+  formatDate,
+  formatRelativeTime,
+  hasRelativeForm,
+} from "@/lib/relative-time";
 import { createClient } from "@/lib/supabase/client";
 import { workspacePath } from "@/lib/workspace-path";
 
@@ -627,8 +631,15 @@ export function SourcesList({
                           <span>{source.source_type}</span>
                           <span aria-hidden="true">·</span>
                           <span>{formatRelativeTime(source.created_at)}</span>
-                          <span aria-hidden="true">·</span>
-                          <span>{formatDate(source.created_at)}</span>
+                          {/* ⚠️ 30일이 지나면 `formatRelativeTime`이 절대 날짜로
+                              접히므로, 그때 절대 일자를 또 붙이면 같은 날짜가 두 번
+                              찍힌다. 이 조건이 그것을 막는다. */}
+                          {hasRelativeForm(source.created_at) && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span>{formatDate(source.created_at)}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

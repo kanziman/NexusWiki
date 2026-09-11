@@ -29,7 +29,11 @@ import { useState } from "react";
 import { JobStepper } from "@/components/JobStepper";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
 import { ApiError, apiFetch } from "@/lib/api-client";
-import { formatDate, formatRelativeTime } from "@/lib/relative-time";
+import {
+  formatDate,
+  formatRelativeTime,
+  hasRelativeForm,
+} from "@/lib/relative-time";
 import { workspacePath } from "@/lib/workspace-path";
 
 export type SourceChunkItem = {
@@ -251,8 +255,12 @@ export function SourceDetailContent({
                 {source.source_type}
               </span>
               <span className="text-xs text-[var(--muted)]">
-                {formatDate(source.created_at)} (
-                {formatRelativeTime(source.created_at)})
+                {/* ⚠️ 30일이 지나면 `formatRelativeTime`이 절대 날짜로 접혀
+                    "2026년 8월 12일 (2026년 8월 12일)"이 된다. 괄호는 상대 표기가
+                    살아 있을 때만 붙인다. */}
+                {hasRelativeForm(source.created_at)
+                  ? `${formatDate(source.created_at)} (${formatRelativeTime(source.created_at)})`
+                  : formatDate(source.created_at)}
               </span>
             </div>
 
