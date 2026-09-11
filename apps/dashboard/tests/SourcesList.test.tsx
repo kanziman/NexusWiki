@@ -56,7 +56,38 @@ describe("SourcesList", () => {
       "href",
       "/w/ws-1/sources/source-1",
     );
+    // ⚠️ `getAllByText`로 느슨하게 풀지 않는다. 이 날짜가 화면에 **정확히 한 번**
+    //    나오는 것이 계약이다 — 30일이 지나 상대 표기가 절대 날짜로 접히면
+    //    "2026년 8월 12일 · 2026년 8월 12일"이 되어 여기서 잡혀야 한다.
     expect(screen.getByText("2026년 8월 12일")).toBeInTheDocument();
+  });
+
+  it("30일이 지난 소스는 같은 날짜를 두 번 찍지 않는다", () => {
+    // 실제로 배포돼 있던 버그다. `formatRelativeTime`이 30일을 넘으면 조용히
+    // `formatDate`로 접히는데 그 옆에 절대 일자를 또 붙이고 있었다.
+    const created = new Date(Date.now() - 90 * 86_400_000).toISOString();
+    const absolute = new Date(created).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    render(
+      <SourcesList
+        workspaceId="ws-1"
+        initialSources={[
+          {
+            id: "source-1",
+            title: "오래된 원문",
+            source_type: "text",
+            created_at: created,
+            content_hash: "hash-1",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText(absolute)).toHaveLength(1);
   });
 
   it("links '상세 보기' to the source detail route instead of expanding inline", () => {
