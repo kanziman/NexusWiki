@@ -1,6 +1,12 @@
 "use client";
 
-import { Loader2, MonitorPlay, Search, TriangleAlert } from "lucide-react";
+import {
+  ChevronRight,
+  Loader2,
+  MonitorPlay,
+  Search,
+  TriangleAlert,
+} from "lucide-react";
 import { useState } from "react";
 
 import { YoutubeVideoList } from "@/components/YoutubeVideoList";
@@ -165,7 +171,7 @@ export function YoutubeChannelSearch({
               <button
                 type="button"
                 onClick={() => setSelected(channel)}
-                className="flex w-full items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3.5 text-left transition-colors hover:border-[var(--accent)]"
+                className="group flex w-full items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3.5 text-left transition-all hover:border-[var(--border-strong)] hover:bg-[var(--surface)] active:translate-y-px"
                 data-testid={`youtube-channel-${channel.channel_id}`}
               >
                 {channel.thumbnail_url ? (
@@ -191,6 +197,13 @@ export function YoutubeChannelSearch({
                     {channel.description || "설명이 없는 채널입니다."}
                   </p>
                 </div>
+                {/* 이 카드가 "선택"이 아니라 "영상 목록으로 이동"이라는 것을 알린다 —
+                    영상 카드의 체크 표시와 형태를 다르게 둬 두 상호작용을 구분한다. */}
+                <ChevronRight
+                  size={15}
+                  aria-hidden="true"
+                  className="mt-0.5 flex-none text-[var(--muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--fg)]"
+                />
               </button>
             </li>
           ))}
@@ -213,9 +226,38 @@ export function YoutubeChannelSearch({
       ) : null}
 
       {searched && !loading && !error && channels.length === 0 ? (
-        <p className="py-8 text-center text-sm text-[var(--muted)]">
-          검색 결과가 없습니다. 다른 키워드로 시도해 보세요.
-        </p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-4 py-10 text-center">
+          <Search
+            size={20}
+            className="text-[var(--muted)]"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-[var(--fg)]">
+            검색 결과가 없습니다
+          </p>
+          <p className="text-xs leading-relaxed text-[var(--muted)]">
+            채널명의 일부만 넣거나 더 일반적인 키워드로 다시 시도해 보세요.
+          </p>
+        </div>
+      ) : null}
+
+      {/* 아직 검색하지 않은 상태. 빈 화면을 그대로 두면 이 페이지가 무엇을 하는
+          곳인지 입력창 하나로만 설명하게 된다. */}
+      {!searched && !loading && !error ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-4 py-12 text-center">
+          <MonitorPlay
+            size={20}
+            className="text-[var(--muted)]"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-[var(--fg)]">
+            채널을 검색해 시작하세요
+          </p>
+          <p className="max-w-sm text-xs leading-relaxed text-[var(--muted)]">
+            채널을 고르면 영상 목록이 열립니다. 거기서 원하는 영상만 선택하면
+            자막이 원문 소스로 수집됩니다.
+          </p>
+        </div>
       ) : null}
     </div>
   );
