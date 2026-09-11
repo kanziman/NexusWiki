@@ -103,7 +103,7 @@ describe("YoutubeBatchImport", () => {
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("전체 선택으로 이 페이지의 영상을 한 번에 고른다", async () => {
+  it("전체 선택으로 불러온 영상을 한 번에 고른다", async () => {
     await renderWithVideos(["v1", "v2"]);
 
     fireEvent.click(screen.getByTestId("youtube-select-all"));
@@ -111,7 +111,32 @@ describe("YoutubeBatchImport", () => {
     expect(screen.getByTestId("youtube-video-select-v1")).toBeChecked();
     expect(screen.getByTestId("youtube-video-select-v2")).toBeChecked();
     expect(screen.getByTestId("youtube-ingest-selected")).toHaveTextContent(
-      "선택한 2편 수집",
+      "2편 수집",
+    );
+  });
+
+  it("아무것도 고르지 않았을 때 실행 버튼이 '0편'이라 말하지 않는다", async () => {
+    await renderWithVideos(["v1"]);
+
+    // "선택한 0편 수집"은 버튼이 스스로 무의미하다고 말하는 문구다.
+    const cta = screen.getByTestId("youtube-ingest-selected");
+    expect(cta).toHaveTextContent("수집할 영상 선택");
+    expect(cta).not.toHaveTextContent("0편");
+  });
+
+  it("카드 전체를 눌러 선택한다 (체크박스는 시각적으로 없다)", async () => {
+    await renderWithVideos(["v1"]);
+
+    // ⚠️ 영상별 체크박스는 `sr-only`로만 남는다 — 보이는 체크박스는 전체 선택 하나뿐.
+    expect(screen.getByTestId("youtube-video-select-v1")).toHaveClass(
+      "sr-only",
+    );
+
+    fireEvent.click(screen.getByTestId("youtube-video-v1"));
+
+    expect(screen.getByTestId("youtube-video-select-v1")).toBeChecked();
+    expect(screen.getByTestId("youtube-ingest-selected")).toHaveTextContent(
+      "1편 수집",
     );
   });
 

@@ -315,34 +315,70 @@ export function YoutubeVideoList({
       ) : null}
 
       {loading ? (
-        <p
-          className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--muted)]"
+        // 스피너 대신 실제 카드 모양의 스켈레톤을 깔아 로딩 → 목록 전환에서
+        // 레이아웃이 튀지 않게 한다.
+        <ul
+          className="flex flex-col gap-2.5"
+          aria-busy="true"
+          aria-label="영상을 불러오는 중입니다"
           data-testid="youtube-videos-loading"
         >
-          <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-          <span>영상을 불러오는 중입니다.</span>
-        </p>
+          {[0, 1, 2].map((row) => (
+            <li
+              key={row}
+              className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3"
+            >
+              <span className="h-14 w-24 flex-none animate-pulse rounded-lg bg-[var(--surface)]" />
+              <span className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
+                <span className="h-3.5 w-3/5 animate-pulse rounded bg-[var(--surface)]" />
+                <span className="h-3 w-1/3 animate-pulse rounded bg-[var(--surface)]" />
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       {videos.length > 0 ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--fg)]">
+            {/* ⚠️ "이 페이지 전체"가 아니라 "전체"다 — 이 목록은 페이지로 나뉘지 않고
+                "더 보기"로 누적되므로, 여기서 선택되는 것은 **지금까지 불러온 전부**다.
+                위키 문서 목록과 같은 pill + 카운트 배지 형태를 쓴다. */}
+            <label
+              className={`group inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 transition-colors ${
+                allSelected
+                  ? "border-[var(--accent)]/40 bg-[var(--soft)] text-[var(--accent)]"
+                  : selected.size > 0
+                    ? "border-[var(--border-strong)] bg-[var(--surface)] text-[var(--fg)]"
+                    : "border-[var(--border)] bg-[var(--surface)]/70 text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
+              } ${selectableIds.length === 0 ? "pointer-events-none opacity-50" : ""}`}
+            >
               <input
                 type="checkbox"
                 checked={allSelected}
                 onChange={toggleAll}
                 disabled={selectableIds.length === 0}
-                className="h-3.5 w-3.5 accent-[var(--accent)]"
+                className="h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
                 data-testid="youtube-select-all"
               />
-              <span>이 페이지 전체 선택</span>
+              <span className="text-[11.5px] font-semibold tracking-tight">
+                {selected.size > 0 ? `${selected.size}편 선택됨` : "전체 선택"}
+              </span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold transition-colors ${
+                  allSelected
+                    ? "bg-[var(--accent)] text-white"
+                    : "border border-[var(--border)] bg-[var(--bg)] text-[var(--muted)] group-hover:text-[var(--fg)]"
+                }`}
+              >
+                {selectableIds.length}
+              </span>
             </label>
             <button
               type="button"
               onClick={handleIngestSelected}
               disabled={selected.size === 0 || ingesting}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition-all active:translate-y-px disabled:pointer-events-none disabled:opacity-50"
               data-testid="youtube-ingest-selected"
             >
               {ingesting ? (
@@ -352,7 +388,11 @@ export function YoutubeVideoList({
                   aria-hidden="true"
                 />
               ) : null}
-              <span>선택한 {selected.size}편 수집</span>
+              <span>
+                {selected.size > 0
+                  ? `${selected.size}편 수집`
+                  : "수집할 영상 선택"}
+              </span>
             </button>
           </div>
 
@@ -369,67 +409,98 @@ export function YoutubeVideoList({
           <ul className="flex flex-col gap-2.5">
             {videos.map((video) => {
               const result = results[video.video_id];
+              const isSelected = selected.has(video.video_id);
               return (
-                <li
-                  key={video.video_id}
-                  className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3"
-                  data-testid={`youtube-video-${video.video_id}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(video.video_id)}
-                    onChange={() => toggle(video.video_id)}
-                    disabled={Boolean(result)}
-                    aria-label={`${video.title} 선택`}
-                    className="mt-1 h-3.5 w-3.5 flex-none accent-[var(--accent)]"
-                    data-testid={`youtube-video-select-${video.video_id}`}
-                  />
-                  {video.thumbnail_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- 외부 CDN 썸네일이라 next/image 도메인 설정 대상이 아니다
-                    <img
-                      src={video.thumbnail_url}
-                      alt=""
-                      className="h-14 w-24 flex-none rounded-lg object-cover"
+                <li key={video.video_id}>
+                  {/* ⚠️ `<label>`로 감싸 카드 전체가 선택 영역이 된다. onClick 핸들러를
+                      두는 대신 네이티브 라벨-입력 연결을 쓰는 이유: 키보드 포커스·
+                      스페이스바 토글·스크린리더 안내가 전부 공짜로 따라오고,
+                      카드 안에 다른 상호작용 요소가 없어 충돌할 것도 없다.
+                      체크박스는 `sr-only`로 남겨 접근성과 테스트 훅을 유지한다. */}
+                  <label
+                    className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
+                      result
+                        ? "cursor-default border-[var(--border)] bg-[var(--surface)]/40"
+                        : isSelected
+                          ? "cursor-pointer border-[var(--accent)] bg-[var(--soft)]/40 ring-1 ring-[var(--accent)]/40 active:translate-y-px"
+                          : "cursor-pointer border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)] active:translate-y-px"
+                    } ${result ? "" : "select-none"}`}
+                    data-testid={`youtube-video-${video.video_id}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggle(video.video_id)}
+                      disabled={Boolean(result)}
+                      aria-label={`${video.title} 선택`}
+                      className="sr-only"
+                      data-testid={`youtube-video-select-${video.video_id}`}
                     />
-                  ) : (
-                    <span
-                      className="flex h-14 w-24 flex-none items-center justify-center rounded-lg bg-[var(--surface)]"
-                      aria-hidden="true"
-                    >
-                      <MonitorPlay size={16} className="text-[var(--muted)]" />
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-sm font-semibold text-[var(--fg)]">
-                      {video.title}
-                    </p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
-                      <span>{formatDuration(video.duration_seconds)}</span>
-                      {formatPublishedAt(video.published_at) ? (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span>{formatPublishedAt(video.published_at)}</span>
-                        </>
-                      ) : null}
-                    </p>
-                  </div>
-                  {result ? (
-                    <span
-                      className={`inline-flex flex-none items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                        result.status === "failed"
-                          ? "text-[var(--warning)]"
-                          : "bg-[var(--surface)] text-[var(--muted)]"
-                      }`}
-                      data-testid={`youtube-video-status-${video.video_id}`}
-                    >
-                      {result.status === "failed" ? (
-                        <TriangleAlert size={13} aria-hidden="true" />
-                      ) : (
-                        <Check size={13} aria-hidden="true" />
-                      )}
-                      <span>{resultLabel(result)}</span>
-                    </span>
-                  ) : null}
+                    {video.thumbnail_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- 외부 CDN 썸네일이라 next/image 도메인 설정 대상이 아니다
+                      <img
+                        src={video.thumbnail_url}
+                        alt=""
+                        className="h-14 w-24 flex-none rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span
+                        className="flex h-14 w-24 flex-none items-center justify-center rounded-lg bg-[var(--surface)]"
+                        aria-hidden="true"
+                      >
+                        <MonitorPlay
+                          size={16}
+                          className="text-[var(--muted)]"
+                        />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-semibold text-[var(--fg)]">
+                        {video.title}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
+                        <span>{formatDuration(video.duration_seconds)}</span>
+                        {formatPublishedAt(video.published_at) ? (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>{formatPublishedAt(video.published_at)}</span>
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                    {result ? (
+                      <span
+                        className={`inline-flex flex-none items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                          result.status === "failed"
+                            ? "text-[var(--warning)]"
+                            : "bg-[var(--surface)] text-[var(--muted)]"
+                        }`}
+                        data-testid={`youtube-video-status-${video.video_id}`}
+                      >
+                        {result.status === "failed" ? (
+                          <TriangleAlert size={13} aria-hidden="true" />
+                        ) : (
+                          <Check size={13} aria-hidden="true" />
+                        )}
+                        <span>{resultLabel(result)}</span>
+                      </span>
+                    ) : (
+                      // 선택 여부를 카드 오른쪽에서도 읽을 수 있게 한다 — 테두리 색만으로는
+                      // 목록이 길어질 때 훑어보기 어렵다.
+                      <span
+                        aria-hidden="true"
+                        className={`mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded border transition-colors ${
+                          isSelected
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                            : "border-[var(--border-strong)] bg-[var(--bg)]"
+                        }`}
+                      >
+                        {isSelected ? (
+                          <Check size={11} strokeWidth={3} />
+                        ) : null}
+                      </span>
+                    )}
+                  </label>
                 </li>
               );
             })}
@@ -453,9 +524,28 @@ export function YoutubeVideoList({
       ) : null}
 
       {!loading && !error && videos.length === 0 ? (
-        <p className="py-8 text-center text-sm text-[var(--muted)]">
-          이 채널에는 아직 수집할 수 있는 영상이 없습니다.
-        </p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-4 py-10 text-center">
+          <MonitorPlay
+            size={20}
+            className="text-[var(--muted)]"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-[var(--fg)]">
+            수집할 수 있는 영상이 없습니다
+          </p>
+          <p className="text-xs leading-relaxed text-[var(--muted)]">
+            이 채널은 공개된 영상을 올리지 않았습니다. 검색으로 돌아가 다른
+            채널을 골라 주세요.
+          </p>
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--fg)] transition-all active:translate-y-px"
+          >
+            <ArrowLeft size={13} aria-hidden="true" />
+            <span>채널 검색</span>
+          </button>
+        </div>
       ) : null}
 
       <CreditLimitModal
