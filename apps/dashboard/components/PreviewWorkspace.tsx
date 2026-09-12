@@ -251,22 +251,23 @@ function PreviewHome() {
           실제 홈과 다른 화면을 보여 주게 되어 "대표성 있는 미리보기"가 조용히
           무너진다 — 홈 카드 구조를 바꿀 때 이 블록도 함께 고친다. */}
       <section className="sections">
-        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80">
-            <div className="flex items-center gap-2">
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-5 shadow-2xs flex flex-col gap-3.5 min-w-0">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <BookOpen size={17} className="text-[var(--accent)] flex-none" />
-              <h2 className="text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-2 m-0">
-                <span>컴파일된 위키 문서</span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+              <h2 className="text-xs sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
+                <span className="truncate">컴파일된 위키 문서</span>
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] flex-none">
                   {String(visiblePages.length).padStart(2, "0")}
                 </span>
               </h2>
             </div>
             <Link
               href="/preview/wiki"
-              className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity"
+              aria-label="전체 보기"
+              className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none"
             >
-              <span>전체 보기</span>
+              <span className="hidden sm:inline">전체 보기</span>
               <span aria-hidden="true">→</span>
             </Link>
           </div>
@@ -276,20 +277,20 @@ function PreviewHome() {
               <Link
                 key={page.id}
                 href={`/preview/wiki/${page.slug}`}
-                className="group flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all"
+                className="group flex items-center justify-between p-2.5 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all min-w-0"
               >
                 <div className="flex-1 min-w-0 pr-3">
-                  <div className="flex items-center gap-1.5 mb-1 leading-none flex-wrap">
-                    <span className="text-[10.5px] font-bold tracking-wider uppercase text-[var(--accent)]">
+                  <div className="flex items-center gap-1.5 mb-1 leading-none min-w-0 overflow-hidden">
+                    <span className="text-[9.5px] sm:text-[10.5px] font-bold tracking-wider uppercase text-[var(--accent)] flex-none">
                       {page.category}
                     </span>
-                    <span className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"></span>
-                    <span className="inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)]">
+                    <span className="hidden sm:block w-1 h-1 rounded-full bg-[var(--muted)] opacity-40 flex-none"></span>
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)] min-w-0">
                       <Link2 size={9} />
                       <span>인용 원문 {page.sourceCount}개</span>
                     </span>
                   </div>
-                  <span className="text-[14.5px] sm:text-[15px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
+                  <span className="text-[13px] sm:text-[15px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
                     {page.title}
                   </span>
                 </div>
@@ -303,25 +304,29 @@ function PreviewHome() {
           </div>
         </section>
 
-        <section className="backlog rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80">
-            <div className="flex items-center gap-2">
+        <section className="backlog rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-5 shadow-2xs flex flex-col gap-3.5 min-w-0">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <CircleAlert
                 size={17}
                 className="text-[var(--warning)] flex-none"
               />
-              <h2 className="text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-2 m-0">
-                <span>지식 공백 (작성 대기 백로그)</span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25">
+              <h2 className="text-xs sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
+                <span className="truncate">지식 공백</span>
+                <span className="hidden xl:inline text-xs font-normal text-[var(--muted)] whitespace-nowrap">
+                  (작성 대기 백로그)
+                </span>
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25 flex-none">
                   {String(previewBacklog.length).padStart(2, "0")}
                 </span>
               </h2>
             </div>
             <Link
               href="/preview/backlog"
-              className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity"
+              aria-label="전체 보기"
+              className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none"
             >
-              <span>전체 보기</span>
+              <span className="hidden sm:inline">전체 보기</span>
               <span aria-hidden="true">→</span>
             </Link>
           </div>
@@ -331,13 +336,13 @@ function PreviewHome() {
               <Link
                 key={item.slug}
                 href="/preview/backlog"
-                className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all gap-3"
+                className="flex items-center justify-between p-2.5 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all gap-2 sm:gap-3 min-w-0"
               >
                 <div className="flex-1 min-w-0">
-                  <span className="text-[13.5px] sm:text-[14px] font-bold font-mono text-[var(--fg)] block truncate">
+                  <span className="text-xs sm:text-[14px] font-bold font-mono text-[var(--fg)] block truncate">
                     {item.title}
                   </span>
-                  <span className="text-xs text-[var(--muted)] mt-0.5 block">
+                  <span className="text-[11px] sm:text-xs text-[var(--muted)] mt-0.5 block">
                     위키 {item.references}곳에서 인용됨 · 원문 소스 연결 필요
                   </span>
                 </div>

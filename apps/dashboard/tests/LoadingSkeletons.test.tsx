@@ -21,7 +21,7 @@ describe("Loading Skeletons", () => {
     const grid = screen.getByTestId("workspace-home-grid-skeleton");
 
     expect(skeleton.querySelector(".stats")).toBeNull();
-    expect(metrics).toHaveClass("grid", "grid-cols-2", "lg:grid-cols-4");
+    expect(metrics).toHaveClass("grid", "grid-cols-2", "xl:grid-cols-4");
     expect(metrics.children).toHaveLength(4);
     expect(grid).toHaveClass("sections");
     expect(grid.children).toHaveLength(2);

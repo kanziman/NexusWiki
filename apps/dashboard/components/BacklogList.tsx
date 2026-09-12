@@ -50,7 +50,7 @@ type CitationFilter = "all" | "multi" | "single";
  * 헤더 행과 데이터 행이 이 값 하나만 참조한다. 각자 폭을 선언하면 한쪽만
  * 고쳤을 때 축이 어긋난다.
  */
-const BACKLOG_COLS = "minmax(0,1.4fr) minmax(0,1.25fr) 95px 100px 105px";
+const BACKLOG_COLS = "minmax(0,1.6fr) minmax(0,1.4fr) 80px 90px 105px";
 
 /**
  * UI-06 작성 대기 백로그 — 미해결 레드링크(`to_wiki_id IS NULL`)를 target_slug
@@ -273,11 +273,13 @@ export function BacklogList({
         ) : (
           <>
             {items.length > 0 && (
-              <div className="toolbar flex items-center justify-between gap-4">
+              <div className="toolbar">
                 {/* 인용 빈도 세그먼트 필터. 상호배타 단일 선택이라 tab
-                    시맨틱을 쓴다 — 소스 화면과 같은 패턴. */}
+                    시맨틱을 쓴다 — 소스 화면과 같은 패턴.
+                    칩은 줄바꿈한다. nowrap+overflow-x-auto 는 필터를
+                    검색창 뒤에 숨긴다. */}
                 <nav
-                  className="flex h-9 flex-wrap items-center gap-1"
+                  className="flex min-w-0 flex-wrap items-center gap-1"
                   role="tablist"
                   aria-label="지식 공백 필터"
                 >
@@ -291,7 +293,7 @@ export function BacklogList({
                         setFilter(tab.id);
                         setPage(1);
                       }}
-                      className={`nw-focus-ring box-border inline-flex h-9 cursor-pointer items-center rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                      className={`nw-focus-ring box-border inline-flex h-9 flex-none cursor-pointer items-center whitespace-nowrap rounded-lg border px-3 text-[12px] font-bold transition-colors ${
                         filter === tab.id
                           ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
                           : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
@@ -305,7 +307,7 @@ export function BacklogList({
                 {/* 검색 인풋. .field.search 가 높이 36px 를 고정한다 — 이 규칙은
                     소스·위키 라이브러리 검색창과 공유하므로 여기서 고치지
                     않는다. */}
-                <div className="relative h-9 w-full max-w-[280px] flex-none">
+                <div className="toolbar-search relative h-9">
                   <Search
                     size={14}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
@@ -368,7 +370,7 @@ export function BacklogList({
 
                 <div className="divide-y divide-[var(--border)]">
                   {paginatedItems.map((item) => {
-                    const visibleCited = item.referencing_pages.slice(0, 2);
+                    const visibleCited = item.referencing_pages.slice(0, 1);
                     const hiddenCitedCount =
                       item.referencing_pages.length - visibleCited.length;
 
@@ -376,7 +378,7 @@ export function BacklogList({
                       <div
                         role="row"
                         key={item.target_slug}
-                        className="grid grid-cols-1 items-center gap-3 px-4 py-3 text-xs transition-colors hover:bg-[var(--surface)]/50 md:h-[68px] md:gap-5 md:py-0 md:[grid-template-columns:var(--backlog-cols)]"
+                        className="grid grid-cols-1 items-center gap-2 px-4 py-3 text-xs transition-colors hover:bg-[var(--surface)]/50 md:h-[68px] md:gap-5 md:py-0 md:[grid-template-columns:var(--backlog-cols)]"
                       >
                         {/* 1. 백로그 주제 */}
                         <div role="cell" className="min-w-0">
@@ -385,84 +387,83 @@ export function BacklogList({
                             className="topic group block w-full text-left focus:outline-none"
                             onClick={() => setOpenTopic(item)}
                             aria-haspopup="dialog"
+                            aria-label={`${item.display_title} (${item.target_slug})`}
+                            title={item.target_slug}
                           >
-                            <b
-                              title={item.display_title}
-                              className="block truncate text-[13.5px] font-bold text-[var(--fg)] transition-colors group-hover:text-[var(--accent)]"
-                            >
+                            <b className="block truncate text-[13.5px] font-bold text-[var(--fg)] transition-colors group-hover:text-[var(--accent)]">
                               {item.display_title}
                             </b>
-                            <span className="mt-0.5 block truncate font-mono text-[10.5px] text-[var(--muted)]">
-                              {item.target_slug}
-                            </span>
                           </button>
                         </div>
 
-                        {/* 2. 인용 중인 위키 — 인용 수에 따라 행 높이가
-                            달라지지 않게 한 줄에 최대 2개만 그린다. */}
-                        <div role="cell" className="min-w-0">
-                          {item.referencing_pages.length === 0 ? (
-                            <span className="text-[11px] text-[var(--muted)] italic">
-                              인용 문서 없음
-                            </span>
-                          ) : (
-                            <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                              {visibleCited.map((page) => (
-                                <Link
-                                  key={page.id}
-                                  href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                                  className="doc-chip min-w-0"
-                                  title={page.title}
-                                >
-                                  <span className="truncate">{page.title}</span>
-                                </Link>
-                              ))}
-                              {hiddenCitedCount > 0 && (
-                                <span className="flex-none text-[11px] font-semibold text-[var(--muted)]">
-                                  {`+${hiddenCitedCount}개 더`}
+                        <div className="flex min-w-0 flex-col gap-1.5 md:contents">
+                          {/* 2. 인용 중인 위키 — 제목 하나와 잔여 개수만. */}
+                          <div role="cell" className="min-w-0">
+                            {item.referencing_pages.length === 0 ? (
+                              <span className="text-[11px] text-[var(--muted)] italic">
+                                인용 문서 없음
+                              </span>
+                            ) : (
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                {visibleCited.map((page) => (
+                                  <Link
+                                    key={page.id}
+                                    href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                                    className="min-w-0 truncate text-[13px] font-normal text-[var(--fg)] hover:text-[var(--accent)] hover:underline"
+                                    title={page.title}
+                                  >
+                                    {page.title}
+                                  </Link>
+                                ))}
+                                {hiddenCitedCount > 0 && (
+                                  <span className="flex-none text-[11px] font-normal text-[var(--muted)]">
+                                    {`+${hiddenCitedCount}`}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:contents">
+                            {/* 3. 인용 빈도 (우측 정렬, 정렬 축) */}
+                            <div
+                              role="cell"
+                              className="whitespace-nowrap md:text-right"
+                            >
+                              <span className="inline-flex items-center gap-1 font-mono">
+                                <span className="text-[13.5px] font-medium text-[var(--fg)]">
+                                  {item.impact}
                                 </span>
-                              )}
+                                <span className="text-[11px] text-[var(--muted)]">
+                                  회
+                                </span>
+                              </span>
                             </div>
-                          )}
-                        </div>
 
-                        {/* 3. 인용 빈도 (우측 정렬, 정렬 축) */}
-                        <div
-                          role="cell"
-                          className="whitespace-nowrap md:text-right"
-                        >
-                          <span className="inline-flex items-center gap-1 font-mono">
-                            <b className="text-[13.5px] font-bold text-[var(--fg)]">
-                              {item.impact}
-                            </b>
-                            <span className="text-[11px] text-[var(--muted)]">
-                              회
-                            </span>
-                          </span>
-                        </div>
+                            {/* 4. 최초 감지 */}
+                            <div
+                              role="cell"
+                              className="whitespace-nowrap text-[11.5px] text-[var(--muted)]"
+                            >
+                              {formatRelativeTime(item.first_detected_at)}
+                            </div>
+                          </div>
 
-                        {/* 4. 최초 감지 */}
-                        <div
-                          role="cell"
-                          className="whitespace-nowrap text-[11.5px] text-[var(--muted)]"
-                        >
-                          {formatRelativeTime(item.first_detected_at)}
-                        </div>
-
-                        {/* 5. 해결 액션 */}
-                        <div
-                          role="cell"
-                          className="whitespace-nowrap md:flex md:justify-end"
-                        >
-                          <Link
-                            href={`${workspacePath(workspaceId)}/sources?prefillTitle=${encodeURIComponent(
-                              item.display_title,
-                            )}&tab=text`}
-                            className="button compact inline-flex w-[86px] items-center justify-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[11.5px] font-semibold shadow-2xs transition-all hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+                          {/* 5. 해결 액션 */}
+                          <div
+                            role="cell"
+                            className="whitespace-nowrap md:flex md:justify-end"
                           >
-                            <Plus size={11} className="opacity-70" />
-                            <span>소스 추가</span>
-                          </Link>
+                            <Link
+                              href={`${workspacePath(workspaceId)}/sources?prefillTitle=${encodeURIComponent(
+                                item.display_title,
+                              )}&tab=text`}
+                              className="button compact inline-flex w-[86px] items-center justify-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[11.5px] font-medium shadow-2xs transition-all hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+                            >
+                              <Plus size={11} className="opacity-70" />
+                              <span>소스 추가</span>
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     );

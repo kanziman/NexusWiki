@@ -31,29 +31,33 @@ describe("PublicLandingPage", () => {
     );
   });
 
-  it("워크스페이스와 추천 질문을 선택하면 연결된 근거 답변을 표시한다", async () => {
-    const user = userEvent.setup();
+  it("쇼케이스에 공개된 두 위키 워크스페이스와 대표 문서 링크를 보여준다", () => {
     render(<PublicLandingPage />);
 
-    const teamWorkspace = screen.getByRole("tab", {
-      name: "사내 테크 & 정책 위키",
-    });
-    await user.click(teamWorkspace);
-
-    expect(teamWorkspace).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByText("새 결제 정책에서 연간 계약 고객 환불 처리 규칙은?"),
+      screen.getByRole("heading", { name: "공개된 지식 워크스페이스" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "스타트업 올스타" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "마케팅 올스타" }),
     ).toBeInTheDocument();
 
-    const isolationQuestion = screen.getByRole("button", {
-      name: "DB 테넌트 격리 아키텍처 원칙",
-    });
-    await user.click(isolationQuestion);
-
-    expect(isolationQuestion).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByText(/PostgreSQL의 RLS.*요청자 JWT와 워크스페이스 멤버십/),
-    ).toBeInTheDocument();
+      screen.getByRole("link", {
+        name: /B2B SaaS 기업이 초기 100개 고객사를 확보한 6대 경로/,
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/p/%EC%8A%A4%ED%83%80%ED%8A%B8%EC%97%85-%EC%98%AC%EC%8A%A4%ED%83%80/b2b-saas-%EA%B8%B0%EC%97%85%EC%9D%B4-%EC%B4%88%EA%B8%B0-100%EA%B0%9C-%EA%B3%A0%EA%B0%9D%EC%82%AC%EB%A5%BC-%ED%99%95%EB%B3%B4%ED%95%9C-6%EB%8C%80-%EA%B2%BD%EB%A1%9C",
+    );
+    expect(
+      screen.getByRole("link", { name: /100의 법칙 \(The Rule of 100\)/ }),
+    ).toHaveAttribute(
+      "href",
+      "/p/%EB%A7%88%EC%BC%80%ED%8C%85-%EC%98%AC%EC%8A%A4%ED%83%80/100%EC%9D%98-%EB%B2%95%EC%B9%99-the-rule-of-100",
+    );
   });
 
   it("FAQ의 버튼과 답변 영역을 접근성 속성으로 연결한다", async () => {

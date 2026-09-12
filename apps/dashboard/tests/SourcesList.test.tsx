@@ -90,7 +90,7 @@ describe("SourcesList", () => {
     expect(screen.getAllByText(absolute)).toHaveLength(1);
   });
 
-  it("links '상세 보기' to the source detail route instead of expanding inline", () => {
+  it("파일명 링크가 소스 상세로 가고 별도 상세 보기 링크는 두지 않는다", () => {
     render(
       <SourcesList
         workspaceId="ws-1"
@@ -106,8 +106,36 @@ describe("SourcesList", () => {
       />,
     );
 
-    const detailLink = screen.getByRole("link", { name: "상세 보기" });
-    expect(detailLink).toHaveAttribute("href", "/w/ws-1/sources/source-1");
+    expect(screen.getByRole("link", { name: "회의록" })).toHaveAttribute(
+      "href",
+      "/w/ws-1/sources/source-1",
+    );
+    expect(
+      screen.queryByRole("link", { name: "상세 보기" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("openUpload이면 업로드 모달을 연다", () => {
+    render(
+      <SourcesList
+        workspaceId="ws-1"
+        initialSources={[
+          {
+            id: "source-1",
+            title: "회의록",
+            source_type: "text",
+            created_at: "2026-08-12T00:00:00Z",
+            content_hash: "hash-1",
+          },
+        ]}
+        openUpload
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "소스 업로드" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "소스 업로드" })).toBeNull();
   });
 
   it("filters sources by MIME type tabs", () => {
@@ -188,13 +216,20 @@ describe("SourcesList", () => {
       );
 
       const bento = within(screen.getByLabelText("파이프라인 요약"));
-      // 총 등록 원문 + 포맷 분해
-      expect(bento.getByText("텍스트·마크다운 1")).toBeInTheDocument();
-      expect(bento.getByText("PDF 1")).toBeInTheDocument();
+      expect(bento.getByText("개 문서")).toBeInTheDocument();
+      expect(bento.queryByText("텍스트·마크다운 1")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: /텍스트\/마크다운 1/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /PDF 1/ })).toBeInTheDocument();
       // 생성된 청크
       expect(bento.getByText("1/2 소스 청킹 완료")).toBeInTheDocument();
-      // 인용 연결률 — 인용 0건 소스가 있으므로 100% 미만이어야 한다
-      expect(bento.getByText("인용됨 (50%)")).toBeInTheDocument();
+      // 인용 연결률 — 인용 0건 소스가 있으므로 100% 미만이어야 한다.
+      // 파이프라인 카드도 진행률 50%를 쓸 수 있어 인용 칸만 본다.
+      const citationCard = bento.getByText("위키 인용 연결률").closest("div")
+        ?.parentElement as HTMLElement;
+      expect(within(citationCard).getByText("50%")).toBeInTheDocument();
+      expect(bento.queryByText(/인용됨 \(/)).not.toBeInTheDocument();
       expect(
         bento.getByText("아직 인용되지 않은 소스 1개"),
       ).toBeInTheDocument();
@@ -290,6 +325,7 @@ describe("SourcesList", () => {
       const bento = within(screen.getByLabelText("파이프라인 요약"));
       expect(bento.queryByText(/고아 소스/)).not.toBeInTheDocument();
       expect(bento.queryByText(/인용됨 \(/)).not.toBeInTheDocument();
+      expect(bento.queryByText("50%")).not.toBeInTheDocument();
       expect(
         bento.getAllByText("집계를 불러오지 못했습니다").length,
       ).toBeGreaterThan(0);
@@ -297,7 +333,7 @@ describe("SourcesList", () => {
         screen.getAllByText("인용 정보를 불러오지 못했습니다").length,
       ).toBe(2);
       // 실패한 집계에 의존하지 않는 값은 그대로 보인다
-      expect(bento.getByText("텍스트·마크다운 1")).toBeInTheDocument();
+      expect(bento.getByText("개 문서")).toBeInTheDocument();
     });
 
     it("청크 집계가 실패하면 청크·파이프라인 칸이 단정하지 않는다", () => {
@@ -321,11 +357,11 @@ describe("SourcesList", () => {
       expect(screen.queryByText("청크 없음")).not.toBeInTheDocument();
       expect(screen.getAllByText("집계 불가")).toHaveLength(2);
       // 청크 집계와 무관한 인용 값은 그대로 보인다
-      expect(bento.getByText("인용됨 (50%)")).toBeInTheDocument();
+      expect(bento.getByText("50%")).toBeInTheDocument();
     });
   });
 
-  it("인용 위키가 많아도 칩 2개와 잔여 개수만 렌더한다", () => {
+  it("인용 위키가 많아도 제목 하나와 잔여 개수만 렌더한다", () => {
     render(
       <SourcesList
         workspaceId="ws-1"
@@ -351,9 +387,9 @@ describe("SourcesList", () => {
     );
 
     expect(screen.getByText("위키 하나")).toBeInTheDocument();
-    expect(screen.getByText("위키 둘")).toBeInTheDocument();
+    expect(screen.queryByText("위키 둘")).not.toBeInTheDocument();
     expect(screen.queryByText("위키 셋")).not.toBeInTheDocument();
-    expect(screen.getByText("+2개 더")).toBeInTheDocument();
+    expect(screen.getByText("+3")).toBeInTheDocument();
   });
 
   it("byte_size가 없으면 크기를 자리표시자 없이 생략한다", () => {

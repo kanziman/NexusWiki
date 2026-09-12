@@ -6,18 +6,11 @@ import { useState } from "react";
 import { PublicLandingFaq } from "./public-landing/PublicLandingFaq";
 import { PublicLandingHeader } from "./public-landing/PublicLandingHeader";
 import { PublicLandingShowcase } from "./public-landing/PublicLandingShowcase";
-import { landingFaqs, landingScenarios } from "./public-landing/content";
+import { landingFaqs } from "./public-landing/content";
 
 export function PublicLandingPage() {
-  const [currentWsIdx, setCurrentWsIdx] = useState(0);
-  const [currentScenarioIdx, setCurrentScenarioIdx] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleWorkspaceChange = (idx: number) => {
-    setCurrentWsIdx(idx);
-    setCurrentScenarioIdx(0);
-  };
 
   const toggleFaq = (idx: number) => {
     setOpenFaq((prev) => (prev === idx ? null : idx));
@@ -48,9 +41,10 @@ export function PublicLandingPage() {
             로.
           </h1>
 
-          <p className="text-lg md:text-xl text-[var(--muted)] max-w-2xl mx-auto mb-9 leading-relaxed">
-            스크립트와 팀 문서를 넣으면 상호 링크된 위키로 정리됩니다. 질문을
-            던지면 실제 원문과 위키 문서 양쪽의 근거를 함께 보여 줍니다.
+          <p className="mx-auto mb-9 max-w-2xl text-lg leading-relaxed text-[var(--muted)] md:text-xl">
+            스크립트와 팀 문서를 넣으면 상호 링크된 위키로 정리됩니다.
+            <br />
+            질문을 던지면 실제 원문과 위키 문서 양쪽의 근거를 함께 보여 줍니다.
           </p>
 
           <div className="flex items-center justify-center gap-4 flex-wrap mb-8">
@@ -77,7 +71,7 @@ export function PublicLandingPage() {
               href="#showcase"
               className="nw-focus-ring inline-flex items-center gap-2 px-6 py-3.5 text-base font-semibold text-[var(--fg)] hover:bg-[var(--surface)] rounded-xl transition-colors"
             >
-              <span>라이브 쇼케이스 둘러보기</span>
+              <span>공개 위키 둘러보기</span>
               <svg
                 width="16"
                 height="16"
@@ -144,13 +138,7 @@ export function PublicLandingPage() {
         </div>
       </section>
 
-      <PublicLandingShowcase
-        scenarios={landingScenarios}
-        currentWorkspaceIndex={currentWsIdx}
-        currentPresetIndex={currentScenarioIdx}
-        onWorkspaceChange={handleWorkspaceChange}
-        onPresetChange={setCurrentScenarioIdx}
-      />
+      <PublicLandingShowcase />
       {/* Comparison Section */}
       <section className="py-20 px-6 border-t border-[var(--border)] bg-[var(--surface)]">
         <div className="max-w-4xl mx-auto text-center mb-14">

@@ -151,6 +151,14 @@ export function WikiLibrary({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  useEffect(() => {
     setMounted(true);
   }, []);
 
@@ -509,10 +517,15 @@ export function WikiLibrary({
 
       <section data-od-id="wiki-library-list">
         {isEmpty ? null : (
-          <div className="toolbar flex items-center justify-between gap-4">
-            {/* 카테고리 필터 */}
+          <div className="toolbar">
+            {/* 카테고리 필터. 원문 소스·지식 공백의 세그먼트 필터와 같은
+                h-9/rounded-lg 규격으로 맞춘다 — 공용 .chip(패딩 6px 10px,
+                11px, pill 모양)을 쓰면 옆의 .field.search(36px 고정)와
+                높이가 안 맞고 다른 화면의 필터와 크기도 달라 보인다.
+                칩은 줄바꿈한다. nowrap+overflow-x-auto 는 맵 칩을 검색창
+                뒤에 숨긴다. */}
             <div
-              className="chips flex items-center gap-1.5 flex-nowrap overflow-x-auto max-w-full pb-1 -mb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mb-0"
+              className="flex min-w-0 flex-wrap items-center gap-1"
               role="group"
               aria-label="카테고리 필터"
             >
@@ -520,7 +533,11 @@ export function WikiLibrary({
                 type="button"
                 aria-pressed={category === null}
                 aria-label={`전체 ${pages.length}`}
-                className="chip transition-colors flex-none whitespace-nowrap"
+                className={`nw-focus-ring box-border inline-flex h-9 flex-none cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                  category === null
+                    ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
+                }`}
                 onClick={() => applyCategoryFilter(null)}
               >
                 전체
@@ -534,7 +551,11 @@ export function WikiLibrary({
                   type="button"
                   aria-pressed={category === item}
                   aria-label={`${CATEGORY_LABELS[item]} ${categoryCounts[item]}`}
-                  className="chip transition-colors flex-none whitespace-nowrap"
+                  className={`nw-focus-ring box-border inline-flex h-9 flex-none cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                    category === item
+                      ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
+                  }`}
                   onClick={() =>
                     applyCategoryFilter(category === item ? null : item)
                   }
@@ -548,7 +569,7 @@ export function WikiLibrary({
             </div>
 
             {/* 검색창. / 키 포커스 단축키는 신설하지 않는다. */}
-            <div className="relative w-full sm:max-w-[280px] flex-none">
+            <div className="toolbar-search relative">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"

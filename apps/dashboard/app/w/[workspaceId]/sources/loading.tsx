@@ -11,12 +11,11 @@ export default function SourcesLoading() {
           6열 테이블을 그대로 두면 로딩→렌더 전환에서 헤더 아래 높이가 튀고,
           카드 행이 테이블 줄처럼 보였다가 바뀐다. */}
       {/* 1. 히어로 헤더 스켈레톤 */}
-      <section className="hero animate-pulse flex items-start justify-between">
+      <section className="hero animate-pulse">
         <div>
           <div className="h-8 w-36 rounded-lg bg-[var(--surface)]" />
           <div className="mt-2 h-4 w-80 max-w-full rounded-md bg-[var(--surface)]" />
         </div>
-        <div className="h-9 w-28 rounded-lg bg-[var(--surface)]" />
       </section>
 
       {/* 2. 파이프라인 요약 벤토 4칸 */}
@@ -41,14 +40,14 @@ export default function SourcesLoading() {
       <section className="animate-pulse">
         {/* 툴바: 세그먼트 탭 3개 + 검색창. 본문과 같은 36px 높이를 쓴다 —
             스켈레톤만 다른 높이면 전환에서 툴바 줄이 흔들린다. */}
-        <div className="toolbar flex items-center justify-between gap-4">
-          <div className="flex h-9 items-center gap-1">
+        <div className="toolbar">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
             <div className="h-9 w-20 rounded-lg bg-[var(--surface)]" />
             <div className="h-9 w-16 rounded-lg bg-[var(--surface)] opacity-70" />
             <div className="h-9 w-32 rounded-lg bg-[var(--surface)] opacity-70" />
           </div>
 
-          <div className="h-9 w-full max-w-[360px] rounded-lg bg-[var(--surface)]" />
+          <div className="toolbar-search h-9 rounded-lg bg-[var(--surface)]" />
         </div>
 
         {/* 목록 뼈대. 컬럼 정의는 본문과 마찬가지로 컨테이너에 한 번만 둔다. */}
@@ -58,7 +57,7 @@ export default function SourcesLoading() {
           style={
             {
               "--sources-cols":
-                "minmax(0,26fr) minmax(0,24fr) minmax(0,14fr) minmax(0,20fr) minmax(0,16fr)",
+                "minmax(0,34fr) minmax(0,28fr) minmax(0,12fr) minmax(0,18fr) minmax(0,8fr)",
             } as React.CSSProperties
           }
         >
@@ -88,16 +87,15 @@ export default function SourcesLoading() {
                   </div>
                 </div>
 
-                {/* 연결된 위키 문서 — 칩 2개 고정 */}
-                <div className="flex items-center gap-1.5">
-                  <div className="h-[22px] w-24 rounded-md bg-[var(--surface)]" />
-                  <div className="h-[22px] w-20 rounded-md bg-[var(--surface)] opacity-70" />
+                {/* 연결된 위키 문서 — 제목 하나 */}
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <div className="h-4 w-32 max-w-full rounded bg-[var(--surface)]" />
+                  <div className="h-3 w-8 flex-none rounded bg-[var(--surface)] opacity-70" />
                 </div>
 
-                {/* 청크 및 좌표 */}
-                <div className="space-y-1.5 md:flex md:flex-col md:items-end">
+                {/* 청크 */}
+                <div className="md:flex md:flex-col md:items-end">
                   <div className="h-4 w-14 rounded bg-[var(--surface)]" />
-                  <div className="h-3 w-24 rounded bg-[var(--surface)] opacity-70" />
                 </div>
 
                 {/* 파이프라인 */}
@@ -108,7 +106,6 @@ export default function SourcesLoading() {
 
                 {/* 작업 */}
                 <div className="flex items-center gap-2 md:justify-end">
-                  <div className="h-3.5 w-12 rounded bg-[var(--surface)]" />
                   <div className="h-6 w-[30px] rounded bg-[var(--surface)] opacity-70" />
                 </div>
               </div>
