@@ -135,25 +135,12 @@ describe("YoutubeVideoList", () => {
     );
   });
 
-  it("자막이 없을 수 있는 영상에 배지를 표시하고 선택은 막지 않는다", async () => {
+  it("has_captions 값과 무관하게 자막 배지를 표시하지 않고 선택도 막지 않는다", async () => {
+    // ⚠️ YouTube의 contentDetails.caption은 공식 게시 자막 트랙 여부만 반영해
+    // 대부분의 자동 생성 자막 영상에서 false로 온다 — 배지를 두면 거의 모든
+    // 영상에 경고가 떠 신호 가치가 없어진다(실제 수집은 비공식 경로를 쓴다).
     mockApiFetch.mockResolvedValue({
       videos: [video("v1", { has_captions: false })],
-      next_page_token: null,
-    });
-
-    renderList();
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("youtube-video-no-captions-v1"),
-      ).toBeInTheDocument();
-    });
-    expect(screen.getByTestId("youtube-video-select-v1")).not.toBeDisabled();
-  });
-
-  it("자막 유무를 모르는 영상에는 배지를 표시하지 않는다", async () => {
-    mockApiFetch.mockResolvedValue({
-      videos: [video("v1", { has_captions: null })],
       next_page_token: null,
     });
 
@@ -165,6 +152,7 @@ describe("YoutubeVideoList", () => {
     expect(
       screen.queryByTestId("youtube-video-no-captions-v1"),
     ).not.toBeInTheDocument();
+    expect(screen.getByTestId("youtube-video-select-v1")).not.toBeDisabled();
   });
 
   it("조회수·좋아요 수를 표시하고, 없는 값은 조용히 생략한다", async () => {

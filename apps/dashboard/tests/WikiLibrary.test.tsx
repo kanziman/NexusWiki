@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { WikiLibrary } from "@/components/WikiLibrary";
@@ -47,6 +47,36 @@ describe("WikiLibrary", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("발행된 문서에만 검증 배지 옆에 발행됨 배지를 표시한다", () => {
+    render(
+      <WikiLibrary
+        workspaceId="ws-1"
+        pages={[
+          { ...pages[0], published_at: "2026-01-01T00:00:00Z" },
+          pages[1],
+        ]}
+      />,
+    );
+
+    const publishedCard = screen
+      .getByRole("link", { name: /SSO 가이드/ })
+      .closest(".wiki-card");
+    const unpublishedCard = screen
+      .getByText("데이터 모델")
+      .closest(".wiki-card");
+
+    expect(publishedCard).not.toBeNull();
+    expect(unpublishedCard).not.toBeNull();
+    expect(
+      publishedCard && within(publishedCard as HTMLElement).getByText("발행됨"),
+    ).toBeInTheDocument();
+    expect(
+      unpublishedCard
+        ? within(unpublishedCard as HTMLElement).queryByText("발행됨")
+        : null,
+    ).not.toBeInTheDocument();
   });
 
   it("문서가 하나도 없을 때 UI-SPEC 빈 상태 문구를 페이지 프레임 안에서 렌더링한다", () => {

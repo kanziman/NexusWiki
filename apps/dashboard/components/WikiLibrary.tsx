@@ -44,6 +44,9 @@ export type WikiLibraryPage = {
   verification_status: string;
   disputed: boolean;
   expires_at?: string | null;
+  // wiki_page_publications 에 이 문서 id로 된 행이 있으면 발행된 것이다(1:1,
+  // 별도 테이블 — wiki_pages 자체에는 발행 여부 컬럼이 없다). null이면 미발행.
+  published_at?: string | null;
   // wiki_pages.sources jsonb. 길이가 인용 수다 — 조회수 컬럼은 스키마에 없다.
   sources?: unknown;
 };
@@ -358,6 +361,19 @@ export function WikiLibrary({
       const result = await bulkPublishWikiPages(
         workspaceId,
         Array.from(selectedIds),
+      );
+      // ⚠️ 새로고침 없이 카드 배지에 반영한다 — 안 그러면 발행이 성공해도
+      // 목록은 다음 새로고침 전까지 "미발행"으로 보여 방금 한 작업이
+      // 사라진 것처럼 느껴진다.
+      const publishedAtByPageId = new Map(
+        result.published_pages.map((p) => [p.wiki_page_id, p.published_at]),
+      );
+      setPages((prev) =>
+        prev.map((p) => {
+          const publishedAt = publishedAtByPageId.get(p.id);
+          if (!publishedAt) return p;
+          return { ...p, published_at: publishedAt };
+        }),
       );
       setSelectedIds(new Set());
       if (result.published_count > 0) {
@@ -677,6 +693,18 @@ export function WikiLibrary({
                             {verified && <CheckCircle2 size={10} />}
                             <span>{label}</span>
                           </span>
+                          {item.published_at && (
+                            <>
+                              <span
+                                className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"
+                                aria-hidden="true"
+                              />
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[var(--accent)]">
+                                <Globe size={10} aria-hidden="true" />
+                                <span>발행됨</span>
+                              </span>
+                            </>
+                          )}
                           {citations > 0 && (
                             <>
                               <span

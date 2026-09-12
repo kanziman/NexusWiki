@@ -45,6 +45,7 @@ export default async function WikiIndexPage({
     verification_status: string;
     disputed: boolean;
     expires_at?: string | null;
+    published_at?: string | null;
     sources?: unknown;
   }[];
 
@@ -76,6 +77,26 @@ export default async function WikiIndexPage({
       .eq("workspace_id", workspaceId)
       .order("title");
     pages = data ?? [];
+  }
+
+  // ⚠️ 발행 여부는 wiki_pages 컬럼이 아니라 별도 테이블 wiki_page_publications의
+  // 행 존재 여부다(0016_public_sharing.sql) — 있으면 발행, 없으면 미발행.
+  if (pages.length > 0) {
+    const { data: publications } = await supabase
+      .from("wiki_page_publications")
+      .select("wiki_page_id,published_at")
+      .eq("workspace_id", workspaceId)
+      .in(
+        "wiki_page_id",
+        pages.map((p) => p.id),
+      );
+    const publishedAtByPageId = new Map(
+      (publications ?? []).map((p) => [p.wiki_page_id, p.published_at]),
+    );
+    pages = pages.map((p) => ({
+      ...p,
+      published_at: publishedAtByPageId.get(p.id) ?? null,
+    }));
   }
 
   let user = null;
