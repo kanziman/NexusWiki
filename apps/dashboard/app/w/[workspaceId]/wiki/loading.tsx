@@ -74,7 +74,10 @@ export default function WikiLibraryLoading() {
                 <div className="h-5 w-56 max-w-full rounded bg-[var(--surface)]" />
                 <div className="space-y-1.5">
                   <div className="h-3 w-full max-w-3xl rounded bg-[var(--surface)] opacity-60" />
-                  <div className="h-3 w-3/4 max-w-xl rounded bg-[var(--surface)] opacity-60" />
+                  {/* max-w-xl은 쓰지 않는다 — --spacing-xl(32px) 간격 토큰과 이름이 충돌해
+                      Tailwind가 컨테이너 스케일(36rem) 대신 32px를 max-width로 먹인다
+                      (DashboardPrimitives.tsx와 동일한 함정). */}
+                  <div className="h-3 w-3/4 max-w-[36rem] rounded bg-[var(--surface)] opacity-60" />
                 </div>
               </div>
               <div className="h-4 w-4 rounded bg-[var(--surface)] opacity-40 flex-none" />
