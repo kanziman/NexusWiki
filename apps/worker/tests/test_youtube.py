@@ -186,32 +186,52 @@ def _client(handler: object) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))  # type: ignore[arg-type]
 
 
+def _search_handler(
+    *,
+    stats_items: list[dict[str, object]] | None = None,
+    stats_status: int = 200,
+    seen: dict[str, httpx.URL] | None = None,
+) -> object:
+    """`search.list`와 채널 통계 배치 `channels.list`를 경로로 갈라 받는다."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if seen is not None:
+            seen[path] = request.url
+        if path.endswith("/search"):
+            assert request.url.params["type"] == "channel"
+            assert request.url.params["regionCode"] == "KR"
+            assert request.url.params["pageToken"] == "PAGE2"
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": {"channelId": "UC1"},
+                            "snippet": {
+                                "title": "채널1",
+                                "description": "설명",
+                                "thumbnails": {"medium": {"url": "https://i/1.jpg"}},
+                            },
+                        },
+                        # id가 깨진 항목 하나가 나머지 결과를 버리게 하면 안 된다.
+                        {"id": {}, "snippet": {"title": "깨짐"}},
+                    ],
+                    "nextPageToken": "PAGE3",
+                },
+            )
+        if path.endswith("/channels"):
+            if stats_status != 200:
+                return httpx.Response(stats_status, json={"error": {"errors": []}})
+            return httpx.Response(200, json={"items": stats_items or []})
+        raise AssertionError(f"예상하지 못한 업스트림 경로: {path}")
+
+    return handler
+
+
 @pytest.mark.asyncio
 async def test_search_channels_parses_items_and_next_page_token() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.params["type"] == "channel"
-        assert request.url.params["regionCode"] == "KR"
-        assert request.url.params["pageToken"] == "PAGE2"
-        return httpx.Response(
-            200,
-            json={
-                "items": [
-                    {
-                        "id": {"channelId": "UC1"},
-                        "snippet": {
-                            "title": "채널1",
-                            "description": "설명",
-                            "thumbnails": {"medium": {"url": "https://i/1.jpg"}},
-                        },
-                    },
-                    # id가 깨진 항목 하나가 나머지 결과를 버리게 하면 안 된다.
-                    {"id": {}, "snippet": {"title": "깨짐"}},
-                ],
-                "nextPageToken": "PAGE3",
-            },
-        )
-
-    async with _client(handler) as client:
+    async with _client(_search_handler()) as client:
         result = await search_channels(
             client,
             api_key=_API_KEY,
@@ -224,6 +244,159 @@ async def test_search_channels_parses_items_and_next_page_token() -> None:
     assert [c.channel_id for c in result.channels] == ["UC1"]
     assert result.channels[0].thumbnail_url == "https://i/1.jpg"
     assert result.next_page_token == "PAGE3"  # noqa: S105 - 페이지 토큰
+
+
+@pytest.mark.asyncio
+async def test_search_results_are_enriched_with_channel_statistics() -> None:
+    handler = _search_handler(
+        stats_items=[
+            {
+                "id": "UC1",
+                "snippet": {"customUrl": "@cookingchannel"},
+                "statistics": {"subscriberCount": "45000", "videoCount": "120"},
+            }
+        ]
+    )
+    async with _client(handler) as client:
+        result = await search_channels(
+            client,
+            api_key=_API_KEY,
+            query="요리",
+            region_code="KR",
+            page_token="PAGE2",  # noqa: S106 - 페이지 토큰
+            timeout_seconds=5.0,
+        )
+
+    channel = result.channels[0]
+    assert channel.subscriber_count == 45000
+    assert channel.video_count == 120
+    assert channel.handle == "@cookingchannel"
+    # 배치 조회가 핵심 필드(제목·설명·썸네일)를 덮어쓰면 안 된다.
+    assert channel.title == "채널1"
+    assert channel.thumbnail_url == "https://i/1.jpg"
+
+
+@pytest.mark.asyncio
+async def test_channel_statistics_failure_still_returns_core_fields() -> None:
+    # ⚠️ 검색 자체는 100유닛을 이미 썼다 — 통계 배치 조회 실패로 검색 전체를
+    #    버리면 손실이 훨씬 크다(design.md 결정).
+    handler = _search_handler(stats_status=403)
+    async with _client(handler) as client:
+        result = await search_channels(
+            client,
+            api_key=_API_KEY,
+            query="요리",
+            region_code="KR",
+            page_token="PAGE2",  # noqa: S106 - 페이지 토큰
+            timeout_seconds=5.0,
+        )
+
+    assert [c.channel_id for c in result.channels] == ["UC1"]
+    assert result.channels[0].title == "채널1"
+    assert result.channels[0].subscriber_count is None
+
+
+@pytest.mark.asyncio
+async def test_order_and_relevance_language_are_forwarded_to_search_list() -> None:
+    seen: dict[str, httpx.URL] = {}
+    handler = _search_handler(seen=seen)
+    async with _client(handler) as client:
+        await search_channels(
+            client,
+            api_key=_API_KEY,
+            query="요리",
+            region_code="KR",
+            page_token="PAGE2",  # noqa: S106 - 페이지 토큰
+            timeout_seconds=5.0,
+            order="videoCount",
+            relevance_language="ko",
+        )
+
+    assert seen["/youtube/v3/search"].params["order"] == "videoCount"
+    assert seen["/youtube/v3/search"].params["relevanceLanguage"] == "ko"
+
+
+@pytest.mark.asyncio
+async def test_channel_statistics_partial_failure_keeps_missing_channel_core_fields() -> None:
+    # 두 채널 중 UC2만 통계 배치 응답에서 누락된 "부분 실패"를 재현한다 — "omits a
+    # candidate" 시나리오는 전체 실패(403)와 다른 코드 경로다.
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/search"):
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": {"channelId": "UC1"},
+                            "snippet": {
+                                "title": "채널1",
+                                "description": "설명1",
+                                "thumbnails": {"medium": {"url": "https://i/1.jpg"}},
+                            },
+                        },
+                        {
+                            "id": {"channelId": "UC2"},
+                            "snippet": {
+                                "title": "채널2",
+                                "description": "설명2",
+                                "thumbnails": {"medium": {"url": "https://i/2.jpg"}},
+                            },
+                        },
+                    ]
+                },
+            )
+        if path.endswith("/channels"):
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": "UC1",
+                            "snippet": {"customUrl": "@one"},
+                            "statistics": {"subscriberCount": "10", "videoCount": "1"},
+                        }
+                    ]
+                },
+            )
+        raise AssertionError(f"예상하지 못한 업스트림 경로: {path}")
+
+    async with _client(handler) as client:
+        result = await search_channels(
+            client,
+            api_key=_API_KEY,
+            query="요리",
+            region_code="KR",
+            page_token=None,
+            timeout_seconds=5.0,
+        )
+
+    by_id = {c.channel_id: c for c in result.channels}
+    assert by_id["UC1"].subscriber_count == 10
+    # ⚠️ 부분 실패한 채널도 목록에서 사라지면 안 된다 — 핵심 필드만 그대로 유지된다.
+    assert by_id["UC2"].title == "채널2"
+    assert by_id["UC2"].subscriber_count is None
+    assert by_id["UC2"].video_count is None
+    assert by_id["UC2"].handle is None
+
+
+@pytest.mark.asyncio
+async def test_channel_statistics_batch_requests_all_ids_in_one_call() -> None:
+    seen: dict[str, httpx.URL] = {}
+    handler = _search_handler(seen=seen)
+    async with _client(handler) as client:
+        await search_channels(
+            client,
+            api_key=_API_KEY,
+            query="요리",
+            region_code="KR",
+            page_token="PAGE2",  # noqa: S106 - 페이지 토큰
+            timeout_seconds=5.0,
+        )
+
+    # 깨진 항목은 검색 파싱 단계에서 이미 걸러졌으므로 배치 조회는 UC1 하나만 요청한다.
+    assert seen["/youtube/v3/channels"].params["id"] == "UC1"
+    assert seen["/youtube/v3/channels"].params["part"] == "snippet,statistics"
 
 
 @pytest.mark.asyncio
@@ -387,6 +560,85 @@ async def test_videos_missing_from_detail_response_are_dropped() -> None:
 
     # ⚠️ 순서의 기준은 `playlistItems`(업로드 순)이지 `videos.list` 응답 순서가 아니다.
     assert [v.video_id for v in result.videos] == ["v1", "v2"]
+
+
+@pytest.mark.asyncio
+async def test_caption_flag_true_false_and_missing_are_distinguished() -> None:
+    handler = _videos_handler(
+        playlist_ids=("has", "no", "unknown"),
+        detail_items=[
+            {
+                "id": "has",
+                "snippet": {"title": "자막 있음"},
+                "contentDetails": {"duration": "PT1M", "caption": "true"},
+            },
+            {
+                "id": "no",
+                "snippet": {"title": "자막 없음"},
+                "contentDetails": {"duration": "PT1M", "caption": "false"},
+            },
+            {
+                "id": "unknown",
+                "snippet": {"title": "필드 없음"},
+                "contentDetails": {"duration": "PT1M"},
+            },
+        ],
+    )
+    async with _client(handler) as client:
+        result = await list_channel_videos(
+            client, api_key=_API_KEY, channel_id="UC1", page_token=None, timeout_seconds=5.0
+        )
+
+    by_id = {v.video_id: v for v in result.videos}
+    assert by_id["has"].has_captions is True
+    assert by_id["no"].has_captions is False
+    # ⚠️ 필드가 없으면 "없다"가 아니라 "모른다"다 — False로 접으면 실제로는 있는
+    #    자막을 없다고 배지에 단정하게 된다.
+    assert by_id["unknown"].has_captions is None
+
+
+@pytest.mark.asyncio
+async def test_statistics_are_parsed_and_private_like_count_is_none_not_zero() -> None:
+    handler = _videos_handler(
+        playlist_ids=("v1", "v2"),
+        detail_items=[
+            {
+                "id": "v1",
+                "snippet": {"title": "일반 공개"},
+                "contentDetails": {"duration": "PT1M"},
+                "statistics": {"viewCount": "12345", "likeCount": "678"},
+            },
+            {
+                "id": "v2",
+                "snippet": {"title": "좋아요 수 비공개"},
+                "contentDetails": {"duration": "PT1M"},
+                # likeCount 키 자체가 없는 상태 — 비공개로 설정하면 이렇게 온다.
+                "statistics": {"viewCount": "99"},
+            },
+        ],
+    )
+    async with _client(handler) as client:
+        result = await list_channel_videos(
+            client, api_key=_API_KEY, channel_id="UC1", page_token=None, timeout_seconds=5.0
+        )
+
+    by_id = {v.video_id: v for v in result.videos}
+    assert by_id["v1"].view_count == 12345
+    assert by_id["v1"].like_count == 678
+    assert by_id["v2"].view_count == 99
+    assert by_id["v2"].like_count is None
+
+
+@pytest.mark.asyncio
+async def test_video_detail_call_requests_statistics_part() -> None:
+    seen: dict[str, httpx.URL] = {}
+    async with _client(_videos_handler(seen=seen)) as client:
+        await list_channel_videos(
+            client, api_key=_API_KEY, channel_id="UC1", page_token=None, timeout_seconds=5.0
+        )
+
+    # part에 statistics를 더해도 videos.list 호출 자체는 1회 그대로다(같은 유닛 비용).
+    assert seen["/youtube/v3/videos"].params["part"] == "snippet,contentDetails,statistics"
 
 
 @pytest.mark.asyncio

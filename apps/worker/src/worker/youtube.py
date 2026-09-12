@@ -16,7 +16,7 @@ import asyncio
 import re
 import time
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, Final
+from typing import Annotated, Any, Final, Literal
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
@@ -91,12 +91,21 @@ class YoutubeChannelNotFound(Exception):
 
 
 class YoutubeChannel(BaseModel):
-    """검색 결과 한 건 — 채널을 고르는 데 필요한 것만 담는다."""
+    """검색 결과 한 건 — 채널을 고르는 데 필요한 것만 담는다.
+
+    ⚠️ `subscriber_count`·`video_count`·`handle`은 `search.list`가 아니라 별도
+    `channels.list` 배치 조회로 채워진다(design D-search-metadata). 그 조회가
+    실패해도 이 세 필드만 `None`이 될 뿐, 채널 후보 자체는 그대로 반환된다 —
+    이미 100유닛을 쓴 검색 결과를 통계 하나 때문에 버리지 않는다.
+    """
 
     channel_id: str
     title: str
     description: str
     thumbnail_url: str | None
+    subscriber_count: int | None = None
+    video_count: int | None = None
+    handle: str | None = None
 
 
 class YoutubeSearchRequest(BaseModel):
@@ -105,6 +114,8 @@ class YoutubeSearchRequest(BaseModel):
     query: str
     region_code: str = "KR"
     page_token: str | None = None
+    order: Literal["relevance", "videoCount", "viewCount"] = "relevance"
+    relevance_language: str | None = None
 
 
 class YoutubeSearchResponse(BaseModel):
@@ -113,13 +124,22 @@ class YoutubeSearchResponse(BaseModel):
 
 
 class YoutubeVideo(BaseModel):
-    """영상 한 건 — 주제 관련성을 사람이 판단하는 데 필요한 것만 담는다."""
+    """영상 한 건 — 주제 관련성을 사람이 판단하는 데 필요한 것만 담는다.
+
+    ⚠️ `has_captions`는 `contentDetails.caption`(공식 캡션 트랙 존재 여부)을 그대로
+    옮긴 힌트일 뿐이다. 이 앱의 실제 자막 수집 경로(`worker.transcript`)는 비공식
+    경로를 쓰므로 이 값과 100% 일치한다는 보장이 없다 — 선택을 막는 판정이 아니라
+    선택 전에 보여주는 참고 정보다.
+    """
 
     video_id: str
     title: str
     published_at: str | None
     duration_seconds: int | None
     thumbnail_url: str | None
+    has_captions: bool | None = None
+    view_count: int | None = None
+    like_count: int | None = None
 
 
 class YoutubeVideoListRequest(BaseModel):
@@ -210,6 +230,8 @@ async def search_channels(
     region_code: str,
     page_token: str | None,
     timeout_seconds: float,
+    order: str = "relevance",
+    relevance_language: str | None = None,
 ) -> YoutubeSearchResponse:
     """`search.list`로 채널 후보를 읽는다. 클라이언트는 주입받는다."""
     params: dict[str, Any] = {
@@ -218,10 +240,13 @@ async def search_channels(
         "q": query,
         "maxResults": _MAX_RESULTS,
         "regionCode": region_code,
+        "order": order,
         "key": api_key,
     }
     if page_token:
         params["pageToken"] = page_token
+    if relevance_language:
+        params["relevanceLanguage"] = relevance_language
 
     body = await _get_json(client, _SEARCH_ENDPOINT, params=params, timeout_seconds=timeout_seconds)
 
@@ -245,10 +270,87 @@ async def search_channels(
         )
 
     next_page_token = body.get("nextPageToken")
+    enriched = await _enrich_with_channel_statistics(
+        client, api_key=api_key, channels=channels, timeout_seconds=timeout_seconds
+    )
     return YoutubeSearchResponse(
-        channels=channels,
+        channels=enriched,
         next_page_token=next_page_token if isinstance(next_page_token, str) else None,
     )
+
+
+async def _enrich_with_channel_statistics(
+    client: httpx.AsyncClient,
+    *,
+    api_key: str,
+    channels: list[YoutubeChannel],
+    timeout_seconds: float,
+) -> list[YoutubeChannel]:
+    """검색 결과 채널 ID를 `channels.list(part=snippet,statistics)`로 배치 조회해
+    구독자 수·영상 수·핸들을 채운다 (+1유닛, `search.list`의 100유닛 대비 무시할 수준).
+
+    ⚠️ 이 조회가 실패해도 검색 전체를 실패시키지 않는다. 이미 100유닛을 쓴 검색
+    결과를 통계 하나 때문에 버리면 손실이 훨씬 크다 — 핵심 필드만으로 채널 후보를
+    그대로 반환한다(design.md 결정).
+    """
+    if not channels:
+        return channels
+
+    # `channels.list`는 id 최대 50개까지 한 번에 받는다. `_MAX_RESULTS`(20)가
+    # 이미 그 안이라 여러 배치로 나눌 필요가 없다.
+    ids = ",".join(c.channel_id for c in channels)
+    try:
+        body = await _get_json(
+            client,
+            _CHANNELS_ENDPOINT,
+            params={"part": "snippet,statistics", "id": ids, "key": api_key},
+            timeout_seconds=timeout_seconds,
+        )
+    except (YoutubeUnavailable, YoutubeQuotaExceeded):
+        return channels
+
+    stats_by_id: dict[str, YoutubeChannel] = {}
+    for item in body.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        channel_id = item.get("id")
+        if not isinstance(channel_id, str):
+            continue
+        snippet = item.get("snippet")
+        statistics = item.get("statistics")
+        handle = snippet.get("customUrl") if isinstance(snippet, dict) else None
+        stats_by_id[channel_id] = YoutubeChannel(
+            channel_id=channel_id,
+            title="",
+            description="",
+            thumbnail_url=None,
+            subscriber_count=_parse_stat_count(
+                statistics.get("subscriberCount") if isinstance(statistics, dict) else None
+            ),
+            video_count=_parse_stat_count(
+                statistics.get("videoCount") if isinstance(statistics, dict) else None
+            ),
+            handle=handle if isinstance(handle, str) and handle else None,
+        )
+
+    # ⚠️ 후보 순서·핵심 필드는 `search.list` 결과가 기준이다. 일부 채널만 통계
+    #    조회에 실패하거나 누락돼도(부분 실패) 나머지 채널은 그대로 반환된다.
+    result: list[YoutubeChannel] = []
+    for channel in channels:
+        stats = stats_by_id.get(channel.channel_id)
+        if stats is None:
+            result.append(channel)
+            continue
+        result.append(
+            channel.model_copy(
+                update={
+                    "subscriber_count": stats.subscriber_count,
+                    "video_count": stats.video_count,
+                    "handle": stats.handle,
+                }
+            )
+        )
+    return result
 
 
 def _parse_duration_seconds(value: object) -> int | None:
@@ -264,6 +366,30 @@ def _parse_duration_seconds(value: object) -> int | None:
         return None
     parts = {key: int(raw) for key, raw in match.groupdict(default="0").items()}
     return parts["days"] * 86400 + parts["hours"] * 3600 + parts["minutes"] * 60 + parts["seconds"]
+
+
+def _parse_caption_flag(value: object) -> bool | None:
+    """`contentDetails.caption`("true"/"false" 문자열)을 bool로 옮긴다.
+
+    ⚠️ 필드가 없거나 값을 못 읽으면 `False`가 아니라 `None`이다. "자막 없음이
+    확인됨"과 "모름"을 같은 값으로 접으면 배지가 실제로는 있는 자막을 없다고
+    단정하게 된다.
+    """
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
+
+
+def _parse_stat_count(value: object) -> int | None:
+    """`statistics`의 카운트 필드(문자열 정수)를 int로 옮긴다. 없거나 못 읽으면 `None`이다."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 async def _uploads_playlist_id(
@@ -336,11 +462,13 @@ async def list_channel_videos(
     #    **비공개·삭제된 영상을 걸러낸다** — 그런 영상은 응답에 아예 오지 않으므로, 여기
     #    없는 id를 버리면 목록에서 고를 수 없는 영상이 사라진다. 제목 문자열
     #    ("Private video")로 거르는 방법은 언어별로 달라 쓰지 않는다.
+    # `statistics`를 더해도 `videos.list`의 쿼터 비용은 그대로 1유닛이다 — part 개수가
+    # 아니라 호출 1회당 과금되는 소수 엔드포인트 중 하나다.
     detail = await _get_json(
         client,
         _VIDEOS_ENDPOINT,
         params={
-            "part": "snippet,contentDetails",
+            "part": "snippet,contentDetails,statistics",
             "id": ",".join(ordered_ids),
             "key": api_key,
         },
@@ -357,6 +485,7 @@ async def list_channel_videos(
             # 깨진 항목 하나 때문에 나머지 페이지를 버리지 않는다 (검색 파싱과 같은 규약).
             continue
         content_details = item.get("contentDetails")
+        statistics = item.get("statistics")
         published_at = snippet.get("publishedAt")
         by_id[video_id] = YoutubeVideo(
             video_id=video_id,
@@ -366,6 +495,17 @@ async def list_channel_videos(
                 content_details.get("duration") if isinstance(content_details, dict) else None
             ),
             thumbnail_url=_parse_thumbnail(snippet),
+            has_captions=_parse_caption_flag(
+                content_details.get("caption") if isinstance(content_details, dict) else None
+            ),
+            view_count=_parse_stat_count(
+                statistics.get("viewCount") if isinstance(statistics, dict) else None
+            ),
+            # ⚠️ 좋아요 수를 비공개로 설정한 영상은 이 키 자체가 응답에서 빠진다(0이
+            #    아니다). `0`으로 접으면 "아무도 안 좋아함"과 "숨김"이 같은 값이 된다.
+            like_count=_parse_stat_count(
+                statistics.get("likeCount") if isinstance(statistics, dict) else None
+            ),
         )
 
     return YoutubeVideoListResponse(

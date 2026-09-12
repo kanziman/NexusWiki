@@ -76,7 +76,7 @@ export default async function SourcesPage({
             .from("jobs")
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
-            .in("raw_source_id", sourceIds)
+            .in("payload->>raw_source_id", sourceIds)
             .eq("status", "dead")
         : Promise.resolve({ count: 0, error: null }),
     ]);
@@ -96,11 +96,27 @@ export default async function SourcesPage({
   const citingPagesUnavailable = Boolean(wikiResult.error);
 
   if (chunkStatsUnavailable || citingPagesUnavailable || deadJobsUnavailable) {
+    const serializeError = (err: unknown) => {
+      if (!err) return null;
+      if (typeof err === "object" && err !== null) {
+        const anyErr = err as Record<string, unknown>;
+        return {
+          message: anyErr.message ?? String(err),
+          code: anyErr.code,
+          details: anyErr.details,
+          hint: anyErr.hint,
+        };
+      }
+      return String(err);
+    };
+
     console.error("소스 목록 집계 조회 실패", {
       workspaceId,
-      chunkError: (chunkResult as { error?: unknown } | null)?.error,
-      wikiError: wikiResult.error,
-      deadJobsError: deadJobsResult?.error,
+      chunkError: serializeError(
+        (chunkResult as { error?: unknown } | null)?.error,
+      ),
+      wikiError: serializeError(wikiResult.error),
+      deadJobsError: serializeError(deadJobsResult?.error),
     });
   }
 

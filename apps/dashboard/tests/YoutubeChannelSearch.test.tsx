@@ -14,12 +14,24 @@ vi.mock("@/lib/api-client", async () => {
 import { ApiError } from "@/lib/api-client";
 import { YoutubeChannelSearch } from "@/components/YoutubeChannelSearch";
 
-function channel(id: string, title = "채널") {
+function channel(
+  id: string,
+  title = "채널",
+  overrides: Partial<{
+    subscriber_count: number | null;
+    video_count: number | null;
+    handle: string | null;
+  }> = {},
+) {
   return {
     channel_id: id,
     title,
     description: "설명",
     thumbnail_url: null,
+    subscriber_count: null,
+    video_count: null,
+    handle: null,
+    ...overrides,
   };
 }
 
@@ -50,6 +62,41 @@ describe("YoutubeChannelSearch", () => {
     const call = mockApiFetch.mock.calls[0][0] as string;
     expect(call).toContain("/workspaces/ws-1/youtube/channels");
     expect(call).toContain("q=%EC%9A%94%EB%A6%AC");
+  });
+
+  it("기본 정렬·국가와 함께 검색하고, 언어 힌트는 선택 전까지 보내지 않는다", async () => {
+    mockApiFetch.mockResolvedValue({ channels: [], next_page_token: null });
+
+    render(<YoutubeChannelSearch workspaceId="ws-1" />);
+    await search();
+
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalled());
+    const call = mockApiFetch.mock.calls[0][0] as string;
+    expect(call).toContain("order=relevance");
+    expect(call).toContain("region_code=KR");
+    expect(call).not.toContain("relevance_language");
+  });
+
+  it("정렬·언어·국가를 바꾸면 다음 검색에 반영된다", async () => {
+    mockApiFetch.mockResolvedValue({ channels: [], next_page_token: null });
+
+    render(<YoutubeChannelSearch workspaceId="ws-1" />);
+    fireEvent.change(screen.getByTestId("youtube-search-order"), {
+      target: { value: "videoCount" },
+    });
+    fireEvent.change(screen.getByTestId("youtube-search-language"), {
+      target: { value: "ko" },
+    });
+    fireEvent.change(screen.getByTestId("youtube-search-region"), {
+      target: { value: "US" },
+    });
+    await search();
+
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalled());
+    const call = mockApiFetch.mock.calls[0][0] as string;
+    expect(call).toContain("order=videoCount");
+    expect(call).toContain("relevance_language=ko");
+    expect(call).toContain("region_code=US");
   });
 
   it("쿼터 소진을 '결과 없음'이 아니라 소진 사유로 안내한다", async () => {
@@ -164,6 +211,9 @@ describe("YoutubeChannelSearch", () => {
           published_at: null,
           duration_seconds: 600,
           thumbnail_url: null,
+          has_captions: null,
+          view_count: null,
+          like_count: null,
         },
       ],
       next_page_token: null,
@@ -203,6 +253,29 @@ describe("YoutubeChannelSearch", () => {
       expect(screen.getByText("쿠킹채널")).toBeInTheDocument();
     });
     expect(mockApiFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("구독자 수·영상 수·핸들을 배지로 렌더한다", async () => {
+    mockApiFetch.mockResolvedValue({
+      channels: [
+        channel("UC1", "쿠킹채널", {
+          subscriber_count: 45000,
+          video_count: 120,
+          handle: "@cookingchannel",
+        }),
+      ],
+      next_page_token: null,
+    });
+
+    render(<YoutubeChannelSearch workspaceId="ws-1" />);
+    await search();
+
+    await waitFor(() => {
+      expect(screen.getByText("쿠킹채널")).toBeInTheDocument();
+    });
+    expect(screen.getByText("@cookingchannel")).toBeInTheDocument();
+    expect(screen.getByText("구독자 45,000명")).toBeInTheDocument();
+    expect(screen.getByText("영상 120개")).toBeInTheDocument();
   });
 
   it("빈 키워드로는 요청하지 않는다", async () => {

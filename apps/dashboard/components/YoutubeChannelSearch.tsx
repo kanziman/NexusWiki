@@ -17,7 +17,19 @@ export type YoutubeChannel = {
   title: string;
   description: string;
   thumbnail_url: string | null;
+  subscriber_count: number | null;
+  video_count: number | null;
+  handle: string | null;
 };
+
+// 구독자·영상 수는 천 단위 구분자만 붙인다 — "1.2만" 같은 축약 표기는
+// 정확한 값을 가리는 데다 이 화면의 다른 숫자(크레딧 등)와 표기 방식이 달라진다.
+// ⚠️ `null | undefined` 둘 다 받는다 — 배치 조회 실패로 이 필드가 아예 없는 응답이
+// 와도(계약 위반) 카드 하나가 렌더 전체를 무너뜨리면 안 된다.
+function formatChannelCount(value: number | null | undefined): string {
+  if (value === null || value === undefined || value < 0) return "";
+  return value.toLocaleString("ko-KR");
+}
 
 type ChannelSearchResponse = {
   channels: YoutubeChannel[];
@@ -47,10 +59,36 @@ function messageFor(error: unknown): string {
   return GENERIC_MESSAGE;
 }
 
+type SearchOrder = "relevance" | "videoCount" | "viewCount";
+
+const ORDER_OPTIONS: { value: SearchOrder; label: string }[] = [
+  { value: "relevance", label: "관련도순" },
+  { value: "videoCount", label: "영상 많은 순" },
+  { value: "viewCount", label: "조회수 많은 순" },
+];
+
+// ⚠️ relevanceLanguage는 검색 결과를 필터링하지 않고 순위에 힌트만 준다 — regionCode와
+//    성격이 다르다(design.md). "전체"는 힌트를 아예 안 준다는 뜻이라 빈 문자열이다.
+const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "언어 전체" },
+  { value: "ko", label: "한국어" },
+  { value: "en", label: "영어" },
+  { value: "ja", label: "일본어" },
+];
+
+const REGION_OPTIONS: { value: string; label: string }[] = [
+  { value: "KR", label: "대한민국" },
+  { value: "US", label: "미국" },
+  { value: "JP", label: "일본" },
+];
+
 export function YoutubeChannelSearch({
   workspaceId,
 }: YoutubeChannelSearchProps) {
   const [query, setQuery] = useState("");
+  const [order, setOrder] = useState<SearchOrder>("relevance");
+  const [relevanceLanguage, setRelevanceLanguage] = useState("");
+  const [regionCode, setRegionCode] = useState("KR");
   const [channels, setChannels] = useState<YoutubeChannel[]>([]);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -60,8 +98,13 @@ export function YoutubeChannelSearch({
   const [selected, setSelected] = useState<YoutubeChannel | null>(null);
 
   async function fetchPage(pageToken: string | null) {
-    const params = new URLSearchParams({ q: query.trim() });
+    const params = new URLSearchParams({
+      q: query.trim(),
+      order,
+      region_code: regionCode,
+    });
     if (pageToken) params.set("page_token", pageToken);
+    if (relevanceLanguage) params.set("relevance_language", relevanceLanguage);
     return apiFetch<ChannelSearchResponse>(
       `/workspaces/${workspaceId}/youtube/channels?${params.toString()}`,
     );
@@ -149,6 +192,50 @@ export function YoutubeChannelSearch({
         </button>
       </form>
 
+      {/* 정렬·언어·국가는 검색 실행 시점의 값을 그대로 쓴다 — 바꾼 즉시 재검색하지
+          않는다. 재검색은 100유닛이라 드롭다운을 만질 때마다 쿼터를 태우면 안 된다. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={order}
+          onChange={(event) => setOrder(event.target.value as SearchOrder)}
+          aria-label="정렬"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--fg)] focus:border-[var(--accent)] focus:outline-none"
+          data-testid="youtube-search-order"
+        >
+          {ORDER_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={relevanceLanguage}
+          onChange={(event) => setRelevanceLanguage(event.target.value)}
+          aria-label="언어"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--fg)] focus:border-[var(--accent)] focus:outline-none"
+          data-testid="youtube-search-language"
+        >
+          {LANGUAGE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={regionCode}
+          onChange={(event) => setRegionCode(event.target.value)}
+          aria-label="국가"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--fg)] focus:border-[var(--accent)] focus:outline-none"
+          data-testid="youtube-search-region"
+        >
+          {REGION_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {error ? (
         <p
           role="alert"
@@ -190,12 +277,37 @@ export function YoutubeChannelSearch({
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-[var(--fg)]">
-                    {channel.title}
-                  </p>
+                  <div className="flex flex-wrap items-baseline gap-x-1.5">
+                    <p className="truncate text-sm font-bold text-[var(--fg)]">
+                      {channel.title}
+                    </p>
+                    {channel.handle ? (
+                      <span className="truncate text-[11px] text-[var(--muted)]">
+                        {channel.handle}
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[var(--muted)]">
                     {channel.description || "설명이 없는 채널입니다."}
                   </p>
+                  {/* 배치 조회가 실패하면 셋 다 null이다 — 배지 자체를 숨긴다
+                      (design.md: 통계 없이도 핵심 필드는 그대로 보여준다). */}
+                  {channel.subscriber_count != null ||
+                  channel.video_count != null ? (
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-[var(--muted)]">
+                      {channel.subscriber_count != null ? (
+                        <span>
+                          구독자 {formatChannelCount(channel.subscriber_count)}
+                          명
+                        </span>
+                      ) : null}
+                      {channel.video_count != null ? (
+                        <span>
+                          영상 {formatChannelCount(channel.video_count)}개
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </div>
                 {/* 이 카드가 "선택"이 아니라 "영상 목록으로 이동"이라는 것을 알린다 —
                     영상 카드의 체크 표시와 형태를 다르게 둬 두 상호작용을 구분한다. */}
@@ -253,7 +365,10 @@ export function YoutubeChannelSearch({
           <p className="text-sm font-semibold text-[var(--fg)]">
             채널을 검색해 시작하세요
           </p>
-          <p className="max-w-sm text-xs leading-relaxed text-[var(--muted)]">
+          {/* max-w-sm은 쓰지 않는다 — --spacing-sm(8px) 간격 토큰과 이름이 충돌해
+              Tailwind가 컨테이너 스케일(24rem) 대신 8px를 max-width로 먹여 한글
+              한 글자씩 줄바꿈되는 버그가 생긴다(DashboardPrimitives.tsx와 동일한 함정). */}
+          <p className="max-w-[24rem] text-xs leading-relaxed text-[var(--muted)]">
             채널을 고르면 영상 목록이 열립니다. 거기서 원하는 영상만 선택하면
             자막이 원문 소스로 수집됩니다.
           </p>
