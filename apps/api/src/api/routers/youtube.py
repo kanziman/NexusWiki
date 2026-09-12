@@ -253,7 +253,9 @@ async def search_channels(
     q: Annotated[str, Query(min_length=1, max_length=_MAX_QUERY_CHARS)],
     region_code: Annotated[str, Query(min_length=2, max_length=2)] = "KR",
     page_token: Annotated[str | None, Query(max_length=512)] = None,
-    order: Annotated[Literal["relevance", "videoCount", "viewCount"], Query()] = "relevance",
+    order: Annotated[
+        Literal["relevance", "date", "rating", "title", "videoCount", "viewCount"], Query()
+    ] = "relevance",
     relevance_language: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
 ) -> ChannelSearchResponse:
     """키워드로 채널 후보를 돌려준다.
