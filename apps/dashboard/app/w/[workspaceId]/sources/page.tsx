@@ -3,7 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 
 type SourcesPageProps = {
   params: Promise<{ workspaceId: string }>;
-  searchParams: Promise<{ prefillTitle?: string; tab?: string }>;
+  searchParams: Promise<{
+    prefillTitle?: string;
+    tab?: string;
+    upload?: string;
+  }>;
 };
 
 const PAGE_SIZE = 50;
@@ -24,7 +28,7 @@ export default async function SourcesPage({
   searchParams,
 }: SourcesPageProps) {
   const { workspaceId } = await params;
-  const { prefillTitle, tab } = await searchParams;
+  const { prefillTitle, tab, upload } = await searchParams;
   const supabase = await createClient();
 
   const { data } = await supabase
@@ -166,6 +170,7 @@ export default async function SourcesPage({
       citingPagesUnavailable={citingPagesUnavailable}
       prefillTitle={prefillTitle}
       initialTab={tab === "text" ? "text" : undefined}
+      openUpload={upload === "1"}
       isOwner={isOwner}
       deadJobCount={deadJobCount}
       deadJobsUnavailable={deadJobsUnavailable}

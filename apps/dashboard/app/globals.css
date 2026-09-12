@@ -839,8 +839,8 @@
 
 @media (max-width: 980px) {
   .sections {
-    grid-template-columns: 1fr !important;
-    gap: 24px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 12px !important;
   }
 }
 

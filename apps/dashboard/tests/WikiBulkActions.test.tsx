@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiFetch = vi.fn();
@@ -160,6 +166,16 @@ describe("WikiLibrary Bulk Actions", () => {
         screen.getByText("1개의 문서가 공개 발행되었습니다."),
       ).toBeInTheDocument();
     });
+
+    // ⚠️ 새로고침 없이 반영돼야 한다 — 안 그러면 방금 한 발행이 다음
+    // 새로고침 전까지 목록에서 사라진 것처럼 보인다.
+    const publishedCard = screen
+      .getByRole("link", { name: /아키텍처 개요/ })
+      .closest(".wiki-card");
+    expect(publishedCard).not.toBeNull();
+    expect(
+      publishedCard && within(publishedCard as HTMLElement).getByText("발행됨"),
+    ).toBeInTheDocument();
   });
 
   it("선택 해제를 누르면 선택이 비고 플로팅 바가 사라진다", () => {

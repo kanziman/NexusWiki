@@ -79,7 +79,7 @@ function MetricCard({
   const width = progress == null ? null : Math.min(100, Math.max(0, progress));
 
   return (
-    <div className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4">
+    <div className="flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-3 py-4 sm:px-[18px]">
       <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--muted)]">
         <span>{label}</span>
         <span className="text-[var(--muted)]" aria-hidden="true">
@@ -96,7 +96,7 @@ function MetricCard({
         </b>
         {tag && tagTone ? (
           <span
-            className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${METRIC_TAG_TONE[tagTone]} whitespace-nowrap`}
+            className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${METRIC_TAG_TONE[tagTone]} max-w-full truncate`}
           >
             {tag}
           </span>
@@ -327,7 +327,7 @@ export default async function WorkspaceHomePage({
       {/* 2. 벤토 지식 건강 메트릭. 최종 업데이트는 이 요청의 서버 렌더
           스냅샷이다 — realtime 구독이 없으므로 "라이브" 카피를 붙이지 않는다. */}
       <section
-        className="mt-8 mb-7 grid grid-cols-2 gap-3.5 xl:grid-cols-4"
+        className="mt-8 mb-7 grid min-w-0 grid-cols-2 gap-3.5 xl:grid-cols-4"
         data-od-id="workspace-summary"
         aria-label="워크스페이스 현황"
       >

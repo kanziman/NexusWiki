@@ -123,7 +123,7 @@ export function WorkspaceShell({
           </div>
           <div className="top-actions">
             <Link
-              href={`${base}/sources`}
+              href={`${base}/sources?upload=1`}
               className="button"
               data-od-id="add-source-button"
             >

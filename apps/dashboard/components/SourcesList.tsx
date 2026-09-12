@@ -8,7 +8,6 @@ import {
   Layers,
   Link2,
   Loader2,
-  Plus,
   Search,
   Sparkles,
   Trash2,
@@ -54,6 +53,8 @@ export type SourcesListProps = {
   deadJobsUnavailable?: boolean;
   prefillTitle?: string;
   initialTab?: "text";
+  // 상단바 `소스 추가`가 ?upload=1 로 이 목록에 도착했을 때 업로드 모달을 연다.
+  openUpload?: boolean;
   isOwner?: boolean;
   deadJobCount?: number;
 };
@@ -113,6 +114,7 @@ export function SourcesList({
   deadJobsUnavailable = false,
   prefillTitle,
   initialTab,
+  openUpload = false,
   isOwner = false,
   deadJobCount = 0,
 }: SourcesListProps) {
@@ -121,7 +123,7 @@ export function SourcesList({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(
-    Boolean(prefillTitle) || initialTab === "text",
+    Boolean(prefillTitle) || initialTab === "text" || openUpload,
   );
 
   const [sourceToDelete, setSourceToDelete] = useState<SourceRow | null>(null);
@@ -133,6 +135,14 @@ export function SourcesList({
   } | null>(null);
 
   const PAGE_SIZE = 8;
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -152,6 +162,16 @@ export function SourcesList({
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!openUpload) return;
+    setUploadOpen(true);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("upload")) return;
+    url.searchParams.delete("upload");
+    const next = url.pathname + (url.search ? url.search : "");
+    window.history.replaceState(null, "", next);
+  }, [openUpload]);
 
   async function handleIngested(_jobId: string, rawSourceId: string) {
     const supabase = createClient();
@@ -273,17 +293,6 @@ export function SourcesList({
             등록된 원본의 청킹, 5채널 인덱싱 상태와 위키 인용 관계를 관리합니다.
           </p>
         </div>
-        {sources.length > 0 && (
-          <button
-            type="button"
-            className="button primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-xs"
-            onClick={() => setUploadOpen(true)}
-            data-od-id="upload-open"
-          >
-            <Plus size={14} aria-hidden="true" />
-            <span>소스 업로드</span>
-          </button>
-        )}
       </section>
 
       {/* 파이프라인 요약 벤토 (소스가 있을 때만 표시).
@@ -306,14 +315,6 @@ export function SourcesList({
                 {sources.length}
               </b>
               <span className="text-[11px] text-[var(--muted)]">개 문서</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-              <span className="rounded-md bg-[var(--soft)] px-1.5 py-0.5 text-[var(--accent)]">
-                {`텍스트·마크다운 ${textMdCount}`}
-              </span>
-              <span className="rounded-md bg-[var(--border)]/50 px-1.5 py-0.5 text-[var(--muted)]">
-                {`PDF ${pdfCount}`}
-              </span>
             </div>
           </div>
 
@@ -356,11 +357,8 @@ export function SourcesList({
               <>
                 <div className="flex flex-wrap items-baseline gap-2">
                   <b className="font-mono text-[26px] font-extrabold tracking-tight text-[var(--fg)]">
-                    {`${citedCount}/${sources.length}`}
+                    {`${citationRate}%`}
                   </b>
-                  <span className="text-[11px] text-[var(--muted)]">
-                    {`인용됨 (${citationRate}%)`}
-                  </span>
                 </div>
                 <span className="text-[11px] text-[var(--muted)]">
                   {orphanCount === 0
@@ -465,14 +463,16 @@ export function SourcesList({
       {/* 툴바 & 테이블 섹션 */}
       <section data-od-id="source-table-section">
         {sources.length > 0 && (
-          <div className="toolbar flex items-center justify-between gap-4">
+          <div className="toolbar">
             {/* ⚠️ 공용 .tabs/.tab 클래스를 쓰지 않는다. .content.sources .tab 은
                 밑줄 탭(padding 8px 10px, border-bottom)이라 높이가 컨텐츠에
                 따라 흔들리고, 옆의 .field.search(36px 고정)와 수평선이
                 어긋난다. 세그먼트 칩은 h-9(36px)로 직접 못박는다.
-                필터는 상호배타적 단일 선택이므로 tab 시맨틱을 유지한다. */}
+                필터는 상호배타적 단일 선택이므로 tab 시맨틱을 유지한다.
+                칩은 줄바꿈한다. nowrap+overflow-x-auto 는 맵·형식 칩을
+                검색창 뒤에 숨기고 페이지 가로 스크롤을 만든다. */}
             <nav
-              className="flex h-9 flex-wrap items-center gap-1"
+              className="flex min-w-0 flex-wrap items-center gap-1"
               role="tablist"
               aria-label="파일 형식 필터"
             >
@@ -486,7 +486,7 @@ export function SourcesList({
                     setActiveMime(tab.id);
                     setPage(1);
                   }}
-                  className={`nw-focus-ring box-border inline-flex h-9 cursor-pointer items-center rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                  className={`nw-focus-ring box-border inline-flex h-9 flex-none cursor-pointer items-center whitespace-nowrap rounded-lg border px-3 text-[12px] font-bold transition-colors ${
                     activeMime === tab.id
                       ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
@@ -499,7 +499,7 @@ export function SourcesList({
 
             {/* 검색창. .field.search 가 높이 36px 를 고정한다 — 이 규칙은 위키
                 라이브러리 검색창과 공유하므로 여기서 고치지 않는다. */}
-            <div className="relative h-9 w-full max-w-[360px] flex-none">
+            <div className="toolbar-search relative h-9">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
@@ -568,7 +568,7 @@ export function SourcesList({
             style={
               {
                 "--sources-cols":
-                  "minmax(0,26fr) minmax(0,24fr) minmax(0,14fr) minmax(0,20fr) minmax(0,16fr)",
+                  "minmax(0,34fr) minmax(0,28fr) minmax(0,12fr) minmax(0,18fr) minmax(0,8fr)",
               } as React.CSSProperties
             }
           >
@@ -591,17 +591,17 @@ export function SourcesList({
                 const stat = chunkStats[source.id];
                 const cited = citingPages[source.id] ?? [];
                 // 인용 수에 따라 행이 세로로 늘어나는 것이 목록 리듬이 깨지는
-                // 직접 원인이다. 두 개만 그리고 나머지는 개수로 접는다 —
-                // 전체 인용 목록은 소스 상세에서 볼 수 있다.
-                const visibleCited = cited.slice(0, 2);
+                // 직접 원인이다. 제목 하나와 잔여 개수만 남긴다 — 전체 인용
+                // 목록은 소스 상세에서 볼 수 있다.
+                const visibleCited = cited.slice(0, 1);
                 const hiddenCitedCount = cited.length - visibleCited.length;
 
                 return (
                   <article
                     key={source.id}
-                    className="grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface)]/40 md:min-h-[72px] md:gap-4 md:py-3 md:[grid-template-columns:var(--sources-cols)]"
+                    className="grid grid-cols-1 items-center gap-2 px-4 py-3 transition-colors hover:bg-[var(--surface)]/40 md:min-h-[72px] md:gap-4 md:py-3 md:[grid-template-columns:var(--sources-cols)]"
                   >
-                    {/* 1. 소스 파일 */}
+                    {/* 1. 소스 파일. 좁은 화면에서는 삭제를 이 줄 오른쪽에 둔다. */}
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span className={`format ${format.variant}`}>
                         {format.label}
@@ -642,79 +642,87 @@ export function SourcesList({
                           )}
                         </div>
                       </div>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setSourceToDelete(source);
+                          }}
+                          className="nw-focus-ring inline-flex h-9 w-9 flex-none cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] md:hidden"
+                          title="원문 소스 삭제"
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                          <span className="sr-only">삭제</span>
+                        </button>
+                      )}
                     </div>
 
-                    {/* 2. 연결된 위키 문서 */}
-                    <div className="min-w-0">
-                      {citingPagesUnavailable ? (
-                        <span className="text-[11px] text-[var(--muted)] italic">
-                          인용 정보를 불러오지 못했습니다
-                        </span>
-                      ) : cited.length === 0 ? (
-                        <span className="text-[11px] text-[var(--muted)] italic">
-                          인용한 위키 없음
-                        </span>
-                      ) : (
-                        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                          {visibleCited.map((page) => (
-                            <Link
-                              key={page.slug}
-                              href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
-                              className="doc-chip min-w-0"
-                              title={page.title}
-                            >
-                              <span className="truncate">{page.title}</span>
-                            </Link>
-                          ))}
-                          {hiddenCitedCount > 0 && (
-                            <span className="flex-none text-[11px] font-semibold text-[var(--muted)]">
-                              {`+${hiddenCitedCount}개 더`}
+                    {/* 좁은 화면에서는 파일명 아래를 들여 배지와 줄을 맞춘다.
+                        md 이상에서는 contents 로 그리드 칸에 다시 풀어 놓는다. */}
+                    <div className="flex min-w-0 flex-col gap-1.5 pl-[46px] md:contents md:pl-0">
+                      {/* 2. 연결된 위키 문서 */}
+                      <div className="min-w-0">
+                        {citingPagesUnavailable ? (
+                          <span className="text-[11px] text-[var(--muted)] italic">
+                            인용 정보를 불러오지 못했습니다
+                          </span>
+                        ) : cited.length === 0 ? (
+                          <span className="text-[11px] text-[var(--muted)] italic">
+                            인용한 위키 없음
+                          </span>
+                        ) : (
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            {visibleCited.map((page) => (
+                              <Link
+                                key={page.slug}
+                                href={`${workspacePath(workspaceId)}/wiki/${page.slug}`}
+                                className="min-w-0 truncate text-[13px] font-normal text-[var(--fg)] hover:text-[var(--accent)] hover:underline"
+                                title={page.title}
+                              >
+                                {page.title}
+                              </Link>
+                            ))}
+                            {hiddenCitedCount > 0 && (
+                              <span className="flex-none text-[11px] font-normal text-[var(--muted)]">
+                                {`+${hiddenCitedCount}`}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:contents">
+                        {/* 3. 청크 및 좌표 */}
+                        <div className="whitespace-nowrap md:text-right">
+                          {chunkStatsUnavailable ? (
+                            <span className="text-[11px] text-[var(--muted)]">
+                              집계 불가
+                            </span>
+                          ) : stat ? (
+                            <span className="block text-[12.5px] font-normal text-[var(--muted)]">
+                              {stat.count} 청크
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[var(--muted)]">
+                              청크 없음
                             </span>
                           )}
                         </div>
-                      )}
-                    </div>
 
-                    {/* 3. 청크 및 좌표 */}
-                    <div className="whitespace-nowrap md:text-right">
-                      {chunkStatsUnavailable ? (
-                        <span className="text-[11px] text-[var(--muted)]">
-                          집계 불가
-                        </span>
-                      ) : stat ? (
-                        <>
-                          <b className="block text-[12.5px] font-bold text-[var(--fg)]">
-                            {stat.count} 청크
-                          </b>
-                          <span className="mt-0.5 block font-mono text-[10.5px] text-[var(--muted)]">
-                            {stat.charStart.toLocaleString("ko-KR")}–
-                            {stat.charEnd.toLocaleString("ko-KR")} char
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-[11px] text-[var(--muted)]">
-                          청크 없음
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 4. 파이프라인 — 행 단위 5단계 진행은 계속 JobStepper 가
+                        {/* 4. 파이프라인 — 행 단위 5단계 진행은 계속 JobStepper 가
                         담당한다. 벤토의 요약 지표는 청킹 완료율일 뿐이다. */}
-                    <div className="min-w-0">
-                      <JobStepper
-                        workspaceId={workspaceId}
-                        rawSourceId={source.id}
-                      />
+                        <div className="min-w-0">
+                          <JobStepper
+                            workspaceId={workspaceId}
+                            rawSourceId={source.id}
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    {/* 5. 작업 (상세 보기 & 삭제) */}
-                    <div className="flex items-center gap-2 whitespace-nowrap md:justify-end">
-                      <Link
-                        href={`${workspacePath(workspaceId)}/sources/${source.id}`}
-                        className="text-button inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--accent)] hover:underline"
-                      >
-                        <span>상세 보기</span>
-                      </Link>
+                    {/* 5. 작업 — 좁은 화면은 파일명 줄에서 이미 삭제한다. */}
+                    <div className="hidden items-center gap-2 whitespace-nowrap md:flex md:justify-end">
                       {isOwner && (
                         <button
                           type="button"

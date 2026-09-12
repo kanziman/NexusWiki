@@ -8,8 +8,8 @@ export default function WorkspaceHomeLoading() {
       data-testid="workspace-home-skeleton"
     >
       {/* 스켈레톤은 실제 홈 본문과 같은 골격이어야 한다. 벤토 메트릭 4칸과
-          `.sections` 비대칭(1.4fr / 1fr) 그리드를 맞추지 않으면 로딩→렌더
-          전환에서 레이아웃이 튄다. */}
+          `.sections`(데스크톱 1.4fr/1fr, 좁은 화면 50:50) 그리드를 맞추지
+          않으면 로딩→렌더 전환에서 레이아웃이 튄다. */}
       {/* 1. 지식 그룹/워크스페이스 히어로 헤더 스켈레톤 */}
       <section
         className="context animate-pulse"
@@ -27,14 +27,14 @@ export default function WorkspaceHomeLoading() {
       {/* 2. 벤토 지식 건강 메트릭 4칸. 옛 `.stats` 줄은 본문 카드 높이와
           달라 전환 때 본문이 아래로 밀린다. */}
       <section
-        className="mt-8 mb-7 grid grid-cols-2 gap-3.5 lg:grid-cols-4 animate-pulse"
+        className="mt-8 mb-7 grid min-w-0 grid-cols-2 gap-3.5 xl:grid-cols-4 animate-pulse"
         aria-label="워크스페이스 현황 로딩 중"
         data-testid="workspace-home-metric-skeleton"
       >
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-[18px] py-4"
+            className="flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] px-3 py-4 sm:px-[18px]"
           >
             <div className="flex items-center justify-between">
               <div className="h-3 w-20 rounded bg-[var(--border)]" />
@@ -67,8 +67,8 @@ export default function WorkspaceHomeLoading() {
         </div>
       </section>
 
-      {/* 4. 비대칭 6:4 지식 그리드. 홈 KnowledgeGrid 와 같은 `.sections` 를
-          쓴다 — 비율을 스켈레톤에서만 바꾸면 로딩→렌더에서 그리드가 튄다. */}
+      {/* 4. 지식 그리드. 홈 KnowledgeGrid 와 같은 `.sections` 를 쓴다 —
+          비율을 스켈레톤에서만 바꾸면 로딩→렌더에서 그리드가 튄다. */}
       <div className="sections" data-testid="workspace-home-grid-skeleton">
         {/* 좌측: 컴파일된 위키 문서 (5개 행) */}
         <section className="animate-pulse" aria-label="위키 문서 로딩 중">
@@ -106,8 +106,11 @@ export default function WorkspaceHomeLoading() {
 
           <div className="doc-list">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="doc border-l-0 pl-0">
-                <div className="doc-body">
+              <div
+                key={i}
+                className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] gap-2 sm:gap-3"
+              >
+                <div className="space-y-1 flex-1 min-w-0">
                   <div className="h-4 w-44 max-w-full rounded-md bg-[var(--surface)]" />
                   <div className="h-3 w-36 rounded bg-[var(--surface)] opacity-70" />
                 </div>

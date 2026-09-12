@@ -85,7 +85,7 @@ describe("WorkspaceShell", () => {
     expect(topbar).toHaveTextContent("홈 대시보드");
     expect(screen.getByRole("link", { name: /소스 추가/ })).toHaveAttribute(
       "href",
-      "/w/ws-1/sources",
+      "/w/ws-1/sources?upload=1",
     );
     expect(screen.getByRole("link", { name: /질문 시작/ })).toHaveAttribute(
       "href",

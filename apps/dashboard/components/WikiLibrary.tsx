@@ -44,6 +44,9 @@ export type WikiLibraryPage = {
   verification_status: string;
   disputed: boolean;
   expires_at?: string | null;
+  // wiki_page_publications 에 이 문서 id로 된 행이 있으면 발행된 것이다(1:1,
+  // 별도 테이블 — wiki_pages 자체에는 발행 여부 컬럼이 없다). null이면 미발행.
+  published_at?: string | null;
   // wiki_pages.sources jsonb. 길이가 인용 수다 — 조회수 컬럼은 스키마에 없다.
   sources?: unknown;
 };
@@ -146,6 +149,14 @@ export function WikiLibrary({
     text: string;
   } | null>(null);
   const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
 
   useEffect(() => {
     setMounted(true);
@@ -359,6 +370,19 @@ export function WikiLibrary({
         workspaceId,
         Array.from(selectedIds),
       );
+      // ⚠️ 새로고침 없이 카드 배지에 반영한다 — 안 그러면 발행이 성공해도
+      // 목록은 다음 새로고침 전까지 "미발행"으로 보여 방금 한 작업이
+      // 사라진 것처럼 느껴진다.
+      const publishedAtByPageId = new Map(
+        result.published_pages.map((p) => [p.wiki_page_id, p.published_at]),
+      );
+      setPages((prev) =>
+        prev.map((p) => {
+          const publishedAt = publishedAtByPageId.get(p.id);
+          if (!publishedAt) return p;
+          return { ...p, published_at: publishedAt };
+        }),
+      );
       setSelectedIds(new Set());
       if (result.published_count > 0) {
         setFeedback({
@@ -493,10 +517,15 @@ export function WikiLibrary({
 
       <section data-od-id="wiki-library-list">
         {isEmpty ? null : (
-          <div className="toolbar flex items-center justify-between gap-4">
-            {/* 카테고리 필터 */}
+          <div className="toolbar">
+            {/* 카테고리 필터. 원문 소스·지식 공백의 세그먼트 필터와 같은
+                h-9/rounded-lg 규격으로 맞춘다 — 공용 .chip(패딩 6px 10px,
+                11px, pill 모양)을 쓰면 옆의 .field.search(36px 고정)와
+                높이가 안 맞고 다른 화면의 필터와 크기도 달라 보인다.
+                칩은 줄바꿈한다. nowrap+overflow-x-auto 는 맵 칩을 검색창
+                뒤에 숨긴다. */}
             <div
-              className="chips flex items-center gap-1.5 flex-nowrap overflow-x-auto max-w-full pb-1 -mb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mb-0"
+              className="flex min-w-0 flex-wrap items-center gap-1"
               role="group"
               aria-label="카테고리 필터"
             >
@@ -504,7 +533,11 @@ export function WikiLibrary({
                 type="button"
                 aria-pressed={category === null}
                 aria-label={`전체 ${pages.length}`}
-                className="chip transition-colors flex-none whitespace-nowrap"
+                className={`nw-focus-ring box-border inline-flex h-9 flex-none cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                  category === null
+                    ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
+                }`}
                 onClick={() => applyCategoryFilter(null)}
               >
                 전체
@@ -518,7 +551,11 @@ export function WikiLibrary({
                   type="button"
                   aria-pressed={category === item}
                   aria-label={`${CATEGORY_LABELS[item]} ${categoryCounts[item]}`}
-                  className="chip transition-colors flex-none whitespace-nowrap"
+                  className={`nw-focus-ring box-border inline-flex h-9 flex-none cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-3 text-[12px] font-bold transition-colors ${
+                    category === item
+                      ? "border-[var(--accent)] bg-[var(--soft)] text-[var(--accent)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]"
+                  }`}
                   onClick={() =>
                     applyCategoryFilter(category === item ? null : item)
                   }
@@ -532,7 +569,7 @@ export function WikiLibrary({
             </div>
 
             {/* 검색창. / 키 포커스 단축키는 신설하지 않는다. */}
-            <div className="relative w-full sm:max-w-[280px] flex-none">
+            <div className="toolbar-search relative">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
@@ -677,6 +714,18 @@ export function WikiLibrary({
                             {verified && <CheckCircle2 size={10} />}
                             <span>{label}</span>
                           </span>
+                          {item.published_at && (
+                            <>
+                              <span
+                                className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"
+                                aria-hidden="true"
+                              />
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[var(--accent)]">
+                                <Globe size={10} aria-hidden="true" />
+                                <span>발행됨</span>
+                              </span>
+                            </>
+                          )}
                           {citations > 0 && (
                             <>
                               <span

@@ -89,9 +89,10 @@ describe("BacklogList", () => {
     const rows = screen.getAllByRole("row").slice(1); // 헤더 행 제외
     expect(within(rows[0]).getByText("캐시 계층 전략")).toBeInTheDocument();
 
-    // 인용 문서 링크
+    // 인용 문서 — 제목 하나와 잔여 개수만
     expect(screen.getByText("아키텍처 가이드")).toBeInTheDocument();
-    expect(screen.getByText("성능 튜닝")).toBeInTheDocument();
+    expect(screen.queryByText("성능 튜닝")).not.toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
 
     // 소스 추가 링크
     const addSourceLinks = screen.getAllByRole("link", { name: /소스 추가/ });
@@ -312,7 +313,7 @@ describe("BacklogList", () => {
     });
   });
 
-  it("인용 위키가 많아도 칩 2개와 잔여 개수만 렌더한다", () => {
+  it("인용 위키가 많아도 제목 하나와 잔여 개수만 렌더한다", () => {
     const items: BacklogItem[] = [
       {
         target_slug: "다중-인용-공백",
@@ -332,9 +333,9 @@ describe("BacklogList", () => {
 
     const table = within(screen.getByRole("table"));
     expect(table.getByText("위키 하나")).toBeInTheDocument();
-    expect(table.getByText("위키 둘")).toBeInTheDocument();
+    expect(table.queryByText("위키 둘")).not.toBeInTheDocument();
     expect(table.queryByText("위키 셋")).not.toBeInTheDocument();
-    expect(table.getByText("+2개 더")).toBeInTheDocument();
+    expect(table.getByText("+3")).toBeInTheDocument();
   });
 
   it("조회가 실패하면 빈 상태 문구 대신 불러오지 못했음을 알린다", () => {
@@ -351,7 +352,7 @@ describe("BacklogList", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("행 라벨은 서버가 복원한 원문 표기를 쓰고, 원본 slug는 보조 줄에 병기한다", () => {
+  it("행 라벨은 서버가 복원한 원문 표기를 쓰고, 원본 slug는 title에만 남긴다", () => {
     // add-backlog-topic-context: display_title은 인용 문서 본문의 [[표기]]에서
     // 복원한 값이라 target_slug의 하이픈 역변환과 다를 수 있다(대소문자·문장부호
     // 보존). 이 컴포넌트는 표기를 계산하지 않고 서버가 만든 값을 그대로 쓴다.
@@ -379,7 +380,12 @@ describe("BacklogList", () => {
     expect(
       within(screen.getByRole("table")).getByText("RLS 정책(v2)"),
     ).toBeInTheDocument();
-    expect(screen.getByText("rls-정책v2")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).queryByText("rls-정책v2"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /RLS 정책\(v2\)/ }),
+    ).toHaveAttribute("title", "rls-정책v2");
 
     // 소스 추가 동선도 slug가 아니라 표기를 prefill한다.
     const addSourceLink = screen.getByRole("link", { name: /소스 추가/ });
@@ -409,7 +415,9 @@ describe("BacklogList", () => {
     expect(
       within(screen.getByRole("table")).getByText("아직 못 찾은 주제"),
     ).toBeInTheDocument();
-    expect(screen.getByText("아직-못-찾은-주제")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).queryByText("아직-못-찾은-주제"),
+    ).not.toBeInTheDocument();
   });
 
   describe("상세 패널 (add-backlog-topic-context 2.1)", () => {

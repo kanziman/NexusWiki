@@ -102,7 +102,7 @@ describe("JobStepper", () => {
     render(<JobStepper workspaceId="ws-1" rawSourceId="src-1" />);
 
     expect(
-      await screen.findByText("처리가 완료되었습니다 · 5/5단계 완료"),
+      await screen.findByText("처리가 완료되었습니다"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(screen.queryByRole("button", { name: "재시도" })).toBeNull();

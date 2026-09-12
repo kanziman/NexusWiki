@@ -80,32 +80,33 @@ export function KnowledgeGrid({
     <div className="sections" data-od-id="knowledge-grid">
       {/* 1. 컴파일된 위키 문서 섹션 카드 */}
       <section
-        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5"
+        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-5 shadow-2xs flex flex-col gap-3.5 min-w-0"
         data-od-id="compiled-wiki-section"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-2">
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-1.5 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <BookOpen size={17} className="text-[var(--accent)] flex-none" />
-            <h2 className="text-sm sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
+            <h2 className="text-xs sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
               <span className="truncate">컴파일된 위키 문서</span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] flex-none">
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)] flex-none">
                 <span>{String(filteredPages.length).padStart(2, "0")}</span>
               </span>
             </h2>
           </div>
           <Link
             href={`${base}/wiki`}
-            className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none whitespace-nowrap"
+            aria-label="전체 보기"
+            className="text-xs font-bold text-[var(--accent)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none"
             data-od-id="view-all-documents"
           >
-            <span>전체 보기</span>
+            <span className="hidden sm:inline">전체 보기</span>
             <span aria-hidden="true">→</span>
           </Link>
         </div>
 
         <div className="flex flex-col gap-2">
           {filteredPages.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--muted)] border border-dashed border-[var(--border)] rounded-lg">
+            <div className="py-8 text-center text-xs sm:text-sm text-[var(--muted)] border border-dashed border-[var(--border)] rounded-lg">
               {activeCategory
                 ? `선택한 카테고리(${CATEGORY_LABELS[activeCategory] ?? activeCategory})에 해당하는 문서가 없습니다.`
                 : "컴파일된 위키 문서가 아직 없습니다."}
@@ -130,32 +131,32 @@ export function KnowledgeGrid({
                 <Link
                   key={page.id}
                   href={`${base}/wiki/${page.slug}`}
-                  className="group flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all"
+                  className="group flex items-center justify-between p-2.5 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all min-w-0"
                   data-od-id={`wiki-document-${page.slug}`}
                 >
                   <div className="flex-1 min-w-0 pr-3">
-                    <div className="flex items-center gap-1.5 mb-1 leading-none flex-wrap">
-                      <span className="text-[10.5px] font-bold tracking-wider uppercase text-[var(--accent)]">
+                    <div className="flex items-center gap-1.5 mb-1 leading-none min-w-0 overflow-hidden">
+                      <span className="text-[9.5px] sm:text-[10.5px] font-bold tracking-wider uppercase text-[var(--accent)] flex-none">
                         {catLabel}
                       </span>
-                      <span className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"></span>
+                      <span className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40 flex-none"></span>
                       <span
-                        className={`inline-flex items-center gap-1 text-[10.5px] font-semibold ${verificationToneClass(page)}`}
+                        className={`inline-flex items-center gap-1 text-[9.5px] sm:text-[10.5px] font-semibold flex-none ${verificationToneClass(page)}`}
                       >
                         {verified && <CheckCircle2 size={10} />}
                         <span>{verificationLabel(page)}</span>
                       </span>
                       {citations > 0 && (
                         <>
-                          <span className="w-1 h-1 rounded-full bg-[var(--muted)] opacity-40"></span>
-                          <span className="inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)]">
+                          <span className="hidden sm:block w-1 h-1 rounded-full bg-[var(--muted)] opacity-40 flex-none"></span>
+                          <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] font-mono text-[var(--muted)] min-w-0">
                             <Link2 size={9} />
                             <span>인용 원문 {citations}개</span>
                           </span>
                         </>
                       )}
                     </div>
-                    <span className="text-[14.5px] sm:text-[15px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
+                    <span className="text-[13px] sm:text-[15px] font-bold text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors block truncate">
                       {page.title}
                     </span>
                   </div>
@@ -173,38 +174,39 @@ export function KnowledgeGrid({
 
       {/* 2. 작성 대기 백로그 섹션 카드 */}
       <section
-        className="backlog rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5"
+        className="backlog rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-5 shadow-2xs flex flex-col gap-3.5 min-w-0"
         data-od-id="writing-backlog-section"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-2">
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]/80 gap-1.5 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <CircleAlert
               size={17}
               className="text-[var(--warning)] flex-none"
             />
-            <h2 className="text-sm sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
-              <span className="whitespace-nowrap">지식 공백</span>
+            <h2 className="text-xs sm:text-base font-extrabold text-[var(--fg)] tracking-tight flex items-center gap-1.5 sm:gap-2 m-0 min-w-0">
+              <span className="truncate">지식 공백</span>
               <span className="hidden xl:inline text-xs font-normal text-[var(--muted)] whitespace-nowrap">
                 (작성 대기 백로그)
               </span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25 flex-none">
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/25 flex-none">
                 <span>{String(backlogItems.length).padStart(2, "0")}</span>
               </span>
             </h2>
           </div>
           <Link
             href={`${base}/backlog`}
-            className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none whitespace-nowrap"
+            aria-label="전체 보기"
+            className="text-xs font-bold text-[var(--warning)] hover:opacity-80 flex items-center gap-1 transition-opacity flex-none"
             data-od-id="view-all-backlog"
           >
-            <span>전체 보기</span>
+            <span className="hidden sm:inline">전체 보기</span>
             <span aria-hidden="true">→</span>
           </Link>
         </div>
 
         <div className="flex flex-col gap-2">
           {backlogItems.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--muted)] border border-dashed border-[var(--border)] rounded-lg">
+            <div className="py-8 text-center text-xs sm:text-sm text-[var(--muted)] border border-dashed border-[var(--border)] rounded-lg">
               작성 대기 중인 백로그가 없습니다.
             </div>
           ) : (
@@ -223,7 +225,7 @@ export function KnowledgeGrid({
               return (
                 <div
                   key={item.target_slug}
-                  className="flex items-center justify-between p-3 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all gap-2 sm:gap-3"
+                  className="flex items-center justify-between p-2.5 sm:p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-2xs transition-all gap-2 sm:gap-3 min-w-0"
                   data-od-id={`backlog-${item.target_slug}`}
                 >
                   <button
@@ -232,19 +234,20 @@ export function KnowledgeGrid({
                     className="flex-1 min-w-0 bg-transparent p-0 text-left cursor-pointer border-none"
                     aria-haspopup="dialog"
                   >
-                    <span className="text-[13.5px] sm:text-[14px] font-bold font-mono text-[var(--fg)] hover:text-[var(--accent)] transition-colors block truncate">
+                    <span className="text-xs sm:text-[14px] font-bold font-mono text-[var(--fg)] hover:text-[var(--accent)] transition-colors block truncate">
                       {displayTitle}
                     </span>
-                    <span className="text-xs text-[var(--muted)] mt-0.5 block truncate">
+                    <span className="text-[11px] sm:text-xs text-[var(--muted)] mt-0.5 block truncate">
                       위키 {count}곳에서 인용됨 · 원문 소스 연결 필요
                     </span>
                   </button>
                   <Link
                     href={`${base}/sources?prefillTitle=${encodeURIComponent(displayTitle)}&tab=text`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)] hover:text-[var(--accent)] transition-all flex-none shrink-0 whitespace-nowrap shadow-2xs"
+                    aria-label="소스 추가"
+                    className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] sm:text-xs font-semibold text-[var(--fg)] hover:border-[var(--accent)] hover:bg-[var(--soft)] hover:text-[var(--accent)] transition-all flex-none shrink-0 shadow-2xs"
                   >
                     <Plus size={12} aria-hidden="true" />
-                    <span>소스 추가</span>
+                    <span className="hidden sm:inline">소스 추가</span>
                   </Link>
                 </div>
               );
@@ -254,24 +257,25 @@ export function KnowledgeGrid({
 
         {/* 하단 원문 연결 콜아웃 카드 */}
         <div
-          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 mt-1.5 flex items-center justify-between gap-3"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 mt-1.5 flex items-center justify-between gap-2 min-w-0"
           data-od-id="source-connection-callout"
         >
           <div className="min-w-0 flex-1">
-            <b className="text-xs font-bold text-[var(--fg)] block">
+            <b className="text-[11px] sm:text-xs font-bold text-[var(--fg)] block truncate">
               새 원문으로 지식 업데이트
             </b>
-            <span className="text-[11px] text-[var(--muted)] block truncate">
+            <span className="text-[10px] sm:text-[11px] text-[var(--muted)] block truncate">
               문서, 링크 또는 저장소 파일을 연결할 수 있습니다.
             </span>
           </div>
           <Link
             href={`${base}/sources`}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-all flex-none shadow-xs"
+            aria-label="소스 연결"
+            className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md bg-[var(--accent)] text-white text-[11px] sm:text-xs font-bold hover:opacity-90 transition-all flex-none shadow-xs"
             id="openSourceInline"
           >
             <Plus size={12} aria-hidden="true" />
-            <span>소스 연결</span>
+            <span className="hidden sm:inline">소스 연결</span>
           </Link>
         </div>
       </section>

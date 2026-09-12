@@ -491,16 +491,6 @@ export function YoutubeVideoList({
                           </>
                         ) : null}
                       </p>
-                      {/* ⚠️ has_captions는 확정 판정이 아니라 힌트다 — 배지가 없어도
-                          선택은 계속 가능하다(design.md Non-Goals). */}
-                      {video.has_captions === false ? (
-                        <span
-                          className="mt-1 inline-flex items-center gap-1 rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[10.5px] font-semibold text-[var(--warning)]"
-                          data-testid={`youtube-video-no-captions-${video.video_id}`}
-                        >
-                          자막 없을 수 있음
-                        </span>
-                      ) : null}
                     </div>
                     {result ? (
                       <span

@@ -289,7 +289,9 @@ export function JobStepper({ workspaceId, rawSourceId }: JobStepperProps) {
           title={primaryFailure?.message}
         >
           <i className="dot" aria-hidden="true" />
-          {statusText} · {progressValue}/5단계 완료
+          {allSucceeded
+            ? statusText
+            : `${statusText} · ${progressValue}/5단계 완료`}
         </span>
         {currentJob ? (
           <button

@@ -9,7 +9,7 @@ type PublicLandingHeaderProps = {
 };
 
 const sectionLinks = [
-  { href: "#showcase", label: "라이브 쇼케이스" },
+  { href: "#showcase", label: "공개 위키" },
   { href: "#how-it-works", label: "동작 원리" },
   { href: "#usecases", label: "활용 사례" },
   { href: "#faq", label: "FAQ" },
