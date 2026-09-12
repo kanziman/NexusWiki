@@ -59,10 +59,14 @@ function messageFor(error: unknown): string {
   return GENERIC_MESSAGE;
 }
 
-type SearchOrder = "relevance" | "videoCount" | "viewCount";
+type SearchOrder =
+  "relevance" | "date" | "rating" | "title" | "videoCount" | "viewCount";
 
 const ORDER_OPTIONS: { value: SearchOrder; label: string }[] = [
   { value: "relevance", label: "관련도순" },
+  { value: "date", label: "최신순" },
+  { value: "rating", label: "평점 높은 순" },
+  { value: "title", label: "제목순" },
   { value: "videoCount", label: "영상 많은 순" },
   { value: "viewCount", label: "조회수 많은 순" },
 ];
@@ -74,12 +78,39 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "ko", label: "한국어" },
   { value: "en", label: "영어" },
   { value: "ja", label: "일본어" },
+  { value: "zh", label: "중국어" },
+  { value: "es", label: "스페인어" },
+  { value: "fr", label: "프랑스어" },
+  { value: "de", label: "독일어" },
+  { value: "pt", label: "포르투갈어" },
+  { value: "ru", label: "러시아어" },
+  { value: "vi", label: "베트남어" },
+  { value: "th", label: "태국어" },
+  { value: "id", label: "인도네시아어" },
+  { value: "hi", label: "힌디어" },
 ];
 
 const REGION_OPTIONS: { value: string; label: string }[] = [
   { value: "KR", label: "대한민국" },
   { value: "US", label: "미국" },
   { value: "JP", label: "일본" },
+  { value: "GB", label: "영국" },
+  { value: "DE", label: "독일" },
+  { value: "FR", label: "프랑스" },
+  { value: "IN", label: "인도" },
+  { value: "BR", label: "브라질" },
+  { value: "CA", label: "캐나다" },
+  { value: "AU", label: "호주" },
+  { value: "ES", label: "스페인" },
+  { value: "IT", label: "이탈리아" },
+  { value: "MX", label: "멕시코" },
+  { value: "ID", label: "인도네시아" },
+  { value: "VN", label: "베트남" },
+  { value: "TH", label: "태국" },
+  { value: "TW", label: "대만" },
+  { value: "SG", label: "싱가포르" },
+  { value: "RU", label: "러시아" },
+  { value: "CN", label: "중국" },
 ];
 
 export function YoutubeChannelSearch({

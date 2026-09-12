@@ -114,7 +114,7 @@ class YoutubeSearchRequest(BaseModel):
     query: str
     region_code: str = "KR"
     page_token: str | None = None
-    order: Literal["relevance", "videoCount", "viewCount"] = "relevance"
+    order: Literal["relevance", "date", "rating", "title", "videoCount", "viewCount"] = "relevance"
     relevance_language: str | None = None
 
 
