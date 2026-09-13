@@ -985,8 +985,10 @@ textarea:focus-visible {
 .scope-menu.open { display: grid; gap: 2px }
 
 .scope-option {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 9px;
   border: 0;
   border-radius: 6px;
@@ -997,17 +999,29 @@ textarea:focus-visible {
 }
 
 .scope-option:hover { background: var(--surface) }
-.scope-option b { font-size: 12px }
-.scope-option span { color: var(--muted); font-size: 11px }
+.scope-option.is-selected { background: var(--soft) }
+.scope-option.is-selected b { color: var(--accent) }
+.scope-option-copy { display: grid; gap: 2px; min-width: 0 }
+.scope-option-copy b { font-size: 12px }
+.scope-option-copy span { color: var(--muted); font-size: 11px }
+.scope-option-check { color: var(--accent); flex: none }
+
+/* 데스크톱은 트리거 위 팝오버라 스크림이 필요 없다. 모바일 하단 시트만
+   배경을 가려 시트를 현재 레이어로 읽히게 한다. */
+.scope-menu-backdrop,
+.scope-menu-handle,
+.scope-menu-head {
+  display: none;
+}
 
 .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px }
 
 /* 문서 목록 2열 — 데스크톱은 위키 쪽이 더 넓은 비대칭(약 6:4). 대칭 1:1 이면
    주력 문서와 보조 백로그가 같은 무게로 읽혀 시선이 흩어진다.
-   좁은 화면은 1열 스택이 아니라 50:50 을 유지한다. 그리드 아이템 기본
-   min-width:auto 가 nowrap 헤더·CTA 의 min-content 로 트랙을 밀어 페이지
-   가로 스크롤이 생긴다. minmax(0,1fr) 두 칸과 아래 자식 min-width:0 이
-   그 확장을 막는다. */
+   태블릿(641–980px)은 50:50 을 유지한다. 그리드 아이템 기본 min-width:auto 가
+   nowrap 헤더·CTA 의 min-content 로 트랙을 밀어 페이지 가로 스크롤이 생긴다.
+   minmax(0,1fr) 두 칸과 아래 자식 min-width:0 이 그 확장을 막는다.
+   모바일(≤640px)은 카드가 반으로 쪼개져 제목이 잘리므로 1열로 쌓는다. */
 .sections {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -1184,8 +1198,69 @@ textarea:focus-visible {
   .ask-bottom { display: grid; grid-template-columns: 1fr; gap: 9px; align-items: stretch }
   .scope-wrap, .scope { width: 100% }
   .scope { min-height: 44px; max-width: none; justify-content: flex-start }
-  .scope-menu { position: fixed; left: 16px; right: 16px; bottom: 16px; width: auto }
-  .scope-option { padding: 12px }
+  /* 메뉴가 열렸을 때만 스크림을 그린다. display:block 을 기본으로 두면
+     프로토타입처럼 백드롭이 DOM에 상주하는 화면에서 배경이 항상 흐려진다. */
+  .scope-wrap:has(.scope-menu.open) .scope-menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    border: 0;
+    padding: 0;
+    background: var(--scrim);
+    backdrop-filter: blur(12px) saturate(118%);
+    -webkit-backdrop-filter: blur(12px) saturate(118%);
+    animation: scope-backdrop-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .scope-menu {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    z-index: 51;
+    padding: 6px 8px 10px;
+    border-radius: 14px;
+    box-shadow: var(--shadow-modal);
+    animation: scope-sheet-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .scope-menu-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 4px auto 6px;
+    border-radius: 999px;
+    background: var(--border-strong);
+  }
+  .scope-menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 4px 10px;
+  }
+  .scope-menu-head > span {
+    font: 800 13px var(--font-display);
+    letter-spacing: -0.2px;
+    color: var(--fg);
+  }
+  .scope-menu-close {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -8px -4px -8px 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .scope-menu-close:hover {
+    background: var(--surface);
+    color: var(--fg);
+  }
+  .scope-option { padding: 12px; min-height: 44px; border-radius: 8px }
   .chips {
     display: flex;
     flex-wrap: nowrap;
@@ -1204,13 +1279,42 @@ textarea:focus-visible {
     min-height: 32px;
     white-space: nowrap;
   }
-  .sections { margin-top: 34px; gap: 10px }
+  .sections {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 28px;
+    gap: 16px;
+  }
   .section-head { padding-bottom: 9px }
   .doc { padding: 14px 2px; gap: 8px }
   .doc:hover { padding-left: 2px; padding-right: 2px }
   .doc-title { font-size: 12px }
   .doc-meta { font-size: 10px; line-height: 1.5 }
   .source-line { padding: 14px; align-items: flex-start }
+}
+
+@keyframes scope-backdrop-in {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+
+@keyframes scope-sheet-in {
+  from { opacity: 0; transform: translateY(14px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scope-menu-backdrop,
+  .scope-menu {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .scope-menu-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: oklch(.208 .033 264 / .52);
+  }
 }
 
 /* -----------------------------------------------------------------------------
@@ -2432,6 +2536,7 @@ textarea:focus-visible {
   display: grid;
   grid-template-columns: minmax(420px, 1fr) 6px minmax(360px, 42%);
   height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -2940,7 +3045,17 @@ textarea:focus-visible {
      의미 없는 어포던스가 된다. */
   .ask-layout { display: block; height: auto }
   .ask-splitter { display: none }
-  .conversation { min-height: calc(100vh - 58px); overflow: visible }
+  /* 100vh 는 사파리 툴바 뒤까지 포함한다. 빈 대화에서 입력창이 툴바에
+     가려지므로 보이는 높이(dvh)에서 상단바만 뺀다. */
+  .conversation {
+    min-height: calc(100dvh - var(--topbar-h));
+    overflow: visible;
+  }
+  .conversation-main {
+    height: auto;
+    min-height: calc(100dvh - var(--topbar-h));
+    overflow: visible;
+  }
   .conversation-head { padding: 16px 16px 0 }
   .thread { padding: 22px 16px; gap: 17px }
   .inspect { min-height: 560px; border-left: 0; border-top: 1px solid var(--border) }
@@ -2951,8 +3066,14 @@ textarea:focus-visible {
   .answer p, .rules { font-size: 12px }
   .user { font-size: 13px }
   /* 사이드바가 서랍으로 바뀌어 나란히 놓이는 구분선이 없다 — 높이 고정을 풀고
-     내용에 맡긴다. */
-  .composer { position: sticky; bottom: 0; height: auto; padding: 11px 12px 16px; background: var(--bg) }
+     내용에 맡긴다. 하단 패딩은 홈 인디케이터·사파리 툴바 위에 입력창을 둔다. */
+  .composer {
+    position: sticky;
+    bottom: 0;
+    height: auto;
+    padding: 11px 12px max(16px, env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+  }
 }
 
 /* -----------------------------------------------------------------------------
@@ -3690,7 +3811,8 @@ button.topic:hover b { color: var(--accent) }
 
 @media (max-width: 640px) {
   .content.library { padding: 25px 14px }
-  .content.library.has-floating-bulk { padding-bottom: 120px }
+  /* 모바일 플로팅 바는 선택 줄 + 버튼 두 줄이라 120px 로는 마지막 카드가 가려진다. */
+  .content.library.has-floating-bulk { padding-bottom: 180px }
   .content.library .chips {
     display: flex;
     flex-wrap: wrap;

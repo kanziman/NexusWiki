@@ -87,7 +87,7 @@
 .map .n5{left:18%;top:73%}
 .mobile{display:none}
 @media(max-width:900px){.app{grid-template-columns:minmax(0,1fr) minmax(330px,43%)}.sidebar,.split{display:none}.thread{padding:26px 22px}.topbar{padding:0 18px}.mobile{display:inline-grid;place-items:center;width:34px;height:34px;border:1px solid var(--border);border-radius:7px;background:var(--bg);font-size:10px;font-weight:800}.actions .button:first-child{display:none}.inspect-head{padding:13px 12px 0}.inspect-body{padding:12px}}
-@media(max-width:650px){.app{display:block;height:auto;overflow:visible}.conversation{min-height:100vh}.inspect{min-height:560px}.thread{padding:22px 16px;gap:17px}.topbar{height:58px;padding:0 12px}.crumb{font-size:10px}.actions .button{display:none}.actions .mobile{display:grid}.answer{padding:15px;border-radius:11px}.answer h1{font-size:17px}.answer p,.rules{font-size:12px}.user{font-size:13px}.composer{padding:11px 12px 16px;position:sticky;bottom:0;background:var(--bg)}.inspect-head{padding:16px 16px 0}.inspect-body{padding:16px}.cite{display:inline-block;margin:2px 1px}}
+@media(max-width:650px){.app{display:block;height:auto;overflow:visible}.conversation{min-height:calc(100dvh - var(--topbar-h,58px))}.inspect{min-height:560px}.thread{padding:22px 16px;gap:17px}.topbar{height:58px;padding:0 12px}.crumb{font-size:10px}.actions .button{display:none}.actions .mobile{display:grid}.answer{padding:15px;border-radius:11px}.answer h1{font-size:17px}.answer p,.rules{font-size:12px}.user{font-size:13px}.composer{padding:11px 12px max(16px,env(safe-area-inset-bottom,0px));position:sticky;bottom:0;background:var(--bg)}.inspect-head{padding:16px 16px 0}.inspect-body{padding:16px}.cite{display:inline-block;margin:2px 1px}}
 </style>
 </head>
 <body>

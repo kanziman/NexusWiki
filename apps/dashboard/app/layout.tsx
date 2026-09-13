@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
@@ -48,6 +48,14 @@ const pretendard = localFont({
 export const metadata: Metadata = {
   title: "NexusWiki",
   description: "출처까지 추적할 수 있는 살아 있는 위키",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // 없으면 env(safe-area-inset-*) 가 0 이라, 하단 고정 UI가
+  // 아이폰 홈 인디케이터·사파리 툴바에 가린다.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

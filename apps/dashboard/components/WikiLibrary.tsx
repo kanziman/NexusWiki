@@ -833,19 +833,19 @@ export function WikiLibrary({
         (() => {
           const floatingBar = (
             <div
-              className="bulk-floating-bar flex items-center justify-between sm:justify-start gap-2 sm:gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-md px-3.5 py-2.5 sm:px-5 sm:py-3 shadow-2xl"
+              className="bulk-floating-bar flex flex-col sm:flex-row sm:items-center sm:justify-start gap-2 sm:gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-md px-3.5 py-2.5 sm:px-5 sm:py-3 shadow-2xl"
               data-testid="bulk-action-bar"
               role="toolbar"
               aria-label="선택한 문서 일괄 작업"
             >
-              <div className="flex items-center gap-2 flex-none min-w-0">
+              <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0 w-full sm:w-auto">
                 <span className="text-xs font-bold text-[var(--fg)] whitespace-nowrap">
                   {selectedIds.size}개 문서 선택됨
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedIds(new Set())}
-                  className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer whitespace-nowrap"
+                  className="text-xs text-[var(--muted)] hover:text-[var(--fg)] underline cursor-pointer whitespace-nowrap min-h-11 sm:min-h-0 inline-flex items-center"
                 >
                   선택 해제
                 </button>
@@ -856,12 +856,12 @@ export function WikiLibrary({
                 aria-hidden="true"
               />
 
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-none">
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleBulkVerify}
                   disabled={bulkLoading !== null}
-                  className="nw-focus-ring inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good)]/12 px-2.5 py-1.5 text-[11.5px] sm:text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50 whitespace-nowrap flex-none shrink-0"
+                  className="nw-focus-ring inline-flex flex-1 sm:flex-none items-center justify-center gap-1 sm:gap-1.5 rounded-lg border border-[var(--good)]/40 bg-[var(--good)]/12 px-2.5 py-1.5 min-h-11 sm:min-h-0 text-[11.5px] sm:text-xs font-semibold text-[var(--good)] hover:bg-[var(--good)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50"
                   data-testid="bulk-verify-btn"
                 >
                   {bulkLoading === "verify" ? (
@@ -875,7 +875,7 @@ export function WikiLibrary({
                   type="button"
                   onClick={handleBulkPublish}
                   disabled={bulkLoading !== null}
-                  className="nw-focus-ring inline-flex items-center gap-1 sm:gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--soft)] px-2.5 py-1.5 text-[11.5px] sm:text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50 whitespace-nowrap flex-none shrink-0"
+                  className="nw-focus-ring inline-flex flex-1 sm:flex-none items-center justify-center gap-1 sm:gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--soft)] px-2.5 py-1.5 min-h-11 sm:min-h-0 text-[11.5px] sm:text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--bg)] transition-all cursor-pointer shadow-2xs disabled:opacity-50"
                   data-testid="bulk-publish-btn"
                 >
                   {bulkLoading === "publish" ? (

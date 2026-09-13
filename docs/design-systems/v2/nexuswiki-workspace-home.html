@@ -45,10 +45,13 @@
 .scope-dot{width:6px;height:6px;border-radius:50%;background:var(--fg)}
 .scope-menu{display:none;position:absolute;left:0;bottom:calc(100% + 8px);z-index:4;width:260px;padding:5px;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
 .scope-menu.open{display:grid;gap:2px}
-.scope-option{border:0;background:transparent;color:var(--fg);border-radius:6px;text-align:left;padding:9px;display:grid;gap:2px}
+.scope-menu-backdrop,.scope-menu-handle,.scope-menu-head{display:none}
+.scope-option{border:0;background:transparent;color:var(--fg);border-radius:6px;text-align:left;padding:9px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .scope-option:hover{background:var(--surface)}
-.scope-option b{font-size:12px}
-.scope-option span{color:var(--muted);font-size:11px}
+.scope-option.is-selected{background:var(--soft)}
+.scope-option-copy{display:grid;gap:2px;min-width:0}
+.scope-option-copy b{font-size:12px}
+.scope-option-copy span{color:var(--muted);font-size:11px}
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
 
 /* 문서 목록 2열 */
@@ -108,8 +111,13 @@
   .ask-bottom{display:grid;grid-template-columns:1fr;gap:9px;align-items:stretch}
   .scope-wrap,.scope{width:100%}
   .scope{min-height:44px;max-width:none;justify-content:flex-start}
-  .scope-menu{position:fixed;left:16px;right:16px;bottom:16px;width:auto}
-  .scope-option{padding:12px}
+  .scope-wrap:has(.scope-menu.open) .scope-menu-backdrop{display:block;position:fixed;inset:0;z-index:50;background:var(--scrim);backdrop-filter:blur(12px) saturate(118%);-webkit-backdrop-filter:blur(12px) saturate(118%)}
+  .scope-menu{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));width:auto;z-index:51;padding:6px 8px 10px;border-radius:14px;box-shadow:var(--shadow-modal)}
+  .scope-menu-handle{display:block;width:36px;height:4px;margin:4px auto 6px;border-radius:999px;background:var(--border-strong)}
+  .scope-menu-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 10px}
+  .scope-menu-head>span{font:800 13px var(--font-display);letter-spacing:-.2px;color:var(--fg)}
+  .scope-menu-close{display:grid;place-items:center;width:44px;height:44px;margin:-8px -4px -8px 0;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+  .scope-option{padding:12px;min-height:44px}
   .chips{display:grid;grid-template-columns:1fr;margin-top:11px}
   .chip{text-align:left;padding:9px 11px;min-height:44px}
   .sections{margin-top:34px;gap:30px}
@@ -187,11 +195,14 @@
         </div>
         <div class="ask-bottom">
           <div class="scope-wrap">
-            <button class="scope" id="scopeTrigger" data-od-id="search-scope-control"><i class="scope-dot"></i><span id="scopeText">워크스페이스 전체</span>⌄</button>
+            <button class="scope" id="scopeTrigger" data-od-id="search-scope-control" aria-haspopup="menu" aria-controls="scopeMenu"><i class="scope-dot"></i><span id="scopeText">워크스페이스 전체</span>⌄</button>
+            <div class="scope-menu-backdrop" id="scopeBackdrop" hidden></div>
             <div class="scope-menu" id="scopeMenu" role="menu">
-              <button class="scope-option" data-scope="워크스페이스 전체"><b>워크스페이스 전체</b><span>모든 팀 지식에서 검색</span></button>
-              <button class="scope-option" data-scope="개념 카테고리"><b>개념 카테고리</b><span>선택한 카테고리 문서로 한정</span></button>
-              <button class="scope-option" data-scope="현재 문서 주변"><b>현재 문서 주변</b><span>이 문서와 링크로 이어진 문서만</span></button>
+              <div class="scope-menu-handle" aria-hidden="true"></div>
+              <div class="scope-menu-head"><span>검색 범위</span><button type="button" class="scope-menu-close" id="scopeClose" aria-label="닫기">×</button></div>
+              <button class="scope-option is-selected" data-scope="워크스페이스 전체"><span class="scope-option-copy"><b>워크스페이스 전체</b><span>모든 팀 지식에서 검색</span></span></button>
+              <button class="scope-option" data-scope="개념 카테고리"><span class="scope-option-copy"><b>개념 카테고리</b><span>선택한 카테고리 문서로 한정</span></span></button>
+              <button class="scope-option" data-scope="현재 문서 주변"><span class="scope-option-copy"><b>현재 문서 주변</b><span>이 문서와 링크로 이어진 문서만</span></span></button>
             </div>
           </div>
           <button class="button primary" id="submitQuestion" data-od-id="submit-question-button">질문하기 <span>↗</span></button>
@@ -245,10 +256,15 @@ askTop.addEventListener("click",focusQuestion);
 submit.addEventListener("click",()=>{if(!question.value.trim()){focusQuestion();return} submit.textContent="질문 준비됨";setTimeout(()=>submit.innerHTML="질문하기 <span>↗</span>",1400)});
 document.querySelectorAll(".chip").forEach(chip=>chip.addEventListener("click",()=>{question.value=chip.textContent;focusQuestion()}));
 
-const scopeTrigger=$("#scopeTrigger"),scopeMenu=$("#scopeMenu");
-scopeTrigger.addEventListener("click",e=>{e.stopPropagation();scopeMenu.classList.toggle("open")});
-document.querySelectorAll(".scope-option").forEach(option=>option.addEventListener("click",()=>{$("#scopeText").textContent=option.dataset.scope;scopeMenu.classList.remove("open")}));
-document.addEventListener("click",()=>scopeMenu.classList.remove("open"));
+const scopeTrigger=$("#scopeTrigger"),scopeMenu=$("#scopeMenu"),scopeBackdrop=$("#scopeBackdrop");
+function closeScopeMenu(){scopeMenu.classList.remove("open");scopeBackdrop.hidden=true;scopeTrigger.setAttribute("aria-expanded","false")}
+function openScopeMenu(){scopeMenu.classList.add("open");scopeBackdrop.hidden=false;scopeTrigger.setAttribute("aria-expanded","true")}
+scopeTrigger.addEventListener("click",e=>{e.stopPropagation();scopeMenu.classList.contains("open")?closeScopeMenu():openScopeMenu()});
+scopeBackdrop.addEventListener("click",closeScopeMenu);
+$("#scopeClose").addEventListener("click",closeScopeMenu);
+document.querySelectorAll(".scope-option").forEach(option=>option.addEventListener("click",()=>{$("#scopeText").textContent=option.dataset.scope;document.querySelectorAll(".scope-option").forEach(el=>el.classList.toggle("is-selected",el===option));closeScopeMenu()}));
+document.addEventListener("click",e=>{if(!e.target.closest(".scope-wrap"))closeScopeMenu()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeScopeMenu()});
 
 
 $("#favorite").addEventListener("click",e=>{e.currentTarget.classList.toggle("is-on");e.currentTarget.setAttribute("aria-label",e.currentTarget.classList.contains("is-on")?"즐겨찾기에서 제거":"즐겨찾기에 추가")});

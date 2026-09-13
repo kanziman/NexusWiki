@@ -94,6 +94,32 @@ describe("AskHero", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("Escape와 닫기 버튼으로 검색 범위 메뉴를 닫는다", () => {
+    render(<AskHero workspaceId="ws-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /워크스페이스 전체/ }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(document.querySelector(".scope-menu-backdrop")).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /워크스페이스 전체/ }),
+    ).toHaveClass("is-selected");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /워크스페이스 전체/ }));
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("검색 범위 스크림을 누르면 메뉴가 닫힌다", () => {
+    render(<AskHero workspaceId="ws-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /워크스페이스 전체/ }));
+    fireEvent.click(document.querySelector(".scope-menu-backdrop")!);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
   it("⌘/Ctrl + Enter 로 질문을 제출한다", () => {
     mockPush.mockClear();
     render(<AskHero workspaceId="ws-1" />);
