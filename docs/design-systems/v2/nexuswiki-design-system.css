@@ -936,82 +936,14 @@ textarea:focus-visible {
 
 .ask-bottom {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: stretch;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
-/* 검색 범위 선택 */
-.scope-wrap { position: relative }
-
-.scope {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-  color: var(--fg);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  user-select: none;
-}
-
-.scope:hover { background: var(--bg) }
-.scope-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg) }
-
-/* 기본 display:none 은 프로토타입이 .open 토글로 여닫기 때문이다. 앱은
-   조건부 렌더링이라 열릴 때만 DOM에 있지만, 그때 .open 을 함께 붙인다 —
-   프로토타입과 클래스 계약을 어긋나게 두면 프로토타입 쪽 수정이 앱에
-   반영되지 않는다. */
-.scope-menu {
-  display: none;
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 8px);
-  z-index: 50;
-  width: 260px;
-  padding: 5px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  box-shadow: var(--shadow);
-}
-
-.scope-menu.open { display: grid; gap: 2px }
-
-.scope-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--fg);
-  text-align: left;
-  cursor: pointer;
-}
-
-.scope-option:hover { background: var(--surface) }
-.scope-option.is-selected { background: var(--soft) }
-.scope-option.is-selected b { color: var(--accent) }
-.scope-option-copy { display: grid; gap: 2px; min-width: 0 }
-.scope-option-copy b { font-size: 12px }
-.scope-option-copy span { color: var(--muted); font-size: 11px }
-.scope-option-check { color: var(--accent); flex: none }
-
-/* 데스크톱은 트리거 위 팝오버라 스크림이 필요 없다. 모바일 하단 시트만
-   배경을 가려 시트를 현재 레이어로 읽히게 한다. */
-.scope-menu-backdrop,
-.scope-menu-handle,
-.scope-menu-head {
-  display: none;
+.ask-bottom .button.primary {
+  width: 100%;
+  justify-content: center;
 }
 
 .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px }
@@ -1150,9 +1082,6 @@ textarea:focus-visible {
   .sections { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px }
   .context { display: block }
   .context p { max-width: 42rem }
-  .ask-bottom { align-items: flex-end }
-  .scope { max-width: 190px; text-align: left }
-  .scope #scopeText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
   .doc-title, .doc-meta { white-space: normal }
 }
 
@@ -1195,72 +1124,6 @@ textarea:focus-visible {
   .ask { padding: 15px 14px 13px; border-radius: 14px }
   .ask-main svg { display: none }
   .ask textarea { min-height: 78px; font-size: 15px }
-  .ask-bottom { display: grid; grid-template-columns: 1fr; gap: 9px; align-items: stretch }
-  .scope-wrap, .scope { width: 100% }
-  .scope { min-height: 44px; max-width: none; justify-content: flex-start }
-  /* 메뉴가 열렸을 때만 스크림을 그린다. display:block 을 기본으로 두면
-     프로토타입처럼 백드롭이 DOM에 상주하는 화면에서 배경이 항상 흐려진다. */
-  .scope-wrap:has(.scope-menu.open) .scope-menu-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    border: 0;
-    padding: 0;
-    background: var(--scrim);
-    backdrop-filter: blur(12px) saturate(118%);
-    -webkit-backdrop-filter: blur(12px) saturate(118%);
-    animation: scope-backdrop-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .scope-menu {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    width: auto;
-    z-index: 51;
-    padding: 6px 8px 10px;
-    border-radius: 14px;
-    box-shadow: var(--shadow-modal);
-    animation: scope-sheet-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .scope-menu-handle {
-    display: block;
-    width: 36px;
-    height: 4px;
-    margin: 4px auto 6px;
-    border-radius: 999px;
-    background: var(--border-strong);
-  }
-  .scope-menu-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 2px 4px 10px;
-  }
-  .scope-menu-head > span {
-    font: 800 13px var(--font-display);
-    letter-spacing: -0.2px;
-    color: var(--fg);
-  }
-  .scope-menu-close {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    margin: -8px -4px -8px 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .scope-menu-close:hover {
-    background: var(--surface);
-    color: var(--fg);
-  }
-  .scope-option { padding: 12px; min-height: 44px; border-radius: 8px }
   .chips {
     display: flex;
     flex-wrap: nowrap;
@@ -1290,31 +1153,6 @@ textarea:focus-visible {
   .doc-title { font-size: 12px }
   .doc-meta { font-size: 10px; line-height: 1.5 }
   .source-line { padding: 14px; align-items: flex-start }
-}
-
-@keyframes scope-backdrop-in {
-  from { opacity: 0 }
-  to { opacity: 1 }
-}
-
-@keyframes scope-sheet-in {
-  from { opacity: 0; transform: translateY(14px) }
-  to { opacity: 1; transform: translateY(0) }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scope-menu-backdrop,
-  .scope-menu {
-    animation: none;
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .scope-menu-backdrop {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background: oklch(.208 .033 264 / .52);
-  }
 }
 
 /* -----------------------------------------------------------------------------

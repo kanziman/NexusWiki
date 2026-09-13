@@ -61,9 +61,8 @@ export default function WorkspaceHomeLoading() {
           </div>
         </div>
 
-        <div className="ask-bottom mt-4 flex items-center justify-between border-t border-[var(--border)] pt-3">
-          <div className="h-7 w-32 rounded-lg bg-[var(--surface)]" />
-          <div className="h-8 w-24 rounded-lg bg-[var(--surface)]" />
+        <div className="ask-bottom mt-4 flex items-stretch border-t border-[var(--border)] pt-3">
+          <div className="h-8 w-full rounded-lg bg-[var(--surface)]" />
         </div>
       </section>
 
