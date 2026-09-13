@@ -524,7 +524,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         onDelete={(threadId, title) => setDeleteTarget({ id: threadId, title })}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <div className="conversation-main flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="conversation-head">
           <div className="flex w-full items-center justify-between gap-3">
             <div className="flex items-center gap-2">

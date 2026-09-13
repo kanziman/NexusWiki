@@ -820,7 +820,10 @@
 
 @media (max-width: 640px) {
   .bulk-floating-bar {
-    bottom: 16px !important;
+    /* 사파리 하단 바와 홈 인디케이터 위에 두기 위해 safe-area 를 더한다.
+       한 줄 nowrap 은 390px 에서 발행 버튼이 잘리므로 가로는 좌우 12px 에
+       맞추고, 스택은 컴포넌트의 flex-col 이 담당한다. */
+    bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
     left: 12px !important;
     right: 12px !important;
     transform: none !important;
@@ -845,6 +848,10 @@
 }
 
 @media (max-width: 640px) {
+  .sections {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
   .chips {
     display: flex !important;
     flex-wrap: nowrap !important;

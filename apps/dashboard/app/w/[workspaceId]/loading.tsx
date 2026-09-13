@@ -8,8 +8,8 @@ export default function WorkspaceHomeLoading() {
       data-testid="workspace-home-skeleton"
     >
       {/* 스켈레톤은 실제 홈 본문과 같은 골격이어야 한다. 벤토 메트릭 4칸과
-          `.sections`(데스크톱 1.4fr/1fr, 좁은 화면 50:50) 그리드를 맞추지
-          않으면 로딩→렌더 전환에서 레이아웃이 튄다. */}
+          `.sections`(데스크톱 1.4fr/1fr, 태블릿 50:50, 모바일 1열) 그리드를
+          맞추지 않으면 로딩→렌더 전환에서 레이아웃이 튄다. */}
       {/* 1. 지식 그룹/워크스페이스 히어로 헤더 스켈레톤 */}
       <section
         className="context animate-pulse"

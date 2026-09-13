@@ -92,6 +92,9 @@ describe("WikiLibrary Bulk Actions", () => {
     expect(bulkBar).toBeInTheDocument();
     expect(bulkBar).toHaveTextContent("2개 문서 선택됨");
     expect(bulkBar).toHaveTextContent("선택 해제");
+    expect(bulkBar).toHaveClass("flex-col", "sm:flex-row");
+    expect(screen.getByTestId("bulk-verify-btn")).toHaveClass("flex-1");
+    expect(screen.getByTestId("bulk-publish-btn")).toHaveClass("flex-1");
     // 전체 선택은 리스트 위 서브 바에 남고, 플로팅 바로 옮겨지지 않는다.
     expect(bulkBar).not.toContainElement(selectAllCheckbox);
 
