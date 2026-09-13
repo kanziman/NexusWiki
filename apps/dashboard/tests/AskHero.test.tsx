@@ -18,14 +18,20 @@ const HARDCODED_ENGINEERING_CHIPS = [
 ];
 
 describe("AskHero", () => {
-  it("renders input, scope selector, and submit button without hardcoded chips", () => {
+  it("renders input and submit button without a search-scope control or hardcoded chips", () => {
     render(<AskHero workspaceId="ws-1" />);
 
     expect(screen.getByLabelText("질문 입력")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "질문하기" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("워크스페이스 전체")).toBeInTheDocument();
+    expect(screen.queryByText("워크스페이스 전체")).not.toBeInTheDocument();
+    expect(screen.queryByText("카테고리 한정")).not.toBeInTheDocument();
+    expect(screen.queryByText("현재 문서 주변")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(
+      document.querySelector('[data-od-id="search-scope-control"]'),
+    ).toBeNull();
     for (const chip of HARDCODED_ENGINEERING_CHIPS) {
       expect(
         screen.queryByRole("button", { name: chip }),
@@ -45,7 +51,7 @@ describe("AskHero", () => {
     expect(textarea).toHaveFocus();
   });
 
-  it("submits question and navigates to /ask route", () => {
+  it("submits question and navigates to /ask route without a scope query", () => {
     mockPush.mockClear();
     render(<AskHero workspaceId="ws-1" />);
 
@@ -58,66 +64,7 @@ describe("AskHero", () => {
     expect(mockPush).toHaveBeenCalledWith(
       `/w/ws-1/ask?q=${encodeURIComponent("테넌트 격리 원칙").replace(/%20/g, "+")}`,
     );
-  });
-
-  it("opens scope menu on click, selects an option, and closes menu", () => {
-    render(<AskHero workspaceId="ws-1" />);
-
-    const trigger = screen.getByRole("button", { name: /워크스페이스 전체/ });
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    fireEvent.click(trigger);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    const categoryOption = screen.getByRole("menuitem", {
-      name: /카테고리 한정/,
-    });
-    fireEvent.click(categoryOption);
-
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    expect(screen.getByText("카테고리 한정")).toBeInTheDocument();
-  });
-
-  it("closes scope menu when clicking outside", () => {
-    render(
-      <div>
-        <div data-testid="outside-area">외부 영역</div>
-        <AskHero workspaceId="ws-1" />
-      </div>,
-    );
-
-    const trigger = screen.getByRole("button", { name: /워크스페이스 전체/ });
-    fireEvent.click(trigger);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.mouseDown(screen.getByTestId("outside-area"));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
-
-  it("Escape와 닫기 버튼으로 검색 범위 메뉴를 닫는다", () => {
-    render(<AskHero workspaceId="ws-1" />);
-
-    fireEvent.click(screen.getByRole("button", { name: /워크스페이스 전체/ }));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-    expect(document.querySelector(".scope-menu-backdrop")).toBeInTheDocument();
-    expect(
-      screen.getByRole("menuitem", { name: /워크스페이스 전체/ }),
-    ).toHaveClass("is-selected");
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /워크스페이스 전체/ }));
-    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
-
-  it("검색 범위 스크림을 누르면 메뉴가 닫힌다", () => {
-    render(<AskHero workspaceId="ws-1" />);
-
-    fireEvent.click(screen.getByRole("button", { name: /워크스페이스 전체/ }));
-    fireEvent.click(document.querySelector(".scope-menu-backdrop")!);
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(String(mockPush.mock.calls[0]?.[0])).not.toContain("scope=");
   });
 
   it("⌘/Ctrl + Enter 로 질문을 제출한다", () => {
@@ -131,5 +78,6 @@ describe("AskHero", () => {
     expect(mockPush).toHaveBeenCalledWith(
       `/w/ws-1/ask?q=${encodeURIComponent("테넌트 격리 원칙").replace(/%20/g, "+")}`,
     );
+    expect(String(mockPush.mock.calls[0]?.[0])).not.toContain("scope=");
   });
 });
