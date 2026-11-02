@@ -96,7 +96,7 @@
   - 검증: `uv run pytest apps/api/tests/test_retrieval_service.py` · `openspec validate ai-control-flow-accounting --strict`
   - GitHub: https://github.com/kanziman/NexusWiki/issues/169
 
-- [ ] 7.3 코드를 커밋한 뒤 공개 증거의 `after.commit`을 실제 해시로 갱신한다 (D10, 7.1에서 분리)
+- [x] 7.3 코드를 커밋한 뒤 공개 증거의 `after.commit`을 실제 해시로 갱신한다 (D10, 7.1에서 분리)
   - Given: 측정에 쓰인 코드가 아직 커밋되지 않아 증거의 `after.commit`이 `uncommitted`이다
   - When: `/create-pr`로 코드를 커밋한 뒤 증거를 다시 생성한다
   - Then: 쇼케이스의 모든 항목이 수정 후 커밋 해시를 표시한다. 커밋되지 않은 코드의 측정값에 HEAD를 적으면 그 커밋에 없는 코드의 값을 공개하게 되므로, 작업 트리가 깨끗할 때만 해시가 기록된다
