@@ -100,3 +100,10 @@
 
 1. `supabase/migrations/0028_control_budget_tab.sql`을 추가하여 `public.control_budget_snapshot` 함수를 생성하고 `authenticated` 실행 권한만 부여한다.
 2. 기존 테이블 스키마 변경이나 파괴적 DDL이 없으므로 무중단 적용이 가능하며, 롤백 시 `drop function if exists public.control_budget_snapshot(uuid, timestamptz);`로 즉시 되돌릴 수 있다.
+
+## 리뷰 후 결정 (2026-11-03)
+
+합성 샘플 30문항을 실제 LLM으로 재생했더니 모든 턴의 근거가 위키 8건, 원문 0건이었고 이중 인용률이 0이었다. 원인은 조립 단계의 쿼터가 검색의 `evidence[:k]` 이후에 돈다는 점이다. 위키는 페이지당 임베딩이 여러 개라 RRF 점수가 누적되어 상위를 독차지하고, 잘린 원문은 쿼터가 볼 수 없다.
+
+Ask에서 융합 후보를 받아 위키와 원문을 절반씩 고르도록 고쳤다(`select_dual_evidence`). `/retrieval` 응답과 검색 계약은 그대로 둔다. 기존 테스트는 대역이 이미 양쪽 근거를 돌려줘서 이 결함을 보지 못했다.
+

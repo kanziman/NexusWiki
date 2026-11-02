@@ -33,6 +33,7 @@ from nexuswiki_core.context_budget import (
     DEFAULT_ASK_MAX_CONTEXT_TOKENS,
     AskContextBudgetResult,
     allocate_ask_context_budget,
+    select_dual_evidence,
 )
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.router import RouteDecision, decide_ask_route
@@ -741,6 +742,13 @@ class AskService:
             result = await self._retrieval_service.retrieve(
                 workspace_id, query, requested_k, user_db
             )
+            # 조립 단계의 쿼터가 볼 수 있도록 여기서 위키와 원문을 함께 고른다. 후보가 없는
+            # 구현(테스트 대역)은 검색 결과를 그대로 쓴다.
+            if result.candidates:
+                result = replace(
+                    result,
+                    evidence=select_dual_evidence(result.candidates, requested_k=requested_k),
+                )
             # ⚠️ 기록만 한다. 아래의 근거 0건 단락 외에는 이 결정으로 분기하지 않는다 (design D7).
             route = decide_ask_route(query, result.evidence)
         except Exception as exc:  # noqa: BLE001 - 턴을 종결하는 것이 이 분기의 목적이다.

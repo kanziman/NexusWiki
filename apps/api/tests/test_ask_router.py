@@ -935,3 +935,42 @@ async def test_ask_context_budget_preserves_dual_evidence_and_records_budget_rep
     assert budget_report["dropped_blocks"] == 2
     assert budget_report["wiki_blocks"] == 1
     assert budget_report["source_blocks"] == 1
+
+
+class _WikiDominatedRetrieval:
+    """상위 k개가 전부 위키이고 원문은 후보에만 있는 검색 결과."""
+
+    async def retrieve(
+        self, workspace_id: object, query: str, requested_k: int, user_db: object
+    ) -> RetrievalResult:
+        wiki = [
+            EvidenceHit.wiki(wiki_id=_WIKI_ID, rank=1, metadata={"title": "위키"}),
+            *[
+                EvidenceHit.wiki(wiki_id=str(uuid4()), rank=i, metadata={"title": f"위키 {i}"})
+                for i in range(2, 9)
+            ],
+        ]
+        source = EvidenceHit.source(
+            chunk_id=_SOURCE_CHUNK_ID,
+            rank=1,
+            metadata={"raw_source_id": _RAW_SOURCE_ID, "chunk_index": 0},
+        )
+        return RetrievalResult(evidence=wiki, candidates=[*wiki, source], meta={})
+
+
+@pytest.mark.asyncio
+async def test_ask_prompt_carries_source_evidence_even_when_wiki_fills_the_top_k() -> None:
+    fake_llm = _FakeLlmStream(
+        _UpstreamResponse(
+            [
+                'data: {"choices":[{"delta":{"content":"답 [[wiki:w1]] [[src:s1]]."}}]}',
+                "data: [DONE]",
+            ]
+        )
+    )
+    events, finalized = await _post_ask_capturing_finalize(
+        fake_llm._upstream, retrieval_service=_WikiDominatedRetrieval(), fake_llm=fake_llm
+    )
+    assert "[[src:s1]]" in fake_llm.messages[1]["content"]
+    assert finalized["p_control_report"]["evidence"]["source"] == 1
+    assert dict(events)["citations"]["dual_citation_rate"] == 1.0

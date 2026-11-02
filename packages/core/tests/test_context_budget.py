@@ -1,7 +1,11 @@
 """Ask 컨텍스트 토큰 예산 할당기 및 이중 근거 쿼터 회귀 테스트."""
 
 from nexuswiki_core.chunking import count_tokens
-from nexuswiki_core.context_budget import allocate_ask_context_budget, truncate_text_to_tokens
+from nexuswiki_core.context_budget import (
+    allocate_ask_context_budget,
+    select_dual_evidence,
+    truncate_text_to_tokens,
+)
 from nexuswiki_core.rrf import EvidenceHit
 
 
@@ -63,3 +67,61 @@ def test_truncate_text_to_tokens_respects_token_cap() -> None:
 
     assert was_clipped is True
     assert count_tokens(clipped) <= 30
+
+
+def _wiki_hit(index: int) -> EvidenceHit:
+    return EvidenceHit.wiki(wiki_id=f"wiki-{index}", rank=index, metadata={})
+
+
+def _source_hit(index: int, raw_source_id: str = "raw") -> EvidenceHit:
+    return EvidenceHit.source(
+        chunk_id=f"chunk-{index}",
+        rank=index,
+        metadata={"raw_source_id": raw_source_id, "chunk_index": index},
+    )
+
+
+def test_selection_keeps_sources_when_wiki_dominates_the_top() -> None:
+    # 실제 재생에서 나온 형태: 위키 8쪽이 상위를 독차지하고 원문은 그 뒤에 있다.
+    candidates = [
+        *[_wiki_hit(i) for i in range(1, 9)],
+        *[_source_hit(i, f"raw-{i}") for i in range(1, 9)],
+    ]
+    selected = select_dual_evidence(candidates, requested_k=8)
+    assert [hit.kind for hit in selected] == ["wiki"] * 4 + ["source"] * 4
+    assert [hit.evidence_id for hit in selected if hit.kind == "source"] == [
+        "chunk-1",
+        "chunk-2",
+        "chunk-3",
+        "chunk-4",
+    ]
+
+
+def test_selection_fills_empty_slots_with_the_other_kind() -> None:
+    assert [
+        h.kind for h in select_dual_evidence([_wiki_hit(i) for i in range(1, 9)], requested_k=8)
+    ] == ["wiki"] * 8
+    candidates = [_wiki_hit(1), *[_source_hit(i, f"raw-{i}") for i in range(1, 9)]]
+    selected = select_dual_evidence(candidates, requested_k=8)
+    assert len(selected) == 8
+    assert [hit.kind for hit in selected].count("wiki") == 1
+
+
+def test_selection_limits_one_source_but_fills_when_nothing_else_exists() -> None:
+    candidates = [
+        *[_wiki_hit(i) for i in range(1, 5)],
+        *[_source_hit(i, "same") for i in range(1, 6)],
+        _source_hit(9, "other"),
+    ]
+    selected = select_dual_evidence(candidates, requested_k=8)
+    sources = [hit.evidence_id for hit in selected if hit.kind == "source"]
+    assert sources == ["chunk-1", "chunk-2", "chunk-3", "chunk-9"]
+
+    only_same = [_source_hit(i, "same") for i in range(1, 9)]
+    assert len(select_dual_evidence(only_same, requested_k=8)) == 8
+
+
+def test_selection_keeps_rrf_order_and_handles_short_input() -> None:
+    candidates = [_source_hit(1), _wiki_hit(1), _source_hit(2), _wiki_hit(2)]
+    assert select_dual_evidence(candidates, requested_k=8) == candidates
+    assert select_dual_evidence([], requested_k=8) == []

@@ -22,6 +22,7 @@ __all__ = [
     "DEFAULT_ASK_MAX_CONTEXT_TOKENS",
     "AskContextBudgetResult",
     "allocate_ask_context_budget",
+    "select_dual_evidence",
     "truncate_text_to_tokens",
 ]
 
@@ -64,6 +65,41 @@ class AskContextBudgetResult:
             "dual_evidence_preserved": self.dual_evidence_preserved,
             "truncated": self.truncated,
         }
+
+
+def select_dual_evidence(
+    candidates: Sequence[EvidenceHit], *, requested_k: int, per_source_limit: int = 3
+) -> list[EvidenceHit]:
+    """융합 후보에서 위키와 원문을 절반씩 고른다. 빈자리는 다른 종류로 채운다.
+
+    ⚠️ RRF 상위 k개를 그대로 자르면 한 종류로 쏠릴 수 있다. 위키 페이지는 청크 임베딩이 여러
+    개라 점수가 누적되어 상위를 독차지하고, 그러면 원문 근거가 프롬프트에 실리지 못해 이중
+    Citation이 불가능해진다. 조립 단계의 쿼터는 이미 잘린 뒤라 이 쏠림을 되돌리지 못한다.
+
+    같은 원문이 원문 몫을 독차지하지 않게 `per_source_limit`을 두되, 근거가 모자라면 그 제한을
+    풀어 채운다. 결과 순서는 RRF 순서를 유지해 별칭 부여가 결정적이다.
+    """
+    wiki_quota = requested_k // 2
+    source_quota = requested_k - wiki_quota
+    selected: set[int] = set()
+    wiki_taken = source_taken = 0
+    per_source: dict[object, int] = {}
+    for index, hit in enumerate(candidates):
+        if hit.kind == "wiki":
+            if wiki_taken < wiki_quota:
+                selected.add(index)
+                wiki_taken += 1
+            continue
+        raw_source_id = hit.metadata.get("raw_source_id")
+        if source_taken < source_quota and per_source.get(raw_source_id, 0) < per_source_limit:
+            selected.add(index)
+            source_taken += 1
+            per_source[raw_source_id] = per_source.get(raw_source_id, 0) + 1
+    for index in range(len(candidates)):
+        if len(selected) >= requested_k:
+            break
+        selected.add(index)
+    return [candidates[index] for index in sorted(selected)]
 
 
 def truncate_text_to_tokens(text: str, max_tokens: int) -> tuple[str, bool]:
