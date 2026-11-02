@@ -5,6 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from api.db.user import UserDb
 from api.main import create_app
 from api.services.retrieval import RetrievalResult, RetrievalService
 from api.settings import ApiSettings
@@ -13,7 +14,7 @@ from nexuswiki_core.rrf import EvidenceHit
 
 
 class FakeEmbeddingClient:
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, workspace_id: str) -> list[float]:
         assert text == "hello world"
         return [0.0] * 1024
 
@@ -96,7 +97,7 @@ async def test_embedding_failure_marks_exactly_dense_channels_failed_and_leaves_
     None
 ):
     class FailingEmbeddingClient:
-        async def embed(self, text: str) -> list[float]:
+        async def embed(self, text: str, *, workspace_id: str) -> list[float]:
             raise RuntimeError("provider secret must not leak")
 
     result = await RetrievalService(FailingEmbeddingClient()).retrieve(
@@ -137,7 +138,7 @@ async def test_failed_or_malformed_channel_cannot_cancel_siblings_or_leak_error(
 @pytest.mark.asyncio
 async def test_cancellation_propagates() -> None:
     class CancelledEmbeddingClient:
-        async def embed(self, text: str) -> list[float]:
+        async def embed(self, text: str, *, workspace_id: str) -> list[float]:
             raise asyncio.CancelledError
 
     with pytest.raises(asyncio.CancelledError):
@@ -219,7 +220,9 @@ async def test_graph_ranks_deterministically_by_seed_rank_then_hop_then_id() -> 
 
 
 @pytest.mark.asyncio
-async def test_retrieval_route_declares_evidence_only_json_contract() -> None:
+async def test_retrieval_route_declares_evidence_only_json_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = create_app(
         ApiSettings(SUPABASE_URL="http://supabase.test", SUPABASE_PUBLISHABLE_KEY="test-key"),
         git_sha="test",
@@ -234,6 +237,12 @@ async def test_retrieval_route_declares_evidence_only_json_contract() -> None:
 
     app.state.retrieval_service = FakeService()
     workspace_id = uuid4()
+
+    async def member(self: object, function: str, *, params: object) -> list[bool]:
+        assert function == "has_workspace_role"
+        return [True]
+
+    monkeypatch.setattr(UserDb, "rpc", member)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),

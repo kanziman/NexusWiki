@@ -517,3 +517,96 @@ async def test_supported_api_insert_surfaces_have_controls_and_all_requester_den
             json={"title": "anonymous", "text": "denied"},
         )
     assert anonymous.status_code == 401
+
+
+class _CountingEmbedding:
+    """임베딩 호출 수를 센다. 호출되는 순간 비용이 생기므로 0회가 이 경계의 증거다."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def embed(self, _text: str, *, workspace_id: str) -> list[float]:
+        self.calls += 1
+        return [0.0] * 1024
+
+
+def _usage_rows(local_stack: httpx.Client, workspace_id: str) -> list[dict[str, Any]]:
+    response = local_stack.get(
+        "/rest/v1/usage_events",
+        params={"workspace_id": f"eq.{workspace_id}", "select": "id"},
+        headers=_admin_headers(),
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+async def _post_retrieval(
+    authed_client: Callable[..., Any],
+    actor: TenantActor | None,
+    workspace_id: str,
+    embedding: _CountingEmbedding,
+    *,
+    token: str | None = None,
+) -> httpx.Response:
+    from api.services.retrieval import RetrievalService
+
+    async with authed_client(actor) as client:
+        client._transport.app.state.retrieval_service = RetrievalService(embedding)  # type: ignore[attr-defined]
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        return await client.post(
+            f"/workspaces/{workspace_id}/retrieval",
+            json={"query": "아무 질의"},
+            headers=headers,
+        )
+
+
+@pytest.mark.parametrize("credential", ["foreign_member", "forged_token"])
+async def test_retrieval_rejects_before_any_paid_embedding(
+    two_workspaces_two_users: tuple[TenantActor, TenantActor],
+    authed_client: Callable[..., Any],
+    local_stack: httpx.Client,
+    credential: str,
+) -> None:
+    # ⚠️ 응답 코드만 보면 부족하다. 임베딩이 먼저 불리면 워커가 피해 워크스페이스에 비용 행을 쓴다.
+    victim, attacker = two_workspaces_two_users
+    embedding = _CountingEmbedding()
+
+    if credential == "foreign_member":
+        response = await _post_retrieval(authed_client, attacker, victim.workspace_id, embedding)
+        expected = 403
+    else:
+        response = await _post_retrieval(
+            authed_client,
+            None,
+            victim.workspace_id,
+            embedding,
+            token="not-a-jwt",  # noqa: S106
+        )
+        expected = 401
+
+    assert response.status_code == expected, response.text
+    # 본문이 고정이어야 응답으로 다른 테넌트의 존재를 구분할 수 없다.
+    assert response.json() == {
+        "detail": "forbidden" if credential == "foreign_member" else "unauthorized"
+    }
+    assert embedding.calls == 0
+    assert _usage_rows(local_stack, victim.workspace_id) == []
+
+
+@pytest.mark.parametrize("role", ["owner", "editor", "viewer"])
+async def test_retrieval_member_control_still_reaches_embedding(
+    two_workspaces_two_users: tuple[TenantActor, TenantActor],
+    authed_client: Callable[..., Any],
+    workspace_member_with_role: Callable[[TenantActor, str], TenantActor],
+    role: str,
+) -> None:
+    # 위 거부가 "아무도 통과하지 못한다"로 통과하지 않음을 보이는 대조군이다. 스펙은 모든 역할의
+    # 멤버를 허용하므로, 최소 역할이 올라가면 viewer 행이 실패한다.
+    owner, _ = two_workspaces_two_users
+    actor = owner if role == "owner" else workspace_member_with_role(owner, role)
+    embedding = _CountingEmbedding()
+
+    response = await _post_retrieval(authed_client, actor, owner.workspace_id, embedding)
+
+    assert response.status_code == 200, response.text
+    assert embedding.calls == 1

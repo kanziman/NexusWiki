@@ -32,6 +32,7 @@ function getSectionTitle(pathname: string, isBookmarked: boolean): string {
   if (sub.startsWith("backlog")) return "지식 공백";
   if (sub.startsWith("graph")) return "지식 그래프";
   if (sub.startsWith("settings")) return "설정";
+  if (sub.startsWith("control")) return "Control Room";
   return "홈 대시보드";
 }
 

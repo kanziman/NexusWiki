@@ -47,7 +47,7 @@
 
 ## 마이그레이션
 
-`supabase/migrations/`에 `0001` ~ `0019`와 `0021`이 있다. **파일명 번호 순서가 곧 적용 순서다.** `0020`은 병렬 BYOK 변경이 예약했으므로 이 브랜치에서는 충돌을 피하려고 비워 두었다.
+`supabase/migrations/`에 `0001` ~ `0026`이 있다. **파일명 번호 순서가 곧 적용 순서다.**
 
 주요 지점만:
 
@@ -66,12 +66,17 @@
 | `0018` | Ask 대화 스레드 이력 — `ask_threads` `ask_messages` |
 | `0019` | Ask 스트리밍 턴 영속화와 멱등 재연결 |
 | `0021` | 참조 보호 원문 삭제 RPC · Storage 정리 잡 읽기 차단 |
+| `0023` | 잡 체인의 trace 연속성과 시작 시각 |
+| `0024` | 사용량 행의 trace와 호출 소요 시간 |
+| `0025` | Ask 턴의 trace와 본문 없는 통제 보고서 |
+| `0026` | 작성자를 드러내지 않는 Ask 집계 RPC |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 
 ## 설정
 
 - `supabase/config.toml`은 시크릿을 값이 아니라 **참조로만** 읽는다 — `OPENAI_API_KEY`, `SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN`, `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET`, `S3_HOST` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY`
+- 외부 관측은 선택 사항이며 키는 worker만 갖는다. `LANGFUSE_PUBLIC_KEY`와 `LANGFUSE_SECRET_KEY`가 모두 있을 때만 `langfuse` SDK(`packages/core`, 버전 고정)가 켜지며, `LANGFUSE_BASE_URL`의 코드 기본값은 JP 리전이다. 비용과 예산의 원천은 Postgres다
 - `.env.sample`이 필요한 키 목록을 담는다. `.gitignore`가 `.env`, `.env.*`, `supabase/.env`를 제외한다
 - `.mcp.json`, `.codex/config.toml`은 gitignore 대상이며 저장소에 커밋된 적이 없다
 
@@ -95,7 +100,7 @@
 | **Railway** | 서비스 2개 — `api`(web) + `worker`(상주). Hobby $5/mo는 워크스페이스 단위 과금 | `docs/ops/railway-deploy-record.md`, `docs/ops/railway-env-checklist.md` |
 | **Vercel** | Production 배포됨 (2026-08-13, CLI 업로드 방식) | `docs/ops/vercel-deploy-record.md` |
 
-⚠️ 리전은 프로젝트 생성 후 변경 불가다. Railway에 서울·도쿄 리전이 없어 교차 리전 왕복이 5채널마다 곱해진다 — `docs/ops/rtt-baseline.md` 참조.
+⚠️ 리전은 프로젝트 생성 후 변경 불가다. Railway에 서울·도쿄 리전이 없어 교차 리전 왕복이 검색 채널 수만큼 곱해진다 — `docs/ops/rtt-baseline.md` 참조.
 
 검토 후 기각: Fly.io (~$6.5/mo), Render ($14/mo 고정)
 

@@ -140,3 +140,12 @@ class WorkerSettings(BaseAppSettings):
 
     REAP_TIMEOUT_SECONDS: int = 900
     REAP_ENABLED: bool = True
+
+    # -- 외부 관측 (ai-control-flow-accounting change의 design.md > D8) ------------
+    #
+    # ⚠️ 둘 다 있어야 켜진다. 없어도 워커는 정상 기동하고 내보내기만 비활성이다.
+    # `LANGFUSE_SECRET_KEY`의 casefold가 `REDACTED_KEYS`에 있어야 로그 마스킹이 동작한다.
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
+    # 코드 기본값을 명시한다. SDK 기본값은 EU 리전이라, 지정을 잊으면 데이터가 다른 지역으로 간다.
+    LANGFUSE_BASE_URL: str = "https://jp.cloud.langfuse.com"

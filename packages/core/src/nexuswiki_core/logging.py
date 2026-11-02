@@ -33,6 +33,7 @@ REDACTED_KEYS: frozenset[str] = frozenset(
         #    YouTube 키가 에러 없이 로그에 그대로 찍힌다.
         "youtube_api_key",
         "database_url",
+        "langfuse_secret_key",
     }
 )
 REDACTION_PLACEHOLDER = "[REDACTED]"

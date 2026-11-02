@@ -9,9 +9,12 @@ from typing import Any
 import httpx
 
 from api.services.retrieval import RetrievalService
+from nexuswiki_core.logging import clear_job_context
+from nexuswiki_core.trace import bind_trace
 from tests.conftest import LOCAL_STACK, TenantActor
 from worker.db.service import ServiceDb  # noqa: TID251 -- worker run seams need their real DB type
 from worker.handlers.compile import run_compile
+from worker.handlers.conflict import run_conflict_check
 from worker.handlers.embed import run_embed
 from worker.handlers.link_sync import run_link_sync
 from worker.handlers.parse import run_parse
@@ -23,7 +26,7 @@ def _vector() -> list[float]:
 
 
 class _QueryEmbedding:
-    async def embed(self, _text: str) -> list[float]:
+    async def embed(self, _text: str, *, workspace_id: str) -> list[float]:
         return _vector()
 
 
@@ -234,6 +237,11 @@ class PipelineHarness:
                     job = await self._db.claim_job(worker_id="phase-07-pytest")
                     if job is None:
                         break
+                    # `queue.process_next_job`과 같이 잡의 trace로 묶어 사용량 행에 같은 값이
+                    # 남게 한다. 값이 없는 잡은 묶지 않고, 끝나면 지워 다음 잡으로 새지 않게 한다.
+                    clear_job_context()
+                    if job.get("trace_id"):
+                        bind_trace(str(job["trace_id"]))
                     try:
                         payload = dict(job["payload"])
                         common = {
@@ -266,11 +274,56 @@ class PipelineHarness:
                             await run_link_sync(self._db, **common)
                         elif job["type"] == "embed":
                             await run_embed(self._db, provider, settings=self._settings, **common)
+                        elif job["type"] == "conflict_check":
+                            await run_conflict_check(
+                                self._db, provider, settings=self._settings, **common
+                            )
                         else:
                             await self._db.complete_job(str(job["id"]))
                     except Exception as error:
                         await self._db.fail_job(str(job["id"]), error=str(error))
                         raise
+                    finally:
+                        clear_job_context()
+
+    async def assert_single_trace_across_chain(self) -> str:
+        """체인 전 단계의 잡과 사용량 행이 같은 trace를 갖는지 확인하고 그 값을 돌려준다."""
+        assert self._db is not None
+        jobs = await self._db.list_jobs(workspace_id=self.owner.workspace_id, limit=100)
+        job_types = {job["type"] for job in jobs}
+        assert {"parse", "compile", "link_sync", "embed", "conflict_check"} <= job_types, job_types
+        job_traces = {job["trace_id"] for job in jobs}
+        assert len(job_traces) == 1 and None not in job_traces, job_traces
+
+        usage = self._local_stack.get(
+            "/rest/v1/usage_events",
+            params={"workspace_id": f"eq.{self.owner.workspace_id}", "select": "trace_id,kind"},
+            headers={
+                "apikey": LOCAL_STACK["admin_key"],
+                "Authorization": f"Bearer {LOCAL_STACK['admin_key']}",
+            },
+        )
+        usage.raise_for_status()
+        rows = usage.json()
+        assert rows
+        assert {row["trace_id"] for row in rows} == job_traces
+        return str(next(iter(job_traces)))
+
+    async def usage_rows(self) -> list[dict[str, Any]]:
+        response = self._local_stack.get(
+            "/rest/v1/usage_events",
+            params={
+                "workspace_id": f"eq.{self.owner.workspace_id}",
+                "select": "id,cost_micros,metadata",
+                "order": "id.asc",
+            },
+            headers={
+                "apikey": LOCAL_STACK["admin_key"],
+                "Authorization": f"Bearer {LOCAL_STACK['admin_key']}",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def assert_retrieval(self, created: list[dict[str, str]]) -> None:
         assert self._db is not None

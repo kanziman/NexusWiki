@@ -22,12 +22,14 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from nexuswiki_core.chunking import count_tokens
-from nexuswiki_core.domain import UsageKind, WikiCategory, WikiConfidence
+from nexuswiki_core.domain import WikiCategory, WikiConfidence
 from nexuswiki_core.logging import get_logger
+from nexuswiki_core.router import RouteDecision, compile_fingerprint, decide_compile_route
 from nexuswiki_core.slug import slugify
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker.db.service import ServiceDb, service_client
-from worker.llm import LlmResult, complete_structured, openrouter_client, render_template
+from worker.llm import LlmResult, openrouter_client, render_template
+from worker.llm_gateway import LlmCallContext, LlmGateway
 from worker.settings import WorkerSettings
 
 __all__ = [
@@ -143,31 +145,38 @@ async def run_compile(
         },
     )
 
-    result: LlmResult = await complete_structured(
-        llm_client,
-        settings=settings,
+    fingerprint = compile_fingerprint(
+        content_hash=str(source.get("content_hash") or ""),
+        template_id=str(template.get("id") or ""),
+        model=settings.LLM_MODEL,
+    )
+    route = await _decide_route(
+        db,
+        workspace_id=workspace_id,
+        raw_source_id=raw_source_id,
+        fingerprint=fingerprint,
+        truncated=truncated,
+    )
+
+    # ⚠️ 사용량은 게이트웨이가 공급자 응답 직후 시도마다 기록한다. 그래서 검증 실패나 뒤따르는
+    #    업서트 실패가 이미 지불한 비용을 지우지 못한다 (T-03-27).
+    result: LlmResult = await LlmGateway(db, llm_client, settings).complete_structured(
+        LlmCallContext(
+            workspace_id=workspace_id,
+            job_id=job_id,
+            call=COMPILE_JOB_TYPE,
+            # 본문은 담지 않는다 — 0009:137-138.
+            metadata={
+                "raw_source_id": raw_source_id,
+                "truncated_input": truncated,
+                "fingerprint": fingerprint,
+                "route": route.decision,
+                "route_reason": route.reason,
+            },
+        ),
         system_prompt=str(template["system_prompt"]),
         user_prompt=user_prompt,
         schema_model=CompileResult,
-    )
-
-    # ⚠️ 사용량은 페이지 업서트보다 **먼저** 기록한다. 업서트가 실패해 잡이 재시도되면
-    #    이미 지불한 LLM 비용은 돌아오지 않으므로, 그 지출이 상한 계산에 빠지면 상한이
-    #    조용히 새어 나간다 (T-03-27).
-    await db.insert_usage_event(
-        workspace_id=workspace_id,
-        row={
-            "job_id": job_id,
-            "kind": UsageKind.LLM.value,
-            "provider": result.provider,
-            "model": result.model,
-            "prompt_tokens": result.prompt_tokens,
-            "completion_tokens": result.completion_tokens,
-            "total_tokens": result.total_tokens,
-            "cost_micros": result.cost_micros,
-            # 본문은 담지 않는다 — 0009:137-138.
-            "metadata": {"raw_source_id": raw_source_id, "truncated_input": truncated},
-        },
     )
 
     compiled = result.payload
@@ -218,6 +227,31 @@ async def run_compile(
 
 
 # -- 내부 ----------------------------------------------------------------------
+
+
+async def _decide_route(
+    db: ServiceDb,
+    *,
+    workspace_id: str,
+    raw_source_id: str,
+    fingerprint: str,
+    truncated: bool,
+) -> RouteDecision:
+    """Router 결정을 구한다. 기록만 하며 컴파일은 결정과 무관하게 실행된다 (design D7).
+
+    ⚠️ 관측용 조회가 실패해도 잡을 실패시키지 않는다. 기록을 위해 유료 파이프라인을 멈추면
+    주객이 뒤바뀐다.
+    """
+    previous: str | None = None
+    try:
+        previous = await db.latest_compile_fingerprint(
+            workspace_id=workspace_id, raw_source_id=raw_source_id
+        )
+    except Exception:  # noqa: BLE001 - 관측 조회 실패는 잡의 성패와 무관하다.
+        _logger.warning("worker.compile_fingerprint_unavailable", raw_source_id=raw_source_id)
+    return decide_compile_route(
+        fingerprint=fingerprint, previous_fingerprint=previous, truncated=truncated
+    )
 
 
 def _join_within_budget(pieces: list[str], *, budget_tokens: int) -> tuple[str, bool]:

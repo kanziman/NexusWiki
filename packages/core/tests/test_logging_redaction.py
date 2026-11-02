@@ -38,10 +38,19 @@ def test_worker_settings_secret_fields_stay_inside_the_denylist() -> None:
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
         "YOUTUBE_API_KEY",
+        "LANGFUSE_SECRET_KEY",
     }
 
     assert secret_fields <= set(WorkerSettings.model_fields)
     assert {name.casefold() for name in secret_fields} <= REDACTED_KEYS
+
+
+def test_langfuse_secret_stays_out_of_the_api_and_inside_the_denylist() -> None:
+    # 전 테넌트의 trace를 읽고 지울 수 있는 키다. 워커만 갖고, API는 내보내기를 워커에 위임한다.
+    from api.settings import ApiSettings
+
+    assert "LANGFUSE_SECRET_KEY" not in ApiSettings.model_fields
+    assert "langfuse_secret_key" in REDACTED_KEYS
 
 
 def test_openai_key_name_remains_redacted_for_supabase_studio_ai() -> None:

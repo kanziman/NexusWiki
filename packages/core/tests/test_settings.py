@@ -12,6 +12,9 @@ SECRET_FIELD_NAMES = frozenset(
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
         "OPENAI_API_KEY",
+        # ⚠️ 이 키로는 전 테넌트의 trace를 읽고 지울 수 있다. API는 워커에 내보내기를 위임한다
+        #    (ai-control-flow-accounting design D8).
+        "LANGFUSE_SECRET_KEY",
     }
 )
 

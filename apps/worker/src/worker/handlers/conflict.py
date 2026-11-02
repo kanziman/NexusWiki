@@ -7,7 +7,8 @@ from typing import Any, Final
 from pydantic import BaseModel, ConfigDict, Field
 
 from worker.db.service import ServiceDb, service_client
-from worker.llm import complete_structured, openrouter_client
+from worker.llm import openrouter_client
+from worker.llm_gateway import LlmCallContext, LlmGateway
 from worker.settings import WorkerSettings
 
 __all__ = [
@@ -71,6 +72,13 @@ async def run_conflict_check(
     if not raw_source_id:
         raise ValueError("conflict_check 잡 payload에 raw_source_id가 없다")
 
+    gateway = LlmGateway(db, llm_client, settings)
+    context = LlmCallContext(
+        workspace_id=workspace_id,
+        job_id=job_id,
+        call=CONFLICT_CHECK_JOB_TYPE,
+        metadata={"raw_source_id": raw_source_id},
+    )
     already_flagged: set[str] = set()
     pages = await db.list_wiki_pages_for_source(
         workspace_id=workspace_id, raw_source_id=raw_source_id
@@ -91,9 +99,9 @@ async def run_conflict_check(
             if not candidate_rows:
                 continue
             candidate_row = candidate_rows[0]
-            result = await complete_structured(
-                llm_client,
-                settings=settings,
+            # 판정을 적용하기 전에 게이트웨이가 이 호출의 비용을 기록한다.
+            result = await gateway.complete_structured(
+                context,
                 system_prompt=_CONFLICT_SYSTEM_PROMPT,
                 user_prompt=_conflict_user_prompt(
                     str(page.get("content") or ""), str(candidate_row.get("content") or "")

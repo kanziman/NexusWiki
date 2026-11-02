@@ -22,11 +22,13 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Protocol
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
+
+from nexuswiki_core.logging import get_logger
 
 __all__ = [
     "ChatStreamFunction",
@@ -35,9 +37,20 @@ __all__ = [
     "add_llm_stream_route",
 ]
 
+_logger = get_logger(__name__)
+
 ChatStreamFunction = Callable[["LlmChatRequest"], AsyncIterator[bytes]]
 BudgetCheck = Callable[[str], Awaitable[bool]]
-UsageRecorder = Callable[[str, dict[str, Any]], Awaitable[None]]
+
+
+class UsageRecorder(Protocol):
+    """스트림 한 건의 사용량 기록. `incomplete`면 최종 사용량을 받지 못한 호출이다."""
+
+    def __call__(
+        self, workspace_id: str, usage: dict[str, Any], *, incomplete: bool, duration_ms: int
+    ) -> Awaitable[None]: ...
+
+
 MonotonicClock = Callable[[], float]
 
 
@@ -78,6 +91,12 @@ class LlmStreamService:
         self._tokens = float(rate_capacity)
         self._last_refill = monotonic()
         self._request_lock = asyncio.Lock()
+        # 취소된 스트림의 기록 태스크가 GC로 사라지지 않게 강한 참조를 유지한다.
+        self._pending_records: set[asyncio.Task[None]] = set()
+
+    def pending_records(self) -> set[asyncio.Task[None]]:
+        """아직 끝나지 않은 사용량 기록. 종료 경로가 프로세스를 내리기 전에 기다린다."""
+        return set(self._pending_records)
 
     async def _reserve_token(self) -> None:
         """토큰 하나를 예약한다 — 단조 시계 기반 리필. 프로세스 수명 카운터가 아니다."""
@@ -115,18 +134,56 @@ class LlmStreamService:
 
     async def _stream_chunks(self, request: LlmChatRequest) -> AsyncIterator[bytes]:
         latest_usage: dict[str, Any] = {}
-        async with self._semaphore:
-            async for chunk in self._chat_stream(request):
-                try:
-                    payload = json.loads(chunk.decode("utf-8").removeprefix("data: ").strip())
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    pass
-                else:
-                    usage = payload.get("usage") if isinstance(payload, dict) else None
-                    if isinstance(usage, dict) and usage:
-                        latest_usage = usage
-                yield chunk
-        await self._record_usage(request.workspace_id, latest_usage)
+        started = self._monotonic()
+        finished = False
+        try:
+            async with self._semaphore:
+                async for chunk in self._chat_stream(request):
+                    try:
+                        payload = json.loads(chunk.decode("utf-8").removeprefix("data: ").strip())
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        pass
+                    else:
+                        latest_usage = _merge_usage(latest_usage, payload)
+                    yield chunk
+            finished = True
+        finally:
+            # ⚠️ 정상 종료 뒤에만 기록하면 클라이언트가 끊은 호출의 지출이 월 상한에서 빠진다.
+            await self._record_detached(
+                request.workspace_id,
+                latest_usage,
+                incomplete=not finished or not latest_usage,
+                duration_ms=round((self._monotonic() - started) * 1000),
+            )
+
+    async def _record_detached(
+        self, workspace_id: str, usage: dict[str, Any], *, incomplete: bool, duration_ms: int
+    ) -> None:
+        """취소되어도 끝까지 기록한다. 기록 실패가 이미 끝난 응답을 깨뜨리지 않게 한다."""
+
+        async def record() -> None:
+            try:
+                await self._record_usage(
+                    workspace_id, usage, incomplete=incomplete, duration_ms=duration_ms
+                )
+            except Exception:  # noqa: BLE001 - 응답은 이미 나갔다. 원인은 로그로 남긴다.
+                _logger.exception("worker.ask_usage_record_failed", incomplete=incomplete)
+
+        task = asyncio.create_task(record())
+        self._pending_records.add(task)
+        task.add_done_callback(self._pending_records.discard)
+        await asyncio.shield(task)
+
+
+def _merge_usage(latest: dict[str, Any], payload: object) -> dict[str, Any]:
+    """최종 사용량에 응답 최상위의 모델과 공급자를 합친다. 사용량은 청크 안에 모델을 담지 않는다."""
+    if not isinstance(payload, dict):
+        return latest
+    usage = payload.get("usage")
+    if not isinstance(usage, dict) or not usage:
+        return latest
+    routing = {key: payload[key] for key in ("model", "provider") if payload.get(key)}
+    return {**usage, **routing}
 
 
 def add_llm_stream_route(app: FastAPI, service: LlmStreamService) -> None:

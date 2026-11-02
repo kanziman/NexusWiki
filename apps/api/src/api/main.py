@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import errors
 from api.routers.ask import router as ask_router
+from api.routers.control import router as control_router
 from api.routers.graph import router as graph_router
 from api.routers.health import router as health_router
 from api.routers.jobs import router as jobs_router
@@ -23,9 +24,11 @@ from api.routers.sources import router as sources_router
 from api.routers.wiki import router as wiki_router
 from api.routers.workspaces import router as workspaces_router
 from api.routers.youtube import router as youtube_router
+from api.services.ask import drain_turn_exports
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import configure_logging
+from nexuswiki_core.trace import TRACE_HEADER, TraceMiddleware
 
 
 @asynccontextmanager
@@ -39,6 +42,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        # 내보내기 태스크가 이 클라이언트를 쓰므로 닫기 전에 기다린다.
+        await drain_turn_exports()
         await app.state.http_client.aclose()
 
 
@@ -63,8 +68,10 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Ask-Thread-Id"],
+        expose_headers=["X-Ask-Thread-Id", TRACE_HEADER],
     )
+    # 마지막에 추가한 미들웨어가 가장 바깥이다. CORS 응답에도 trace가 실리도록 뒤에 둔다.
+    app.add_middleware(TraceMiddleware, log_event="api.request_completed")
     errors.register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workspaces_router)
@@ -79,6 +86,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(retrieval_router)
     app.include_router(ask_router)
+    app.include_router(control_router)
     app.include_router(graph_router)
     app.include_router(wiki_router)
     app.include_router(youtube_router)

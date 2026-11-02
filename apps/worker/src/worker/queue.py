@@ -27,6 +27,8 @@ import httpx
 
 from nexuswiki_core.extract import ExtractionQualityError
 from nexuswiki_core.logging import bind_job_context, clear_job_context, get_logger
+from nexuswiki_core.observability import export_job_outcome
+from nexuswiki_core.trace import bind_trace
 from worker.errors import (
     NON_RETRYABLE_ERRORS,
     ProviderCreditExhausted,
@@ -228,8 +230,19 @@ async def process_next_job(
     # in logs so operations can correlate a handler's lock lifetime without
     # relying on wall-clock adjustments.
     claimed_at = time.monotonic()
+    # 전이 호출이 예외 없이 끝난 뒤에 채운다. 예외가 나면 재시도나 reaper가 처리하므로 종결이
+    # 아니다.
+    # ⚠️ `complete_job`의 0행은 핸들러가 체인을 완료한 정상 경우와 구분할 수 없어 성공으로
+    #    내보낸다. 회수된 뒤 늦게 끝난 워커도 그렇게 보이지만, 개발자용 사본에 한정되고 DB 상태는
+    #    변하지 않는다.
+    outcome: str | None = None
+    error_type: str | None = None
 
     bind_job_context(job_id=job_id, workspace_id=workspace_id)
+    # 핸들러 태스크는 생성 시점의 컨텍스트를 복사하므로 여기서 묶으면 로그와 사용량에 함께 남는다.
+    # 값이 없는 과거 잡은 묶지 않고 그대로 처리한다. `clear_job_context`가 함께 지운다.
+    if job.get("trace_id"):
+        bind_trace(str(job["trace_id"]))
     try:
         _logger.info(
             "worker.job_claimed",
@@ -240,6 +253,7 @@ async def process_next_job(
         # ⚠️ 취소는 체인 단계 경계에서만 수용한다. 잡 분할이 하트비트 대신 준 경계다.
         if job.get("cancel_requested_at"):
             await db.cancel_job(job_id, worker_id=worker_id)
+            outcome = "canceled"
             _logger.info(
                 "worker.job_canceled",
                 job_type=job_type,
@@ -252,6 +266,8 @@ async def process_next_job(
             await _dead_letter(
                 db, job_id=job_id, worker_id=worker_id, job_type=job_type, reason=str(error)
             )
+            outcome = "dead"
+            error_type = type(error).__name__
             return True
 
         handler_task = asyncio.create_task(
@@ -263,6 +279,7 @@ async def process_next_job(
             #    소모해 재배포 세 번에 정상 잡이 dead로 떨어진다. release_job이
             #    따로 존재하는 유일한 이유다 (02-CONTEXT.md > D-18).
             await db.release_job(job_id, worker_id=worker_id)
+            outcome = "released"
             _logger.info(
                 "worker.job_released",
                 job_type=job_type,
@@ -283,15 +300,19 @@ async def process_next_job(
                 duration_ms=round((time.monotonic() - claimed_at) * 1000, 3),
             )
             reason = sanitize_error(error)
+            error_type = type(error).__name__
             if isinstance(error, NON_RETRYABLE_ERRORS):
                 await _dead_letter(
                     db, job_id=job_id, worker_id=worker_id, job_type=job_type, reason=reason
                 )
+                outcome = "dead"
             else:
                 await db.fail_job(job_id, error=reason)
+                outcome = "failed"
             return True
 
         await db.complete_job(job_id)
+        outcome = "succeeded"
         _logger.info(
             "worker.job_completed",
             job_type=job_type,
@@ -299,6 +320,17 @@ async def process_next_job(
         )
         return True
     finally:
+        # ⚠️ 컨텍스트를 지우기 전에 내보낸다. trace를 컨텍스트에서 읽기 때문이다. 메모리 큐에 넣을
+        #    뿐 네트워크를 기다리지 않으므로 잡 반납을 지연시키지 않는다.
+        if outcome is not None:
+            export_job_outcome(
+                workspace_id=workspace_id,
+                job_type=job_type,
+                outcome=outcome,
+                duration_ms=(time.monotonic() - claimed_at) * 1000,
+                attempts=job.get("attempts"),
+                error_type=error_type,
+            )
         clear_job_context()
 
 

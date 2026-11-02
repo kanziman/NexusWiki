@@ -52,12 +52,14 @@ from api.errors import (
     SourceInUse,
     TextTooLarge,
     WorkspaceForbidden,
+    is_jwt_rejection,
 )
 from api.settings import ApiSettings
 from api.storage import UserStorage, sanitize_filename, storage_path_for
 from nexuswiki_core.domain import YOUTUBE_VIDEO_ID_PATTERN, SourceType
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.tokenizer import normalize
+from nexuswiki_core.trace import current_trace_id
 
 router = APIRouter(prefix="/workspaces", tags=["sources"])
 
@@ -263,6 +265,7 @@ async def _insert_and_enqueue(
             params={
                 "p_workspace_id": str(workspace_id),
                 "p_raw_source_id": str(row["id"]),
+                "p_trace_id": current_trace_id(),
             },
         )
     except DatabaseError as error:
@@ -566,9 +569,9 @@ async def _register_one_video(
         # 상한에 닿은 시점이다. 호출부가 이 결과를 보고 남은 영상의 시도를 멈춘다.
         return {"video_id": video_id, "status": "failed", "reason": "budget_exceeded"}
     except DatabaseError as error:
-        if error.sqlstate == FORBIDDEN_SQLSTATE:
-            # ⚠️ 격리 위반만 예외로 올린다. 이것을 영상별 `failed`로 접으면 200 응답
-            #    안에 403이 숨고, 타 워크스페이스를 지정한 요청이 "일부 실패"로 보인다.
+        if error.sqlstate == FORBIDDEN_SQLSTATE or is_jwt_rejection(error):
+            # ⚠️ 격리 위반과 거부된 토큰만 예외로 올린다. 영상별 `failed`로 접으면 202 응답 안에
+            #    403과 401이 숨고, 타 워크스페이스를 지정한 요청이 "일부 실패"로 보인다.
             raise
         # ⚠️ 조용히 삼키지 않는다 — 영상별 결과로도 알리고 로그에도 남긴다. 여기서
         #    끊고 500을 내면 이미 등록된 앞쪽 영상들의 결과가 응답에서 사라진다.
