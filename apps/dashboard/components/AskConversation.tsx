@@ -43,10 +43,13 @@ type Turn = {
   status: TurnStatus;
   errorToken?: string;
   missingChannelsNotice: boolean;
+  disputedNotice?: boolean;
   persisted?: boolean;
 };
 
 const FALLBACK_NOTICE_LABEL = "자동 검증된 근거 목록";
+const DISPUTED_NOTICE =
+  "이 답변의 근거에 내용이 서로 어긋나는 분쟁 중인 문서가 포함되어 있습니다. 원문을 함께 확인하세요.";
 
 const EMPTY_HEADING = "무엇이든 물어보세요";
 const EMPTY_BODY = "워크스페이스에 등록된 소스와 위키에서 답을 찾아드립니다.";
@@ -130,6 +133,9 @@ function turnsFromMessages(messages: AskThreadMessage[]): Turn[] {
           ? ("fallback" as const)
           : ("resolved" as const),
       missingChannelsNotice: false,
+      disputedNotice: Boolean(
+        (citations as { disputed_aliases?: string[] }).disputed_aliases?.length,
+      ),
       persisted: true,
     };
   });
@@ -407,6 +413,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
             resolved?: ResolvedAnchor[];
             error?: string;
             fallback?: boolean;
+            disputed_aliases?: string[];
           };
           if (noEvidence) {
             patchTurn({ status: "no-evidence" });
@@ -419,6 +426,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
             accumulatedText = citations.text ?? accumulatedText;
             patchTurn({
               status: citations.fallback ? "fallback" : "resolved",
+              disputedNotice: Boolean(citations.disputed_aliases?.length),
               segments: splitTextWithAnchors(
                 accumulatedText,
                 citations.resolved ?? [],
@@ -616,6 +624,12 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                   className="thread-meta"
                 >
                   {MISSING_CHANNELS_NOTICE}
+                </p>
+              ) : null}
+
+              {turn.disputedNotice ? (
+                <p role="status" data-testid="disputed-notice">
+                  {DISPUTED_NOTICE}
                 </p>
               ) : null}
 

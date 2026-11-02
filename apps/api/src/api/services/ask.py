@@ -339,14 +339,14 @@ async def _fetch_evidence_content(
     wiki_ids = sorted({hit.document_id for hit in evidence if hit.kind == "wiki"})
     source_ids = sorted({hit.evidence_id for hit in evidence if hit.kind == "source"})
     content: dict[str, str] = {}
-    wiki_meta: dict[str, dict[str, str]] = {}
+    wiki_meta: dict[str, dict[str, Any]] = {}
     if wiki_ids:
         response = await user_db._client.get(  # noqa: SLF001 - 제한적 in-filter seam
             f"{user_db._base_url}/wiki_pages",
             params={
                 "id": f"in.({','.join(wiki_ids)})",
                 "workspace_id": f"eq.{workspace_id}",
-                "select": "id,slug,title,content",
+                "select": "id,slug,title,content,disputed",
             },
             headers=user_db._headers,  # noqa: SLF001
         )
@@ -354,11 +354,13 @@ async def _fetch_evidence_content(
         for row in rows if isinstance(rows, list) else [rows]:
             doc_id = str(row["id"])
             content[doc_id] = str(row.get("content") or "")
-            meta_row: dict[str, str] = {}
+            meta_row: dict[str, Any] = {}
             if isinstance(row.get("slug"), str) and row["slug"]:
                 meta_row["slug"] = row["slug"]
             if isinstance(row.get("title"), str) and row["title"]:
                 meta_row["title"] = row["title"]
+            if row.get("disputed") is True:
+                meta_row["disputed"] = True
             if meta_row:
                 wiki_meta[doc_id] = meta_row
     if source_ids:
@@ -457,7 +459,9 @@ def _context_blocks(
             #    앵커가 이 요청의 별칭으로 해소된다.
             title = strip_forged_anchors(str(hit.metadata.get("title") or hit.document_id))
             content = strip_forged_anchors(content_by_id.get(hit.document_id, ""))
-            wiki_blocks.append(f"[[wiki:{alias}]] {title}\n{content}")
+            # ⚠️ 표시하지 않으면 분쟁 중인 페이지가 일반 근거와 똑같이 단정적으로 인용된다.
+            marker = " (분쟁 중인 문서)" if hit.metadata.get("disputed") is True else ""
+            wiki_blocks.append(f"[[wiki:{alias}]]{marker} {title}\n{content}")
         else:
             alias = alias_by_key[("source", hit.evidence_id)]
             raw_source_id = hit.metadata.get("raw_source_id") or ""
@@ -576,6 +580,20 @@ def _control_report(
             )
         },
     }
+
+
+def _disputed_aliases(
+    evidence: list[EvidenceHit], issuance: Mapping[str, tuple[str, str]]
+) -> list[str]:
+    """분쟁 중인 위키 근거의 별칭. 화면이 경고를 띄우는 데 쓴다."""
+    alias_by_id = {real_id: alias for alias, (kind, real_id) in issuance.items() if kind == "wiki"}
+    return sorted(
+        alias_by_id[hit.document_id]
+        for hit in evidence
+        if hit.kind == "wiki"
+        and hit.metadata.get("disputed") is True
+        and hit.document_id in alias_by_id
+    )
 
 
 def _missing_channels(retrieval_meta: Mapping[str, Any]) -> list[str]:
@@ -1047,6 +1065,9 @@ class AskService:
         }
         if terminal_status == "fallback":
             success_citations["fallback"] = True
+        disputed_aliases = _disputed_aliases(included_evidence, issuance)
+        if disputed_aliases:
+            success_citations["disputed_aliases"] = disputed_aliases
         yield "citations", success_citations
         async for event in self._yield_done_if_finalized(
             user_db=user_db,

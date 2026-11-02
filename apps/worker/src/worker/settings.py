@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -121,6 +121,9 @@ class WorkerSettings(BaseAppSettings):
     COMPILE_MAX_PAGES: int = 8
     COMPILE_MAX_INPUT_TOKENS: int = 24000
     COMPILE_MAX_OUTPUT_TOKENS: int = 4096
+    # 위험한 위키 쓰기 모드 (ai-control-risk-policy D5). `shadow`는 쓰기를 진행하고 개정에 등급만
+    # 남기고, `enforce`는 검증·공개 페이지 변경을 승인 대기로 보류한다.
+    AI_CONTROL_RISK_MODE: Literal["off", "shadow", "enforce"] = "shadow"
     COMPILE_MAX_EXISTING_SLUGS: int = 200
     CONFLICT_MAX_INPUT_TOKENS: int = 4000
     CONFLICT_MAX_OUTPUT_TOKENS: int = 512

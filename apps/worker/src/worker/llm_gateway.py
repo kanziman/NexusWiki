@@ -8,8 +8,8 @@
 실패나 업서트 실패가 이미 지불한 비용을 지우지 못하게 하기 위해서다. 월 상한은 이 합계로
 판정하므로 기록 누락은 곧 상한이 늦게 걸린다는 뜻이다.
 
-⚠️ 요청 본문과 재시도 흐름은 바꾸지 않는다. 정책 주입과 프롬프트 예산은 이 경계에 생기지만
-후속 change의 범위다. 핸들러가 공급자 함수를 직접 부르면 `test_llm_gateway.py`의 구조
+공통 정책 주입과 데이터 수집 거부는 요청을 조립하는 `worker.llm`이 맡는다.
+핸들러가 공급자 함수를 직접 부르면 `test_llm_gateway.py`의 구조
 테스트가 실패한다.
 
 소비자: `worker.handlers.compile`, `worker.handlers.conflict`, `worker.handlers.embed`,
@@ -27,6 +27,7 @@ import httpx
 from pydantic import BaseModel
 
 from nexuswiki_core.domain import UsageKind
+from nexuswiki_core.llm_policy import LLM_POLICY_VERSION
 from nexuswiki_core.observability import export_generation
 from nexuswiki_core.trace import current_trace_id
 from worker import embedding as embedding_provider
@@ -88,7 +89,10 @@ class LlmGateway:
         """구조화 출력 호출. 재시도마다 그 시도의 사용량을 따로 기록한다."""
 
         async def record_attempt(attempt: AttemptUsage) -> None:
-            attempt_meta: dict[str, Any] = {"attempt": attempt.attempt}
+            attempt_meta: dict[str, Any] = {
+                "attempt": attempt.attempt,
+                "policy_version": LLM_POLICY_VERSION,
+            }
             if max_tokens is not None:
                 attempt_meta["max_tokens"] = max_tokens
             if attempt.fence_stripped:
@@ -198,7 +202,10 @@ async def record_stream_usage(
         total_tokens=llm_provider.token_count(usage.get("total_tokens")),
         cost_micros=llm_provider.cost_micros(usage),
         duration_ms=duration_ms,
-        metadata={"incomplete": True} if incomplete else {},
+        metadata={
+            "policy_version": LLM_POLICY_VERSION,
+            **({"incomplete": True} if incomplete else {}),
+        },
         ask_call_id=ask_call_id,
         trace_id=trace_id,
     )

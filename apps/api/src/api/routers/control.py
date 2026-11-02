@@ -593,3 +593,83 @@ async def control_quality(
             "pages_with_evidence": count("wiki_pages_with_evidence"),
         },
     }
+
+
+_PROPOSAL_COLUMNS: Final[str] = (
+    "id,wiki_id,risk_reason,proposed_title,proposed_content,created_at,updated_at"
+)
+_RISK_PROPOSAL_LIMIT: Final[int] = 20
+
+
+@router.get("/{workspace_id}/control/risk")
+async def control_risk(
+    workspace_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    days: Annotated[int, Query(ge=1, le=90)] = 30,
+) -> dict[str, Any]:
+    """Control Room [리스크] 탭 스냅샷. 제안 본문은 RLS로 editor 이상에게만 보인다."""
+    since = datetime.now(UTC) - timedelta(days=days)
+    db = _user_db(request, credentials)
+    rows = await db.rpc(
+        "control_risk_snapshot",
+        params={"p_workspace_id": str(workspace_id), "p_since": since.isoformat()},
+    )
+    if not rows:
+        raise WorkspaceForbidden(table="workspace_members", affected=0)
+    row = rows[0]
+    can_view = row.get("can_view_workspace") is True
+    proposals: list[dict[str, Any]] = []
+    if can_view:
+        pending = await db.select(
+            "wiki_write_proposals",
+            match={"workspace_id": str(workspace_id), "status": "pending"},
+            columns=_PROPOSAL_COLUMNS,
+            order="created_at.desc",
+            limit=_RISK_PROPOSAL_LIMIT,
+        )
+        pages = (
+            await db.select(
+                "wiki_pages",
+                match={"workspace_id": str(workspace_id)},
+                columns="id,slug,title,content",
+            )
+            if pending
+            else []
+        )
+        by_id = {str(page["id"]): page for page in pages}
+        proposals = [
+            {
+                "id": item["id"],
+                "wiki_id": item["wiki_id"],
+                "risk_reason": item["risk_reason"],
+                "slug": by_id.get(str(item["wiki_id"]), {}).get("slug"),
+                "current_title": by_id.get(str(item["wiki_id"]), {}).get("title"),
+                "current_content": by_id.get(str(item["wiki_id"]), {}).get("content"),
+                "proposed_title": item["proposed_title"],
+                "proposed_content": item["proposed_content"],
+                "updated_at": item["updated_at"],
+            }
+            for item in pending
+        ]
+    settings = request.app.state.settings
+    raw_versions = row.get("policy_versions")
+    return {
+        "days": days,
+        "can_view_workspace": can_view,
+        "write_mode": str(getattr(settings, "AI_CONTROL_RISK_MODE", "shadow")),
+        "policy_versions": (
+            [str(item) for item in raw_versions[:8]] if isinstance(raw_versions, list) else []
+        ),
+        "revisions": {
+            "low": int(_number(row.get("revisions_low"))),
+            "medium": int(_number(row.get("revisions_medium"))),
+            "high": int(_number(row.get("revisions_high"))),
+        },
+        "proposals": {
+            "pending": int(_number(row.get("pending_proposals"))),
+            "applied": int(_number(row.get("applied_proposals"))),
+            "rejected": int(_number(row.get("rejected_proposals"))),
+        },
+        "pending_proposals": proposals,
+    }

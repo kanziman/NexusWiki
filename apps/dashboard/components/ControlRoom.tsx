@@ -148,10 +148,40 @@ const CALL_PATH_LABELS: Record<string, string> = {
   query_embedding: "질의 임베딩 (query_embedding)",
 };
 
-const FUTURE_TABS = [{ id: "risk", label: "리스크", step: "Step 4" }] as const;
+type TabId = "trace" | "budget" | "quality" | "risk";
 
-type TabId =
-  "trace" | "budget" | "quality" | (typeof FUTURE_TABS)[number]["id"];
+type PendingProposal = {
+  id: string;
+  wiki_id: string;
+  risk_reason: string;
+  slug: string | null;
+  current_title: string | null;
+  current_content: string | null;
+  proposed_title: string;
+  proposed_content: string;
+  updated_at: string;
+};
+
+type RiskSnapshot = {
+  days: number;
+  can_view_workspace: boolean;
+  write_mode: string;
+  policy_versions: string[];
+  revisions: { low: number; medium: number; high: number };
+  proposals: { pending: number; applied: number; rejected: number };
+  pending_proposals: PendingProposal[];
+};
+
+const RISK_MODE_LABELS: Record<string, string> = {
+  enforce: "검증·공개 문서 변경을 승인 대기로 보류",
+  shadow: "쓰기를 진행하고 위험 등급만 기록",
+  off: "꺼짐",
+};
+
+const RISK_REASON_LABELS: Record<string, string> = {
+  verified_page: "검증 완료 문서",
+  published_page: "공개된 문서",
+};
 
 type QualitySnapshot = {
   days: number;
@@ -235,6 +265,8 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
   const [budgetError, setBudgetError] = useState(false);
   const [quality, setQuality] = useState<QualitySnapshot | null>(null);
   const [qualityError, setQualityError] = useState(false);
+  const [risk, setRisk] = useState<RiskSnapshot | null>(null);
+  const [riskError, setRiskError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TraceDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -266,6 +298,33 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
     }
   }, [workspaceId]);
 
+  const loadRisk = useCallback(async () => {
+    setRiskError(false);
+    try {
+      setRisk(
+        await apiFetch<RiskSnapshot>(`/workspaces/${workspaceId}/control/risk`),
+      );
+    } catch {
+      setRiskError(true);
+    }
+  }, [workspaceId]);
+
+  const decideProposal = useCallback(
+    async (proposalId: string, decision: "approve" | "reject") => {
+      setRiskError(false);
+      try {
+        await apiFetch(
+          `/workspaces/${workspaceId}/wiki-proposals/${proposalId}/${decision}`,
+          { method: "POST" },
+        );
+        await loadRisk();
+      } catch {
+        setRiskError(true);
+      }
+    },
+    [workspaceId, loadRisk],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(false);
@@ -288,13 +347,16 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
       if (tab === "quality") {
         await loadQuality();
       }
+      if (tab === "risk") {
+        await loadRisk();
+      }
     } catch {
       // 원시 오류는 운영 정보가 될 수 있으므로 계약 문구만 렌더한다.
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, tab, loadBudget, loadQuality]);
+  }, [workspaceId, tab, loadBudget, loadQuality, loadRisk]);
 
   useEffect(() => {
     void load();
@@ -311,6 +373,12 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
       void loadQuality();
     }
   }, [tab, quality, qualityError, loadQuality]);
+
+  useEffect(() => {
+    if (tab === "risk" && !risk && !riskError) {
+      void loadRisk();
+    }
+  }, [tab, risk, riskError, loadRisk]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -387,19 +455,16 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
         >
           품질
         </button>
-        {FUTURE_TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            id={`control-tab-${item.id}`}
-            aria-selected={tab === item.id}
-            className={tab === item.id ? styles.tabActive : styles.tab}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+        <button
+          type="button"
+          role="tab"
+          id="control-tab-risk"
+          aria-selected={tab === "risk"}
+          className={tab === "risk" ? styles.tabActive : styles.tab}
+          onClick={() => setTab("risk")}
+        >
+          리스크
+        </button>
       </div>
 
       {tab === "budget" ? (
@@ -420,17 +485,17 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
           ) : null}
           {quality ? <QualityPanel snapshot={quality} /> : null}
         </section>
-      ) : tab !== "trace" ? (
-        <section
-          role="tabpanel"
-          aria-labelledby={`control-tab-${tab}`}
-          className={styles.empty}
-        >
-          <h2>
-            {FUTURE_TABS.find((item) => item.id === tab)?.step}에서 수집을
-            시작합니다
-          </h2>
-          <p>아직 수집된 데이터가 없습니다.</p>
+      ) : tab === "risk" ? (
+        <section role="tabpanel" aria-labelledby="control-tab-risk">
+          {riskError ? (
+            <p role="alert" className="invite-feedback error show">
+              리스크 정보를 불러오거나 처리하지 못했습니다. 새로고침을
+              시도해주세요.
+            </p>
+          ) : null}
+          {risk ? (
+            <RiskPanel snapshot={risk} onDecide={decideProposal} />
+          ) : null}
         </section>
       ) : (
         <section role="tabpanel" aria-labelledby="control-tab-trace">
@@ -543,6 +608,79 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className={styles.metric}>
       <span>{label}</span>
       <b>{value}</b>
+    </div>
+  );
+}
+
+function RiskPanel({
+  snapshot,
+  onDecide,
+}: {
+  snapshot: RiskSnapshot;
+  onDecide: (proposalId: string, decision: "approve" | "reject") => void;
+}) {
+  const { revisions, proposals } = snapshot;
+  return (
+    <div>
+      <p>
+        위키 쓰기 모드:{" "}
+        {RISK_MODE_LABELS[snapshot.write_mode] ?? snapshot.write_mode}
+      </p>
+      {snapshot.policy_versions.length > 0 ? (
+        <p>적용된 LLM 정책: {snapshot.policy_versions.join(", ")}</p>
+      ) : null}
+      <section
+        className={styles.aggregate}
+        aria-label={`최근 ${snapshot.days}일 위키 쓰기 위험 등급`}
+      >
+        <Metric label="낮음" value={`${revisions.low}건`} />
+        <Metric label="중간" value={`${revisions.medium}건`} />
+        <Metric label="높음" value={`${revisions.high}건`} />
+        <Metric label="승인 대기" value={`${proposals.pending}건`} />
+        <Metric label="승인 반영" value={`${proposals.applied}건`} />
+        <Metric label="거부" value={`${proposals.rejected}건`} />
+      </section>
+      {snapshot.can_view_workspace ? (
+        snapshot.pending_proposals.length > 0 ? (
+          <section aria-label="승인 대기 위키 변경">
+            <h2>승인 대기 위키 변경</h2>
+            <ul>
+              {snapshot.pending_proposals.map((proposal) => (
+                <li key={proposal.id}>
+                  <strong>{proposal.proposed_title}</strong>{" "}
+                  <span>
+                    {RISK_REASON_LABELS[proposal.risk_reason] ??
+                      proposal.risk_reason}
+                  </span>
+                  <details>
+                    <summary>현재 본문과 제안 본문 보기</summary>
+                    <h3>현재 본문</h3>
+                    <pre>{proposal.current_content}</pre>
+                    <h3>제안 본문</h3>
+                    <pre>{proposal.proposed_content}</pre>
+                  </details>
+                  <button
+                    type="button"
+                    onClick={() => onDecide(proposal.id, "approve")}
+                  >
+                    승인
+                  </button>{" "}
+                  <button
+                    type="button"
+                    onClick={() => onDecide(proposal.id, "reject")}
+                  >
+                    거부
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : (
+          <p>승인을 기다리는 위키 변경이 없습니다.</p>
+        )
+      ) : (
+        <p>조회 전용(viewer) 멤버에게는 집계만 표시합니다.</p>
+      )}
     </div>
   );
 }

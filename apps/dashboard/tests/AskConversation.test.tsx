@@ -260,6 +260,30 @@ describe("AskConversation", () => {
     expect(screen.getByRole("button", { name: "재시도" })).toBeInTheDocument();
   });
 
+  it("근거에 분쟁 문서가 있으면 경고를 표시한다", async () => {
+    searchParamsMock.value = new URLSearchParams({ q: "질문" });
+    sseFrames.mockReturnValue(
+      toAsyncGenerator([
+        { event: "meta", data: {} },
+        {
+          event: "citations",
+          data: {
+            text: "답변 [[wiki:w1]]",
+            resolved: [{ alias: "w1", kind: "wiki", id: "wiki-1" }],
+            disputed_aliases: ["w1"],
+          },
+        },
+        { event: "done", data: {} },
+      ]),
+    );
+
+    render(<AskConversation workspaceId="ws-1" />);
+
+    expect(await screen.findByTestId("disputed-notice")).toHaveTextContent(
+      "분쟁 중인 문서",
+    );
+  });
+
   it("citations.error(budget_exceeded)는 no-evidence 카드와 구분되는 에러 카드를 사용량 확인 버튼과 함께 렌더링한다", async () => {
     sseFrames.mockReturnValue(
       toAsyncGenerator([

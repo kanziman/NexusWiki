@@ -35,6 +35,7 @@ from nexuswiki_core.router import (
 )
 from nexuswiki_core.slug import slugify
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
+from nexuswiki_core.wiki_write_policy import WikiWriteRisk, classify_wiki_write
 from worker.db.service import ServiceDb, service_client
 from worker.llm import LlmResult, openrouter_client, render_template
 from worker.llm_gateway import LlmCallContext, LlmGateway
@@ -276,16 +277,23 @@ async def run_compile(
         _logger.warning("worker.compile_produced_no_pages", raw_source_id=raw_source_id)
 
     fabricated_evidence = 0
+    risk_mode = str(getattr(settings, "AI_CONTROL_RISK_MODE", "shadow"))
     for slug, page in _assign_slugs(pages):
+        chunk_ids, fabricated = _resolve_evidence(page.evidence, issued_chunks)
+        fabricated_evidence += fabricated
         wiki_id = await _upsert_page(
             db,
             workspace_id=workspace_id,
             raw_source_id=raw_source_id,
             slug=slug,
             page=page,
+            job_id=job_id,
+            risk_mode=risk_mode,
+            evidence_chunk_ids=chunk_ids,
         )
-        chunk_ids, fabricated = _resolve_evidence(page.evidence, issued_chunks)
-        fabricated_evidence += fabricated
+        if wiki_id is None:
+            # 승인 대기로 보류됐다. 근거는 제안에 실려 있고 승인 때 반영된다.
+            continue
         await db.replace_wiki_page_evidence(
             workspace_id=workspace_id,
             wiki_id=wiki_id,
@@ -402,12 +410,59 @@ async def _upsert_page(
     raw_source_id: str,
     slug: str,
     page: CompiledPage,
-) -> str:
+    job_id: str = "",
+    risk_mode: str = "off",
+    evidence_chunk_ids: list[str] | None = None,
+) -> str | None:
+    """페이지를 쓰고 id를 돌려준다. 승인 대기로 보류하면 `None`이다."""
     existing = await db.get_wiki_page_by_slug(workspace_id=workspace_id, slug=slug)
     sources = _union_sources(existing, raw_source_id)
     # ⚠️ 입력에 앵커가 생겼으므로 모델이 본문에 베껴 쓸 수 있다. 그대로 저장하면 이후 Ask
     #    컨텍스트에서 그 요청이 발급한 별칭과 혼동된다.
     content = strip_forged_anchors(page.content)
+
+    if existing is not None and risk_mode != "off":
+        decision = classify_wiki_write(
+            existing,
+            new_content=content,
+            raw_source_id=raw_source_id,
+            published=await db.is_wiki_page_published(
+                workspace_id=workspace_id, wiki_id=str(existing["id"])
+            ),
+        )
+        if decision.changed:
+            if decision.risk == WikiWriteRisk.HIGH and risk_mode == "enforce":
+                await db.upsert_wiki_write_proposal(
+                    workspace_id=workspace_id,
+                    wiki_id=str(existing["id"]),
+                    raw_source_id=raw_source_id,
+                    risk_reason=decision.reason,
+                    title=page.title,
+                    category=page.category.value,
+                    aliases=page.aliases,
+                    confidence=page.confidence.value,
+                    content=content,
+                    evidence_chunk_ids=evidence_chunk_ids or [],
+                )
+                _logger.info(
+                    "worker.compile_write_held",
+                    raw_source_id=raw_source_id,
+                    risk_reason=decision.reason,
+                )
+                return None
+            # ⚠️ 덮어쓰기 전에 남긴다. 순서를 바꾸면 실패 시 이전 본문이 사라진다.
+            await db.insert_wiki_page_revision(
+                workspace_id=workspace_id,
+                row={
+                    "wiki_id": str(existing["id"]),
+                    "raw_source_id": raw_source_id,
+                    "job_id": job_id,
+                    "risk_level": decision.risk.value,
+                    "reason": decision.reason,
+                    "previous_title": str(existing.get("title") or ""),
+                    "previous_content": str(existing.get("content") or ""),
+                },
+            )
 
     # ⚠️ `verification_status` · `explored` · `verified_by` · `disputed`를 **넣지 않는다**
     #    (T-03-28). 사람이 세운 검증 배지를 재컴파일이 지우면 검증이라는 행위가 소스가

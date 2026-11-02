@@ -147,7 +147,7 @@ async def test_first_request_declares_the_schema_and_requires_parameters() -> No
         await run(client)
 
     assert seen[0]["response_format"]["type"] == "json_schema"
-    assert seen[0]["provider"] == {"require_parameters": True}
+    assert seen[0]["provider"] == {"data_collection": "deny", "require_parameters": True}
     # 비용 회계를 명시적으로 요청하지 않으면 cost_micros가 0으로 굳는다 (T-03-27).
     assert seen[0]["usage"] == {"include": True}
 
@@ -161,7 +161,7 @@ async def test_a_4xx_on_the_structured_request_falls_back_to_prompt_only() -> No
 
     assert "response_format" in seen[0]
     assert "response_format" not in seen[1]
-    assert "provider" not in seen[1]
+    assert seen[1]["provider"] == {"data_collection": "deny"}
     # 폴백은 **시도 횟수를 소모하지 않는다** — 스키마 재시도 예산은 검증 실패의 몫이다.
     assert isinstance(result.payload, Result)
 
