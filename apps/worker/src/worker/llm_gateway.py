@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -135,14 +135,27 @@ class LlmGateway:
 
 
 def open_answer_stream(
-    client: httpx.AsyncClient, *, settings: WorkerSettings, messages: list[dict[str, str]]
+    client: httpx.AsyncClient,
+    *,
+    settings: WorkerSettings,
+    messages: list[dict[str, str]],
+    max_tokens: int | None = None,
+    on_generation: Callable[[str], Awaitable[None]] | None = None,
 ) -> AsyncIterator[bytes]:
     """Ask 답변 스트림을 연다.
 
     스트림 수명은 내부 리스너가 소유하고 종료 시점도 그쪽만 알기 때문에, 사용량은 끝난 뒤
     `record_stream_usage`로 남긴다.
     """
-    return llm_provider.stream_chat(client, settings=settings, messages=messages)
+    if max_tokens is None and on_generation is None:
+        return llm_provider.stream_chat(client, settings=settings, messages=messages)
+    return llm_provider.stream_chat(
+        client,
+        settings=settings,
+        messages=messages,
+        max_tokens=max_tokens,
+        on_generation=on_generation,
+    )
 
 
 async def record_stream_usage(
@@ -152,6 +165,8 @@ async def record_stream_usage(
     usage: Mapping[str, Any],
     duration_ms: int,
     incomplete: bool,
+    ask_call_id: str | None = None,
+    trace_id: str | None = None,
 ) -> None:
     """스트림 한 건의 사용량을 남긴다.
 
@@ -170,6 +185,8 @@ async def record_stream_usage(
         cost_micros=llm_provider.cost_micros(usage),
         duration_ms=duration_ms,
         metadata={"incomplete": True} if incomplete else {},
+        ask_call_id=ask_call_id,
+        trace_id=trace_id,
     )
 
 
@@ -186,12 +203,15 @@ async def _record(
     cost_micros: int,
     duration_ms: int,
     metadata: Mapping[str, Any],
+    ask_call_id: str | None = None,
+    trace_id: str | None = None,
 ) -> None:
     await sink.insert_usage_event(
         workspace_id=context.workspace_id,
         row={
+            **({"ask_call_id": ask_call_id} if ask_call_id is not None else {}),
             "job_id": context.job_id,
-            "trace_id": current_trace_id(),
+            "trace_id": trace_id or current_trace_id(),
             "kind": kind.value,
             "provider": provider,
             "model": model,

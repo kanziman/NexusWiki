@@ -23,6 +23,7 @@ from nexuswiki_core.logging import (
 )
 from nexuswiki_core.observability import configure_observability, flush_observability
 from nexuswiki_core.trace import TraceMiddleware
+from worker.ask_cost import AskCostAccounting
 from worker.ask_turn_export import add_ask_turn_export_route
 from worker.db.service import ServiceDb, service_client
 from worker.llm import openrouter_client
@@ -170,7 +171,15 @@ async def _stream_llm_chat(
 ) -> AsyncIterator[bytes]:
     """`_embed_query`와 같은 형태 — per-call client를 열고 스트림이 끝날 때까지 붙든다."""
     async with openrouter_client(settings) as client:
-        async for chunk in open_answer_stream(client, settings=settings, messages=request.messages):
+        kwargs = {}
+        if request._cost_call is not None:
+            kwargs = {
+                "max_tokens": request._cost_call["max_tokens"],
+                "on_generation": request._on_generation,
+            }
+        async for chunk in open_answer_stream(
+            client, settings=settings, messages=request.messages, **kwargs
+        ):
             yield chunk
 
 
@@ -245,6 +254,7 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
         llm_service = LlmStreamService(
             lambda request: _stream_llm_chat(settings, request),
             internal_token=settings.LLM_STREAM_INTERNAL_TOKEN,
+            accounting=AskCostAccounting(settings),
             check_budget=lambda workspace_id: _check_ask_budget(settings, workspace_id),
             record_usage=lambda workspace_id, usage, *, incomplete, duration_ms: _record_ask_usage(
                 settings,
@@ -424,6 +434,8 @@ async def main() -> None:
                     )
                 )
                 group.create_task(_serve_internal_listeners(settings, stop))
+                if settings.LLM_STREAM_INTERNAL_TOKEN:
+                    group.create_task(AskCostAccounting(settings).run(stop))
             processed = queue_task.result()
         # 루프가 잡마다 clear_job_context()를 부르므로 위 bootstrap 컨텍스트는
         # 이미 지워져 있다. 종료 로그가 맨몸이 되지 않도록 다시 세운다.

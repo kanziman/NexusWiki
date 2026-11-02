@@ -129,7 +129,7 @@ describe("AccountMenu", () => {
 
     expect(await screen.findByText("무료 크레딧")).toBeInTheDocument();
     expect(screen.getByText("420 크레딧 남음")).toBeInTheDocument();
-    expect(screen.getByText("사용 80 크레딧")).toBeInTheDocument();
+    expect(screen.getByText("사용·임시 점유 80 크레딧")).toBeInTheDocument();
     expect(screen.getByText("한도 500 크레딧")).toBeInTheDocument();
   });
 

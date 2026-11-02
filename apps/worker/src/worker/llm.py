@@ -175,6 +175,8 @@ async def stream_chat(
     *,
     settings: WorkerSettings,
     messages: list[dict[str, str]],
+    max_tokens: int | None = None,
+    on_generation: Callable[[str], Awaitable[None]] | None = None,
 ) -> AsyncIterator[bytes]:
     """OpenRouter 채팅 완성을 원문 SSE 바이트로 그대로 릴레이한다.
 
@@ -184,6 +186,8 @@ async def stream_chat(
     Task 2)의 몫이다 — 이 함수는 투명한 바이트 릴레이일 뿐이다.
     """
     body = _chat_stream_body(settings=settings, messages=messages)
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
     async with client.stream("POST", "/chat/completions", json=body) as response:
         if response.status_code >= 400:
             if response.status_code == 402:
@@ -196,6 +200,8 @@ async def stream_chat(
                 status_code=response.status_code,
                 kind="chat_completion",
             )
+        if on_generation and response.headers.get("X-Generation-Id"):
+            await on_generation(response.headers["X-Generation-Id"])
         async for line in response.aiter_lines():
             if line:
                 yield (line + "\n").encode("utf-8")

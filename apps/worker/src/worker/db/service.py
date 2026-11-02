@@ -83,7 +83,9 @@ LEXICAL_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
     {"index_source_chunk_lexical", "index_wiki_page_lexical"}
 )
 CONFLICT_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"find_similar_wiki_pages"})
-BUDGET_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"sum_usage_events_since"})
+BUDGET_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
+    {"sum_usage_events_since", "reserve_ask_cost", "update_ask_cost", "claim_ask_costs"}
+)
 RPC_HELPERS: Final[frozenset[str]] = (
     QUEUE_RPC_FUNCTIONS
     | CATALOG_RPC_FUNCTIONS
@@ -439,6 +441,18 @@ class ServiceDb:
             },
         )
         return rows[0] if rows else None
+
+    async def reserve_ask_cost(self, *, workspace_id: str, params: dict[str, Any]) -> Any:
+        """#172 워커 전용 예약. workspace_id를 호출자에게 필수로 요구한다."""
+        return await self._rpc("reserve_ask_cost", {**params, "p_workspace_id": workspace_id})
+
+    async def update_ask_cost(self, *, workspace_id: str, params: dict[str, Any]) -> Any:
+        """#172 워커 전용 상태 전이와 정산."""
+        return await self._rpc("update_ask_cost", {**params, "p_workspace_id": workspace_id})
+
+    async def claim_ask_costs(self, *, limit: int = 5) -> list[dict[str, Any]]:
+        """전 테넌트의 분배만 예외다. 이후 변경은 반환된 workspace_id로 한정한다."""
+        return await self._rpc_rows("claim_ask_costs", {"p_limit": limit})
 
     async def insert_usage_event(
         self, *, workspace_id: str, row: dict[str, Any]

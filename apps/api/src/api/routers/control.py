@@ -48,7 +48,7 @@ _JOB_COLUMNS: Final[str] = (
     "trace_id,type,status,attempts,created_at,updated_at,last_claimed_at,last_error"
 )
 _USAGE_COLUMNS: Final[str] = (
-    "kind,model,prompt_tokens,completion_tokens,total_tokens,"
+    "ask_call_id,kind,model,prompt_tokens,completion_tokens,total_tokens,"
     "cost_micros,duration_ms,occurred_at,metadata"
 )
 
@@ -252,6 +252,10 @@ def _call(row: Mapping[str, Any]) -> dict[str, Any]:
         "completion_tokens": _number(row.get("completion_tokens")),
         "total_tokens": _number(row.get("total_tokens")),
         "cost_micros": _number(row.get("cost_micros")),
+        "observed_cost_micros": _number(row.get("observed_cost_micros", row.get("cost_micros"))),
+        "pending_micros": _number(row.get("pending_micros")),
+        "accounting_status": row.get("accounting_status"),
+        "tokens_known": row.get("total_tokens") is not None,
         "duration_ms": row.get("duration_ms"),
         "occurred_at": row.get("occurred_at"),
     }
@@ -266,13 +270,36 @@ def _totals(calls: list[dict[str, Any]]) -> dict[str, int | float]:
     }
 
 
-async def _calls(db: UserDb, *, workspace_id: UUID, trace_id: UUID) -> list[dict[str, Any]]:
+async def _calls(
+    db: UserDb, *, workspace_id: UUID, trace_id: UUID, is_ask: bool = False
+) -> list[dict[str, Any]]:
     rows = await db.select(
         "usage_events",
         match={"workspace_id": str(workspace_id), "trace_id": str(trace_id)},
         columns=_USAGE_COLUMNS,
         order="occurred_at.asc",
     )
+    if is_ask:
+        accounted = await db.rpc(
+            "ask_cost_trace_calls",
+            params={
+                "p_workspace_id": str(workspace_id),
+                "p_trace_id": str(trace_id),
+            },
+        )
+        rows = [row for row in rows if not row.get("ask_call_id")]
+        rows.extend(
+            {
+                **row,
+                "kind": "llm",
+                "metadata": {
+                    "call": "ask",
+                    "incomplete": row["accounting_status"] != "settled",
+                },
+            }
+            for row in accounted
+        )
+        rows.sort(key=lambda row: str(row.get("occurred_at")))
     return [_call(row) for row in rows]
 
 
@@ -330,7 +357,16 @@ async def get_trace(
         limit=1,
     )
     if ask_rows:
-        calls = await _calls(db, workspace_id=workspace_id, trace_id=trace_id)
+        calls = await _calls(db, workspace_id=workspace_id, trace_id=trace_id, is_ask=True)
+        cost_rows = await db.rpc(
+            "ask_cost_snapshot",
+            params={
+                "p_workspace_id": str(workspace_id),
+                "p_trace_id": str(trace_id),
+                "p_since": "1970-01-01T00:00:00Z",
+            },
+        )
+        costs = cost_rows[0] if cost_rows else {}
         report = ask_rows[0].get("control_report")
         report = report if isinstance(report, Mapping) else {}
         citation = report.get("citation")
@@ -363,7 +399,15 @@ async def get_trace(
             },
             "stages": [],
             "calls": calls,
-            "totals": _totals(calls),
+            "totals": {
+                **_totals(calls),
+                "cost_micros": costs.get("reported_micros", 0),
+                "pending_micros": costs.get("pending_micros", 0),
+                "budget_micros": costs.get("budget_micros", 0),
+                "unresolved_count": costs.get("unresolved_count", 0),
+                "manual_review_count": costs.get("manual_review_count", 0),
+                "over_reserve_count": costs.get("over_reserve_count", 0),
+            },
         }
 
     if await _has_role(db, workspace_id=workspace_id, min_role="editor"):
@@ -400,6 +444,15 @@ async def ask_aggregate(
         params={"p_workspace_id": str(workspace_id), "p_since": since.isoformat()},
     )
     row = rows[0] if rows else {}
+    costs = await _user_db(request, credentials).rpc(
+        "ask_cost_snapshot",
+        params={
+            "p_workspace_id": str(workspace_id),
+            "p_since": since.replace(hour=0, minute=0, second=0, microsecond=0).isoformat(),
+            "p_ask_only": True,
+        },
+    )
+    cost = costs[0] if costs else {}
     return {
         "days": days,
         "turn_count": row.get("turn_count", 0),
@@ -409,6 +462,9 @@ async def ask_aggregate(
         "decision_counts": row.get("decision_counts") or {},
         "p50_total_ms": row.get("p50_total_ms"),
         "p95_total_ms": row.get("p95_total_ms"),
-        "total_cost_micros": row.get("total_cost_micros", 0),
+        "total_cost_micros": cost.get("reported_micros", 0),
+        "pending_micros": cost.get("pending_micros", 0),
+        "budget_micros": cost.get("budget_micros", 0),
+        "unresolved_count": cost.get("unresolved_count", 0),
         "incomplete_call_count": row.get("incomplete_call_count", 0),
     }
