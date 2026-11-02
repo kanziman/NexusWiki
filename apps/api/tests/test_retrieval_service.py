@@ -261,3 +261,15 @@ async def test_retrieval_route_declares_evidence_only_json_contract(
     assert "200" in response_schema
     assert "RetrievalResponse" in str(response_schema)
     assert all(field not in str(response_schema) for field in ("answer", "citations", "delta"))
+
+
+@pytest.mark.asyncio
+async def test_candidates_keep_hits_beyond_requested_k_for_dual_evidence_selection() -> None:
+    """Ask의 이중 근거 선택이 이 값에 기댄다. 비면 조용히 상위 k개로 돌아가 위키 독점이 재발한다."""
+    result = await RetrievalService(FakeEmbeddingClient()).retrieve(
+        uuid4(), "Hello WORLD", requested_k=1, user_db=FourChannelDb()
+    )
+
+    assert len(result.evidence) == 1
+    assert result.candidates[0] == result.evidence[0]
+    assert {hit.kind for hit in result.candidates} == {"wiki", "source"}

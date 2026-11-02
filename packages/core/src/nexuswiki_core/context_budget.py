@@ -76,25 +76,38 @@ def select_dual_evidence(
     개라 점수가 누적되어 상위를 독차지하고, 그러면 원문 근거가 프롬프트에 실리지 못해 이중
     Citation이 불가능해진다. 조립 단계의 쿼터는 이미 잘린 뒤라 이 쏠림을 되돌리지 못한다.
 
-    같은 원문이 원문 몫을 독차지하지 않게 `per_source_limit`을 두되, 근거가 모자라면 그 제한을
-    풀어 채운다. 결과 순서는 RRF 순서를 유지해 별칭 부여가 결정적이다.
+    같은 원문이 원문 몫을 독차지하지 않게 `per_source_limit`을 두되, 다른 원문이 없으면 그
+    제한을 풀어 채운다. 결과 순서는 RRF 순서를 유지해 별칭 부여가 결정적이다.
     """
     wiki_quota = requested_k // 2
     source_quota = requested_k - wiki_quota
     selected: set[int] = set()
-    wiki_taken = source_taken = 0
+    taken = {"wiki": 0, "source": 0}
+    quota = {"wiki": wiki_quota, "source": source_quota}
     per_source: dict[object, int] = {}
+
+    # 1차: 종류별 몫을 채우되 한 원문이 원문 몫을 독차지하지 못하게 한다.
     for index, hit in enumerate(candidates):
-        if hit.kind == "wiki":
-            if wiki_taken < wiki_quota:
-                selected.add(index)
-                wiki_taken += 1
+        kind = "wiki" if hit.kind == "wiki" else "source"
+        if taken[kind] >= quota[kind]:
             continue
-        raw_source_id = hit.metadata.get("raw_source_id")
-        if source_taken < source_quota and per_source.get(raw_source_id, 0) < per_source_limit:
-            selected.add(index)
-            source_taken += 1
+        if kind == "source":
+            raw_source_id = hit.metadata.get("raw_source_id")
+            if per_source.get(raw_source_id, 0) >= per_source_limit:
+                continue
             per_source[raw_source_id] = per_source.get(raw_source_id, 0) + 1
+        selected.add(index)
+        taken[kind] += 1
+
+    # 2차: 원문 제한에 걸린 자리는 같은 종류로 먼저 채운다. 원문이 있는데 위키에 넘기면
+    #      원문을 하나만 수집한 워크스페이스에서 절반 분배가 깨진다.
+    for index, hit in enumerate(candidates):
+        kind = "wiki" if hit.kind == "wiki" else "source"
+        if index not in selected and taken[kind] < quota[kind]:
+            selected.add(index)
+            taken[kind] += 1
+
+    # 3차: 한 종류가 정말 모자랄 때만 다른 종류로 채운다.
     for index in range(len(candidates)):
         if len(selected) >= requested_k:
             break

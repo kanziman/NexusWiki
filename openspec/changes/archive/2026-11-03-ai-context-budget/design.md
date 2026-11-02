@@ -85,7 +85,7 @@
 
 - **결정**:
   - `test_controlled_ai_evidence.py`에 Step 2 시나리오 3종을 추가하고, 기존 `79b68fe` worktree 실행기와 호환되도록 `79b68fe`에도 존재하는 진입점(`run_compile`, `run_conflict_check`, `AskService.stream_answer`)만 호출한다:
-    1. `compile_unchanged_skip`: 동일 `raw_source`(동일 `content_hash`)에 대해 이미 컴파일된 위키 페이지와 직전 지문이 존재할 때 재컴파일 실행. `before`(`79b68fe`)는 `llm_calls=1`, `recorded_usage_rows=1`인 반면 `after`는 `SKIP_UNCHANGED`로 단락되어 `llm_calls=0`, `recorded_usage_rows=0`, `chained_next_type="link_sync"`가 된다.
+    1. `compile_unchanged_skip`: 동일 `raw_source`(동일 본문)에 대해 이미 컴파일된 위키 페이지와 직전 지문이 존재할 때 재컴파일 실행. `before`(`79b68fe`)는 `llm_calls=1`, `recorded_usage_rows=1`인 반면 `after`는 `SKIP_UNCHANGED`로 단락되어 `llm_calls=0`, `recorded_usage_rows=0`, `chained_next_type="link_sync"`가 된다.
     2. `ask_context_budget_quota`: 긴 본문을 가진 상위 위키 히트 여러 개와 후순위 원문 청크 히트가 함께 검색된 상태에서 Ask 호출. `before`(`79b68fe`)는 모든 히트 본문을 무제한 결합해 컨텍스트 토큰이 예산을 초과하는 반면, `after`는 `ASK_MAX_CONTEXT_TOKENS` 이하로 컨텍스트를 제한하면서도 `[[wiki:...]]`와 `[[src:...]]` 인용 블록을 모두 보존하고 `control_report.budget.truncated=True`, `dual_evidence_preserved=True`를 기록한다.
     3. `structured_output_max_tokens`: 긴 위키 페이지 쌍에 대한 `run_conflict_check` 호출. `before`(`79b68fe`)는 OpenRouter 요청에 `max_tokens`를 전달하지 않고 원문 전체를 전송하는 반면, `after`는 입력을 `CONFLICT_MAX_INPUT_TOKENS` 예산 내로 절단하고 요청 본문과 `usage_events.metadata`에 `max_tokens=512`를 기록한다.
   - `apps/dashboard/content/controlled-ai/step1.json`에 위 3개 시나리오의 실측 `before`/`after` 결과를 반영하고 `upcoming` 배열은 Step 3·Step 4만 남긴다.
@@ -106,4 +106,6 @@
 합성 샘플 30문항을 실제 LLM으로 재생했더니 모든 턴의 근거가 위키 8건, 원문 0건이었고 이중 인용률이 0이었다. 원인은 조립 단계의 쿼터가 검색의 `evidence[:k]` 이후에 돈다는 점이다. 위키는 페이지당 임베딩이 여러 개라 RRF 점수가 누적되어 상위를 독차지하고, 잘린 원문은 쿼터가 볼 수 없다.
 
 Ask에서 융합 후보를 받아 위키와 원문을 절반씩 고르도록 고쳤다(`select_dual_evidence`). `/retrieval` 응답과 검색 계약은 그대로 둔다. 기존 테스트는 대역이 이미 양쪽 근거를 돌려줘서 이 결함을 보지 못했다.
+
+컴파일 지문도 고쳤다. `raw_sources.content_hash`는 수집 시점 값이고 재처리로 본문이 바뀌어도 그대로라, `SKIP_UNCHANGED`가 바뀐 원문을 건너뛰어 위키가 낡을 수 있었다. 로컬 스택 E2E(`test_reprocessing_adds_usage_rows_and_never_overwrites_earlier_ones`)가 이 실패를 잡았다. 지문은 이제 컴파일할 본문의 해시로 계산한다.
 

@@ -56,7 +56,7 @@
 - **THEN** 처리는 그대로 진행되고 값이 없는 상태로 기록된다
 
 ### Requirement: Router 결정의 shadow 기록
-시스템은 Ask 턴과 컴파일 잡마다 Router 결정과 사유 코드를 SHALL 기록한다. Ask 턴에서는 근거 0건(`NO_EVIDENCE`) 단락만 실행하고 나머지 결정(`LOOKUP`, `SINGLE_KIND`, `STANDARD`)은 기록만 하며 LLM 호출 여부를 바꾸지 않는다. 컴파일 잡에서는 입력 지문(`content_hash`, `template_id`, `model`)이 직전 성공 컴파일과 같고 해당 원문에서 생성된 위키 페이지가 워크스페이스에 이미 존재할 때(`SKIP_UNCHANGED`) 공급자 LLM 호출을 MUST 생략하고 후속 체인(`link_sync`)으로 진행해야 한다. 지문 조회 실패나 기존 위키 페이지 부재 시에는 LLM 호출을 생략하지 않고 `STANDARD` 또는 `TRUNCATED`로 실행한다.
+시스템은 Ask 턴과 컴파일 잡마다 Router 결정과 사유 코드를 SHALL 기록한다. Ask 턴에서는 근거 0건(`NO_EVIDENCE`) 단락만 실행하고 나머지 결정(`LOOKUP`, `SINGLE_KIND`, `STANDARD`)은 기록만 하며 LLM 호출 여부를 바꾸지 않는다. 컴파일 잡에서는 입력 지문(컴파일 본문 해시, `template_id`, `model`)이 직전 성공 컴파일과 같고 해당 원문에서 생성된 위키 페이지가 워크스페이스에 이미 존재할 때(`SKIP_UNCHANGED`) 공급자 LLM 호출을 MUST 생략하고 후속 체인(`link_sync`)으로 진행해야 한다. 지문 조회 실패나 기존 위키 페이지 부재 시에는 LLM 호출을 생략하지 않고 `STANDARD` 또는 `TRUNCATED`로 실행한다.
 
 #### Scenario: 제목과 정확히 일치하는 질문
 - **WHEN** Router가 `LOOKUP` 경로로 판정한다

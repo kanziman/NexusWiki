@@ -125,3 +125,14 @@ def test_selection_keeps_rrf_order_and_handles_short_input() -> None:
     candidates = [_source_hit(1), _wiki_hit(1), _source_hit(2), _wiki_hit(2)]
     assert select_dual_evidence(candidates, requested_k=8) == candidates
     assert select_dual_evidence([], requested_k=8) == []
+
+
+def test_single_source_workspace_still_gets_half_sources() -> None:
+    # 원문이 하나뿐이어도 원문 몫을 위키에 넘기지 않는다.
+    candidates = [
+        *[_wiki_hit(i) for i in range(1, 9)],
+        *[_source_hit(i, "same") for i in range(1, 9)],
+    ]
+    kinds = [hit.kind for hit in select_dual_evidence(candidates, requested_k=8)]
+    assert kinds.count("wiki") == 4
+    assert kinds.count("source") == 4
