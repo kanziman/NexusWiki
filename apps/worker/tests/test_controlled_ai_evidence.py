@@ -13,7 +13,8 @@
 
     # before: 기준 커밋의 worktree를 PYTHONPATH 앞에 두고 측정한다.
     git worktree add <dir> 79b68fe
-    PYTHONPATH="<dir>/apps/api/src;<dir>/apps/worker/src;<dir>/packages/core/src" \
+    # 구분자는 macOS와 Linux에서 `:`, Windows에서 `;`다.
+    PYTHONPATH="<dir>/apps/api/src:<dir>/apps/worker/src:<dir>/packages/core/src" \
         uv run python apps/worker/tests/test_controlled_ai_evidence.py measure before.json
     uv run python apps/worker/tests/test_controlled_ai_evidence.py write before before.json
 """
@@ -526,6 +527,20 @@ def test_each_item_records_a_real_before_and_after(item: dict[str, Any]) -> None
     assert set(committed["after"]["values"]) == keys
     # 전후가 같으면 그 항목은 통제의 효과를 보여주지 못한다.
     assert committed["before"]["values"] != committed["after"]["values"]
+
+
+def test_committed_code_cannot_ship_with_uncommitted_evidence() -> None:
+    # ⚠️ 측정 대상 코드가 커밋된 뒤에도 `uncommitted`가 남으면 task 7.3을 잊은 것이다. 이 검사가
+    #    없으면 "커밋 전" 표시가 공개 쇼케이스에 그대로 배포된다. 작업 중에는 측정 대상이 더러워서
+    #    `_current_commit`이 같은 값을 돌려주므로 통과한다.
+    if _current_commit() == _UNCOMMITTED:
+        pytest.skip("측정 대상 코드에 커밋되지 않은 변경이 있다")
+
+    stale = [
+        entry["id"] for entry in _evidence()["items"] if entry["after"]["commit"] == _UNCOMMITTED
+    ]
+
+    assert stale == [], "코드를 커밋했으면 증거를 다시 생성해 실제 해시를 기록해야 한다"
 
 
 def test_upcoming_steps_carry_no_example_numbers() -> None:

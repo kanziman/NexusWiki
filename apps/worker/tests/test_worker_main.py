@@ -1,13 +1,19 @@
 import asyncio
 from typing import Any
+from uuid import uuid4
 
+import httpx
 import pytest
 import structlog
 
+from nexuswiki_core.observability import FLUSH_TIMEOUT_SECONDS
 from nexuswiki_core.trace import TraceMiddleware
 from worker import __main__ as worker_main
 from worker import embedding as embedding_provider
-from worker.embedding import EmbeddingResult
+from worker import query_embedding
+from worker.embedding import EmbeddingResult, EmbeddingUsage
+from worker.query_embedding import QueryEmbeddingService, create_query_embedding_app
+from worker.queue import PLATFORM_GRACE_SECONDS
 from worker.settings import WorkerSettings
 
 
@@ -158,13 +164,89 @@ def _patch_query_embedding(
                 raise RuntimeError("db unavailable")
             rows.append((workspace_id, row))
 
-    async def fake_embed(*_: Any, **__: Any) -> EmbeddingResult:
+    async def fake_embed(*_: Any, **kwargs: Any) -> EmbeddingResult:
+        # 실제 함수처럼 검증 전에 콜백으로 사용량을 알린다.
+        await kwargs["on_usage"](EmbeddingUsage(7, 0, 7, 11, "DeepInfra", "baai/bge-m3"))
         return EmbeddingResult([[0.0] * 1024], 7, 0, 7, 11, "DeepInfra", "baai/bge-m3")
 
     monkeypatch.setattr(worker_main, "openrouter_client", lambda settings: _FakeHttpClient())
     monkeypatch.setattr(worker_main, "service_client", lambda settings: _FakeHttpClient())
     monkeypatch.setattr(worker_main, "ServiceDb", FakeDb)
     monkeypatch.setattr(embedding_provider, "embed_texts", fake_embed)
+
+
+@pytest.mark.asyncio
+async def test_listener_registers_the_turn_export_route_with_the_llm_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ⚠️ 이 등록이 빠지면 API는 404를 경고로만 남겨 턴 내보내기가 조용히 사라진다.
+    served: list[Any] = []
+    configs: list[Any] = []
+
+    class FakeServer:
+        def __init__(self, config: Any) -> None:
+            served.append(config.app)
+            configs.append(config)
+            self.should_exit = False
+
+        async def serve(self) -> None:
+            await asyncio.sleep(0)
+
+    monkeypatch.setattr(worker_main.uvicorn, "Server", FakeServer)
+    settings = _settings().model_copy(update={"LLM_STREAM_INTERNAL_TOKEN": "llm-token"})
+    stop = asyncio.Event()
+    stop.set()
+
+    await worker_main._serve_internal_listeners(settings, stop)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=served[0]), base_url="http://worker"
+    ) as client:
+        body = {"workspace_id": str(uuid4()), "control_report": {}, "persisted": True}
+        accepted = await client.post(
+            "/internal/ask-turn-export",
+            json=body,
+            headers={"Authorization": "Bearer llm-token"},
+        )
+        rejected = await client.post("/internal/ask-turn-export", json=body)
+
+    assert accepted.status_code == 204
+    assert rejected.status_code == 401
+    # ⚠️ 없으면 130초짜리 스트림을 기다리다 플랫폼의 SIGKILL(30초)을 맞는다.
+    limit = configs[0].timeout_graceful_shutdown
+    assert limit is not None
+    assert limit + worker_main._USAGE_DRAIN_SECONDS + FLUSH_TIMEOUT_SECONDS < PLATFORM_GRACE_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_listener_shutdown_waits_for_records_of_cancelled_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ⚠️ 취소된 스트림의 기록은 서비스가 따로 들고 있다. 넘기지 않으면 끊긴 호출의 기록이 사라진다.
+    record = asyncio.get_running_loop().create_future()
+    record.set_result(None)
+    drained: list[Any] = []
+
+    class FakeServer:
+        def __init__(self, config: Any) -> None:
+            self.should_exit = False
+
+        async def serve(self) -> None:
+            await asyncio.sleep(0)
+
+    async def drain(**kwargs: Any) -> None:
+        drained.append(kwargs["stream_records"])
+
+    monkeypatch.setattr(worker_main.uvicorn, "Server", FakeServer)
+    monkeypatch.setattr(worker_main, "_drain_usage_writes", drain)
+    monkeypatch.setattr(worker_main.LlmStreamService, "pending_records", lambda self: {record})
+    settings = _settings().model_copy(update={"LLM_STREAM_INTERNAL_TOKEN": "llm-token"})
+    stop = asyncio.Event()
+    stop.set()
+
+    await worker_main._serve_internal_listeners(settings, stop)
+
+    assert drained == [{record}]
 
 
 @pytest.mark.asyncio
@@ -175,8 +257,10 @@ async def test_query_embedding_records_usage_under_the_request_workspace(
     _patch_query_embedding(monkeypatch, rows)
     trace_id = "7f3a19c2-1111-4222-8333-444455556666"
 
-    with structlog.contextvars.bound_contextvars(workspace_id="ws-1", trace_id=trace_id):
+    token = query_embedding._request_workspace_id.set("ws-1")
+    with structlog.contextvars.bound_contextvars(trace_id=trace_id):
         vector = await worker_main._embed_query(_settings(), "질문")
+    query_embedding._request_workspace_id.reset(token)
     await asyncio.gather(*worker_main._pending_usage_writes)
 
     assert len(vector) == 1024
@@ -196,11 +280,90 @@ async def test_query_embedding_survives_a_usage_record_failure(
 ) -> None:
     _patch_query_embedding(monkeypatch, [], fail=True)
 
-    with structlog.contextvars.bound_contextvars(workspace_id="ws-1"):
-        vector = await worker_main._embed_query(_settings(), "질문")
+    token = query_embedding._request_workspace_id.set("ws-1")
+    vector = await worker_main._embed_query(_settings(), "질문")
+    query_embedding._request_workspace_id.reset(token)
     await asyncio.gather(*worker_main._pending_usage_writes)
 
     assert len(vector) == 1024
+
+
+@pytest.mark.asyncio
+async def test_query_embedding_ignores_the_workspace_bound_at_bootstrap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ⚠️ `main`이 묶은 값을 리스너가 물려받는다. 그 값으로 기록하면 진짜 ID일 때 다른 테넌트로
+    #    조용히 귀속된다. 비용 귀속은 요청 헤더에서 검증한 값만 쓴다.
+    rows: list[tuple[str, dict[str, Any]]] = []
+    _patch_query_embedding(monkeypatch, rows)
+
+    service = QueryEmbeddingService(
+        lambda text: worker_main._embed_query(_settings(), text),
+        internal_token="token",  # noqa: S106
+    )
+    app = create_query_embedding_app(service)
+    transport = httpx.ASGITransport(app=app)
+    with structlog.contextvars.bound_contextvars(workspace_id="bootstrap"):
+        async with httpx.AsyncClient(transport=transport, base_url="http://worker") as client:
+            anonymous = await client.post(
+                "/internal/query-embedding",
+                json={"text": "질문"},
+                headers={"Authorization": "Bearer token"},
+            )
+            invalid = await client.post(
+                "/internal/query-embedding",
+                json={"text": "질문"},
+                headers={"Authorization": "Bearer token", "X-Workspace-Id": "not-a-uuid"},
+            )
+            await asyncio.gather(*worker_main._pending_usage_writes)
+            assert rows == []
+
+            workspace_id = str(uuid4())
+            attributed = await client.post(
+                "/internal/query-embedding",
+                json={"text": "질문"},
+                headers={"Authorization": "Bearer token", "X-Workspace-Id": workspace_id},
+            )
+            await asyncio.gather(*worker_main._pending_usage_writes)
+
+    assert {anonymous.status_code, invalid.status_code, attributed.status_code} == {200}
+    assert [written for written, _ in rows] == [workspace_id]
+
+
+@pytest.mark.asyncio
+async def test_shutdown_waits_for_usage_writes_and_reports_what_it_abandons(
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    finished: list[str] = []
+
+    async def quick() -> None:
+        await asyncio.sleep(0)
+        finished.append("quick")
+
+    never = asyncio.Event()
+
+    async def stuck() -> None:
+        await never.wait()
+
+    quick_task = asyncio.create_task(quick())
+    worker_main._pending_usage_writes.add(quick_task)
+    await worker_main._drain_usage_writes(timeout_seconds=1.0)
+    worker_main._pending_usage_writes.discard(quick_task)
+    assert finished == ["quick"]
+
+    # 취소된 스트림의 기록은 별도 집합에 있다. 함께 기다려야 비용이 사라지지 않는다.
+    record_task = asyncio.create_task(quick())
+    await worker_main._drain_usage_writes(timeout_seconds=1.0, stream_records={record_task})
+    assert finished == ["quick", "quick"]
+
+    stuck_task = asyncio.create_task(stuck())
+    worker_main._pending_usage_writes.add(stuck_task)
+    try:
+        await worker_main._drain_usage_writes(timeout_seconds=0.01)
+    finally:
+        worker_main._pending_usage_writes.discard(stuck_task)
+        stuck_task.cancel()
+    assert "worker.usage_writes_abandoned" in capfd.readouterr().out
 
 
 @pytest.mark.asyncio

@@ -1,11 +1,19 @@
 ## ADDED Requirements
 
 ### Requirement: Terminal outcome for failed answer streams
-The system MUST finish every started Ask turn with a terminal state. A malformed provider frame or a provider error frame during streaming MUST end the turn with the `llm_unavailable` error outcome in the `citations` event and MUST NOT persist partial generated text as a resolved answer.
+The system MUST finish every started Ask turn with a terminal state whenever the failure happens while the server can still write the turn. A malformed provider frame or a provider error frame during streaming MUST end the turn with the `llm_unavailable` error outcome in the `citations` event and MUST NOT persist partial generated text as a resolved answer. A failure while gathering evidence or preparing the prompt MUST also end the turn with an error outcome. A client that disconnects before the turn ends is outside this requirement and is tracked by issue #170.
 
 #### Scenario: Provider stream contains a malformed frame
 - **WHEN** the answer stream delivers a data frame that cannot be parsed
 - **THEN** the client receives the error outcome and `done`, and the stored turn has status `error` rather than `streaming`
+
+#### Scenario: Provider stream contains a frame with the wrong shape
+- **WHEN** the answer stream delivers a parseable frame whose `choices`, `delta`, or `content` has an unexpected type
+- **THEN** the client receives the error outcome and `done`, and the stored turn has status `error` rather than `streaming`
+
+#### Scenario: Preparation fails after the turn started
+- **WHEN** retrieval, evidence content lookup, template selection, or prompt rendering fails after the turn was started
+- **THEN** the client receives an error outcome and `done`, the stored turn has status `error`, and the provider is not called
 
 #### Scenario: Provider reports an error mid-stream
 - **WHEN** the answer stream delivers a provider error frame after partial text

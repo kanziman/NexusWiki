@@ -1,6 +1,6 @@
 ## 1. Ask 스트림 결함 수정
 
-- [ ] 1.1 Ask 스트림의 깨진 프레임과 중간 오류를 오류로 종결하고, 인용 지표를 위조 제거 후 텍스트로 계산하며, 실패한 검색 채널을 `meta`로 전달한다 (D6, 저장은 4.1에서 다룬다)
+- [x] 1.1 Ask 스트림의 깨진 프레임과 중간 오류를 오류로 종결하고, 인용 지표를 위조 제거 후 텍스트로 계산하며, 실패한 검색 채널을 `meta`로 전달한다 (D6, 저장은 4.1에서 다룬다)
   - Given: 답변 스트림 중 깨진 프레임이나 오류 프레임이 오거나, 위조 앵커만 달린 문장이 있거나, 한 검색 채널이 실패했다
   - When: 멤버의 Ask가 진행된다
   - Then: 턴은 `error`로 종결되어 부분 답변이 저장되지 않고, 위조 문장은 이중 인용으로 계산되지 않으며, 실패 채널만 안내되고 비활성 그래프 채널은 안내되지 않는다
@@ -25,7 +25,7 @@
 
 ## 3. 비용 회계
 
-- [ ] 3.1 `LlmGateway`로 잡 경로의 LLM·임베딩 호출을 모아 시도별 사용량을 즉시 기록하고, 충돌 판정 비용을 처음으로 기록한다 (D4)
+- [x] 3.1 `LlmGateway`로 잡 경로의 LLM·임베딩 호출을 모아 시도별 사용량을 즉시 기록하고, 충돌 판정 비용을 처음으로 기록한다 (D4)
   - Given: 컴파일이 검증 실패 후 재시도하거나 전 시도가 실패하고, 충돌 판정이 후보 쌍을 판정한다
   - When: 공급자가 사용량을 보고한다
   - Then: `usage_events` 합계가 공급자 보고 비용의 합과 일치하고 모든 행에 trace가 있으며, 요청 본문과 재시도 흐름은 그대로이고, 핸들러가 공급자 함수를 직접 부르면 구조 테스트가 실패한다
@@ -64,7 +64,7 @@
   - 검증: `uv run pytest apps/api/tests/test_control_router.py apps/api/tests/test_tenant_isolation_full_path.py` (로컬 Supabase 필요) · `cd apps/dashboard && pnpm test -- ControlRoom && pnpm typecheck && pnpm lint`
   - GitHub: https://github.com/kanziman/NexusWiki/issues/165
 
-- [ ] 5.2 editor 이상이 수집 trace 상세와 사용자를 드러내지 않는 Ask 집계를 본다 (D9)
+- [x] 5.2 editor 이상이 수집 trace 상세와 사용자를 드러내지 않는 Ask 집계를 본다 (D9)
   - Given: 진행 중이거나 실패한 수집 체인과 여러 멤버의 Ask 턴이 있다
   - When: editor, viewer, 비멤버가 각각 조회한다
   - Then: editor는 단계 상태와 정제된 오류, 집계를 보고 집계에 사용자·스레드·trace 식별자가 없으며, viewer와 비멤버는 수집 trace와 집계를 받지 못한다
@@ -102,3 +102,54 @@
   - Then: 쇼케이스의 모든 항목이 수정 후 커밋 해시를 표시한다. 커밋되지 않은 코드의 측정값에 HEAD를 적으면 그 커밋에 없는 코드의 값을 공개하게 되므로, 작업 트리가 깨끗할 때만 해시가 기록된다
   - 검증: `uv run python apps/worker/tests/test_controlled_ai_evidence.py measure <out> && uv run python apps/worker/tests/test_controlled_ai_evidence.py write after <out>` · `uv run pytest apps/worker/tests/test_controlled_ai_evidence.py`
   - GitHub: https://github.com/kanziman/NexusWiki/issues/168
+
+## 8. 리뷰 1라운드 조치
+
+- [x] 8.1 `/retrieval`이 임베딩 호출 전에 JWT와 멤버십을 확인하고, 위조 토큰은 401로 돌려준다 (격리 리뷰 지적 1)
+  - Given: 비멤버, 위조 토큰, 멤버가 다른 워크스페이스의 `/retrieval`을 호출한다
+  - When: 라우트가 요청을 처리한다
+  - Then: 비멤버는 403, 위조 토큰은 401이고 둘 다 임베딩 호출과 사용량 행이 없으며, 멤버는 그대로 근거를 받는다
+  - 검증: `uv run pytest apps/api/tests/test_tenant_isolation_full_path.py apps/api/tests/test_db_error_mapping.py apps/api/tests/test_retrieval_service.py` (로컬 Supabase 필요)
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/162
+
+- [x] 8.2 집계와 trace의 위조 경로를 막는다 (격리 리뷰 지적 2, 5, 9)
+  - Given: 작성자가 보고서에 큰 수를 넣거나, 턴의 `trace_id`를 바꾸거나, 집계 시작 시각을 초 단위로 옮긴다
+  - When: editor가 집계를 조회하거나 작성자가 값을 수정한다
+  - Then: 집계는 실패하지 않고, `trace_id` 수정은 42501로 거부되며, 시작 시각은 UTC 일 단위로 내려진다
+  - 검증: `uv run pytest apps/api/tests/test_control_router.py` (로컬 Supabase 필요)
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/166
+
+- [x] 8.3 API에서 Langfuse 키를 없애고 턴 내보내기를 워커로 옮긴다 (격리 리뷰 지적 3, 7, 10)
+  - Given: 종결된 Ask 턴이 있거나, 워커가 응답하지 않거나, 내부 토큰 없는 호출이 온다
+  - When: API가 보고서를 넘긴다
+  - Then: `ApiSettings`에 비밀 키가 없고, 워커가 같은 trace로 내보내며, 실패는 답변에 닿지 않고, 인증 없는 호출과 추가 필드는 거부된다
+  - 검증: `uv run pytest apps/worker/tests/test_ask_turn_export.py apps/api/tests/test_ask_router.py apps/api/tests/test_observability_e2e.py packages/core/tests/test_settings.py packages/core/tests/test_logging_redaction.py packages/core/tests/test_observability.py`
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/167
+
+- [x] 8.4 질의 임베딩 비용 귀속을 요청 값으로 한정하고 종료 시 기록을 기다린다 (격리 리뷰 지적 4, 6)
+  - Given: 리스너가 `bootstrap` 컨텍스트를 물려받았고, 헤더 없는 호출이 오거나 기록 중에 SIGTERM을 받는다
+  - When: 질의 임베딩이 끝난다
+  - Then: 헤더가 없으면 기록하지 않고, 종료 시 제한 시간 안에서 남은 기록을 기다리며, 못 끝낸 건수를 로그로 남긴다
+  - 검증: `uv run pytest apps/worker/tests/test_worker_main.py apps/worker/tests/test_query_embedding.py`
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/162
+
+- [x] 8.6 리뷰 2, 3라운드의 지적을 반영한다
+  - Given: 값이 falsy인 틀린 프레임이 오거나, 내보내기 호출에 본문이 실리거나, 멤버가 이미 쓰인 trace로 함수나 직접 INSERT로 턴을 만들거나, editor가 Ask trace로 잡을 인큐하거나, 스트림 중에 SIGTERM을 받거나, 게이트웨이가 401을 돌려준다
+  - When: 각 경로가 실행된다
+  - Then: 턴은 `error`로 종결되고, 알려진 이름과 모양의 값만 내보내지며, 그 턴과 잡은 42501로 거부되고, 한 요청의 다중 인큐는 허용되며, 리스너는 제한 시간 안에 내려가 기록을 기다리며, 게이트웨이 401은 500으로 남는다
+  - 검증: `uv run pytest apps/api/tests/test_ask_router.py apps/api/tests/test_db_error_mapping.py apps/api/tests/test_control_router.py apps/worker/tests/test_worker_main.py packages/core/tests/test_observability.py` (로컬 Supabase 필요)
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/157
+
+- [x] 8.7 확인 리뷰의 지적을 반영한다
+  - Given: `0025`가 아직 적용되지 않은 구간이거나, editor가 Ask 턴이 없는 trace로 잡을 만든다
+  - When: 원문을 등록하거나 상세를 조회한다
+  - Then: 앞선 파일만 적용된 구간에서도 원문 등록이 실패하지 않고, 수용한 경우가 design과 스펙에 실제 동작대로 적혀 있다
+  - 검증: `cat supabase/tests/0023_job_trace.sql | docker exec -i supabase_db_NexusWiki psql -U postgres -d postgres -v ON_ERROR_STOP=1` · `uv run pytest apps/api/tests/test_control_router.py` (로컬 Supabase 필요) · `openspec validate ai-control-flow-accounting --strict` · 부분 적용은 `docs/ops/migration-0023-0026-record.md`의 기록 참고
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/157
+
+- [x] 8.5 스펙 리뷰의 테스트 공백을 메운다 (스펙 리뷰 조치 4, 5)
+  - Given: 체인 전 단계와 재실행, 회수, 커밋된 코드의 증거가 있다
+  - When: 테스트를 실행한다
+  - Then: 전 단계 잡과 사용량 행의 trace가 같음을, 재실행이 앞선 행을 덮어쓰지 않음을, 회수가 trace를 유지함을, 코드를 커밋한 뒤 증거가 `uncommitted`이면 실패함을 단언한다
+  - 검증: `uv run pytest apps/api/tests/test_pipeline_e2e.py apps/worker/tests/test_controlled_ai_evidence.py` (로컬 Supabase 필요) · `cat supabase/tests/0023_job_trace.sql | docker exec -i supabase_db_NexusWiki psql -U postgres -d postgres -v ON_ERROR_STOP=1`
+  - GitHub: https://github.com/kanziman/NexusWiki/issues/160

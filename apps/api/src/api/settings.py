@@ -92,11 +92,3 @@ class ApiSettings(BaseAppSettings):
     #    오래 걸린다.
     #    내부 호출자 토큰과 URL은 검색과 공유한다(같은 리스너 앱의 같은 경계).
     YOUTUBE_VIDEOS_TIMEOUT_SECONDS: float = 18.0
-
-    # 외부 관측 자격 증명 (ai-control-flow-accounting change의 design.md > D8).
-    # ⚠️ 이 클래스에 들어오는 유일한 외부 서비스 secret이다. SEC-01이 금지하는 것은 데이터와 LLM
-    #    공급자에 닿는 자격 증명이고, 이 키로는 개발자 전용 관측 프로젝트에 쓰는 일만 할 수 있어
-    #    구분한다. 값은 `REDACTED_KEYS`로 마스킹하며 둘 다 있을 때만 켜진다.
-    LANGFUSE_PUBLIC_KEY: str | None = None
-    LANGFUSE_SECRET_KEY: str | None = None
-    LANGFUSE_BASE_URL: str = "https://jp.cloud.langfuse.com"

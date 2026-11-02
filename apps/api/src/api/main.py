@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -25,10 +24,10 @@ from api.routers.sources import router as sources_router
 from api.routers.wiki import router as wiki_router
 from api.routers.workspaces import router as workspaces_router
 from api.routers.youtube import router as youtube_router
+from api.services.ask import drain_turn_exports
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import configure_logging
-from nexuswiki_core.observability import configure_observability, flush_observability
 from nexuswiki_core.trace import TRACE_HEADER, TraceMiddleware
 
 
@@ -39,19 +38,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         environment=settings.ENVIRONMENT,
         log_level=settings.LOG_LEVEL,
     )
-    configure_observability(
-        public_key=settings.LANGFUSE_PUBLIC_KEY,
-        secret_key=settings.LANGFUSE_SECRET_KEY,
-        base_url=settings.LANGFUSE_BASE_URL,
-        environment=settings.ENVIRONMENT,
-        release=app.state.git_sha,
-    )
     app.state.http_client = httpx.AsyncClient(timeout=httpx.Timeout(2.0))
     try:
         yield
     finally:
+        # 내보내기 태스크가 이 클라이언트를 쓰므로 닫기 전에 기다린다.
+        await drain_turn_exports()
         await app.state.http_client.aclose()
-        await asyncio.to_thread(flush_observability)
 
 
 def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:

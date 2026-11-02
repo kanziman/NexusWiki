@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from typing import Any
@@ -14,19 +15,22 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from api import main as api_main
-from api.services.ask import AskService
+from api.services import ask as ask_service_module
+from api.services.ask import AskService, HttpAskTurnExporter
 from api.services.retrieval import RetrievalService
 from nexuswiki_core import observability
-from nexuswiki_core.trace import bind_trace, new_trace_id
+from nexuswiki_core.trace import TraceMiddleware
 from tests.conftest import LOCAL_STACK
 from tests.fixtures.pipeline import PipelineHarness
+from worker.ask_turn_export import add_ask_turn_export_route  # noqa: TID251 -- 실제 경계를 지난다
 
 # ASCII만 쓴다. 한글은 JSON 직렬화나 콘솔 인코딩에서 형태가 바뀌어 부재 단언을 그냥 통과한다.
 _UNIQUE = "zq81xLeakProbe"
 _SECRET = "sk-lf-zq81x-leak-probe"  # noqa: S105 - 테스트 픽스처
+_INTERNAL_TOKEN = "internal-zq81x"  # noqa: S105 - 테스트 픽스처
 
 
 class _QueryEmbedding:
@@ -72,16 +76,18 @@ async def test_unique_text_never_reaches_any_observability_value(
     two_workspaces_two_users,
     local_stack,
     authed_client,
-    monkeypatch: pytest.MonkeyPatch,
     capfd: pytest.CaptureFixture[str],
 ) -> None:
     owner, _ = two_workspaces_two_users
     workspace_id = str(owner.workspace_id)
     memory = InMemorySpanExporter()
 
-    # 앱 수명 주기가 테스트 중간에 내보내기를 끄거나 종료하지 않게 한 번만 켠다.
-    monkeypatch.setattr(api_main, "configure_observability", lambda **kwargs: False)
-    monkeypatch.setattr(api_main, "flush_observability", lambda: True)
+    # API는 키를 갖지 않는다. 턴은 실제 내부 라우트를 지나 이 프로세스가 맡은 워커 쪽에서 나간다.
+    worker_app = FastAPI()
+    worker_app.add_middleware(
+        TraceMiddleware, log_event="worker.internal_request_completed", trust_inbound=True
+    )
+    add_ask_turn_export_route(worker_app, internal_token=_INTERNAL_TOKEN)
     assert observability.configure_observability(
         public_key=f"pk-lf-{uuid4()}",
         secret_key=_SECRET,
@@ -95,19 +101,24 @@ async def test_unique_text_never_reaches_any_observability_value(
     try:
         async with PipelineHarness(local_stack, authed_client, owner) as pipeline:
             await pipeline.create_text(f"{_UNIQUE} 제목", f"{_UNIQUE} 본문입니다. " * 20)
-            # 하네스는 워커 핸들러를 직접 돌려 큐가 묶어 주는 trace가 없다. API 요청이 끝날 때
-            # 미들웨어가 값을 지우므로 요청 뒤에 묶는다.
-            bind_trace(new_trace_id())
             await pipeline.drain()
 
-            async with authed_client(owner) as api:
+            async with (
+                authed_client(owner) as api,
+                httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=worker_app), base_url="http://worker"
+                ) as worker,
+            ):
                 api._transport.app.state.ask_service = AskService(  # type: ignore[attr-defined]
-                    RetrievalService(_QueryEmbedding()), _LlmStream()
+                    RetrievalService(_QueryEmbedding()),
+                    _LlmStream(),
+                    HttpAskTurnExporter(worker, url="http://worker", token=_INTERNAL_TOKEN),
                 )
                 response = await api.post(
                     f"/workspaces/{workspace_id}/ask",
                     json={"query": f"{_UNIQUE} 파이프라인", "client_turn_id": str(uuid4())},
                 )
+                await asyncio.gather(*ask_service_module._pending_turn_exports)
             assert response.status_code == 200, response.text
             assert '"thread_id"' in response.text
             assert _UNIQUE in response.text

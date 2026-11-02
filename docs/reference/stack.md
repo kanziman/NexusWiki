@@ -76,7 +76,7 @@
 ## 설정
 
 - `supabase/config.toml`은 시크릿을 값이 아니라 **참조로만** 읽는다 — `OPENAI_API_KEY`, `SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN`, `SUPABASE_AUTH_EXTERNAL_APPLE_SECRET`, `S3_HOST` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY`
-- 외부 관측은 선택 사항이다. `LANGFUSE_PUBLIC_KEY`와 `LANGFUSE_SECRET_KEY`가 모두 있을 때만 `langfuse` SDK(`packages/core`, 버전 고정)가 켜지며, `LANGFUSE_BASE_URL`의 코드 기본값은 JP 리전이다. 비용과 예산의 원천은 Postgres다
+- 외부 관측은 선택 사항이며 키는 worker만 갖는다. `LANGFUSE_PUBLIC_KEY`와 `LANGFUSE_SECRET_KEY`가 모두 있을 때만 `langfuse` SDK(`packages/core`, 버전 고정)가 켜지며, `LANGFUSE_BASE_URL`의 코드 기본값은 JP 리전이다. 비용과 예산의 원천은 Postgres다
 - `.env.sample`이 필요한 키 목록을 담는다. `.gitignore`가 `.env`, `.env.*`, `supabase/.env`를 제외한다
 - `.mcp.json`, `.codex/config.toml`은 gitignore 대상이며 저장소에 커밋된 적이 없다
 

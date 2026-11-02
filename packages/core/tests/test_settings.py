@@ -12,6 +12,9 @@ SECRET_FIELD_NAMES = frozenset(
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
         "OPENAI_API_KEY",
+        # ⚠️ 이 키로는 전 테넌트의 trace를 읽고 지울 수 있다. API는 워커에 내보내기를 위임한다
+        #    (ai-control-flow-accounting design D8).
+        "LANGFUSE_SECRET_KEY",
     }
 )
 
@@ -70,12 +73,6 @@ NON_SECRET_API_FIELDS = frozenset(
         #  worker의 /internal/youtube-videos 호출 타임아웃. 자격증명이 아니라 운영 토글이며,
         #  URL·토큰은 위 YOUTUBE_SEARCH_INTERNAL_* 둘을 그대로 공유한다.)
         "YOUTUBE_VIDEOS_TIMEOUT_SECONDS",
-        # (2026-11-02, ai-control-flow-accounting D8: LANGFUSE_* — 개발자 전용 관측 프로젝트의
-        #  자격 증명. 데이터나 LLM 공급자에 닿지 않아 SECRET_FIELD_NAMES와 구분하고, 비밀 키는
-        #  REDACTED_KEYS로 마스킹한다. test_logging_redaction.py가 이 커플링을 단언한다.)
-        "LANGFUSE_PUBLIC_KEY",
-        "LANGFUSE_SECRET_KEY",
-        "LANGFUSE_BASE_URL",
     }
 )
 

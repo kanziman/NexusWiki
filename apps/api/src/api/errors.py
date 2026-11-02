@@ -36,6 +36,7 @@ __all__ = [
     "YoutubeChannelNotFound",
     "YoutubeQuotaExceeded",
     "YoutubeUnavailable",
+    "is_jwt_rejection",
     "register_error_handlers",
 ]
 
@@ -60,8 +61,25 @@ SOURCE_IN_USE_SQLSTATE: Final[str] = "NW409"
 #    테넌트의 리소스 존재 여부가 응답으로 새어나가 열거 공격이 성립한다.
 FORBIDDEN_BODY: Final[dict[str, str]] = {"detail": "forbidden"}
 _DATABASE_ERROR_BODY: Final[dict[str, str]] = {"detail": "database_error"}
+_UNAUTHORIZED_BODY: Final[dict[str, str]] = {"detail": "unauthorized"}
 
 _logger = get_logger(__name__)
+
+
+def is_jwt_rejection(exc: Exception) -> bool:
+    """PostgREST가 요청자 JWT를 거부했는지 판정한다.
+
+    ⚠️ 상태 코드만 보지 않는다. 게이트웨이가 잘못된 `apikey`에 401을 돌려주는 경우 그것은 사용자가
+    아니라 배포 설정의 문제다. 401로 내리면 설정 실수가 전 사용자의 재로그인 요구로 위장된다.
+    `PGRST30x`는 PostgREST의 JWT 오류 묶음이다. 로컬 게이트웨이는 잘못된 `apikey`를 거부하지 않아
+    재현하지 못했고, 클라우드 응답은 `docs/ops/migration-0023-0026-record.md`의 절차로 확인한다.
+    """
+    sqlstate = getattr(exc, "sqlstate", None)
+    return (
+        getattr(exc, "status_code", None) == status.HTTP_401_UNAUTHORIZED
+        and isinstance(sqlstate, str)
+        and sqlstate.startswith("PGRST30")
+    )
 
 
 class WorkspaceForbidden(Exception):
@@ -244,6 +262,12 @@ async def _render_isolation_failure(request: Request, exc: Exception) -> JSONRes
     if sqlstate == FORBIDDEN_SQLSTATE:
         _logger.warning("db.with_check_violation", path=request.url.path, sqlstate=sqlstate)
         return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content=FORBIDDEN_BODY)
+
+    # 위조·만료 토큰이 500이 되면 장애 경보와 섞이고, 클라이언트는 재로그인이 필요하다는 것을 알 수
+    # 없다. 42501 판정 뒤에 두어 격리 위반을 401로 내리지 않는다.
+    if is_jwt_rejection(exc):
+        _logger.warning("db.jwt_rejected", path=request.url.path, sqlstate=sqlstate)
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content=_UNAUTHORIZED_BODY)
 
     _logger.error("db.error", path=request.url.path, sqlstate=sqlstate)
     return JSONResponse(

@@ -31,7 +31,7 @@ from nexuswiki_core.observability import export_generation
 from nexuswiki_core.trace import current_trace_id
 from worker import embedding as embedding_provider
 from worker import llm as llm_provider
-from worker.embedding import EmbeddingResult
+from worker.embedding import EmbeddingResult, EmbeddingUsage
 from worker.llm import AttemptUsage, LlmResult
 from worker.settings import WorkerSettings
 
@@ -111,26 +111,27 @@ class LlmGateway:
         )
 
     async def embed_texts(self, context: LlmCallContext, *, texts: list[str]) -> EmbeddingResult:
-        """임베딩 호출. 입력이 비어 공급자를 부르지 않았으면 기록하지 않는다."""
+        """임베딩 호출. 입력이 비어 공급자를 부르지 않았으면 콜백이 불리지 않아 기록도 없다."""
         started = time.perf_counter()
-        result = await embedding_provider.embed_texts(
-            self._client, settings=self._settings, texts=texts
-        )
-        if texts:
+
+        async def record_usage(usage: EmbeddingUsage) -> None:
             await _record(
                 self._sink,
                 context,
                 kind=UsageKind.EMBEDDING,
-                provider=result.provider,
-                model=result.model,
-                prompt_tokens=result.prompt_tokens,
-                completion_tokens=result.completion_tokens,
-                total_tokens=result.total_tokens,
-                cost_micros=result.cost_micros,
+                provider=usage.provider,
+                model=usage.model,
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                total_tokens=usage.total_tokens,
+                cost_micros=usage.cost_micros,
                 duration_ms=_elapsed_ms(started),
                 metadata={},
             )
-        return result
+
+        return await embedding_provider.embed_texts(
+            self._client, settings=self._settings, texts=texts, on_usage=record_usage
+        )
 
 
 def open_answer_stream(

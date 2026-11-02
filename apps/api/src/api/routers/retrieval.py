@@ -10,6 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.db.user import UserDb
+from api.errors import WorkspaceForbidden
 from api.services.retrieval import HttpQueryEmbeddingClient, RetrievalService
 
 router = APIRouter(prefix="/workspaces", tags=["retrieval"])
@@ -51,6 +52,21 @@ def _user_db(request: Request, credentials: HTTPAuthorizationCredentials) -> Use
     )
 
 
+async def _require_member(db: UserDb, *, workspace_id: UUID) -> None:
+    """임베딩 호출 전에 요청자의 JWT와 멤버십을 확인한다.
+
+    ⚠️ 서비스는 RLS가 평가되는 첫 RPC보다 먼저 임베딩을 호출하고, 워커는 경로의 워크스페이스로
+    `service_role` 비용 행을 쓴다. 이 게이트가 없으면 로그인 없이 다른 테넌트의 월 상한을 소진해
+    수집과 Ask를 멈출 수 있다. Ask 경로는 `start_ask_turn`이 같은 역할을 한다.
+    """
+    result = await db.rpc(
+        "has_workspace_role",
+        params={"ws_id": str(workspace_id), "min_role": "viewer"},
+    )
+    if not result or result[0] is not True:
+        raise WorkspaceForbidden(table="workspace_members", affected=0)
+
+
 @router.post("/{workspace_id}/retrieval")
 async def retrieve(
     workspace_id: UUID,
@@ -61,6 +77,8 @@ async def retrieve(
     settings = request.app.state.settings
     if len(body.query) > settings.RETRIEVAL_MAX_QUERY_CHARS:
         raise HTTPException(status_code=422, detail="invalid_query")
+    db = _user_db(request, credentials)
+    await _require_member(db, workspace_id=workspace_id)
     service = getattr(request.app.state, "retrieval_service", None)
     if service is None:
         service = RetrievalService(
@@ -72,9 +90,7 @@ async def retrieve(
             )
         )
     try:
-        result = await service.retrieve(
-            workspace_id, body.query, body.requested_k, _user_db(request, credentials)
-        )
+        result = await service.retrieve(workspace_id, body.query, body.requested_k, db)
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid_query") from None
     return RetrievalResponse(

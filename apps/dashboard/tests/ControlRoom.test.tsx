@@ -36,7 +36,12 @@ const askDetail = {
   ...askSummary,
   spans: [
     { name: "retrieval", label: "4채널 검색", start_ms: 0, duration_ms: 200 },
-    { name: "llm_stream", label: "답변 생성", start_ms: 200, duration_ms: 1000 },
+    {
+      name: "llm_stream",
+      label: "답변 생성",
+      start_ms: 200,
+      duration_ms: 1000,
+    },
   ],
   stages: [],
   calls: [
@@ -146,6 +151,60 @@ describe("ControlRoom", () => {
     expect(detail).toHaveTextContent("최종 사용량을 받지 못한 호출이");
     expect(detail).toHaveTextContent("실패한 검색 채널: wiki_vector");
     expect(detail).toHaveTextContent("ask (미완료)");
+  });
+
+  it("상세에 최종 상태와 호출별 Router 결정을 보여준다", async () => {
+    const compileCall = {
+      call: "compile",
+      kind: "llm",
+      model: "m",
+      attempt: 1,
+      incomplete: false,
+      route: "SKIP_UNCHANGED",
+      total_tokens: 10,
+      cost_micros: 100,
+      duration_ms: 5,
+      occurred_at: "2026-11-02T00:00:00Z",
+    };
+    respond({
+      "/control/traces": {
+        items: [{ ...ingestSummary, status: "failed" }],
+        can_view_workspace: true,
+      },
+      "/control/ask-aggregate": {
+        days: 30,
+        turn_count: 0,
+        resolved_count: 0,
+        no_evidence_count: 0,
+        error_count: 0,
+        decision_counts: {},
+        p50_total_ms: null,
+        p95_total_ms: null,
+        total_cost_micros: 0,
+        incomplete_call_count: 0,
+      },
+      [`/control/traces/${ingestSummary.trace_id}`]: {
+        ...ingestDetail,
+        status: "failed",
+        calls: [compileCall],
+        totals: {
+          call_count: 1,
+          total_tokens: 10,
+          cost_micros: 100,
+          incomplete_call_count: 0,
+        },
+      },
+    });
+
+    render(<ControlRoom workspaceId="ws" />);
+
+    const detail = await screen.findByRole("article", { name: "trace 상세" });
+    expect(
+      within(detail).getByText("최종 상태").parentElement,
+    ).toHaveTextContent("실패");
+    const table = within(detail).getByRole("table", { name: "공급자 호출" });
+    expect(table).toHaveTextContent("Router 결정");
+    expect(table).toHaveTextContent("SKIP_UNCHANGED");
   });
 
   it("viewer에게는 집계를 요청하지도 표시하지도 않는다", async () => {

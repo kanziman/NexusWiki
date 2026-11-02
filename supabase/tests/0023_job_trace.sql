@@ -160,6 +160,18 @@ begin
     raise exception 'release_job이 trace를 바꿨습니다';
   end if;
 
+  -- 회수: 잠금이 시간 초과된 잡을 reaper가 되돌려도 trace는 그대로여야 합니다. 트랜잭션 안에서는
+  -- now()가 고정되어 타임아웃 0으로는 방금 claim한 잡이 대상이 되지 않으므로 음수를 줍니다.
+  select * into v from public.claim_job('w1', array['compile']);
+  perform public.reap_stale_jobs('-1 hour');
+  select * into v from public.jobs j where j.id = v.id;
+  if v.status <> 'queued'
+     or v.locked_at is not null
+     or v.trace_id is distinct from '50000000-0000-0000-0000-000000000023' then
+    raise exception 'reap_stale_jobs 상태가 어긋났습니다 (status=%, locked_at=%, trace_id=%)',
+      v.status, v.locked_at, v.trace_id;
+  end if;
+
   select * into v from public.claim_job('w1', array['compile']);
   select * into v from public.dead_letter_job(v.id, 'w1', 'dead');
   select * into v from public.retry_dead_job(v.id);

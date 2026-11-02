@@ -332,3 +332,66 @@ def test_flush_failure_is_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert finished is True
     assert _SECRET not in json.dumps(logs, ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        {"route": "문자열"},
+        {"retrieval": {"missing_channels": [1, 2]}},
+        {"spans": ["문자열"]},
+    ],
+)
+def test_wrongly_shaped_turn_report_never_raises(report: dict[str, object]) -> None:
+    # 공개 함수는 예외를 던지지 않는다는 계약이다. 이 값은 이제 프로세스 경계를 넘어 온다.
+    observability.export_ask_turn(workspace_id="ws", control_report=report, persisted=True)
+
+
+def test_turn_report_values_are_closed_to_known_names_and_shapes() -> None:
+    # ⚠️ 이 값은 프로세스 경계를 넘어 온다. 키, 짧은 문장, 중첩 객체 어느 쪽으로도 본문이 나가면
+    #    안 된다.
+    probe = "zq81xBodyProbe"
+    memory = InMemorySpanExporter()
+    assert observability.configure_observability(
+        public_key="pk-lf-test",
+        secret_key="sk-lf-test",  # noqa: S106 - 테스트 픽스처
+        base_url="http://127.0.0.1:9",
+        environment="test",
+        span_exporter=memory,
+    )
+    client = observability._client
+    bind_trace(str(uuid4()))
+    try:
+        observability.export_ask_turn(
+            workspace_id="ws",
+            control_report={
+                "outcome": f"{probe} 문장 형태의 값",
+                "total_ms": {"nested": probe},
+                "route": {"decision": f"{probe} 결정", "reason": [probe]},
+                "evidence": {"wiki": probe},
+                "retrieval": {
+                    "policy_version": {"x": probe},
+                    "missing_channels": [f"{probe} 채널"],
+                },
+                "citation": {"cited_anchor_count": probe},
+                "spans": [
+                    {"name": probe * 300, "duration_ms": 1},
+                    {"name": f"{probe} 짧은 이름", "duration_ms": 1},
+                    {"name": "retrieval", "duration_ms": probe},
+                    {"name": "citation", "duration_ms": 5},
+                ],
+                "question": probe,
+            },
+            persisted=True,
+        )
+        client.flush()
+    finally:
+        observability.flush_observability()
+        structlog.contextvars.clear_contextvars()
+
+    spans = memory.get_finished_spans()
+    assert [span.name for span in spans] == ["ask.turn"]
+    exported = json.dumps(dict(spans[0].attributes or {}), ensure_ascii=False, default=str)
+    assert probe not in exported
+    # 값 검사가 전부를 지운 것이 아님을 대조한다.
+    assert "span_citation_ms" in exported

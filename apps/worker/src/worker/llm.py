@@ -243,7 +243,8 @@ async def complete_structured(
             structured_supported=structured_supported,
         )
         del body  # 요청 본문은 로그에도 예외에도 남기지 않는다.
-        content, usage, provider, model = _read_completion(response)
+        completion = _read_body(response)
+        usage, provider, model = _read_usage(completion)
         if on_attempt is not None:
             await on_attempt(
                 AttemptUsage(
@@ -257,6 +258,9 @@ async def complete_structured(
                     duration_ms=round((time.perf_counter() - started) * 1000),
                 )
             )
+        # ⚠️ 내용 확인은 기록 뒤에 한다. `content: null`이나 빈 `choices`도 공급자가 청구한 응답이라,
+        #    먼저 예외를 던지면 그 비용이 월 상한에서 빠진다.
+        content = _read_content(completion, status_code=response.status_code)
 
         try:
             payload = schema_model.model_validate_json(content)
@@ -385,38 +389,47 @@ async def _send(client: httpx.AsyncClient, body: dict[str, Any]) -> httpx.Respon
         raise ProviderError(provider=PROVIDER_NAME, status_code=None, kind="transport") from None
 
 
-def _read_completion(response: httpx.Response) -> tuple[str, dict[str, Any], str, str]:
+def _read_body(response: httpx.Response) -> dict[str, Any]:
     try:
         body = response.json()
     except ValueError:
+        body = None
+    if not isinstance(body, dict):
         raise ProviderError(
             provider=PROVIDER_NAME,
             status_code=response.status_code,
             kind="non_json_response",
         ) from None
+    return body
 
-    choices = body.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise ProviderError(
-            provider=PROVIDER_NAME,
-            status_code=response.status_code,
-            kind="empty_choices",
-        )
-    content = (choices[0].get("message") or {}).get("content")
-    if not isinstance(content, str):
-        raise ProviderError(
-            provider=PROVIDER_NAME,
-            status_code=response.status_code,
-            kind="missing_content",
-        )
 
+def _read_usage(body: Mapping[str, Any]) -> tuple[dict[str, Any], str, str]:
     usage = body.get("usage")
     usage = usage if isinstance(usage, dict) else {}
     # OpenRouter는 실제로 라우팅한 호스트를 최상위 `provider`로 알려준다. 없으면
     # 게이트웨이 이름으로 두되 지어내지 않는다.
     provider = body.get("provider") or PROVIDER_NAME
     model = body.get("model") or "unknown"
-    return content, usage, str(provider), str(model)
+    return usage, str(provider), str(model)
+
+
+def _read_content(body: Mapping[str, Any], *, status_code: int) -> str:
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ProviderError(
+            provider=PROVIDER_NAME,
+            status_code=status_code,
+            kind="empty_choices",
+        )
+    first = choices[0] if isinstance(choices[0], dict) else {}
+    content = (first.get("message") or {}).get("content")
+    if not isinstance(content, str):
+        raise ProviderError(
+            provider=PROVIDER_NAME,
+            status_code=status_code,
+            kind="missing_content",
+        )
+    return content
 
 
 def cost_micros(usage: Mapping[str, Any]) -> int:

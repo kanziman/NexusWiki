@@ -14,12 +14,15 @@ Postgres이고 여기는 개발자용 사본일 뿐이므로, 내보내기 실�
 ⚠️ SDK는 구간 시작 시각을 소급 지정할 수 없다. 관측 객체는 내보내는 순간에 만들어져 Langfuse
 타임라인의 길이가 0에 가깝게 보이므로, 실제 소요 시간은 `duration_ms` 메타데이터로 읽는다.
 
-소비자: `api.main`, `api.services.ask`, `worker.__main__`, `worker.llm_gateway`, `worker.queue`
+⚠️ 키는 워커만 갖는다. API는 턴 보고서를 내부 라우트로 넘기고 이 모듈을 직접 켜지 않는다.
+
+소비자: `worker.__main__`, `worker.ask_turn_export`, `worker.llm_gateway`, `worker.queue`
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 import threading
 from collections.abc import Mapping
 from typing import Any, Final
@@ -78,6 +81,11 @@ _GENERATION_METADATA_KEYS: Final[frozenset[str]] = frozenset(
         "truncated_input",
     }
 )
+
+# 턴 보고서에서 외부로 보내도 되는 값의 모양. 식별자와 enum만 통과한다. 공백이 있는 문장은 본문일 수
+# 있고, 이 값은 프로세스 경계를 넘어 오므로 호출자의 조립을 믿지 않는다.
+_TOKEN_PATTERN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
+_SPAN_NAMES: Final[frozenset[str]] = frozenset({"retrieval", "context", "llm_stream", "citation"})
 
 _client: Any | None = None
 
@@ -177,28 +185,38 @@ def export_ask_turn(
     `control_report`는 이미 허용 필드로 조립된 값이지만, 여기서도 필요한 필드만 꺼낸다. 보고서에
     나중에 필드가 늘어도 외부 전송 범위가 함께 늘지 않게 하기 위해서다.
     """
-    route = control_report.get("route") or {}
-    evidence = control_report.get("evidence") or {}
-    retrieval = control_report.get("retrieval") or {}
-    citation = control_report.get("citation") or {}
-    outcome = control_report.get("outcome")
-    metadata: dict[str, Any] = {
-        "outcome": outcome,
-        "persisted": persisted,
-        "duration_ms": control_report.get("total_ms"),
-        "route": route.get("decision"),
-        "reason": route.get("reason"),
-        "evidence_wiki": evidence.get("wiki"),
-        "evidence_source": evidence.get("source"),
-        "policy_version": retrieval.get("policy_version"),
-        "missing_channels": ",".join(retrieval.get("missing_channels") or []),
-        "cited_anchor_count": citation.get("cited_anchor_count"),
-        "fabricated_anchor_count": citation.get("fabricated_anchor_count"),
-        "dual_citation_rate": citation.get("dual_citation_rate"),
-        "unsourced_sentence_ratio": citation.get("unsourced_sentence_ratio"),
-    }
-    for span in control_report.get("spans") or []:
-        metadata[f"span_{span.get('name')}_ms"] = span.get("duration_ms")
+    try:
+        route = _mapping(control_report.get("route"))
+        evidence = _mapping(control_report.get("evidence"))
+        retrieval = _mapping(control_report.get("retrieval"))
+        citation = _mapping(control_report.get("citation"))
+        outcome = _token(control_report.get("outcome"))
+        missing = retrieval.get("missing_channels")
+        metadata: dict[str, Any] = {
+            "outcome": outcome,
+            "persisted": persisted is True,
+            "duration_ms": _number(control_report.get("total_ms")),
+            "route": _token(route.get("decision")),
+            "reason": _token(route.get("reason")),
+            "evidence_wiki": _number(evidence.get("wiki")),
+            "evidence_source": _number(evidence.get("source")),
+            "policy_version": _token(retrieval.get("policy_version")),
+            "missing_channels": ",".join(
+                name for name in (_token(item) for item in _sequence(missing)) if name
+            ),
+            "cited_anchor_count": _number(citation.get("cited_anchor_count")),
+            "fabricated_anchor_count": _number(citation.get("fabricated_anchor_count")),
+            "dual_citation_rate": _number(citation.get("dual_citation_rate")),
+            "unsourced_sentence_ratio": _number(citation.get("unsourced_sentence_ratio")),
+        }
+        for span in _sequence(control_report.get("spans")):
+            span = _mapping(span)
+            # ⚠️ 이름이 곧 메타데이터 키다. 닫지 않으면 키에 실린 본문은 값 검사를 지나간다.
+            if span.get("name") in _SPAN_NAMES:
+                metadata[f"span_{span['name']}_ms"] = _number(span.get("duration_ms"))
+    except Exception as exc:  # noqa: BLE001 - 형태가 틀린 보고서가 호출자를 실패시키면 안 된다.
+        _warn_failure("observability.export_failed", exc)
+        return
     _export(
         name="ask.turn",
         as_type="span",
@@ -238,6 +256,9 @@ def export_job_outcome(
 
 def flush_observability(*, timeout_seconds: float = FLUSH_TIMEOUT_SECONDS) -> bool:
     """남은 데이터를 제한 시간 안에서만 보낸다. 시간 안에 끝났으면 `True`를 돌려준다.
+
+    ⚠️ `True`는 종료 절차가 끝났다는 뜻이지 전송에 성공했다는 뜻이 아니다. SDK의 백그라운드 전송
+    실패는 stderr의 평문 한 줄로만 남으므로, 배포 뒤 첫 trace 수신은 Langfuse 화면에서 확인한다.
 
     ⚠️ SDK의 `flush`에는 시간 제한이 없어 데몬 스레드에서 돌리고 `join`으로 기다린다.
 
@@ -300,6 +321,22 @@ def _export(
         _warn_failure("observability.export_failed", exc)
 
 
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _sequence(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _token(value: Any) -> str | None:
+    return value if isinstance(value, str) and _TOKEN_PATTERN.fullmatch(value) else None
+
+
+def _number(value: Any) -> int | float | None:
+    return value if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
 def _workspace_attribute(workspace_id: str) -> dict[str, str]:
     # 이전 버전 API가 보낸 질의 임베딩은 워크스페이스가 비어 있다. 빈 값의 해시는 의미가 없다.
     if not workspace_id:
@@ -315,6 +352,8 @@ def _mask(*, data: Any, **_: Any) -> Any:
             if str(key).casefold() in REDACTED_KEYS or str(key).casefold() in _BODY_KEYS
             else _mask(data=value)
             for key, value in data.items()
+            # 키에 실린 긴 문자열은 값 검사로 잡히지 않는다.
+            if len(str(key)) <= _MAX_STRING_CHARS
         }
     if isinstance(data, list | tuple):
         return [_mask(data=item) for item in data]

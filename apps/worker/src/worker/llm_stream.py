@@ -94,6 +94,10 @@ class LlmStreamService:
         # 취소된 스트림의 기록 태스크가 GC로 사라지지 않게 강한 참조를 유지한다.
         self._pending_records: set[asyncio.Task[None]] = set()
 
+    def pending_records(self) -> set[asyncio.Task[None]]:
+        """아직 끝나지 않은 사용량 기록. 종료 경로가 프로세스를 내리기 전에 기다린다."""
+        return set(self._pending_records)
+
     async def _reserve_token(self) -> None:
         """토큰 하나를 예약한다 — 단조 시계 기반 리필. 프로세스 수명 카운터가 아니다."""
         async with self._request_lock:

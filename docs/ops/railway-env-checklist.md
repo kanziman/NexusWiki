@@ -18,12 +18,10 @@
 | `QUERY_EMBEDDING_INTERNAL_TOKEN` | (32바이트 랜덤 hex) | **worker의 동일 이름 변수와 값이 같아야 한다.** 미설정 시 worker가 리스너 자체를 기동하지 않아(`__main__.py:95-96`) 모든 벡터 검색 채널이 `embedding_unavailable`로 죽는다(어휘 채널은 살아 있어 부분 응답은 나오지만 벡터 채널 전체 무효). |
 | `LLM_STREAM_INTERNAL_URL` | `http://worker.railway.internal:8081` | 같은 리스너, 다른 라우트. |
 | `LLM_STREAM_INTERNAL_TOKEN` | (32바이트 랜덤 hex) | worker와 값이 같아야 한다. 미설정 시 Ask의 LLM 스트리밍 자체가 안 된다. |
-| `LANGFUSE_PUBLIC_KEY` | `pk-lf-...` | 선택. 두 키가 모두 있어야 외부 관측이 켜진다. worker와 같은 값을 쓴다. |
-| `LANGFUSE_SECRET_KEY` | `sk-lf-...` | 선택. **빈 문자열로 두지 않는다.** 빈 값은 설정 검증에서 거부되어 서비스가 기동하지 못하므로, 쓰지 않으면 변수를 만들지 않는다. |
-| `LANGFUSE_BASE_URL` | `https://jp.cloud.langfuse.com` (코드 기본값) | 프로젝트를 만든 리전과 같아야 한다. |
 
 **절대 여기 있으면 안 되는 것**: `SUPABASE_SECRET_KEY`, `OPENROUTER_API_KEY` — 있으면 SEC-01
-위반이며 `service_role`이 사용자 요청 경로에 노출된다.
+위반이며 `service_role`이 사용자 요청 경로에 노출된다. `LANGFUSE_SECRET_KEY`도 넣지 않는다. 같은
+키로 전 테넌트의 trace를 읽고 지울 수 있어서 worker만 갖는다. api는 턴 보고서를 worker에 넘긴다.
 
 ## `worker` 서비스
 
@@ -39,9 +37,13 @@
 | `EMBED_BATCH_SIZE` | `8` (코드 기본값) | 32였을 때 실측 27~32KB 사이에서 `deepinfra/fp32`가 "No endpoints found"로 404. 한국어 텍스트는 UTF-8에서 문자당 3바이트라 청크 수 기준 상한만으로는 예측 불가 — 바이트 상한 기준으로 재검토 필요 시 `apps/worker/src/worker/settings.py` 주석 참고. |
 | `QUERY_EMBEDDING_INTERNAL_TOKEN` | api와 동일 값 | |
 | `LLM_STREAM_INTERNAL_TOKEN` | api와 동일 값 | |
-| `LANGFUSE_PUBLIC_KEY` | `pk-lf-...` | 선택. 두 키가 모두 있어야 외부 관측이 켜진다. worker와 같은 값을 쓴다. |
+| `LANGFUSE_PUBLIC_KEY` | `pk-lf-...` | 선택. 두 키가 모두 있어야 외부 관측이 켜진다. |
 | `LANGFUSE_SECRET_KEY` | `sk-lf-...` | 선택. **빈 문자열로 두지 않는다.** 빈 값은 설정 검증에서 거부되어 서비스가 기동하지 못하므로, 쓰지 않으면 변수를 만들지 않는다. |
 | `LANGFUSE_BASE_URL` | `https://jp.cloud.langfuse.com` (코드 기본값) | 프로젝트를 만든 리전과 같아야 한다. |
+
+Langfuse를 켰다면 배포 뒤 Langfuse 화면에서 첫 trace 수신을 확인한다. SDK의 전송 실패는 stderr의
+평문 한 줄로만 남아, 리전이나 키가 틀려도 `observability.enabled` 로그는 그대로 찍힌다. 키를
+회전할 때는 worker 변수를 바꾸고 재배포한 뒤 이전 키를 Langfuse에서 폐기한다.
 
 ## 배포 후 최소 검증 순서
 

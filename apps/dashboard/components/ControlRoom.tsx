@@ -52,6 +52,7 @@ type Call = {
   model: string;
   attempt: number | null;
   incomplete: boolean;
+  route: string | null;
   total_tokens: number;
   cost_micros: number;
   duration_ms: number | null;
@@ -269,9 +270,7 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
           {list && list.items.length === 0 ? (
             <div className={styles.empty} data-testid="control-empty">
               <h2>아직 기록된 trace가 없습니다</h2>
-              <p>
-                질문을 하거나 원문을 등록하면 첫 trace가 여기에 나타납니다.
-              </p>
+              <p>질문을 하거나 원문을 등록하면 첫 trace가 여기에 나타납니다.</p>
             </div>
           ) : null}
 
@@ -377,8 +376,15 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
       </h2>
 
       <div className={styles.metrics}>
+        <Metric
+          label="최종 상태"
+          value={STATUS_LABELS[detail.status] ?? detail.status}
+        />
         <Metric label="호출" value={`${detail.totals.call_count}건`} />
-        <Metric label="토큰" value={detail.totals.total_tokens.toLocaleString("ko-KR")} />
+        <Metric
+          label="토큰"
+          value={detail.totals.total_tokens.toLocaleString("ko-KR")}
+        />
         <Metric label="비용" value={microsDisplay(detail.totals.cost_micros)} />
         {detail.route?.decision ? (
           <Metric label="Router 결정" value={detail.route.decision} />
@@ -387,9 +393,8 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
 
       {detail.totals.incomplete_call_count > 0 ? (
         <p role="status" className={styles.warning}>
-          최종 사용량을 받지 못한 호출이{" "}
-          {detail.totals.incomplete_call_count}건 있어 실제 비용이 더 클 수
-          있습니다.
+          최종 사용량을 받지 못한 호출이 {detail.totals.incomplete_call_count}건
+          있어 실제 비용이 더 클 수 있습니다.
         </p>
       ) : null}
 
@@ -449,6 +454,7 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
               <tr>
                 <th scope="col">호출</th>
                 <th scope="col">모델</th>
+                <th scope="col">Router 결정</th>
                 <th scope="col">시도</th>
                 <th scope="col">토큰</th>
                 <th scope="col">시간</th>
@@ -463,6 +469,7 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
                     {call.incomplete ? " (미완료)" : ""}
                   </td>
                   <td>{call.model}</td>
+                  <td>{call.route ?? "-"}</td>
                   <td>{call.attempt ?? "-"}</td>
                   <td>{call.total_tokens.toLocaleString("ko-KR")}</td>
                   <td>{formatMs(call.duration_ms)}</td>

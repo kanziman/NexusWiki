@@ -15,6 +15,10 @@ The system SHALL record provider usage for every billable generation and embeddi
 - **WHEN** all attempts fail validation and the job ends in failure
 - **THEN** the cost of each attempt remains recorded and is included in subsequent budget checks
 
+#### Scenario: A billed response is rejected
+- **WHEN** a provider response is unusable because its content is missing, its host differs from the requested provider, or its vector dimensions are wrong
+- **THEN** the system records the reported usage before raising the failure, and the cost is included in subsequent budget checks
+
 #### Scenario: Conflict judgement calls the provider
 - **WHEN** a conflict check judges a candidate page pair
 - **THEN** the system records that call's usage against the same workspace and job before applying the judgement

@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.db.user import UserDb
 from api.errors import WorkspaceForbidden
-from api.services.ask import AskService, HttpLlmStreamClient
+from api.services.ask import AskService, HttpAskTurnExporter, HttpLlmStreamClient
 from api.services.retrieval import HttpQueryEmbeddingClient, RetrievalService
 from nexuswiki_core.trace import bind_trace, current_trace_id
 
@@ -73,6 +73,11 @@ def _ask_service(request: Request) -> AskService:
             url=settings.LLM_STREAM_INTERNAL_URL,
             token=settings.LLM_STREAM_INTERNAL_TOKEN,
             timeout_seconds=settings.LLM_STREAM_TIMEOUT_SECONDS,
+        ),
+        HttpAskTurnExporter(
+            request.app.state.http_client,
+            url=settings.LLM_STREAM_INTERNAL_URL,
+            token=settings.LLM_STREAM_INTERNAL_TOKEN,
         ),
     )
 

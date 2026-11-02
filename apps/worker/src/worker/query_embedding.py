@@ -6,6 +6,7 @@ import asyncio
 import math
 import time
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from typing import Annotated
 
 import structlog
@@ -17,6 +18,18 @@ from worker.embedding import EMBEDDING_DIMENSIONS
 
 EmbeddingFunction = Callable[[str], Awaitable[list[float]]]
 MonotonicClock = Callable[[], float]
+
+# ⚠️ 비용 귀속 값을 structlog 컨텍스트에서 읽지 않는다. 리스너는 `main`이 묶은
+#    `workspace_id="bootstrap"`을 물려받으므로, 헤더가 없는 호출이 건너뛰지 않고 그 값으로 기록을
+#    시도한다. 지금은 UUID가 아니라 실패할 뿐이지만, 진짜 ID가 묶이면 다른 테넌트로 조용히 귀속된다.
+_request_workspace_id: ContextVar[str | None] = ContextVar(
+    "query_embedding_workspace_id", default=None
+)
+
+
+def request_workspace_id() -> str | None:
+    """이 요청의 헤더에서 검증한 워크스페이스. 없거나 형식이 틀리면 `None`이다."""
+    return _request_workspace_id.get()
 
 
 class QueryEmbeddingRequest(BaseModel):
@@ -133,10 +146,14 @@ def add_query_embedding_route(app: FastAPI, service: QueryEmbeddingService) -> N
         # 본문이 아니라 헤더로 받는다. 요청 모델이 `extra="forbid"`라 필드를 더하면 이전 버전 워커가
         # 새 API의 호출을 422로 거부한다 (ai-control-flow-accounting design D2, D5).
         workspace_id = parse_trace_id(x_workspace_id)
-        if workspace_id is None:
-            return await service.embed(request, authorization)
-        with structlog.contextvars.bound_contextvars(workspace_id=workspace_id):
-            return await service.embed(request, authorization)
+        token = _request_workspace_id.set(workspace_id)
+        try:
+            if workspace_id is None:
+                return await service.embed(request, authorization)
+            with structlog.contextvars.bound_contextvars(workspace_id=workspace_id):
+                return await service.embed(request, authorization)
+        finally:
+            _request_workspace_id.reset(token)
 
 
 def create_query_embedding_app(service: QueryEmbeddingService) -> FastAPI:

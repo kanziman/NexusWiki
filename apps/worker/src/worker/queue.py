@@ -230,7 +230,11 @@ async def process_next_job(
     # in logs so operations can correlate a handler's lock lifetime without
     # relying on wall-clock adjustments.
     claimed_at = time.monotonic()
-    # 상태 전이가 성공한 뒤에만 채운다. 전이 실패는 재시도나 reaper가 처리하므로 종결이 아니다.
+    # 전이 호출이 예외 없이 끝난 뒤에 채운다. 예외가 나면 재시도나 reaper가 처리하므로 종결이
+    # 아니다.
+    # ⚠️ `complete_job`의 0행은 핸들러가 체인을 완료한 정상 경우와 구분할 수 없어 성공으로
+    #    내보낸다. 회수된 뒤 늦게 끝난 워커도 그렇게 보이지만, 개발자용 사본에 한정되고 DB 상태는
+    #    변하지 않는다.
     outcome: str | None = None
     error_type: str | None = None
 

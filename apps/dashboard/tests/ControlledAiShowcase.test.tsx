@@ -4,11 +4,16 @@ import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import ControlledAiShowcasePage, { dynamic } from "@/app/showcase/controlled-ai/page";
+import ControlledAiShowcasePage, {
+  dynamic,
+} from "@/app/showcase/controlled-ai/page";
 import { config as middlewareConfig } from "@/middleware";
 import evidence from "@/content/controlled-ai/step1.json";
 
-const SOURCES = ["app/showcase/controlled-ai/page.tsx", "components/ControlledAiShowcase.tsx"];
+const SOURCES = [
+  "app/showcase/controlled-ai/page.tsx",
+  "components/ControlledAiShowcase.tsx",
+];
 
 function article(title: string) {
   const heading = screen.getByRole("heading", { level: 2, name: title });
@@ -36,10 +41,11 @@ describe("ControlledAiShowcase", () => {
     const item = article("충돌 판정 비용 누락");
     const recorded = item.getByRole("row", { name: /회계에 기록된 비용/ });
 
-    expect(within(recorded).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
-      "$0.0000",
-      "$0.0020",
-    ]);
+    expect(
+      within(recorded)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["$0.0000", "$0.0020"]);
     expect(item.getByText("conflict_judge_cost")).toBeInTheDocument();
     expect(item.getByText("79b68fe")).toBeInTheDocument();
   });
@@ -58,7 +64,9 @@ describe("ControlledAiShowcase", () => {
   it("아직 커밋되지 않은 측정값을 커밋 전으로 표시한다", () => {
     render(<ControlledAiShowcasePage />);
 
-    const uncommitted = evidence.items.filter((entry) => entry.after.commit === "uncommitted");
+    const uncommitted = evidence.items.filter(
+      (entry) => entry.after.commit === "uncommitted",
+    );
     for (const entry of uncommitted) {
       expect(article(entry.title).getByText("커밋 전")).toBeInTheDocument();
     }
@@ -67,9 +75,9 @@ describe("ControlledAiShowcase", () => {
   it("Step 2~4는 준비 중으로만 표시하고 수치를 보여주지 않는다", () => {
     render(<ControlledAiShowcasePage />);
 
-    const items = within(screen.getByRole("region", { name: "다음 단계" })).getAllByRole(
-      "listitem",
-    );
+    const items = within(
+      screen.getByRole("region", { name: "다음 단계" }),
+    ).getAllByRole("listitem");
 
     expect(items).toHaveLength(3);
     items.forEach((item, index) => {
@@ -92,7 +100,9 @@ describe("ControlledAiShowcase", () => {
 
     for (const path of SOURCES) {
       const source = readFileSync(resolve(process.cwd(), path), "utf8");
-      expect(source, path).not.toMatch(/from\s+["'][^"']*(supabase|api-client)[^"']*["']/);
+      expect(source, path).not.toMatch(
+        /from\s+["'][^"']*(supabase|api-client)[^"']*["']/,
+      );
       expect(source, path).not.toMatch(/from\s+["']next\/headers["']/);
       expect(source, path).not.toMatch(/\bfetch\(/);
     }
@@ -101,7 +111,9 @@ describe("ControlledAiShowcase", () => {
   it("세션 미들웨어를 거치지 않아 로그인으로 이동하거나 인증 서버를 부르지 않는다", () => {
     const matcher = middlewareConfig.matcher as string[];
 
-    expect(matcher.some((pattern) => pattern.startsWith("/showcase"))).toBe(false);
+    expect(matcher.some((pattern) => pattern.startsWith("/showcase"))).toBe(
+      false,
+    );
   });
 
   it("다른 라우트를 프리페치해 미들웨어와 서버 렌더링을 깨우지 않는다", () => {

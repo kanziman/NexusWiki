@@ -27,9 +27,9 @@ import httpx
 
 from api.db.user import UserDb
 from api.errors import DatabaseError, WorkspaceForbidden
-from api.services.retrieval import RetrievalService
+from api.services.retrieval import RetrievalResult, RetrievalService
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN, ISSUED_ANCHOR_PATTERN
-from nexuswiki_core.observability import export_ask_turn
+from nexuswiki_core.logging import get_logger
 from nexuswiki_core.router import RouteDecision, decide_ask_route
 from nexuswiki_core.rrf import EvidenceHit
 from nexuswiki_core.sentences import split_sentences
@@ -38,7 +38,9 @@ from nexuswiki_core.trace import TraceRecorder, trace_headers
 __all__ = [
     "NO_EVIDENCE_MESSAGE",
     "AskService",
+    "AskTurnExporter",
     "CitationResolution",
+    "HttpAskTurnExporter",
     "HttpLlmStreamClient",
     "LlmStreamClient",
     "build_issuance_map",
@@ -62,6 +64,14 @@ _ERROR_TOKENS: Final[dict[int, str]] = {
     502: "llm_unavailable",
     504: "llm_unavailable",
 }
+
+# 내보내기는 개발자용 사본이다. 답변 완료를 지연시키지 않도록 짧게 끊는다.
+_TURN_EXPORT_TIMEOUT_SECONDS: Final[float] = 2.0
+
+_logger = get_logger(__name__)
+
+# 응답 뒤에 끝나는 내보내기 태스크. 강한 참조가 없으면 GC가 완료 전에 거둬 갈 수 있다.
+_pending_turn_exports: set[asyncio.Task[None]] = set()
 
 
 class UpstreamChatStream(Protocol):
@@ -117,6 +127,70 @@ class HttpLlmStreamClient:
             headers={"Authorization": f"Bearer {self._token}", **trace_headers()},
             timeout=httpx.Timeout(connect=5.0, read=self._timeout_seconds, write=5.0, pool=5.0),
         )
+
+
+class AskTurnExporter(Protocol):
+    """종결된 턴을 외부 관측으로 내보내는 경계. 어떤 실패도 호출자에게 전달하지 않는다."""
+
+    def export(
+        self, *, workspace_id: str, control_report: Mapping[str, Any], persisted: bool
+    ) -> None: ...
+
+
+class HttpAskTurnExporter:
+    """턴 보고서를 워커에 넘겨 내보내게 한다.
+
+    ⚠️ API는 Langfuse 키를 갖지 않는다. 그 키로는 전 테넌트의 trace를 읽고 지울 수 있어서, API에
+    두면 RLS 바깥의 교차 테넌트 능력이 생긴다 (design D8). 워커가 이미 키를 소유하므로 LLM 호출과
+    같은 내부 토큰 경계로 넘긴다. 답변을 기다리게 하지 않으려고 응답과 분리해 보낸다.
+    """
+
+    def __init__(self, client: httpx.AsyncClient, *, url: str | None, token: str | None) -> None:
+        self._client, self._url, self._token = client, url, token
+
+    def export(
+        self, *, workspace_id: str, control_report: Mapping[str, Any], persisted: bool
+    ) -> None:
+        if not self._url or not self._token:
+            return
+        task = asyncio.create_task(
+            self._send(
+                self._url,
+                {
+                    "workspace_id": workspace_id,
+                    "control_report": dict(control_report),
+                    "persisted": persisted,
+                },
+                # 태스크 안에서 읽어도 같은 값이지만, 호출 시점의 trace임을 코드로 드러낸다.
+                {"Authorization": f"Bearer {self._token}", **trace_headers()},
+            )
+        )
+        _pending_turn_exports.add(task)
+        task.add_done_callback(_pending_turn_exports.discard)
+
+    async def _send(self, url: str, body: dict[str, Any], headers: dict[str, str]) -> None:
+        try:
+            response = await self._client.post(
+                f"{url.rstrip('/')}/internal/ask-turn-export",
+                json=body,
+                headers=headers,
+                timeout=_TURN_EXPORT_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:  # noqa: BLE001 - 답변과 무관한 사본이다. 태스크 밖으로 내지 않는다.
+            # ⚠️ 예외 문구를 남기지 않는다. 내부 토큰이 담긴 요청 정보가 섞일 수 있다.
+            _logger.warning("ask.turn_export_failed", error_type=type(exc).__name__)
+            return
+        if response.is_error:
+            _logger.warning("ask.turn_export_rejected", status_code=response.status_code)
+
+
+async def drain_turn_exports(timeout_seconds: float = _TURN_EXPORT_TIMEOUT_SECONDS) -> None:
+    """HTTP 클라이언트를 닫기 전에 남은 내보내기를 기다린다. 못 끝낸 건수는 로그로 남긴다."""
+    if not _pending_turn_exports:
+        return
+    _, unfinished = await asyncio.wait(set(_pending_turn_exports), timeout=timeout_seconds)
+    if unfinished:
+        _logger.warning("ask.turn_exports_abandoned", count=len(unfinished))
 
 
 def build_issuance_map(evidence: list[EvidenceHit]) -> dict[str, tuple[str, str]]:
@@ -366,20 +440,52 @@ def _delta_text(line: str) -> str:
         payload = json.loads(line[len("data: ") :])
     except ValueError:
         raise _AnswerStreamFailed("malformed_frame") from None
-    if not isinstance(payload, dict) or payload.get("error"):
+    if not isinstance(payload, dict) or payload.get("error") is not None:
         raise _AnswerStreamFailed("provider_error_frame")
-    choices = payload.get("choices") or []
+    # ⚠️ 파싱은 되지만 형태가 틀린 프레임도 실패다. 그대로 두면 속성 접근이나 뒤의 `join`에서
+    #    `AttributeError`와 `TypeError`가 나고, 어떤 분기도 잡지 못해 턴이 `streaming`에 남는다.
+    # ⚠️ `x or []`로 기본값을 주지 않는다. `0`이나 `""` 같은 틀린 값이 빈 값으로 바뀌어 타입 검사를
+    #    건너뛰고, 잘린 답변이 해결된 답변으로 저장된다. 부재와 `null`만 "내용 없음"이다.
+    choices = payload.get("choices")
+    if choices is None:
+        return ""
+    if not isinstance(choices, list):
+        raise _AnswerStreamFailed("malformed_frame")
     if not choices:
         return ""
-    if choices[0].get("finish_reason") == "error":
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        raise _AnswerStreamFailed("malformed_frame")
+    if choice.get("finish_reason") == "error":
         raise _AnswerStreamFailed("provider_error_frame")
-    return (choices[0].get("delta") or {}).get("content") or ""
+    delta = choice.get("delta")
+    if delta is None:
+        return ""
+    if not isinstance(delta, dict):
+        raise _AnswerStreamFailed("malformed_frame")
+    content = delta.get("content")
+    if content is None:
+        return ""
+    if not isinstance(content, str):
+        raise _AnswerStreamFailed("malformed_frame")
+    return content
+
+
+def _error_citations(token: str) -> dict[str, Any]:
+    return {
+        "error": token,
+        "resolved": [],
+        "cited_anchor_count": 0,
+        "fabricated_anchor_count": 0,
+        "dual_citation_rate": 0.0,
+        "unsourced_sentence_ratio": 0.0,
+    }
 
 
 def _control_report(
     *,
     recorder: TraceRecorder,
-    route: RouteDecision,
+    route: RouteDecision | None,
     retrieval_meta: Mapping[str, Any],
     evidence: list[EvidenceHit],
     citations: Mapping[str, Any],
@@ -389,11 +495,13 @@ def _control_report(
 
     ⚠️ 허용 필드로만 조립한다. 검색 메타의 `raw_hit_ids`나 답변 텍스트가 섞이면 복원 경로와
     Control Room이 본문 유출 경로가 된다.
+
+    검색이 실패한 턴에는 결정이 없어 `route`가 `None`이다. 집계 RPC는 결정이 없는 행을 거른다.
     """
     return {
         "version": 1,
         "outcome": outcome,
-        "route": route.as_report(),
+        "route": route.as_report() if route is not None else None,
         "total_ms": recorder.total_ms(),
         "spans": recorder.spans(),
         "evidence": {
@@ -438,9 +546,23 @@ class AskService:
     독립적으로 테스트 가능하다).
     """
 
-    def __init__(self, retrieval_service: RetrievalService, llm_client: LlmStreamClient) -> None:
+    def __init__(
+        self,
+        retrieval_service: RetrievalService,
+        llm_client: LlmStreamClient,
+        turn_exporter: AskTurnExporter | None = None,
+    ) -> None:
         self._retrieval_service = retrieval_service
         self._llm_client = llm_client
+        self._turn_exporter = turn_exporter
+
+    def _export_turn(
+        self, *, workspace_id: UUID, control_report: Mapping[str, Any], persisted: bool
+    ) -> None:
+        if self._turn_exporter is not None:
+            self._turn_exporter.export(
+                workspace_id=str(workspace_id), control_report=control_report, persisted=persisted
+            )
 
     async def _finalize_turn(
         self,
@@ -472,14 +594,17 @@ class AskService:
                     "p_control_report": control_report,
                 },
             )
-        except (WorkspaceForbidden, DatabaseError):
-            export_ask_turn(
-                workspace_id=str(workspace_id), control_report=control_report, persisted=False
+        except (WorkspaceForbidden, DatabaseError, httpx.HTTPError) as exc:
+            # ⚠️ 전송 실패도 여기서 받는다. 예외가 스트림 밖으로 나가면 내보내기도 기록도 없이
+            #    끊긴다.
+            _logger.warning("ask.finalize_failed", error_type=type(exc).__name__)
+            self._export_turn(
+                workspace_id=workspace_id, control_report=control_report, persisted=False
             )
             return None
         persisted = bool(rows and rows[0].get("thread_id"))
-        export_ask_turn(
-            workspace_id=str(workspace_id), control_report=control_report, persisted=persisted
+        self._export_turn(
+            workspace_id=workspace_id, control_report=control_report, persisted=persisted
         )
         if not persisted:
             return None
@@ -524,20 +649,73 @@ class AskService:
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         recorder = TraceRecorder()
         recorder.start("retrieval")
-        result = await self._retrieval_service.retrieve(workspace_id, query, requested_k, user_db)
-        missing_channels = _missing_channels(result.meta)
-        # ⚠️ 기록만 한다. 아래의 근거 0건 단락 외에는 이 결정으로 분기하지 않는다 (design D7).
-        route = decide_ask_route(query, result.evidence)
+        result: RetrievalResult | None = None
+        route: RouteDecision | None = None
 
         def report(citations: Mapping[str, Any], outcome: str) -> dict[str, Any]:
             return _control_report(
                 recorder=recorder,
                 route=route,
-                retrieval_meta=result.meta,
-                evidence=result.evidence,
+                retrieval_meta=result.meta if result is not None else {},
+                evidence=result.evidence if result is not None else [],
                 citations=citations,
                 outcome=outcome,
             )
+
+        async def fail_preparation(
+            exc: Exception, token: str
+        ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+            """라우터가 턴을 시작한 뒤의 실패다. HTTP 오류로 바꿀 수 없으니 오류 턴으로 닫는다.
+
+            ⚠️ 이 처리가 없으면 턴이 `streaming`에 영원히 남고 클라이언트는 끊긴 스트림만 본다.
+            예외 문구는 로그에 남기지 않는다. 요청 정보나 본문 조각이 섞일 수 있다.
+
+            ⚠️ DB·전송 실패는 운영 중 일어날 수 있지만 그 밖의 예외는 코드 결함이므로 오류 수준으로
+            남긴다. 로그 키에 `token`을 쓰지 않는다. `REDACTED_KEYS`에 걸려 분류가 지워진다.
+            """
+            log = (
+                _logger.warning
+                if isinstance(exc, DatabaseError | WorkspaceForbidden | httpx.HTTPError)
+                else _logger.error
+            )
+            log(
+                "ask.preparation_failed",
+                error_type=type(exc).__name__,
+                sqlstate=getattr(exc, "sqlstate", None),
+                failure=token,
+            )
+            citations = _error_citations(token)
+            yield (
+                "meta",
+                {
+                    "thread_id": str(thread_id),
+                    "missing_channels": _missing_channels(result.meta) if result else [],
+                },
+            )
+            yield "citations", citations
+            async for event in self._yield_done_if_finalized(
+                user_db=user_db,
+                workspace_id=workspace_id,
+                thread_id=thread_id,
+                client_turn_id=client_turn_id,
+                answer_text="",
+                citations=citations,
+                status="error",
+                control_report=report(citations, "error"),
+            ):
+                yield event
+
+        try:
+            result = await self._retrieval_service.retrieve(
+                workspace_id, query, requested_k, user_db
+            )
+            # ⚠️ 기록만 한다. 아래의 근거 0건 단락 외에는 이 결정으로 분기하지 않는다 (design D7).
+            route = decide_ask_route(query, result.evidence)
+        except Exception as exc:  # noqa: BLE001 - 턴을 종결하는 것이 이 분기의 목적이다.
+            async for event in fail_preparation(exc, "retrieval_unavailable"):
+                yield event
+            return
+        missing_channels = _missing_channels(result.meta)
 
         if not result.evidence:
             # CITE-04 — 근거가 하나도 없으면 provider 호출을 아예 하지 않는다.
@@ -572,24 +750,40 @@ class AskService:
             return
 
         recorder.start("context")
-        issuance = build_issuance_map(result.evidence)
-        content_by_id = await _fetch_evidence_content(
-            user_db, workspace_id=workspace_id, evidence=result.evidence
-        )
-        template = await _select_ask_template(
-            user_db, workspace_id=workspace_id, template_id=template_id
-        )
+        try:
+            issuance = build_issuance_map(result.evidence)
+            content_by_id = await _fetch_evidence_content(
+                user_db, workspace_id=workspace_id, evidence=result.evidence
+            )
+            template = await _select_ask_template(
+                user_db, workspace_id=workspace_id, template_id=template_id
+            )
+            if template is not None:
+                wiki_context, source_context = _context_blocks(
+                    result.evidence, issuance, content_by_id
+                )
+                user_prompt = _render(
+                    str(template["template"]),
+                    {
+                        "question": query,
+                        "wiki_context": wiki_context,
+                        "source_context": source_context,
+                    },
+                )
+                template_meta = {
+                    "template_id": template["id"],
+                    "template_name": template["name"],
+                }
+                system_prompt = str(template["system_prompt"])
+        except Exception as exc:  # noqa: BLE001 - 턴을 종결하는 것이 이 분기의 목적이다.
+            async for event in fail_preparation(exc, "context_unavailable"):
+                yield event
+            return
+
         if template is None:
             # 0006 시드가 적용되지 않았다는 뜻 — 진행할 프롬프트 자체가 없다.
             yield "meta", {"thread_id": str(thread_id), "template_id": None}
-            error_citations = {
-                "error": "ask_template_unavailable",
-                "resolved": [],
-                "cited_anchor_count": 0,
-                "fabricated_anchor_count": 0,
-                "dual_citation_rate": 0.0,
-                "unsourced_sentence_ratio": 0.0,
-            }
+            error_citations = _error_citations("ask_template_unavailable")
             yield "citations", error_citations
             async for event in self._yield_done_if_finalized(
                 user_db=user_db,
@@ -604,18 +798,11 @@ class AskService:
                 yield event
             return
 
-        wiki_context, source_context = _context_blocks(result.evidence, issuance, content_by_id)
-        user_prompt = _render(
-            str(template["template"]),
-            {"question": query, "wiki_context": wiki_context, "source_context": source_context},
-        )
-
         yield (
             "meta",
             {
                 "thread_id": str(thread_id),
-                "template_id": template["id"],
-                "template_name": template["name"],
+                **template_meta,
                 "evidence_count": len(result.evidence),
                 "policy_version": result.meta.get("policy_version"),
                 "missing_channels": missing_channels,
@@ -628,19 +815,12 @@ class AskService:
             async with self._llm_client.stream(
                 workspace_id=str(workspace_id),
                 messages=[
-                    {"role": "system", "content": str(template["system_prompt"])},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
             ) as upstream:
                 if upstream.status_code >= 400:
-                    error_citations = {
-                        "error": _error_token(upstream.status_code),
-                        "resolved": [],
-                        "cited_anchor_count": 0,
-                        "fabricated_anchor_count": 0,
-                        "dual_citation_rate": 0.0,
-                        "unsourced_sentence_ratio": 0.0,
-                    }
+                    error_citations = _error_citations(_error_token(upstream.status_code))
                     yield "citations", error_citations
                     async for event in self._yield_done_if_finalized(
                         user_db=user_db,
@@ -666,14 +846,7 @@ class AskService:
         except (RuntimeError, httpx.HTTPError):
             # 설정 부재·스트림 도중 실패(RuntimeError) 또는 전송 계층 실패 — 모두 provider
             # 미가용으로 다룬다. 이미 보낸 델타는 저장하지 않고 오류 상태가 대체한다.
-            error_citations = {
-                "error": "llm_unavailable",
-                "resolved": [],
-                "cited_anchor_count": 0,
-                "fabricated_anchor_count": 0,
-                "dual_citation_rate": 0.0,
-                "unsourced_sentence_ratio": 0.0,
-            }
+            error_citations = _error_citations("llm_unavailable")
             yield "citations", error_citations
             async for event in self._yield_done_if_finalized(
                 user_db=user_db,

@@ -19,7 +19,8 @@ export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "Controlled AI 전후 비교 | NexusWiki",
-  description: "합성 시나리오로 측정한 NexusWiki의 AI 통제 전후 동작을 보여줍니다.",
+  description:
+    "합성 시나리오로 측정한 NexusWiki의 AI 통제 전후 동작을 보여줍니다.",
 };
 
 export default function ControlledAiShowcasePage() {

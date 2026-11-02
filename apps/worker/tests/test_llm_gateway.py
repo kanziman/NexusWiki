@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from nexuswiki_core.trace import bind_trace
 from worker import llm
-from worker.errors import LlmSchemaError
+from worker.errors import EmbeddingProviderMismatch, LlmSchemaError, ProviderError
 from worker.llm_gateway import LlmCallContext, LlmGateway, record_stream_usage
 from worker.settings import WorkerSettings
 
@@ -232,3 +232,81 @@ def test_callers_cannot_import_provider_functions_directly(path: Path) -> None:
     }
 
     assert not imported & _PROVIDER_FUNCTIONS
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"choices": [{"message": {"content": None}}]},
+        {"choices": []},
+    ],
+    ids=["null_content", "empty_choices"],
+)
+async def test_billed_response_without_usable_content_is_still_recorded(
+    body: dict[str, object],
+) -> None:
+    # ⚠️ 공급자는 이런 응답에도 청구한다. 내용 확인이 먼저면 비용이 월 상한에서 빠진다.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                **body,
+                "usage": {"prompt_tokens": 9, "total_tokens": 9, "cost": 0.002},
+                "provider": "DeepInfra",
+                "model": "m",
+            },
+        )
+
+    sink = _Sink()
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url=llm.OPENROUTER_BASE_URL
+    ) as client:
+        with pytest.raises(ProviderError):
+            await LlmGateway(sink, client, _settings()).complete_structured(
+                LlmCallContext(workspace_id="ws-1", job_id="job-1", call="compile"),
+                system_prompt="s",
+                user_prompt="u",
+                schema_model=_Payload,
+            )
+
+    assert [row["cost_micros"] for row in sink.rows] == [2000]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider", "vector", "error"),
+    [
+        ("OtherHost", [0.0] * 1024, EmbeddingProviderMismatch),
+        ("DeepInfra", [0.0] * 3, ValueError),
+    ],
+    ids=["provider_mismatch", "dimension_mismatch"],
+)
+async def test_rejected_embedding_response_is_still_recorded(
+    provider: str, vector: list[float], error: type[Exception]
+) -> None:
+    # ⚠️ 결과를 버려도 비용은 청구된다. 게이트웨이가 정상 반환 뒤에만 기록하면 그 금액이 사라진다.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "provider": provider,
+                "model": "baai/bge-m3",
+                "data": [{"embedding": vector}],
+                "usage": {"prompt_tokens": 7, "total_tokens": 7, "cost": 0.000011},
+            },
+        )
+
+    settings = _settings().model_copy(update={"EMBEDDING_PROVIDER": "deepinfra/fp32"})
+    sink = _Sink()
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url=llm.OPENROUTER_BASE_URL
+    ) as client:
+        with pytest.raises(error):
+            await LlmGateway(sink, client, settings).embed_texts(
+                LlmCallContext(workspace_id="ws-1", job_id="job-1", call="embed_source"),
+                texts=["본문"],
+            )
+
+    assert [row["cost_micros"] for row in sink.rows] == [11]
+    assert sink.rows[0]["provider"] == provider

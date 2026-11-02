@@ -47,7 +47,8 @@ const TEXT_LABELS: Record<string, string> = {
 function formatValue(value: MetricValue, unit: string): string {
   if (value === null) return "기록 없음";
   const kind = unit as MetricUnit;
-  if (kind === "usd_micros") return `$${(Number(value) / 1_000_000).toFixed(4)}`;
+  if (kind === "usd_micros")
+    return `$${(Number(value) / 1_000_000).toFixed(4)}`;
   if (kind === "rate") return `${Math.round(Number(value) * 100)}%`;
   if (kind === "count") return `${value}건`;
   return TEXT_LABELS[String(value)] ?? String(value);
@@ -57,7 +58,11 @@ function formatCommit(commit: string): string {
   return commit === "uncommitted" ? "커밋 전" : commit;
 }
 
-export function ControlledAiShowcase({ evidence }: { evidence: ControlledAiEvidence }) {
+export function ControlledAiShowcase({
+  evidence,
+}: {
+  evidence: ControlledAiEvidence;
+}) {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -66,18 +71,20 @@ export function ControlledAiShowcase({ evidence }: { evidence: ControlledAiEvide
         <Link href="/" prefetch={false} className={styles.home}>
           NexusWiki
         </Link>
-        <p className={styles.eyebrow}>Controlled AI · Step 1 추적과 비용 회계</p>
+        <p className={styles.eyebrow}>
+          Controlled AI · Step 1 추적과 비용 회계
+        </p>
         <h1>AI 호출을 통제하기 전과 후</h1>
         <p className={styles.lede}>
-          같은 시나리오를 수정 전 코드와 수정 후 코드에서 각각 실행해 관측한 값을 나란히
-          보여줍니다.
+          같은 시나리오를 수정 전 코드와 수정 후 코드에서 각각 실행해 관측한
+          값을 나란히 보여줍니다.
         </p>
       </header>
 
       <aside className={styles.notice} role="note">
-        <strong>합성 데이터입니다.</strong> 모든 값은 자동화 테스트가 가짜 공급자와 합성 입력으로
-        만들었습니다. 실제 고객 데이터나 운영 성과가 아니며, 이 페이지는 데이터베이스와 API를
-        호출하지 않습니다.
+        <strong>합성 데이터입니다.</strong> 모든 값은 자동화 테스트가 가짜
+        공급자와 합성 입력으로 만들었습니다. 실제 고객 데이터나 운영 성과가
+        아니며, 이 페이지는 데이터베이스와 API를 호출하지 않습니다.
       </aside>
 
       <section className={styles.items} aria-label="통제 전후 비교">
@@ -106,15 +113,28 @@ export function ControlledAiShowcase({ evidence }: { evidence: ControlledAiEvide
                 {item.metrics.map((metric) => (
                   <tr key={metric.key}>
                     <th scope="row">{metric.label}</th>
-                    <td className={metric.unit === "text" ? styles.textValue : undefined}>
-                      {formatValue(item.before.values[metric.key] ?? null, metric.unit)}
+                    <td
+                      className={
+                        metric.unit === "text" ? styles.textValue : undefined
+                      }
+                    >
+                      {formatValue(
+                        item.before.values[metric.key] ?? null,
+                        metric.unit,
+                      )}
                     </td>
                     <td
-                      className={[styles.after, metric.unit === "text" ? styles.textValue : ""]
+                      className={[
+                        styles.after,
+                        metric.unit === "text" ? styles.textValue : "",
+                      ]
                         .filter(Boolean)
                         .join(" ")}
                     >
-                      {formatValue(item.after.values[metric.key] ?? null, metric.unit)}
+                      {formatValue(
+                        item.after.values[metric.key] ?? null,
+                        metric.unit,
+                      )}
                     </td>
                   </tr>
                 ))}

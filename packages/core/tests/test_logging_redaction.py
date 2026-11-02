@@ -45,11 +45,11 @@ def test_worker_settings_secret_fields_stay_inside_the_denylist() -> None:
     assert {name.casefold() for name in secret_fields} <= REDACTED_KEYS
 
 
-def test_api_settings_langfuse_secret_stays_inside_the_denylist() -> None:
-    # API가 갖는 유일한 외부 서비스 secret이다. 공급자 자격 증명이 아니라 허용되지만 마스킹은 같다.
+def test_langfuse_secret_stays_out_of_the_api_and_inside_the_denylist() -> None:
+    # 전 테넌트의 trace를 읽고 지울 수 있는 키다. 워커만 갖고, API는 내보내기를 워커에 위임한다.
     from api.settings import ApiSettings
 
-    assert "LANGFUSE_SECRET_KEY" in ApiSettings.model_fields
+    assert "LANGFUSE_SECRET_KEY" not in ApiSettings.model_fields
     assert "langfuse_secret_key" in REDACTED_KEYS
 
 
