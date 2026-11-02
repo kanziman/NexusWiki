@@ -47,6 +47,10 @@ type Stage = {
 };
 
 type Call = {
+  observed_cost_micros?: number;
+  pending_micros?: number;
+  accounting_status?: string | null;
+  tokens_known?: boolean;
   call: string | null;
   kind: string;
   model: string;
@@ -67,6 +71,11 @@ type TraceDetail = TraceSummary & {
     call_count: number;
     total_tokens: number;
     cost_micros: number;
+    pending_micros?: number;
+    budget_micros?: number;
+    unresolved_count?: number;
+    manual_review_count?: number;
+    over_reserve_count?: number;
     incomplete_call_count: number;
   };
   evidence?: { wiki: number; source: number };
@@ -84,6 +93,8 @@ type AskAggregate = {
   p50_total_ms: number | null;
   p95_total_ms: number | null;
   total_cost_micros: number;
+  pending_micros?: number;
+  budget_micros?: number;
   incomplete_call_count: number;
 };
 
@@ -338,6 +349,16 @@ function AggregateRow({ aggregate }: { aggregate: AskAggregate }) {
         label="질문 비용"
         value={microsDisplay(aggregate.total_cost_micros)}
       />
+      <Metric
+        label="미확정 예산 점유"
+        value={microsDisplay(aggregate.pending_micros ?? 0)}
+      />
+      <Metric
+        label="예산 판정액"
+        value={microsDisplay(
+          aggregate.budget_micros ?? aggregate.total_cost_micros,
+        )}
+      />
       <Metric label="오류" value={`${aggregate.error_count}건`} />
       <Metric
         label="미완료 호출"
@@ -382,10 +403,23 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
         />
         <Metric label="호출" value={`${detail.totals.call_count}건`} />
         <Metric
-          label="토큰"
+          label="관측 토큰"
           value={detail.totals.total_tokens.toLocaleString("ko-KR")}
         />
-        <Metric label="비용" value={microsDisplay(detail.totals.cost_micros)} />
+        <Metric
+          label="공급자 보고 비용"
+          value={microsDisplay(detail.totals.cost_micros)}
+        />
+        <Metric
+          label="미확정 예산 점유"
+          value={microsDisplay(detail.totals.pending_micros ?? 0)}
+        />
+        <Metric
+          label="예산 판정액"
+          value={microsDisplay(
+            detail.totals.budget_micros ?? detail.totals.cost_micros,
+          )}
+        />
         {detail.route?.decision ? (
           <Metric label="Router 결정" value={detail.route.decision} />
         ) : null}
@@ -396,6 +430,17 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
           최종 사용량을 받지 못한 호출이 {detail.totals.incomplete_call_count}건
           있어 실제 비용이 더 클 수 있습니다.
         </p>
+      ) : null}
+      {(detail.totals.unresolved_count ?? 0) > 0 ? (
+        <p role="status">
+          미확정 비용의 임시 점유는 실제 청구액이 아닙니다.
+          {(detail.totals.manual_review_count ?? 0) > 0
+            ? " 운영자 확인이 필요한 호출이 있습니다."
+            : ""}
+        </p>
+      ) : null}
+      {(detail.totals.over_reserve_count ?? 0) > 0 ? (
+        <p role="status">확보액을 넘은 공급자 비용을 전액 반영했습니다.</p>
       ) : null}
 
       {detail.missing_channels && detail.missing_channels.length > 0 ? (
@@ -458,7 +503,9 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
                 <th scope="col">시도</th>
                 <th scope="col">토큰</th>
                 <th scope="col">시간</th>
-                <th scope="col">비용</th>
+                <th scope="col">원 관측 비용</th>
+                <th scope="col">공급자 보고 비용 (정산 반영)</th>
+                <th scope="col">미확정 점유</th>
               </tr>
             </thead>
             <tbody>
@@ -471,9 +518,19 @@ function TraceDetailView({ detail }: { detail: TraceDetail }) {
                   <td>{call.model}</td>
                   <td>{call.route ?? "-"}</td>
                   <td>{call.attempt ?? "-"}</td>
-                  <td>{call.total_tokens.toLocaleString("ko-KR")}</td>
+                  <td>
+                    {call.tokens_known === false
+                      ? "기록 없음"
+                      : call.total_tokens.toLocaleString("ko-KR")}
+                  </td>
                   <td>{formatMs(call.duration_ms)}</td>
-                  <td>${(call.cost_micros / 1_000_000).toFixed(4)}</td>
+                  <td>
+                    {microsDisplay(
+                      call.observed_cost_micros ?? call.cost_micros,
+                    )}
+                  </td>
+                  <td>{microsDisplay(call.cost_micros)}</td>
+                  <td>{microsDisplay(call.pending_micros ?? 0)}</td>
                 </tr>
               ))}
             </tbody>

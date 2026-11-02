@@ -154,7 +154,9 @@ export function AccountMenu({
                     />
                   </div>
                   <div className="flex items-center justify-between text-[10.5px] text-[var(--muted)]">
-                    <span>사용 {formatCredits(budget.spent_micros)}</span>
+                    <span>
+                      사용·임시 점유 {formatCredits(budget.spent_micros)}
+                    </span>
                     <span>한도 {formatCredits(budget.cap_micros)}</span>
                   </div>
                 </Link>

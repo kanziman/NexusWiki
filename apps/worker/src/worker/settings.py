@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 
 from nexuswiki_core.settings import BaseAppSettings
@@ -51,6 +53,8 @@ class WorkerSettings(BaseAppSettings):
     LLM_STREAM_MAX_CONCURRENCY: int = 2
     LLM_STREAM_RATE_CAPACITY: int = Field(default=20, gt=0)
     LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND: float = Field(default=0.2, gt=0)
+    # #172: 검토된 모델별 정책이 없으면 Ask만 거부하며 다른 워커 기능은 유지한다.
+    ASK_COST_POLICIES: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     # YouTube Data API 키 — provider 자격증명이라 워커만 소유한다(youtube-channel-import
     # change의 design.md > D5). 이름의 casefold가 `REDACTED_KEYS`에 있어야 로그 마스킹이

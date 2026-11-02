@@ -16,6 +16,8 @@ type PipelineRow = {
 
 type OperationsSnapshot = {
   budget: {
+    reported_micros?: number;
+    pending_micros?: number;
     cap_micros: number;
     spent_micros: number;
     remaining_micros: number;
@@ -129,7 +131,10 @@ export function OperationsPanel({ workspaceId }: OperationsPanelProps) {
               <h3>이번 달 AI 연산 크레딧</h3>
               {/* ⚠️ authoritative:false 는 계약의 일부다(PRD §3.3.1) — 상한
                   집행은 enqueue_source_job 이 하고 여기는 표시용이다. */}
-              <p>표시용 수치입니다. 상한 집행은 작업 등록 시점에 이뤄집니다.</p>
+              <p>
+                표시용 수치입니다. 상한 집행은 작업 등록과 Ask 예약 시점에
+                이뤄집니다.
+              </p>
 
               <div className="budget-amount">
                 {formatCredits(budget.spent_micros)}{" "}
@@ -165,6 +170,15 @@ export function OperationsPanel({ workspaceId }: OperationsPanelProps) {
                 응답에 없고 파생 규칙도 정의되지 않았다(PRD §3.3.1). 여기에는
                 응답에 실재하는 값만 둔다. */}
             <div className="budget-aside">
+              <p>예산 판정액은 사용량과 미확정 점유를 포함합니다.</p>
+              <p>
+                공급자 보고 비용{" "}
+                {formatCredits(budget.reported_micros ?? budget.spent_micros)}
+              </p>
+              <p>
+                미확정 예산 점유 {formatCredits(budget.pending_micros ?? 0)}{" "}
+                (실제 청구액 아님)
+              </p>
               <div>
                 <span>사용 크레딧</span>
                 <b>{formatCredits(budget.spent_micros)}</b>

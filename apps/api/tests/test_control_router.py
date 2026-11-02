@@ -160,6 +160,11 @@ async def test_author_sees_own_ask_trace_with_totals_matching_usage(
         "total_tokens": 100,
         "cost_micros": 2300,
         "incomplete_call_count": 0,
+        "pending_micros": 0,
+        "budget_micros": 2300,
+        "unresolved_count": 0,
+        "manual_review_count": 0,
+        "over_reserve_count": 0,
     }
     assert [span["name"] for span in payload["spans"]] == ["retrieval", "llm_stream"]
     assert payload["missing_channels"] == ["wiki_vector"]

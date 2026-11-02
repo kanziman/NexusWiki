@@ -105,6 +105,22 @@ async def _usage_rows_since(
     return payload if isinstance(payload, list) else [payload]
 
 
+async def _budget_costs(db: UserDb, *, workspace_id: UUID, month_start: datetime) -> dict[str, int]:
+    """#172 원시 usage 페이지 대신 JWT로 보호된 완전한 비용 투영을 읽는다."""
+    rows = await db.rpc(
+        "ask_cost_snapshot",
+        params={
+            "p_workspace_id": str(workspace_id),
+            "p_since": month_start.isoformat(),
+        },
+    )
+    row = rows[0] if rows else {}
+    return {
+        name: int(row.get(name, 0))
+        for name in ("reported_micros", "pending_micros", "budget_micros")
+    }
+
+
 def _month_start() -> datetime:
     now = datetime.now(UTC)
     return datetime(now.year, now.month, 1, tzinfo=UTC)
@@ -215,15 +231,17 @@ async def workspace_budget(
     # 읽기 0행은 RLS가 막은 경우에도 빈 목록이다. 예산값으로 다른 워크스페이스 존재를 알리지 않는다.
     cap_micros = int(cap_rows[0]["monthly_budget_micros"]) if cap_rows else 0
     month_start = _month_start()
-    usage = await _usage_rows_since(db, workspace_id=workspace_id, month_start=month_start)
-    spent_micros = sum(int(item["cost_micros"]) for item in usage)
+    costs = await _budget_costs(db, workspace_id=workspace_id, month_start=month_start)
+    spent_micros = costs["budget_micros"]
     remaining_micros = cap_micros - spent_micros
     return {
         "cap_micros": cap_micros,
         "spent_micros": spent_micros,
         "remaining_micros": remaining_micros,
         "month_start": month_start.isoformat(),
-        "truncated": len(usage) == _BUDGET_USAGE_LIMIT,
+        "reported_micros": costs["reported_micros"],
+        "pending_micros": costs["pending_micros"],
+        "truncated": False,
         # 이 값은 표시용이다. 권위 있는 상한 판정은 enqueue_source_job SQL이 한다 (D-P18).
         "authoritative": False,
     }
@@ -247,7 +265,7 @@ async def workspace_operations(
     cap_rows = await db.select(
         "workspaces", match={"id": str(workspace_id)}, columns="monthly_budget_micros", limit=1
     )
-    usage = await _usage_rows_since(db, workspace_id=workspace_id, month_start=month_start)
+    costs = await _budget_costs(db, workspace_id=workspace_id, month_start=month_start)
     # RLS를 태운 요청자 JWT 직접 읽기다. 집계는 서버에서만 수행하며 원 행은 응답에 없다.
     job_rows = await db.select(
         _JOBS_TABLE,
@@ -255,14 +273,16 @@ async def workspace_operations(
         columns="type,status",
     )
     cap_micros = int(cap_rows[0]["monthly_budget_micros"]) if cap_rows else 0
-    spent_micros = sum(int(item["cost_micros"]) for item in usage)
+    spent_micros = costs["budget_micros"]
     return {
         "budget": {
             "cap_micros": cap_micros,
             "spent_micros": spent_micros,
             "remaining_micros": cap_micros - spent_micros,
             "month_start": month_start.isoformat(),
-            "truncated": len(usage) == _BUDGET_USAGE_LIMIT,
+            "reported_micros": costs["reported_micros"],
+            "pending_micros": costs["pending_micros"],
+            "truncated": False,
             "authoritative": False,
         },
         "pipeline": _pipeline_snapshot(job_rows),

@@ -121,6 +121,33 @@ beforeEach(() => {
 });
 
 describe("ControlRoom", () => {
+  it("미확정 점유와 공급자 보고액을 구분하고 운영자 확인을 안내한다", async () => {
+    respond({
+      "/control/traces": { items: [askSummary], can_view_workspace: false },
+      [`/control/traces/${ASK_TRACE}`]: {
+        ...askDetail,
+        totals: {
+          ...askDetail.totals,
+          pending_micros: 10000,
+          budget_micros: 12000,
+          unresolved_count: 1,
+          manual_review_count: 1,
+          over_reserve_count: 1,
+        },
+      },
+    });
+    render(<ControlRoom workspaceId="ws" />);
+    const detail = await screen.findByRole("article", { name: "trace 상세" });
+    expect(
+      within(detail).getByText("미확정 예산 점유").parentElement,
+    ).toHaveTextContent("$0.0100");
+    expect(
+      within(detail).getByText("예산 판정액").parentElement,
+    ).toHaveTextContent("$0.0120");
+    expect(detail).toHaveTextContent("실제 청구액이 아닙니다");
+    expect(detail).toHaveTextContent("운영자 확인");
+    expect(detail).toHaveTextContent("확보액을 넘은 공급자 비용");
+  });
   it("빈 워크스페이스에서 첫 trace가 생기는 방법을 안내한다", async () => {
     respond({
       "/control/traces": { items: [], can_view_workspace: false },

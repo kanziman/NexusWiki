@@ -26,9 +26,10 @@ from typing import Annotated, Any, Protocol
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from nexuswiki_core.logging import get_logger
+from worker.ask_cost import AskCostAccounting
 
 __all__ = [
     "ChatStreamFunction",
@@ -59,6 +60,8 @@ class LlmChatRequest(BaseModel):
 
     workspace_id: str
     messages: list[dict[str, str]]
+    _cost_call: dict[str, Any] | None = PrivateAttr(default=None)
+    _on_generation: Callable[[str], Awaitable[None]] | None = PrivateAttr(default=None)
 
 
 class LlmStreamService:
@@ -75,12 +78,14 @@ class LlmStreamService:
         rate_capacity: int = 20,
         refill_tokens_per_second: float = 0.2,
         monotonic: MonotonicClock = time.monotonic,
+        accounting: AskCostAccounting | None = None,
     ) -> None:
         if not internal_token:
             raise ValueError("internal token is required")
         if min(max_concurrency, rate_capacity, refill_tokens_per_second) <= 0:
             raise ValueError("llm stream bounds must be positive")
         self._chat_stream = chat_stream
+        self._accounting = accounting
         self._check_budget = check_budget
         self._record_usage = record_usage
         self._internal_token = internal_token
@@ -127,34 +132,93 @@ class LlmStreamService:
         # 인증이 quota/provider 작업보다 먼저다 — query_embedding.py와 같은 계약.
         if authorization != f"Bearer {self._internal_token}":
             raise HTTPException(status_code=401, detail="internal_unauthorized")
-        if not await self._check_budget(request.workspace_id):
+        if self._accounting is None and not await self._check_budget(request.workspace_id):
             raise HTTPException(status_code=402, detail="budget_exceeded")
         await self._reserve_token()
+        if self._accounting is not None:
+            request._cost_call = await self._accounting.reserve(
+                request.workspace_id, request.messages
+            )
         return self._stream_chunks(request)
 
     async def _stream_chunks(self, request: LlmChatRequest) -> AsyncIterator[bytes]:
         latest_usage: dict[str, Any] = {}
         started = self._monotonic()
         finished = False
+        sent = False
+        done = False
+        bad_frame = False
+        call = request._cost_call
+        generation_ids: set[str] = set()
+
+        async def generation(value: str) -> None:
+            if value in generation_ids:
+                return
+            generation_ids.add(value)
+            if self._accounting and call:
+                await self._accounting.update(call, "generation", p_generation_id=value)
+
+        request._on_generation = generation if call else None
         try:
             async with self._semaphore:
+                if self._accounting and call:
+                    # DB의 일회성 전송 전이를 얻은 실행만 공급자를 호출한다.
+                    if not await self._accounting.update(call, "start"):
+                        raise RuntimeError("call already started")
+                    sent = True
                 async for chunk in self._chat_stream(request):
+                    if chunk.decode("utf-8", errors="replace").strip() == "data: [DONE]":
+                        done = True
                     try:
                         payload = json.loads(chunk.decode("utf-8").removeprefix("data: ").strip())
                     except (UnicodeDecodeError, json.JSONDecodeError):
-                        pass
+                        if chunk.startswith(b"data:") and not done:
+                            bad_frame = True
                     else:
                         latest_usage = _merge_usage(latest_usage, payload)
+                        if isinstance(payload, dict):
+                            if payload.get("id") and isinstance(payload["id"], str):
+                                await generation(payload["id"])
+                            if payload.get("error") is not None:
+                                bad_frame = True
+                            choices = payload.get("choices")
+                            if choices is not None and not isinstance(choices, list):
+                                bad_frame = True
+                            for choice in choices if isinstance(choices, list) else []:
+                                if (
+                                    isinstance(choice, dict)
+                                    and choice.get("finish_reason") == "error"
+                                ):
+                                    bad_frame = True
                     yield chunk
             finished = True
         finally:
             # ⚠️ 정상 종료 뒤에만 기록하면 클라이언트가 끊은 호출의 지출이 월 상한에서 빠진다.
-            await self._record_detached(
-                request.workspace_id,
-                latest_usage,
-                incomplete=not finished or not latest_usage,
-                duration_ms=round((self._monotonic() - started) * 1000),
-            )
+            if self._accounting and call:
+
+                async def finish() -> None:
+                    try:
+                        await self._accounting.finish(
+                            call,
+                            latest_usage,
+                            complete=finished and done and not bad_frame,
+                            duration_ms=round((self._monotonic() - started) * 1000),
+                            sent=sent,
+                        )
+                    except Exception:  # noqa: BLE001 - 예약은 DB에 남아 재대조된다.
+                        _logger.warning("worker.ask_cost_finish_failed")
+
+                task = asyncio.create_task(finish())
+                self._pending_records.add(task)
+                task.add_done_callback(self._pending_records.discard)
+                await asyncio.shield(task)
+            else:
+                await self._record_detached(
+                    request.workspace_id,
+                    latest_usage,
+                    incomplete=not finished or not latest_usage,
+                    duration_ms=round((self._monotonic() - started) * 1000),
+                )
 
     async def _record_detached(
         self, workspace_id: str, usage: dict[str, Any], *, incomplete: bool, duration_ms: int
