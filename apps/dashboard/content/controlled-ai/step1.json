@@ -35,7 +35,7 @@
         }
       },
       "after": {
-        "commit": "0de7ea1",
+        "commit": "184c5b4",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -75,7 +75,7 @@
         }
       },
       "after": {
-        "commit": "0de7ea1",
+        "commit": "184c5b4",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -109,7 +109,7 @@
         }
       },
       "after": {
-        "commit": "0de7ea1",
+        "commit": "184c5b4",
         "values": {
           "turn_final_status": "error",
           "terminal_event": "done"
@@ -142,7 +142,7 @@
         }
       },
       "after": {
-        "commit": "0de7ea1",
+        "commit": "184c5b4",
         "values": {
           "fabricated_anchor_count": 2,
           "dual_citation_rate": 0.0
