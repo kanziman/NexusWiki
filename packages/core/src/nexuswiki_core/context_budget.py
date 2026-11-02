@@ -122,7 +122,8 @@ def truncate_text_to_tokens(text: str, max_tokens: int) -> tuple[str, bool]:
     if max_tokens <= 0:
         return "", True
     enc = _encoding()
-    tokens = enc.encode(text)
+    # ⚠️ 특수 토큰 문자열이 든 본문에서 예외가 나지 않게 한다 (`chunking.count_tokens` 참고).
+    tokens = enc.encode(text, disallowed_special=())
     if len(tokens) <= max_tokens:
         return text, False
     clipped = enc.decode(tokens[:max_tokens], errors="ignore")

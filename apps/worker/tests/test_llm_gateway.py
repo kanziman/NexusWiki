@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from nexuswiki_core.trace import bind_trace
 from worker import llm
-from worker.errors import EmbeddingProviderMismatch, LlmSchemaError, ProviderError
+from worker.errors import EmbeddingProviderMismatch, LlmSchemaError
 from worker.llm_gateway import LlmCallContext, LlmGateway, record_stream_usage
 from worker.settings import WorkerSettings
 
@@ -100,7 +100,7 @@ async def test_every_attempt_failing_still_records_all_spending() -> None:
                 _CONTEXT, system_prompt="s", user_prompt="u", schema_model=_Payload
             )
 
-    assert sum(row["cost_micros"] for row in sink.rows) == 30_000
+    assert sum(row["cost_micros"] for row in sink.rows) == 20_000
     assert len(sink.rows) == llm.STRUCTURED_OUTPUT_MAX_ATTEMPTS
 
 
@@ -286,7 +286,8 @@ async def test_billed_response_without_usable_content_is_still_recorded(
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(handler), base_url=llm.OPENROUTER_BASE_URL
     ) as client:
-        with pytest.raises(ProviderError):
+        # 큐가 재시도하지 않는 오류여야 호출 상한이 곱해지지 않는다.
+        with pytest.raises(LlmSchemaError):
             await LlmGateway(sink, client, _settings()).complete_structured(
                 LlmCallContext(workspace_id="ws-1", job_id="job-1", call="compile"),
                 system_prompt="s",
@@ -294,7 +295,7 @@ async def test_billed_response_without_usable_content_is_still_recorded(
                 schema_model=_Payload,
             )
 
-    assert [row["cost_micros"] for row in sink.rows] == [2000]
+    assert [row["cost_micros"] for row in sink.rows] == [2000, 2000]
 
 
 @pytest.mark.asyncio

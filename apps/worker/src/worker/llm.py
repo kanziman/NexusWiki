@@ -28,6 +28,7 @@ from typing import Any, Final
 import httpx
 from pydantic import BaseModel, ValidationError
 
+from nexuswiki_core.context_budget import truncate_text_to_tokens
 from nexuswiki_core.logging import get_logger
 from worker.errors import LlmSchemaError, ProviderCreditExhausted, ProviderError
 from worker.settings import WorkerSettings
@@ -42,7 +43,9 @@ __all__ = [
     "cost_micros",
     "complete_structured",
     "openrouter_client",
+    "parse_json_only",
     "render_template",
+    "token_count",
     "stream_chat",
 ]
 
@@ -55,9 +58,21 @@ PROVIDER_NAME: Final[str] = "openrouter"
 #    at-least-once 재시도가 같은 비용을 다시 지불한다.
 LLM_REQUEST_TIMEOUT_SECONDS: Final[float] = 120.0
 
-# 프롬프트 + Pydantic 검증 + 3회 재시도는 `response_format` 지원 여부와 **무관하게 항상**
-# 도는 필수 백스톱이다 (checklists.json > decisions.structured_output).
-STRUCTURED_OUTPUT_MAX_ATTEMPTS: Final[int] = 3
+# 프롬프트 + Pydantic 검증 + 재시도는 `response_format` 지원 여부와 **무관하게 항상** 도는
+# 필수 백스톱이다. ⚠️ 시도 수는 큐 재시도와 곱해지지 않게 2회로 두고 `LlmSchemaError`를
+# 비재시도로 분류한다. 3회 × 큐 3회가 컴파일 1건을 최대 9회 호출로 만들었다
+# (ai-control-output-contract D4).
+STRUCTURED_OUTPUT_MAX_ATTEMPTS: Final[int] = 2
+
+# `usage_events` 컬럼 범위(토큰 int, 비용 bigint)를 넘는 값으로 저장이 실패하지 않게 막는다.
+_MAX_TOKEN_COUNT: Final[int] = 2**31 - 1
+_MAX_COST_MICROS: Final[int] = 2**63 - 1
+
+# 재시도에 다시 싣는 직전 출력의 상한. `max_tokens`만으로는 재주입 비용을 막지 못한다.
+RETRY_OUTPUT_MAX_TOKENS: Final[int] = 2000
+
+# 응답 **전체를** 감싼 코드 펜스 한 겹. 안쪽 본문에 든 ```는 탐욕 일치로 그대로 둔다.
+_WRAPPING_FENCE = re.compile(r"\A```[A-Za-z0-9_-]*[ \t]*\n(.*)\n?```\Z", re.DOTALL)
 
 # `{{변수}}` 이중 중괄호. 이름은 `0006`이 쓰는 ASCII 스네이크 케이스로 한정한다.
 _PLACEHOLDER = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
@@ -94,6 +109,22 @@ class AttemptUsage:
     provider: str
     model: str
     duration_ms: int
+    fence_stripped: bool = False
+    # 값 없이 코드만 담는다. `usage_events.metadata`는 멤버가 읽을 수 있다.
+    violation: str | None = None
+    exhausted: bool = False
+
+
+def parse_json_only(content: str) -> tuple[str, bool]:
+    """전체를 감싼 코드 펜스 한 겹만 벗겨 `(본문, 벗겼는지)`를 돌려준다.
+
+    ⚠️ 펜스 바깥에 문장이 있으면 벗기지 않는다. 그 응답은 JSON 파싱에서 실패해 위반이
+    된다. 어느 JSON을 고른 것인지 알 수 없는 응답을 관대하게 살리지 않는다 (D2).
+    """
+    match = _WRAPPING_FENCE.match(content.strip())
+    if match is None:
+        return content, False
+    return match.group(1), True
 
 
 def openrouter_client(
@@ -217,7 +248,7 @@ async def complete_structured(
     max_tokens: int | None = None,
     on_attempt: Callable[[AttemptUsage], Awaitable[None]] | None = None,
 ) -> LlmResult:
-    """스키마를 만족하는 응답이 나올 때까지 오류를 되먹여 최대 3회 시도한다.
+    """스키마를 만족하는 응답이 나올 때까지 오류를 되먹여 최대 2회 시도한다.
 
     ⚠️ 재시도가 **같은 본문을 다시 보내는 형태여서는 안 된다.** 같은 입력에 같은 모델을
     다시 부르면 같은 실패가 돌아올 뿐이고, 그것은 재시도가 아니라 비용을 3배로 만드는
@@ -251,50 +282,76 @@ async def complete_structured(
             max_tokens=max_tokens,
         )
         del body  # 요청 본문은 로그에도 예외에도 남기지 않는다.
-        completion = _read_body(response)
+        # 2xx의 깨진 본문도 출력 위반이다. 올리면 큐가 재시도해 호출 상한이 곱해진다 (D4).
+        try:
+            completion = _read_body(response)
+        except ProviderError:
+            completion = {}
         usage, provider, model = _read_usage(completion)
+        # ⚠️ OpenRouter는 공급자 오류를 HTTP 200 본문으로도 보낸다. 모델이 출력을 낸 적이 없으므로
+        #    출력 위반이 아니라 일시 장애다. 위반으로 삼키면 충돌 판정이 판정 없이 성공으로 끝난다.
+        provider_error = _has_provider_error(completion)
+        # ⚠️ 판정은 예외 없이 끝내고 **기록한 뒤에** 재시도나 실패를 정한다. 기록 앞에서
+        #    던지면 실패한 시도의 비용이 월 상한에서 빠진다 (ai-control-flow-accounting D4).
+        # ⚠️ `content: null`이나 빈 `choices`도 공급자가 청구한 호출이자 출력 위반이다.
+        #    `ProviderError`로 올리면 큐가 재시도해 호출 상한이 곱해진다 (D4).
+        content = ""
+        try:
+            content = _read_content(completion, status_code=response.status_code)
+        except ProviderError:
+            code = "provider_error" if provider_error else "missing_content"
+            outcome = _Classified(None, False, code, code)
+        else:
+            outcome = _classify(content, schema_model)
         if on_attempt is not None:
             await on_attempt(
                 AttemptUsage(
                     attempt=attempt,
-                    prompt_tokens=int(usage.get("prompt_tokens") or 0),
-                    completion_tokens=int(usage.get("completion_tokens") or 0),
-                    total_tokens=int(usage.get("total_tokens") or 0),
+                    prompt_tokens=token_count(usage.get("prompt_tokens")),
+                    completion_tokens=token_count(usage.get("completion_tokens")),
+                    total_tokens=token_count(usage.get("total_tokens")),
                     cost_micros=cost_micros(usage),
                     provider=provider,
                     model=model,
                     duration_ms=round((time.perf_counter() - started) * 1000),
+                    fence_stripped=outcome.fence_stripped,
+                    violation=outcome.violation,
+                    exhausted=(
+                        outcome.violation is not None
+                        and not provider_error
+                        and attempt == STRUCTURED_OUTPUT_MAX_ATTEMPTS
+                    ),
                 )
             )
-        # ⚠️ 내용 확인은 기록 뒤에 한다. `content: null`이나 빈 `choices`도 공급자가 청구한 응답이라,
-        #    먼저 예외를 던지면 그 비용이 월 상한에서 빠진다.
-        content = _read_content(completion, status_code=response.status_code)
-
-        try:
-            payload = schema_model.model_validate_json(content)
-        except ValidationError as error:
-            last_summary = _summarise_validation_error(error)
-        except ValueError:
-            last_summary = "json_decode_error"
-        else:
+        if provider_error:
+            raise ProviderError(
+                provider=PROVIDER_NAME,
+                status_code=response.status_code,
+                kind="provider_error_body",
+            )
+        if outcome.payload is not None:
             return LlmResult(
-                payload=payload,
-                prompt_tokens=int(usage.get("prompt_tokens") or 0),
-                completion_tokens=int(usage.get("completion_tokens") or 0),
-                total_tokens=int(usage.get("total_tokens") or 0),
+                payload=outcome.payload,
+                prompt_tokens=token_count(usage.get("prompt_tokens")),
+                completion_tokens=token_count(usage.get("completion_tokens")),
+                total_tokens=token_count(usage.get("total_tokens")),
                 cost_micros=cost_micros(usage),
                 provider=provider,
                 model=model,
             )
 
+        last_summary = outcome.summary
         _logger.warning(
             "worker.llm_schema_violation",
             attempt=attempt,
             max_attempts=STRUCTURED_OUTPUT_MAX_ATTEMPTS,
             error_summary=last_summary,
+            violation=outcome.violation,
         )
         if attempt < STRUCTURED_OUTPUT_MAX_ATTEMPTS:
-            messages.append({"role": "assistant", "content": content})
+            messages.append(
+                {"role": "assistant", "content": _retry_echo(content, outcome.violation)}
+            )
             messages.append({"role": "user", "content": _feedback_prompt(last_summary)})
 
     raise LlmSchemaError(
@@ -427,6 +484,15 @@ def _read_usage(body: Mapping[str, Any]) -> tuple[dict[str, Any], str, str]:
     return usage, str(provider), str(model)
 
 
+def _has_provider_error(body: Mapping[str, Any]) -> bool:
+    """최상위 또는 `choices[0]`의 `error`. 모델이 출력을 낸 적이 없다는 뜻이다."""
+    if body.get("error") is not None:
+        return True
+    choices = body.get("choices")
+    first = choices[0] if isinstance(choices, list) and choices else None
+    return isinstance(first, dict) and first.get("error") is not None
+
+
 def _read_content(body: Mapping[str, Any], *, status_code: int) -> str:
     choices = body.get("choices")
     if not isinstance(choices, list) or not choices:
@@ -436,7 +502,8 @@ def _read_content(body: Mapping[str, Any], *, status_code: int) -> str:
             kind="empty_choices",
         )
     first = choices[0] if isinstance(choices[0], dict) else {}
-    content = (first.get("message") or {}).get("content")
+    message = first.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
     if not isinstance(content, str):
         raise ProviderError(
             provider=PROVIDER_NAME,
@@ -444,6 +511,20 @@ def _read_content(body: Mapping[str, Any], *, status_code: int) -> str:
             kind="missing_content",
         )
     return content
+
+
+def token_count(value: object) -> int:
+    """사용량의 토큰 수. 숫자가 아니면 0이다.
+
+    ⚠️ 공급자 값으로 `int()`를 부르면 문자열이나 리스트에서 던져 비용 기록을 건너뛰고, 그 예외는
+    큐가 재시도해 호출 상한도 곱해진다.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0
+    try:
+        return max(0, min(int(value), _MAX_TOKEN_COUNT))
+    except (OverflowError, ValueError):  # 무한대와 NaN
+        return 0
 
 
 def cost_micros(usage: Mapping[str, Any]) -> int:
@@ -454,10 +535,56 @@ def cost_micros(usage: Mapping[str, Any]) -> int:
     """
     for key in ("cost", "total_cost"):
         value = usage.get(key)
-        if isinstance(value, int | float):
-            return max(0, math.ceil(float(value) * 1_000_000))
+        # ⚠️ `1e999`는 `inf`가 되어 `math.ceil`이 던진다. 기록 전에 던지면 호출이 남지 않는다.
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            try:
+                return min(max(0, math.ceil(float(value) * 1_000_000)), _MAX_COST_MICROS)
+            except (OverflowError, ValueError):  # 무한대, NaN, float로 표현할 수 없는 정수
+                continue
     _logger.warning("worker.llm_cost_unavailable", usage_keys=sorted(usage))
     return 0
+
+
+@dataclass(frozen=True, slots=True)
+class _Classified:
+    """응답 하나의 판정. `payload`가 `None`이면 위반이다."""
+
+    payload: BaseModel | None
+    fence_stripped: bool
+    violation: str | None
+    summary: str = "원인 미상"
+
+
+def _classify(content: str, schema_model: type[BaseModel]) -> _Classified:
+    """응답을 예외 없이 판정한다. 이 함수가 던지면 지불한 비용이 기록되지 못한다 (D1)."""
+    body, fence_stripped = parse_json_only(content)
+    try:
+        payload = schema_model.model_validate_json(body)
+    except ValidationError as error:
+        kinds = {str(detail["type"]) for detail in error.errors()}
+        if "json_invalid" in kinds:
+            violation = "json_invalid"
+        elif "value_error" in kinds:
+            violation = "semantic_invalid"
+        else:
+            violation = "schema_invalid"
+        return _Classified(None, fence_stripped, violation, _summarise_validation_error(error))
+    except ValueError:
+        return _Classified(None, fence_stripped, "json_invalid", "json_decode_error")
+    return _Classified(payload, fence_stripped, None)
+
+
+def _retry_echo(content: str, violation: str | None) -> str:
+    """재시도에 되돌려 보내는 직전 출력.
+
+    ⚠️ 파싱조차 안 된 출력은 다시 실어도 고칠 재료가 없어 비용만 는다. 역할 교대를
+    지키려고 턴은 남기되 본문은 비운다.
+    """
+    if violation == "missing_content":
+        return "(본문이 없는 응답이었습니다)"
+    if violation == "json_invalid":
+        return "(JSON으로 파싱할 수 없는 출력이어서 원문을 생략합니다)"
+    return truncate_text_to_tokens(content, RETRY_OUTPUT_MAX_TOKENS)[0]
 
 
 def _summarise_validation_error(error: ValidationError) -> str:

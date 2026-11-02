@@ -80,6 +80,7 @@ def _ask_service(request: Request) -> AskService:
             token=settings.LLM_STREAM_INTERNAL_TOKEN,
         ),
         max_context_tokens=settings.ASK_MAX_CONTEXT_TOKENS,
+        quality_mode=settings.AI_CONTROL_QUALITY_MODE,
     )
 
 

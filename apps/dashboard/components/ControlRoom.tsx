@@ -148,16 +148,46 @@ const CALL_PATH_LABELS: Record<string, string> = {
   query_embedding: "질의 임베딩 (query_embedding)",
 };
 
-const FUTURE_TABS = [
-  { id: "quality", label: "품질", step: "Step 3" },
-  { id: "risk", label: "리스크", step: "Step 4" },
-] as const;
+const FUTURE_TABS = [{ id: "risk", label: "리스크", step: "Step 4" }] as const;
 
-type TabId = "trace" | "budget" | (typeof FUTURE_TABS)[number]["id"];
+type TabId =
+  "trace" | "budget" | "quality" | (typeof FUTURE_TABS)[number]["id"];
+
+type QualitySnapshot = {
+  days: number;
+  can_view_workspace: boolean;
+  mode: string;
+  ask: {
+    turns: number;
+    violation_turns: number;
+    no_citation_turns: number;
+    fabricated_turns: number;
+    repair_attempted: number;
+    repaired: number;
+    fallback: number;
+  };
+  structured: {
+    calls: number;
+    fence_stripped: number;
+    json_invalid: number;
+    schema_invalid: number;
+    semantic_invalid: number;
+    missing_content: number;
+    exhausted: number;
+  } | null;
+  evidence: { pages_total: number; pages_with_evidence: number } | null;
+};
+
+const QUALITY_MODE_LABELS: Record<string, string> = {
+  enforce: "수리·근거 목록 대체 적용 중",
+  shadow: "위반 기록만 (적용 안 함)",
+  off: "꺼짐",
+};
 
 const STATUS_LABELS: Record<string, string> = {
   resolved: "완료",
   "no-evidence": "근거 없음",
+  fallback: "근거 목록",
   error: "오류",
   streaming: "진행 중",
   succeeded: "완료",
@@ -203,6 +233,8 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
   const [aggregate, setAggregate] = useState<AskAggregate | null>(null);
   const [budget, setBudget] = useState<BudgetSnapshot | null>(null);
   const [budgetError, setBudgetError] = useState(false);
+  const [quality, setQuality] = useState<QualitySnapshot | null>(null);
+  const [qualityError, setQualityError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TraceDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -218,6 +250,19 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
       setBudget(next);
     } catch {
       setBudgetError(true);
+    }
+  }, [workspaceId]);
+
+  const loadQuality = useCallback(async () => {
+    setQualityError(false);
+    try {
+      setQuality(
+        await apiFetch<QualitySnapshot>(
+          `/workspaces/${workspaceId}/control/quality`,
+        ),
+      );
+    } catch {
+      setQualityError(true);
     }
   }, [workspaceId]);
 
@@ -240,13 +285,16 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
       if (tab === "budget") {
         await loadBudget();
       }
+      if (tab === "quality") {
+        await loadQuality();
+      }
     } catch {
       // 원시 오류는 운영 정보가 될 수 있으므로 계약 문구만 렌더한다.
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, tab, loadBudget]);
+  }, [workspaceId, tab, loadBudget, loadQuality]);
 
   useEffect(() => {
     void load();
@@ -257,6 +305,12 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
       void loadBudget();
     }
   }, [tab, budget, budgetError, loadBudget]);
+
+  useEffect(() => {
+    if (tab === "quality" && !quality && !qualityError) {
+      void loadQuality();
+    }
+  }, [tab, quality, qualityError, loadQuality]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -323,6 +377,16 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
         >
           예산
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="control-tab-quality"
+          aria-selected={tab === "quality"}
+          className={tab === "quality" ? styles.tabActive : styles.tab}
+          onClick={() => setTab("quality")}
+        >
+          품질
+        </button>
         {FUTURE_TABS.map((item) => (
           <button
             key={item.id}
@@ -346,6 +410,15 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
             </p>
           ) : null}
           {budget ? <BudgetPanel snapshot={budget} /> : null}
+        </section>
+      ) : tab === "quality" ? (
+        <section role="tabpanel" aria-labelledby="control-tab-quality">
+          {qualityError ? (
+            <p role="alert" className="invite-feedback error show">
+              품질 정보를 불러오지 못했습니다. 새로고침을 시도해주세요.
+            </p>
+          ) : null}
+          {quality ? <QualityPanel snapshot={quality} /> : null}
         </section>
       ) : tab !== "trace" ? (
         <section
@@ -470,6 +543,76 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className={styles.metric}>
       <span>{label}</span>
       <b>{value}</b>
+    </div>
+  );
+}
+
+function QualityPanel({ snapshot }: { snapshot: QualitySnapshot }) {
+  const { ask, structured, evidence } = snapshot;
+  // 위키 쪽수는 기간과 무관하므로 빈 상태 판정에 넣지 않는다.
+  if (ask.turns === 0 && !structured?.calls) {
+    return (
+      <p className={styles.empty}>
+        최근 {snapshot.days}일 동안 집계할 답변과 수집 호출이 없습니다. 질문을
+        하거나 원문을 등록하면 여기에 쌓입니다.
+      </p>
+    );
+  }
+  return (
+    <div>
+      <p>
+        인용 계약 모드: {QUALITY_MODE_LABELS[snapshot.mode] ?? snapshot.mode}
+      </p>
+      <section
+        className={styles.aggregate}
+        aria-label={`최근 ${snapshot.days}일 답변 인용 계약`}
+      >
+        <Metric label="답변 턴" value={`${ask.turns}건`} />
+        <Metric label="계약 위반 턴" value={`${ask.violation_turns}건`} />
+        <Metric label="인용 없음" value={`${ask.no_citation_turns}건`} />
+        <Metric label="위조 앵커" value={`${ask.fabricated_turns}건`} />
+        <Metric
+          label="수리 성공 / 시도"
+          value={`${ask.repaired}건 / ${ask.repair_attempted}건`}
+        />
+        <Metric label="근거 목록 대체" value={`${ask.fallback}건`} />
+      </section>
+      {structured && evidence ? (
+        <>
+          <section
+            className={styles.aggregate}
+            aria-label={`최근 ${snapshot.days}일 구조화 출력`}
+          >
+            <Metric label="구조화 호출" value={`${structured.calls}건`} />
+            <Metric
+              label="코드 펜스 제거"
+              value={`${structured.fence_stripped}건`}
+            />
+            <Metric label="JSON 오류" value={`${structured.json_invalid}건`} />
+            <Metric
+              label="스키마 오류"
+              value={`${structured.schema_invalid}건`}
+            />
+            <Metric
+              label="내용 오류"
+              value={`${structured.semantic_invalid}건`}
+            />
+            <Metric
+              label="본문 없는 응답"
+              value={`${structured.missing_content}건`}
+            />
+            <Metric label="시도 소진" value={`${structured.exhausted}건`} />
+          </section>
+          <section className={styles.aggregate} aria-label="위키 근거 청크">
+            <Metric
+              label="근거가 연결된 페이지"
+              value={`${evidence.pages_with_evidence}쪽 / ${evidence.pages_total}쪽`}
+            />
+          </section>
+        </>
+      ) : (
+        <p>조회 전용(viewer) 멤버에게는 본인 답변의 집계만 표시합니다.</p>
+      )}
     </div>
   );
 }

@@ -96,16 +96,16 @@ describe("ControlledAiShowcase", () => {
     ).toEqual(["기록 없음", "512토큰"]);
   });
 
-  it("Step 3~4는 준비 중으로만 표시하고 수치를 보여주지 않는다", () => {
+  it("Step 4는 준비 중으로만 표시하고 수치를 보여주지 않는다", () => {
     render(<ControlledAiShowcasePage />);
 
     const items = within(
       screen.getByRole("region", { name: "다음 단계" }),
     ).getAllByRole("listitem");
 
-    expect(items).toHaveLength(2);
-    items.forEach((item, index) => {
-      expect(item).toHaveTextContent(`Step ${index + 3}`);
+    expect(items).toHaveLength(1);
+    items.forEach((item) => {
+      expect(item).toHaveTextContent("Step 4");
       expect(item).toHaveTextContent("준비 중");
       expect(item.textContent?.replace(/Step \d/, "")).not.toMatch(/\d/);
     });

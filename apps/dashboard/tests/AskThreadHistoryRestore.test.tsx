@@ -179,4 +179,39 @@ describe("AskThreadHistoryRestore", () => {
       screen.queryByTestId("citation-marker-placeholder"),
     ).not.toBeInTheDocument();
   });
+  it("저장된 fallback 턴은 근거 목록 표시와 함께 복원된다", async () => {
+    apiFetch.mockImplementation(async (path: string) => {
+      if (path.endsWith("/ask/threads")) return [];
+      if (path.endsWith("/ask/threads/thread-1")) {
+        return {
+          id: "thread-1",
+          title: "근거 목록",
+          created_at: "2026-08-23T00:00:00Z",
+          updated_at: "2026-08-23T00:00:00Z",
+          messages: [
+            {
+              id: "m-fallback",
+              client_turn_id: "c-fallback",
+              question: "질문",
+              answer_text: "근거 목록 [[wiki:w1]]",
+              citations: {
+                text: "근거 목록 [[wiki:w1]]",
+                resolved: [{ alias: "w1", kind: "wiki", id: "wiki-1" }],
+                fallback: true,
+              },
+              status: "fallback",
+              created_at: "2026-08-23T00:00:00Z",
+            },
+          ],
+        };
+      }
+      return [];
+    });
+
+    render(<AskConversation workspaceId="ws-1" />);
+    expect(await screen.findByTestId("ask-turn-0-state")).toHaveTextContent(
+      "자동 검증된 근거 목록",
+    );
+    expect(screen.queryByTestId("ask-error-card")).not.toBeInTheDocument();
+  });
 });

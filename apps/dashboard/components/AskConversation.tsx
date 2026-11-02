@@ -35,7 +35,7 @@ import { workspacePath } from "@/lib/workspace-path";
 export type AskConversationProps = { workspaceId: string };
 
 type TurnStatus =
-  "streaming" | "resolved" | "no-evidence" | "error" | "dropped";
+  "streaming" | "resolved" | "no-evidence" | "error" | "fallback" | "dropped";
 
 type Turn = {
   question: string;
@@ -45,6 +45,8 @@ type Turn = {
   missingChannelsNotice: boolean;
   persisted?: boolean;
 };
+
+const FALLBACK_NOTICE_LABEL = "자동 검증된 근거 목록";
 
 const EMPTY_HEADING = "무엇이든 물어보세요";
 const EMPTY_BODY = "워크스페이스에 등록된 소스와 위키에서 답을 찾아드립니다.";
@@ -123,7 +125,10 @@ function turnsFromMessages(messages: AskThreadMessage[]): Turn[] {
         citations.text || message.answer_text,
         citations.resolved ?? [],
       ),
-      status: "resolved" as const,
+      status:
+        message.status === "fallback"
+          ? ("fallback" as const)
+          : ("resolved" as const),
       missingChannelsNotice: false,
       persisted: true,
     };
@@ -401,6 +406,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
             text?: string;
             resolved?: ResolvedAnchor[];
             error?: string;
+            fallback?: boolean;
           };
           if (noEvidence) {
             patchTurn({ status: "no-evidence" });
@@ -412,7 +418,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
           } else {
             accumulatedText = citations.text ?? accumulatedText;
             patchTurn({
-              status: "resolved",
+              status: citations.fallback ? "fallback" : "resolved",
               segments: splitTextWithAnchors(
                 accumulatedText,
                 citations.resolved ?? [],
@@ -677,18 +683,22 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                   <div className="answer-head">
                     <i className="dot" aria-hidden="true" />
                     <b>넥서스위키 AI 답변</b>
-                    <span>
+                    <span data-testid={`ask-turn-${index}-state`}>
                       {turn.status === "streaming"
                         ? "생성 중"
-                        : turn.persisted
-                          ? "저장된 답변"
-                          : "방금 생성됨"}
+                        : turn.status === "fallback"
+                          ? FALLBACK_NOTICE_LABEL
+                          : turn.persisted
+                            ? "저장된 답변"
+                            : "방금 생성됨"}
                     </span>
                   </div>
                   <div data-testid={`ask-turn-${index}-body`}>
                     <MarkdownAnswer
                       segments={turn.segments}
-                      resolved={turn.status === "resolved"}
+                      resolved={
+                        turn.status === "resolved" || turn.status === "fallback"
+                      }
                       onMarkerClick={handleMarkerClick}
                     />
                   </div>

@@ -136,3 +136,11 @@ def test_single_source_workspace_still_gets_half_sources() -> None:
     kinds = [hit.kind for hit in select_dual_evidence(candidates, requested_k=8)]
     assert kinds.count("wiki") == 4
     assert kinds.count("source") == 4
+
+
+def test_special_token_text_is_counted_and_cut_without_raising() -> None:
+    text = "앞 <|endoftext|> 뒤 " * 20
+    assert count_tokens(text) > 0
+    cut, truncated = truncate_text_to_tokens(text, 5)
+    assert truncated is True
+    assert cut

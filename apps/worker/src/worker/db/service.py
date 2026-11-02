@@ -80,7 +80,11 @@ QUEUE_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
 )
 CATALOG_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"enum_check_values"})
 LEXICAL_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
-    {"index_source_chunk_lexical", "index_wiki_page_lexical"}
+    {
+        "index_source_chunk_lexical",
+        "index_wiki_page_lexical",
+        "replace_wiki_page_evidence",
+    }
 )
 CONFLICT_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"find_similar_wiki_pages"})
 BUDGET_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
@@ -420,6 +424,25 @@ class ServiceDb:
                 "sources": f'cs.["{raw_source_id}"]',
                 "order": "slug.asc",
                 "limit": str(limit),
+            },
+        )
+
+    async def replace_wiki_page_evidence(
+        self,
+        *,
+        workspace_id: str,
+        wiki_id: str,
+        raw_source_id: str,
+        chunk_ids: list[str],
+    ) -> None:
+        """(페이지, 원문) 범위의 근거를 교체한다. 재실행해도 행이 늘지 않는다 (`0030`)."""
+        await self._rpc(
+            "replace_wiki_page_evidence",
+            {
+                "p_workspace_id": workspace_id,
+                "p_wiki_id": wiki_id,
+                "p_raw_source_id": raw_source_id,
+                "p_chunk_ids": chunk_ids,
             },
         )
 

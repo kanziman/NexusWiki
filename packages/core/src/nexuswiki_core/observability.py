@@ -85,7 +85,9 @@ _GENERATION_METADATA_KEYS: Final[frozenset[str]] = frozenset(
 # 턴 보고서에서 외부로 보내도 되는 값의 모양. 식별자와 enum만 통과한다. 공백이 있는 문장은 본문일 수
 # 있고, 이 값은 프로세스 경계를 넘어 오므로 호출자의 조립을 믿지 않는다.
 _TOKEN_PATTERN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
-_SPAN_NAMES: Final[frozenset[str]] = frozenset({"retrieval", "context", "llm_stream", "citation"})
+_SPAN_NAMES: Final[frozenset[str]] = frozenset(
+    {"retrieval", "context", "llm_stream", "repair", "citation"}
+)
 
 _client: Any | None = None
 

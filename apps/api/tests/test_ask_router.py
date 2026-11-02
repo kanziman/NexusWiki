@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
+from functools import partial
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
@@ -32,6 +34,11 @@ _SOURCE_CHUNK_ID = str(uuid4())
 _RAW_SOURCE_ID = str(uuid4())
 _TEMPLATE_ID = str(uuid4())
 _PERSISTED_THREAD_ID = str(uuid4())
+# 이 파일은 스트림·저장 계약을 본다. 위조 앵커가 든 고정 답변이 수리 경로로 빠지지 않게
+# 기록만 하는 모드로 고정하고, 수리와 Fallback은 파일 끝의 테스트가 `enforce`로 검증한다.
+_EnforcingAskService = AskService
+AskService = partial(_EnforcingAskService, quality_mode="shadow")  # type: ignore[misc]
+
 _ASK_PATH = "/workspaces/{workspace_id}/ask"
 
 
@@ -974,3 +981,170 @@ async def test_ask_prompt_carries_source_evidence_even_when_wiki_fills_the_top_k
     assert "[[src:s1]]" in fake_llm.messages[1]["content"]
     assert finalized["p_control_report"]["evidence"]["source"] == 1
     assert dict(events)["citations"]["dual_citation_rate"] == 1.0
+
+
+class _ScriptedLlm:
+    """호출마다 다른 답변을 돌려주는 페이크. `None`은 공급자 오류다."""
+
+    def __init__(self, answers: list[str | None]) -> None:
+        self._answers = answers
+        self.calls: list[list[dict[str, str]]] = []
+
+    def stream(self, *, workspace_id: str, messages: list[dict[str, str]]) -> _ScriptedLlm:
+        assert workspace_id
+        self.calls.append(messages)
+        return self
+
+    async def __aenter__(self) -> _UpstreamResponse:
+        answer = self._answers[min(len(self.calls) - 1, len(self._answers) - 1)]
+        if answer is None:
+            return _UpstreamResponse([], status_code=502)
+        frame = json.dumps({"choices": [{"delta": {"content": answer}}]}, ensure_ascii=False)
+        return _UpstreamResponse([f"data: {frame}", "data: [DONE]"])
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+async def _ask_with_mode(
+    answers: list[str | None], *, mode: str = "enforce"
+) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Any], _ScriptedLlm]:
+    finalized: dict[str, Any] = {}
+    base = _mock_prompt_and_content_transport()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
+            finalized.update(json.loads(request.content))
+        return base.handler(request)
+
+    llm = _ScriptedLlm(answers)
+    app = create_app(_settings(), git_sha="test-sha")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), timeout=httpx.Timeout(2.0)
+        )
+        app.state.ask_service = _EnforcingAskService(
+            _NonEmptyRetrievalService(), llm, quality_mode=mode
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(requested_k=8),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+    assert response.status_code == 200
+    return _parse_sse(response.text), finalized, llm
+
+
+_GOOD_ANSWER = "마감은 오후 2시입니다 [[wiki:w1]] [[src:s1]]."
+
+
+@pytest.mark.asyncio
+async def test_valid_answer_needs_no_repair() -> None:
+    events, finalized, llm = await _ask_with_mode(["연결 문장입니다. " + _GOOD_ANSWER])
+    assert len(llm.calls) == 1
+    assert finalized["p_status"] == "resolved"
+    assert finalized["p_control_report"]["quality"] == {
+        "mode": "enforce",
+        "violations": [],
+        "repair_attempted": False,
+        "repaired": False,
+        "fallback": False,
+    }
+    assert "fallback" not in dict(events)["citations"]
+
+
+@pytest.mark.asyncio
+async def test_uncited_answer_is_repaired_with_feedback_and_order_is_kept() -> None:
+    events, finalized, llm = await _ask_with_mode(["고유한-초안 인용 없는 답입니다.", _GOOD_ANSWER])
+    assert len(llm.calls) == 2
+    repair = llm.calls[1]
+    assert [m["role"] for m in repair] == ["system", "user", "assistant", "user"]
+    assert "고유한-초안" in repair[2]["content"]
+    assert "[[wiki:w1]]" in repair[3]["content"]
+    names = [name for name, _ in events]
+    assert names[0] == "meta"
+    assert names.count("citations") == 1
+    assert names[-1] == "done"
+    assert names.index("citations") == len(names) - 2
+    payload = dict(events)["citations"]
+    assert payload["text"] == _GOOD_ANSWER
+    assert finalized["p_status"] == "resolved"
+    assert finalized["p_answer_text"] == _GOOD_ANSWER
+    quality = finalized["p_control_report"]["quality"]
+    assert quality["violations"] == ["no_citation"]
+    assert quality["repaired"] is True
+    assert "고유한-초안" not in json.dumps(finalized["p_control_report"], ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_abstention_is_not_repaired() -> None:
+    _, finalized, llm = await _ask_with_mode(["제공된 자료로는 알 수 없습니다."])
+    assert len(llm.calls) == 1
+    assert finalized["p_status"] == "resolved"
+    assert finalized["p_control_report"]["quality"]["violations"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "second", ["여전히 인용이 없습니다.", None], ids=["repair_invalid", "repair_call_failed"]
+)
+async def test_failed_repair_ends_in_fallback_with_issued_anchors_only(second: str | None) -> None:
+    events, finalized, llm = await _ask_with_mode(["인용 없는 답입니다.", second])
+    assert len(llm.calls) == 2
+    payload = dict(events)["citations"]
+    assert payload["fallback"] is True
+    assert payload["fabricated_anchor_count"] == 0
+    assert payload["cited_anchor_count"] > 0
+    assert finalized["p_status"] == "fallback"
+    quality = finalized["p_control_report"]["quality"]
+    assert quality["repair_attempted"] is True
+    assert quality["fallback"] is True
+    assert finalized["p_control_report"]["outcome"] == "fallback"
+    assert set(re.findall(r"\[\[[^\]]+\]\]", payload["text"])) <= {"[[wiki:w1]]", "[[src:s1]]"}
+
+
+@pytest.mark.asyncio
+async def test_fabricated_anchor_triggers_repair() -> None:
+    _, finalized, llm = await _ask_with_mode([_GOOD_ANSWER + " 추가 [[wiki:w9]].", _GOOD_ANSWER])
+    assert len(llm.calls) == 2
+    assert finalized["p_control_report"]["quality"]["violations"] == ["fabricated_anchor"]
+    assert finalized["p_status"] == "resolved"
+
+
+@pytest.mark.asyncio
+async def test_shadow_records_the_violation_without_calling_again() -> None:
+    _, finalized, llm = await _ask_with_mode(["인용 없는 답입니다."], mode="shadow")
+    assert len(llm.calls) == 1
+    assert finalized["p_status"] == "resolved"
+    assert finalized["p_control_report"]["quality"]["violations"] == ["no_citation"]
+
+
+@pytest.mark.asyncio
+async def test_off_records_no_violation() -> None:
+    _, finalized, llm = await _ask_with_mode(["인용 없는 답입니다."], mode="off")
+    assert len(llm.calls) == 1
+    assert finalized["p_control_report"]["quality"]["violations"] == []
+
+
+@pytest.mark.asyncio
+async def test_special_token_in_the_draft_still_terminates_the_turn() -> None:
+    """토크나이저 예외가 새면 `citations`와 `done` 없이 끊겨 턴이 `streaming`에 남는다."""
+    events, finalized, llm = await _ask_with_mode(["인용 없음 <|endoftext|>", _GOOD_ANSWER])
+    assert [name for name, _ in events][-1] == "done"
+    assert len(llm.calls) == 2
+    assert finalized["p_status"] == "resolved"
+
+
+@pytest.mark.asyncio
+async def test_unexpected_repair_failure_ends_in_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(*_: Any, **__: Any) -> str:
+        raise ValueError("예상하지 못한 실패")
+
+    monkeypatch.setattr("api.services.ask.repair_instruction", explode)
+    events, finalized, _ = await _ask_with_mode(["인용 없는 답입니다."])
+    assert [name for name, _ in events][-1] == "done"
+    assert finalized["p_status"] == "fallback"

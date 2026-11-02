@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import re
 import subprocess
@@ -173,6 +174,9 @@ async def compile_retry_cost() -> dict[str, Any]:
         async def index_wiki_page_lexical(self, **_: Any) -> None:
             return None
 
+        async def replace_wiki_page_evidence(self, **_: Any) -> None:
+            return None
+
         async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
             return None
 
@@ -207,6 +211,98 @@ async def compile_retry_cost() -> dict[str, Any]:
             payload={"raw_source_id": _RAW_SOURCE_ID},
         )
     return _usage_values(db.usage, reported)
+
+
+class _OutputContractDb:
+    """Step 3 시나리오의 컴파일 대역. 저장된 페이지만 센다."""
+
+    def __init__(self) -> None:
+        self.usage: list[dict[str, Any]] = []
+        self.saved = 0
+
+    async def get_raw_source(self, *_: Any, **__: Any) -> dict[str, str]:
+        return {"title": "합성 문서", "source_type": "text"}
+
+    async def get_default_prompt_template(self, **_: Any) -> dict[str, str]:
+        return {"system_prompt": "합성 지시", "template": "{{source_content}}"}
+
+    async def list_wiki_slugs(self, **_: Any) -> list[str]:
+        return []
+
+    async def list_source_chunks(self, **_: Any) -> list[dict[str, str]]:
+        return [{"content": "합성 원문"}]
+
+    async def latest_compile_fingerprint(self, **_: Any) -> None:
+        return None
+
+    async def get_wiki_page_by_slug(self, **_: Any) -> None:
+        return None
+
+    async def upsert_wiki_page(self, **_: Any) -> dict[str, str]:
+        self.saved += 1
+        return {"id": "page-a"}
+
+    async def index_wiki_page_lexical(self, **_: Any) -> None:
+        return None
+
+    async def replace_wiki_page_evidence(self, **_: Any) -> None:
+        return None
+
+    async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
+        return None
+
+    async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+        self.usage.append(row)
+
+
+def _page_json(content: str) -> str:
+    return json.dumps(
+        {
+            "pages": [
+                {
+                    "title": "합성 문서",
+                    "category": "guides",
+                    "confidence": "medium",
+                    "content": content,
+                }
+            ]
+        },
+        ensure_ascii=False,
+    )
+
+
+async def _run_output_contract_compile(contents: list[str]) -> tuple[_OutputContractDb, int]:
+    from worker.handlers import compile as compile_handler
+
+    db = _OutputContractDb()
+    client, reported = _provider(contents)
+    async with client:
+        try:
+            await compile_handler.run_compile(
+                db,  # type: ignore[arg-type]
+                client,
+                settings=_worker_settings(),
+                job_id="scenario-job",
+                workspace_id=_WORKSPACE_ID,
+                payload={"raw_source_id": _RAW_SOURCE_ID},
+            )
+        except Exception:  # noqa: BLE001, S110 - 잡 실패도 관측 대상이다. 호출 수와 저장 수만 잰다.
+            pass
+    return db, len(reported)
+
+
+async def compile_fence_retry() -> dict[str, Any]:
+    """공급자가 유효한 JSON을 코드 펜스로 감싸 돌려준다."""
+    db, calls = await _run_output_contract_compile(
+        [f"```json\n{_page_json('합성 본문')}\n```", _page_json("합성 본문")]
+    )
+    return {"provider_calls": calls, "pages_saved": db.saved}
+
+
+async def compile_placeholder_page() -> dict[str, Any]:
+    """공급자가 본문이 placeholder인 페이지를 계속 돌려준다."""
+    db, calls = await _run_output_contract_compile([_page_json("TODO")])
+    return {"provider_calls": calls, "pages_saved": db.saved}
 
 
 async def compile_unchanged_skip() -> dict[str, Any]:
@@ -384,8 +480,10 @@ class _Upstream:
 class _LlmStream:
     def __init__(self, lines: list[str]) -> None:
         self._lines = lines
+        self.calls = 0
 
     def stream(self, **_: Any) -> _LlmStream:
+        self.calls += 1
         return self
 
     async def __aenter__(self) -> _Upstream:
@@ -446,7 +544,9 @@ def _ask_transport(finalized: dict[str, Any]) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
-async def _ask(lines: list[str]) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Any]]:
+async def _ask(
+    lines: list[str], *, quality_mode: str = "shadow", stream: Any = None
+) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Any]]:
     from api.main import create_app
     from api.services.ask import AskService
     from api.settings import ApiSettings
@@ -462,7 +562,13 @@ async def _ask(lines: list[str]) -> tuple[list[tuple[str, dict[str, Any]]], dict
     async with app.router.lifespan_context(app):
         await app.state.http_client.aclose()
         app.state.http_client = httpx.AsyncClient(transport=_ask_transport(finalized))
-        app.state.ask_service = AskService(_Retrieval(), _LlmStream(lines))
+        # 기준 커밋에는 품질 모드가 없다. Step 1 시나리오는 지표만 보도록 기록 모드로 둔다.
+        extra = (
+            {"quality_mode": quality_mode}
+            if "quality_mode" in inspect.signature(AskService.__init__).parameters
+            else {}
+        )
+        app.state.ask_service = AskService(_Retrieval(), stream or _LlmStream(lines), **extra)
         async with httpx.AsyncClient(
             # 기준 커밋은 깨진 프레임에서 예외로 스트림이 끊긴다. 그 동작도 관측값이다.
             transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
@@ -509,6 +615,20 @@ async def ask_fabricated_citation() -> dict[str, Any]:
     return {
         "fabricated_anchor_count": citations.get("fabricated_anchor_count", 0),
         "dual_citation_rate": citations.get("dual_citation_rate"),
+    }
+
+
+async def ask_no_citation_terminal() -> dict[str, Any]:
+    """모델이 수리 뒤에도 인용을 하나도 달지 않는다."""
+    stream = _LlmStream(
+        ['data: {"choices":[{"delta":{"content":"근거를 달지 않은 답변입니다."}}]}', "data: [DONE]"]
+    )
+    events, finalized = await _ask([], quality_mode="enforce", stream=stream)
+    citations = next(payload for name, payload in events if name == "citations")
+    return {
+        "turn_final_status": finalized.get("p_status"),
+        "provider_calls": stream.calls,
+        "cited_anchor_count": citations.get("cited_anchor_count", 0),
     }
 
 
@@ -637,6 +757,11 @@ _COST_METRICS = [
     {"key": "recorded_usage_rows", "label": "기록된 사용량 행", "unit": "count"},
 ]
 
+_CONTRACT_METRICS = [
+    {"key": "provider_calls", "label": "공급자 호출", "unit": "count"},
+    {"key": "pages_saved", "label": "저장된 페이지", "unit": "count"},
+]
+
 ITEMS: list[dict[str, Any]] = [
     {
         "id": "conflict-judge-cost",
@@ -720,10 +845,37 @@ ITEMS: list[dict[str, Any]] = [
             {"key": "requested_max_tokens", "label": "요청한 출력 상한", "unit": "tokens"},
         ],
     },
+    {
+        "id": "compile-fence-retry",
+        "title": "코드 펜스 하나가 부른 유료 재시도",
+        "problem": "온전한 JSON도 코드 펜스로 감싸이면 실패로 처리되어 호출을 다시 지불했습니다.",
+        "fix": "응답 전체를 감싼 펜스 한 겹은 코드로 벗겨 재시도 없이 통과시킵니다.",
+        "scenario": "compile_fence_retry",
+        "metrics": _CONTRACT_METRICS,
+    },
+    {
+        "id": "compile-placeholder-page",
+        "title": "placeholder 페이지 저장",
+        "problem": "본문이 TODO인 페이지도 스키마를 통과해 위키에 저장되었습니다.",
+        "fix": "공백과 placeholder를 의미 검증으로 거부하고 호출을 2회로 제한합니다.",
+        "scenario": "compile_placeholder_page",
+        "metrics": _CONTRACT_METRICS,
+    },
+    {
+        "id": "ask-no-citation-terminal",
+        "title": "인용 없는 답변의 정상 저장",
+        "problem": "인용이 하나도 없는 답변이 정상 답변으로 저장되었습니다.",
+        "fix": "위반을 1회 수리하고, 실패하면 발급 앵커만 쓴 근거 목록으로 끝냅니다.",
+        "scenario": "ask_no_citation_terminal",
+        "metrics": [
+            {"key": "turn_final_status", "label": "턴의 최종 상태", "unit": "text"},
+            {"key": "provider_calls", "label": "공급자 호출", "unit": "count"},
+            {"key": "cited_anchor_count", "label": "해소된 인용", "unit": "count"},
+        ],
+    },
 ]
 
 UPCOMING_STEPS = [
-    {"step": 3, "title": "품질", "description": "출력 계약을 검증하고 인용을 사후에 수리합니다."},
     {"step": 4, "title": "리스크", "description": "공통 정책을 주입하고 위키 쓰기를 분류합니다."},
 ]
 
@@ -735,6 +887,9 @@ SCENARIOS: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {
     "compile_unchanged_skip": compile_unchanged_skip,
     "ask_context_budget_quota": ask_context_budget_quota,
     "structured_output_max_tokens": structured_output_max_tokens,
+    "compile_fence_retry": compile_fence_retry,
+    "compile_placeholder_page": compile_placeholder_page,
+    "ask_no_citation_terminal": ask_no_citation_terminal,
 }
 
 

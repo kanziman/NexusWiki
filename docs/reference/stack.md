@@ -47,7 +47,9 @@
 
 ## 마이그레이션
 
-`supabase/migrations/`에 `0001` ~ `0028`이 있다. **파일명 번호 순서가 곧 적용 순서다.**
+통제 모드 기본값은 `AI_CONTROL_QUALITY_MODE=enforce`다. 근거와 복구 방법은 `docs/ops/ask-sample-replay.md`에 있다.
+
+`supabase/migrations/`에 `0001` ~ `0031`이 있다. **파일명 번호 순서가 곧 적용 순서다.**
 
 주요 지점만:
 
@@ -72,6 +74,9 @@
 | `0026` | 작성자를 드러내지 않는 Ask 집계 RPC |
 | `0027` | Ask 사전 비용 예약·추기형 정산·공통 비용 투영 (로컬 검증, 운영 미적용) |
 | `0028` | 통제실 `[예산]` 탭 역할별 비용·절감 집계 RPC (`control_budget_snapshot`, 로컬 검증, 운영 미적용) |
+| `0029` | Ask 턴 `fallback` 종결 상태 (로컬 검증, 운영 미적용) |
+| `0030` | 위키 페이지 근거 청크 `wiki_page_evidence`, 컴파일 템플릿 근거 표기 (로컬 검증, 운영 미적용) |
+| `0031` | 통제실 `[품질]` 탭 집계 RPC (`control_quality_snapshot`, 로컬 검증, 운영 미적용) |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 

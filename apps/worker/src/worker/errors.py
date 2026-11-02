@@ -167,10 +167,14 @@ class ProviderCreditExhausted(ProviderError):
 #    dead로 확정되어, 프록시 교체로 풀릴 수 있었던 영상이 되살아날 수 없게 된다.
 #    반대로 아무것도 담지 않으면 자막 없는 영상이 `max_attempts`까지 헛돌며 그동안
 #    정상 잡의 처리량을 갉아먹는다 (youtube-channel-import Task 4.2, design D2).
+#
+# ⚠️ `LlmSchemaError`는 구조화 출력 시도(2회)를 이미 소진한 실패다. 큐가 다시 돌리면
+#    호출 상한이 곱해진다 (ai-control-output-contract D4).
 NON_RETRYABLE_ERRORS: Final[tuple[type[BaseException], ...]] = (
     ExtractionQualityError,
     UnsafeFetchTarget,
     StorageObjectMissing,
     TranscriptPermanentlyUnavailable,
     ProviderCreditExhausted,
+    LlmSchemaError,
 )

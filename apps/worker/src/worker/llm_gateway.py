@@ -91,6 +91,12 @@ class LlmGateway:
             attempt_meta: dict[str, Any] = {"attempt": attempt.attempt}
             if max_tokens is not None:
                 attempt_meta["max_tokens"] = max_tokens
+            if attempt.fence_stripped:
+                attempt_meta["fence_stripped"] = True
+            if attempt.violation is not None:
+                attempt_meta["violation"] = attempt.violation
+            if attempt.exhausted:
+                attempt_meta["exhausted"] = True
             await _record(
                 self._sink,
                 context,
@@ -187,9 +193,9 @@ async def record_stream_usage(
         kind=UsageKind.LLM,
         provider=str(usage.get("provider") or llm_provider.PROVIDER_NAME),
         model=str(usage.get("model") or "unknown"),
-        prompt_tokens=int(usage.get("prompt_tokens") or 0),
-        completion_tokens=int(usage.get("completion_tokens") or 0),
-        total_tokens=int(usage.get("total_tokens") or 0),
+        prompt_tokens=llm_provider.token_count(usage.get("prompt_tokens")),
+        completion_tokens=llm_provider.token_count(usage.get("completion_tokens")),
+        total_tokens=llm_provider.token_count(usage.get("total_tokens")),
         cost_micros=llm_provider.cost_micros(usage),
         duration_ms=duration_ms,
         metadata={"incomplete": True} if incomplete else {},

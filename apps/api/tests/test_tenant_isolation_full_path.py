@@ -644,3 +644,66 @@ async def test_control_budget_snapshot_enforces_tenant_and_role_boundaries(
     async with authed_client(None) as client:
         anonymous = await client.get(f"/workspaces/{owner_a.workspace_id}/control/budget")
     assert anonymous.status_code == 401, anonymous.text
+
+
+async def test_control_quality_snapshot_enforces_tenant_and_role_boundaries(
+    isolation_principals: tuple[TenantActor, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    """품질 스냅샷은 외부 테넌트·비멤버를 403으로 막고 viewer에게 수집 집계를 주지 않는다."""
+    owner_a, editor_a, viewer_a, owner_b, non_member = isolation_principals
+    path = f"/workspaces/{owner_a.workspace_id}/control/quality"
+
+    for member in (owner_a, editor_a):
+        async with authed_client(member) as client:
+            res = await client.get(path)
+        assert res.status_code == 200, res.text
+        assert res.json()["can_view_workspace"] is True
+
+    async with authed_client(viewer_a) as client:
+        viewer_res = await client.get(path)
+    assert viewer_res.status_code == 200, viewer_res.text
+    assert viewer_res.json()["can_view_workspace"] is False
+    assert viewer_res.json()["structured"] is None
+
+    for foreign in (owner_b, non_member):
+        async with authed_client(foreign) as client:
+            blocked = await client.get(path)
+        assert blocked.status_code == 403, blocked.text
+
+    async with authed_client(None) as client:
+        anonymous = await client.get(path)
+    assert anonymous.status_code == 401, anonymous.text
+
+
+async def test_wiki_page_evidence_is_invisible_across_tenants(
+    isolation_principals: tuple[TenantActor, ...],
+    local_stack: httpx.Client,
+) -> None:
+    """근거 행은 비멤버에게 0행이고, 멤버의 JWT로 쓸 수 없다."""
+    owner_a, _, _, owner_b, _ = isolation_principals
+    for actor in (owner_a, owner_b):
+        response = local_stack.get(
+            "/rest/v1/wiki_page_evidence",
+            headers={
+                "apikey": LOCAL_STACK["publishable_key"],
+                "Authorization": f"Bearer {actor.access_token}",
+            },
+            params={"workspace_id": f"eq.{owner_a.workspace_id}"},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == []
+    written = local_stack.post(
+        "/rest/v1/wiki_page_evidence",
+        headers={
+            "apikey": LOCAL_STACK["publishable_key"],
+            "Authorization": f"Bearer {owner_a.access_token}",
+        },
+        json={
+            "workspace_id": owner_a.workspace_id,
+            "wiki_id": owner_a.workspace_id,
+            "chunk_id": owner_a.workspace_id,
+            "raw_source_id": owner_a.workspace_id,
+        },
+    )
+    assert written.status_code == 403, written.text

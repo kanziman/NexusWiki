@@ -74,6 +74,7 @@ _SPAN_LABELS: Final[dict[str, str]] = {
     "retrieval": "4채널 검색",
     "context": "근거 조립",
     "llm_stream": "답변 생성",
+    "repair": "인용 수리",
     "citation": "인용 검증",
 }
 _STAGE_STATES: Final[dict[str, str]] = {
@@ -536,4 +537,59 @@ async def control_budget(
             "compile_skipped_count": int(_number(row.get("compile_skipped_count"))),
         },
         "by_call_path": by_call_path,
+    }
+
+
+@router.get("/{workspace_id}/control/quality")
+async def control_quality(
+    workspace_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    days: Annotated[int, Query(ge=1, le=90)] = 30,
+) -> dict[str, Any]:
+    """Control Room [품질] 탭 스냅샷. 역할 검사와 범위 분리는 RPC 함수가 맡는다."""
+    since = datetime.now(UTC) - timedelta(days=days)
+    rows = await _user_db(request, credentials).rpc(
+        "control_quality_snapshot",
+        params={"p_workspace_id": str(workspace_id), "p_since": since.isoformat()},
+    )
+    if not rows:
+        raise WorkspaceForbidden(table="workspace_members", affected=0)
+    row = rows[0]
+    can_view = row.get("can_view_workspace") is True
+
+    def count(key: str) -> int:
+        return int(_number(row.get(key)))
+
+    return {
+        "days": days,
+        "can_view_workspace": can_view,
+        "mode": str(getattr(request.app.state.settings, "AI_CONTROL_QUALITY_MODE", "enforce")),
+        "ask": {
+            "turns": count("ask_turns"),
+            "violation_turns": count("ask_violation_turns"),
+            "no_citation_turns": count("ask_no_citation_turns"),
+            "fabricated_turns": count("ask_fabricated_turns"),
+            "repair_attempted": count("ask_repair_attempted"),
+            "repaired": count("ask_repaired"),
+            "fallback": count("ask_fallback"),
+        },
+        # ⚠️ viewer에게는 수집 경로 집계를 반환하지 않는다. 0으로 주면 "없음"과 구별되지 않는다.
+        "structured": None
+        if not can_view
+        else {
+            "calls": count("structured_calls"),
+            "fence_stripped": count("structured_fence_stripped"),
+            "json_invalid": count("structured_json_invalid"),
+            "schema_invalid": count("structured_schema_invalid"),
+            "semantic_invalid": count("structured_semantic_invalid"),
+            "missing_content": count("structured_missing_content"),
+            "exhausted": count("structured_exhausted"),
+        },
+        "evidence": None
+        if not can_view
+        else {
+            "pages_total": count("wiki_pages_total"),
+            "pages_with_evidence": count("wiki_pages_with_evidence"),
+        },
     }
