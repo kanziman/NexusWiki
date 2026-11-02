@@ -7,7 +7,7 @@ Step 1(`ai-control-flow-accounting`)과 중단 Ask 정산(`reconcile-interrupted
 - Ask 컨텍스트 조립에 총 토큰 예산과 위키·원문 근거 쿼터 배분을 적용해, 긴 문서가 다른 종류의 근거를 밀어내 이중 Citation이 깨지지 않게 하고 잘림 여부를 `control_report`에 본문 없이 기록한다.
 - RRF 융합 시 동일 문서의 채널별 메타데이터(`title`, `slug` 등)를 병합해 벡터 채널이 먼저 적중한 위키 근거도 제목·슬러그를 보존하고 `LOOKUP` 판정이 누락되지 않게 한다.
 - 구조화 출력 호출(`compile`, `conflict_check`)에 입력 길이 상한과 명시적 `max_tokens` 출력 상한을 적용하고 `LlmGateway`가 이를 공급자 요청과 사용량 메타데이터에 반영한다.
-- 컴파일 잡에서 입력 지문(`content_hash` + `template_id` + `model`)이 직전 성공과 같고 해당 원문의 위키 페이지가 이미 존재할 때(`SKIP_UNCHANGED`), LLM 호출을 건너뛰고 후속 체인(`link_sync`)으로 진행하며 생략 사실을 관측 가능하게 남긴다.
+- 컴파일 잡에서 입력 지문(컴파일 본문 해시 + `template_id` + `model`)이 직전 성공과 같고 해당 원문의 위키 페이지가 이미 존재할 때(`SKIP_UNCHANGED`), LLM 호출을 건너뛰고 후속 체인(`link_sync`)으로 진행하며 생략 사실을 관측 가능하게 남긴다.
 - Control Room의 `[예산]` 탭(`Step 2`)을 활성화해 월간 크레딧 한도·공급자 보고 비용·미확정 점유·판정액, 호출 경로별(`ask`, `compile`, `conflict_check`, `embed`, `query_embedding`) 비용·토큰 분해(`editor` 이상), 적용 중인 토큰 상한 정책과 잘림·단락 집계(본인 Ask 및 워크스페이스 집계)를 실제 데이터로 표시한다.
 - 공개 쇼케이스(`/showcase/controlled-ai`)에 Step 2 통제 전후 합성 시나리오 증거를 추가하고 준비 중 목록을 Step 3~4로 갱신한다.
 
