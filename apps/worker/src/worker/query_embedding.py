@@ -8,9 +8,11 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
+import structlog
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict
 
+from nexuswiki_core.trace import TraceMiddleware, parse_trace_id
 from worker.embedding import EMBEDDING_DIMENSIONS
 
 EmbeddingFunction = Callable[[str], Awaitable[list[float]]]
@@ -126,8 +128,15 @@ def add_query_embedding_route(app: FastAPI, service: QueryEmbeddingService) -> N
     async def query_embedding(
         request: QueryEmbeddingRequest,
         authorization: Annotated[str | None, Header()] = None,
+        x_workspace_id: Annotated[str | None, Header()] = None,
     ) -> QueryEmbeddingResponse:
-        return await service.embed(request, authorization)
+        # 본문이 아니라 헤더로 받는다. 요청 모델이 `extra="forbid"`라 필드를 더하면 이전 버전 워커가
+        # 새 API의 호출을 422로 거부한다 (ai-control-flow-accounting design D2, D5).
+        workspace_id = parse_trace_id(x_workspace_id)
+        if workspace_id is None:
+            return await service.embed(request, authorization)
+        with structlog.contextvars.bound_contextvars(workspace_id=workspace_id):
+            return await service.embed(request, authorization)
 
 
 def create_query_embedding_app(service: QueryEmbeddingService) -> FastAPI:
@@ -137,5 +146,8 @@ def create_query_embedding_app(service: QueryEmbeddingService) -> FastAPI:
     `test_query_embedding.py`) keeps working unchanged.
     """
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+    app.add_middleware(
+        TraceMiddleware, log_event="worker.internal_request_completed", trust_inbound=True
+    )
     add_query_embedding_route(app, service)
     return app

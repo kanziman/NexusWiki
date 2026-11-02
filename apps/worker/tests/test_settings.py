@@ -113,3 +113,30 @@ def test_query_embedding_rate_settings_must_be_positive(
         WorkerSettings()
 
     assert key in str(excinfo.value)
+
+
+def test_langfuse_credentials_are_optional_and_default_to_the_chosen_region(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_complete_worker_env(monkeypatch)
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_BASE_URL", raising=False)
+
+    settings = WorkerSettings()
+
+    assert settings.LANGFUSE_PUBLIC_KEY is None
+    assert settings.LANGFUSE_SECRET_KEY is None
+    # SDK 기본값(EU)으로 조용히 넘어가지 않는다.
+    assert settings.LANGFUSE_BASE_URL == "https://jp.cloud.langfuse.com"
+
+
+def test_blank_langfuse_secret_is_rejected_as_the_sample_warns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `.env.sample`의 경고가 사실인지 고정한다. 동작이 바뀌면 안내도 함께 고쳐야 한다.
+    _set_complete_worker_env(monkeypatch)
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", " ")
+
+    with pytest.raises(MissingSettingError):
+        WorkerSettings()

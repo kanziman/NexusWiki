@@ -1,0 +1,581 @@
+"""공개 쇼케이스의 합성 증거를 만들고, 커밋된 값이 실제 코드와 일치하는지 검사한다 (#168).
+
+설계 근거: openspec/changes/ai-control-flow-accounting/design.md > D10
+
+⚠️ 이 파일은 기준 커밋의 코드 위에서도 그대로 돌아야 한다. `before` 값을 같은 시나리오로 재기
+위해서다. 그래서 시나리오는 두 커밋에 모두 있는 경계(공급자 HTTP, `run_*` 함수, Ask 라우트)만 쓰고,
+이번 변경에서 생긴 모듈을 import하지 않는다.
+
+증거 갱신 절차:
+    # after: 현재 코드로 측정한다. 코드가 커밋되어 있지 않으면 커밋은 `uncommitted`로 남는다.
+    uv run python apps/worker/tests/test_controlled_ai_evidence.py measure out.json
+    uv run python apps/worker/tests/test_controlled_ai_evidence.py write after out.json
+
+    # before: 기준 커밋의 worktree를 PYTHONPATH 앞에 두고 측정한다.
+    git worktree add <dir> 79b68fe
+    PYTHONPATH="<dir>/apps/api/src;<dir>/apps/worker/src;<dir>/packages/core/src" \
+        uv run python apps/worker/tests/test_controlled_ai_evidence.py measure before.json
+    uv run python apps/worker/tests/test_controlled_ai_evidence.py write before before.json
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import subprocess
+import sys
+from collections.abc import AsyncIterator, Awaitable, Callable
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import httpx
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+EVIDENCE_PATH = _REPO_ROOT / "apps" / "dashboard" / "content" / "controlled-ai" / "step1.json"
+BASELINE_COMMIT = "79b68fe"
+_UNCOMMITTED = "uncommitted"
+_COST_PER_ATTEMPT_USD = 0.001
+
+_WIKI_ID = str(uuid4())
+_SOURCE_CHUNK_ID = str(uuid4())
+_RAW_SOURCE_ID = str(uuid4())
+_WORKSPACE_ID = str(uuid4())
+
+
+# -- 공급자 대역 ----------------------------------------------------------------
+
+
+def _provider(contents: list[str]) -> tuple[httpx.AsyncClient, list[float]]:
+    """응답마다 같은 비용을 보고하는 공급자. 돌려준 비용을 시도별로 함께 남긴다."""
+    reported: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        content = contents[min(len(reported), len(contents) - 1)]
+        reported.append(_COST_PER_ATTEMPT_USD)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": content}}],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                    "cost": _COST_PER_ATTEMPT_USD,
+                },
+                "provider": "scenario-provider",
+                "model": "scenario-model",
+            },
+        )
+
+    client = httpx.AsyncClient(
+        base_url="https://provider.test", transport=httpx.MockTransport(handler)
+    )
+    return client, reported
+
+
+def _worker_settings() -> Any:
+    from worker.settings import WorkerSettings
+
+    return WorkerSettings(
+        SUPABASE_URL="https://example.invalid",
+        SUPABASE_PUBLISHABLE_KEY="scenario-publishable",
+        SUPABASE_SECRET_KEY="scenario-secret",  # noqa: S106 - 합성 시나리오
+        DATABASE_URL="postgresql://scenario",
+        OPENROUTER_API_KEY="scenario-provider-key",
+        LLM_MODEL="scenario-model",
+    )
+
+
+def _usage_values(rows: list[dict[str, Any]], reported: list[float]) -> dict[str, int]:
+    return {
+        "provider_reported_cost_micros": round(sum(reported) * 1_000_000),
+        "recorded_cost_micros": sum(int(row["cost_micros"]) for row in rows),
+        "recorded_usage_rows": len(rows),
+    }
+
+
+# -- 비용 회계 시나리오 ------------------------------------------------------------
+
+
+async def conflict_judge_cost() -> dict[str, Any]:
+    """충돌 판정이 후보 두 쌍을 판정한다."""
+    from worker.handlers import conflict
+
+    class Db:
+        def __init__(self) -> None:
+            self.usage: list[dict[str, Any]] = []
+
+        async def list_wiki_pages_for_source(self, **_: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": "합성 문서 A"}]
+
+        async def find_similar_wiki_pages(self, **_: Any) -> list[dict[str, Any]]:
+            return [
+                {"candidate_wiki_id": "page-b", "similarity": 0.93},
+                {"candidate_wiki_id": "page-c", "similarity": 0.91},
+            ]
+
+        async def _select(self, _table: str, *, params: dict[str, str]) -> list[dict[str, str]]:
+            return [{"id": params["id"].removeprefix("eq."), "content": "합성 문서 B"}]
+
+        async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
+            return None
+
+        async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+            self.usage.append(row)
+
+    db = Db()
+    client, reported = _provider(['{"is_contradiction": false, "rationale": "합성 판정"}'])
+    async with client:
+        await conflict.run_conflict_check(
+            db,  # type: ignore[arg-type]
+            client,
+            settings=_worker_settings(),
+            job_id="scenario-job",
+            workspace_id=_WORKSPACE_ID,
+            payload={"raw_source_id": _RAW_SOURCE_ID},
+        )
+    return _usage_values(db.usage, reported)
+
+
+async def compile_retry_cost() -> dict[str, Any]:
+    """컴파일 첫 시도가 스키마 검증에 실패하고 두 번째 시도가 성공한다."""
+    from worker.handlers import compile as compile_handler
+
+    class Db:
+        def __init__(self) -> None:
+            self.usage: list[dict[str, Any]] = []
+
+        async def get_raw_source(self, *_: Any, **__: Any) -> dict[str, str]:
+            return {"title": "합성 문서", "source_type": "text"}
+
+        async def get_default_prompt_template(self, **_: Any) -> dict[str, str]:
+            return {"system_prompt": "합성 지시", "template": "{{source_content}}"}
+
+        async def list_wiki_slugs(self, **_: Any) -> list[str]:
+            return []
+
+        async def list_source_chunks(self, **_: Any) -> list[dict[str, str]]:
+            return [{"content": "합성 원문"}]
+
+        async def latest_compile_fingerprint(self, **_: Any) -> None:
+            return None
+
+        async def get_wiki_page_by_slug(self, **_: Any) -> None:
+            return None
+
+        async def upsert_wiki_page(self, **_: Any) -> dict[str, str]:
+            return {"id": "page-a"}
+
+        async def index_wiki_page_lexical(self, **_: Any) -> None:
+            return None
+
+        async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
+            return None
+
+        async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+            self.usage.append(row)
+
+    db = Db()
+    client, reported = _provider(
+        [
+            "스키마를 만족하지 않는 응답",
+            json.dumps(
+                {
+                    "pages": [
+                        {
+                            "title": "합성 문서",
+                            "category": "guides",
+                            "confidence": "medium",
+                            "content": "합성 본문",
+                        }
+                    ]
+                }
+            ),
+        ]
+    )
+    async with client:
+        await compile_handler.run_compile(
+            db,  # type: ignore[arg-type]
+            client,
+            settings=_worker_settings(),
+            job_id="scenario-job",
+            workspace_id=_WORKSPACE_ID,
+            payload={"raw_source_id": _RAW_SOURCE_ID},
+        )
+    return _usage_values(db.usage, reported)
+
+
+# -- Ask 시나리오 -----------------------------------------------------------------
+
+
+class _Upstream:
+    status_code = 200
+
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+
+    async def aiter_lines(self) -> AsyncIterator[str]:
+        for line in self._lines:
+            yield line
+
+
+class _LlmStream:
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+
+    def stream(self, **_: Any) -> _LlmStream:
+        return self
+
+    async def __aenter__(self) -> _Upstream:
+        return _Upstream(self._lines)
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+class _Retrieval:
+    async def retrieve(self, *_: Any) -> Any:
+        from api.services.retrieval import RetrievalResult
+        from nexuswiki_core.rrf import EvidenceHit
+
+        return RetrievalResult(
+            evidence=[
+                EvidenceHit.wiki(wiki_id=_WIKI_ID, rank=1, metadata={"title": "합성 위키"}),
+                EvidenceHit.source(
+                    chunk_id=_SOURCE_CHUNK_ID,
+                    rank=1,
+                    metadata={"raw_source_id": _RAW_SOURCE_ID, "chunk_index": 0},
+                ),
+            ],
+            meta={"policy_version": "scenario"},
+        )
+
+
+def _ask_transport(finalized: dict[str, Any]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/rest/v1/wiki_pages":
+            return httpx.Response(200, json=[{"id": _WIKI_ID, "content": "합성 위키 본문"}])
+        if path == "/rest/v1/source_chunks":
+            return httpx.Response(200, json=[{"id": _SOURCE_CHUNK_ID, "content": "합성 원문"}])
+        if path == "/rest/v1/prompt_templates":
+            if "workspace_id" in request.url.params:
+                return httpx.Response(200, json=[])
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": str(uuid4()),
+                        "name": "합성 템플릿",
+                        "workspace_id": None,
+                        "system_prompt": "합성 지시",
+                        "template": "{{question}} {{wiki_context}} {{source_context}}",
+                    }
+                ],
+            )
+        if path in {"/rest/v1/rpc/start_ask_turn", "/rest/v1/rpc/finalize_ask_turn"}:
+            if path.endswith("finalize_ask_turn"):
+                finalized.update(json.loads(request.content))
+            return httpx.Response(
+                200, json=[{"thread_id": str(uuid4()), "message_id": str(uuid4())}]
+            )
+        raise AssertionError(f"시나리오에 없는 요청: {path}")
+
+    return httpx.MockTransport(handler)
+
+
+async def _ask(lines: list[str]) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Any]]:
+    from api.main import create_app
+    from api.services.ask import AskService
+    from api.settings import ApiSettings
+
+    finalized: dict[str, Any] = {}
+    app = create_app(
+        ApiSettings(
+            SUPABASE_URL="https://example.invalid",
+            SUPABASE_PUBLISHABLE_KEY="scenario-publishable",
+        ),
+        git_sha="scenario",
+    )
+    async with app.router.lifespan_context(app):
+        await app.state.http_client.aclose()
+        app.state.http_client = httpx.AsyncClient(transport=_ask_transport(finalized))
+        app.state.ask_service = AskService(_Retrieval(), _LlmStream(lines))
+        async with httpx.AsyncClient(
+            # 기준 커밋은 깨진 프레임에서 예외로 스트림이 끊긴다. 그 동작도 관측값이다.
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                f"/workspaces/{_WORKSPACE_ID}/ask",
+                json={"query": "합성 질문", "client_turn_id": str(uuid4())},
+                headers={"Authorization": "Bearer scenario"},
+            )
+    assert response.status_code == 200, response.text
+    events: list[tuple[str, dict[str, Any]]] = []
+    for block in response.text.split("\n\n"):
+        fields = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line)
+        if "event" in fields:
+            events.append((fields["event"], json.loads(fields.get("data") or "{}")))
+    return events, finalized
+
+
+async def ask_broken_stream_frame() -> dict[str, Any]:
+    """답변 스트림 중간에 깨진 프레임이 온다."""
+    events, finalized = await _ask(
+        [
+            'data: {"choices":[{"delta":{"content":"부분 답변 [[wiki:w1]] [[src:s1]]."}}]}',
+            'data: {"choices":[{"delta":',
+            "data: [DONE]",
+        ]
+    )
+    return {
+        "turn_final_status": finalized.get("p_status") or "not_finalized",
+        "terminal_event": events[-1][0],
+    }
+
+
+async def ask_fabricated_citation() -> dict[str, Any]:
+    """모델이 근거에 없는 앵커만 단 문장을 답한다."""
+    events, _ = await _ask(
+        [
+            'data: {"choices":[{"delta":{"content":"근거 없는 주장 [[wiki:w9]] [[src:s9]]."}}]}',
+            "data: [DONE]",
+        ]
+    )
+    citations = next(payload for name, payload in events if name == "citations")
+    return {
+        "fabricated_anchor_count": citations.get("fabricated_anchor_count", 0),
+        "dual_citation_rate": citations.get("dual_citation_rate"),
+    }
+
+
+# -- 증거 항목 정의 -----------------------------------------------------------------
+
+_COST_METRICS = [
+    {"key": "provider_reported_cost_micros", "label": "공급자가 보고한 비용", "unit": "usd_micros"},
+    {"key": "recorded_cost_micros", "label": "회계에 기록된 비용", "unit": "usd_micros"},
+    {"key": "recorded_usage_rows", "label": "기록된 사용량 행", "unit": "count"},
+]
+
+ITEMS: list[dict[str, Any]] = [
+    {
+        "id": "conflict-judge-cost",
+        "title": "충돌 판정 비용 누락",
+        "problem": "충돌 판정의 LLM 비용이 회계에 전혀 남지 않아 월 상한 계산에서 빠졌습니다.",
+        "fix": "모든 공급자 호출을 하나의 경계로 모아 호출마다 사용량을 기록합니다.",
+        "scenario": "conflict_judge_cost",
+        "metrics": _COST_METRICS,
+    },
+    {
+        "id": "compile-retry-cost",
+        "title": "컴파일 재시도 비용 누락",
+        "problem": "검증에 실패한 시도의 비용이 버려져, 마지막 시도의 비용만 기록되었습니다.",
+        "fix": "공급자가 사용량을 보고하는 즉시, 응답을 검증하기 전에 시도별로 기록합니다.",
+        "scenario": "compile_retry_cost",
+        "metrics": _COST_METRICS,
+    },
+    {
+        "id": "ask-broken-stream-frame",
+        "title": "깨진 스트림의 미종결 턴",
+        "problem": "깨진 프레임에서 예외가 나 연결이 끊기고, 턴이 종결되지 않고 남았습니다.",
+        "fix": "깨진 프레임을 받으면 턴을 오류로 종결하고 부분 답변은 저장하지 않습니다.",
+        "scenario": "ask_broken_stream_frame",
+        "metrics": [
+            {"key": "turn_final_status", "label": "턴의 최종 상태", "unit": "text"},
+            {"key": "terminal_event", "label": "클라이언트가 받은 마지막 이벤트", "unit": "text"},
+        ],
+    },
+    {
+        "id": "ask-fabricated-citation",
+        "title": "위조 앵커의 인용 지표 왜곡",
+        "problem": "근거에 없는 앵커만 단 문장이 이중 인용으로 계산되었습니다.",
+        "fix": "위조 앵커를 제거한 텍스트로 인용 지표를 계산합니다.",
+        "scenario": "ask_fabricated_citation",
+        "metrics": [
+            {"key": "fabricated_anchor_count", "label": "적발한 위조 앵커", "unit": "count"},
+            {"key": "dual_citation_rate", "label": "이중 인용률", "unit": "rate"},
+        ],
+    },
+]
+
+UPCOMING_STEPS = [
+    {"step": 2, "title": "예산", "description": "프롬프트 크기와 출력 토큰의 상한을 적용합니다."},
+    {"step": 3, "title": "품질", "description": "출력 계약을 검증하고 인용을 사후에 수리합니다."},
+    {"step": 4, "title": "리스크", "description": "공통 정책을 주입하고 위키 쓰기를 분류합니다."},
+]
+
+SCENARIOS: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {
+    "conflict_judge_cost": conflict_judge_cost,
+    "compile_retry_cost": compile_retry_cost,
+    "ask_broken_stream_frame": ask_broken_stream_frame,
+    "ask_fabricated_citation": ask_fabricated_citation,
+}
+
+
+# -- 증거 파일 생성 -----------------------------------------------------------------
+
+
+def _measure() -> dict[str, dict[str, Any]]:
+    async def run_all() -> dict[str, dict[str, Any]]:
+        return {name: await scenario() for name, scenario in SCENARIOS.items()}
+
+    return asyncio.run(run_all())
+
+
+def _current_commit() -> str:
+    """측정에 쓰인 코드가 커밋되어 있을 때만 그 커밋을 돌려준다.
+
+    ⚠️ 작업 트리가 더러운데 HEAD를 적으면, 그 커밋에 없는 코드의 측정값을 그 커밋의 것처럼 공개한다.
+    증거 파일 자신은 측정 대상이 아니므로 제외한다.
+    """
+    status = subprocess.run(  # noqa: S603 - 고정된 인자로 git을 실행한다
+        [  # noqa: S607
+            "git",
+            "status",
+            "--porcelain",
+            "--",
+            "apps/api/src",
+            "apps/worker/src",
+            "packages/core/src",
+        ],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    if status.stdout.strip():
+        return _UNCOMMITTED
+    head = subprocess.run(  # noqa: S603 - 고정된 인자로 git을 실행한다
+        ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return head.stdout.strip()
+
+
+def _write(side: str, measured: dict[str, dict[str, Any]]) -> None:
+    existing = (
+        json.loads(EVIDENCE_PATH.read_text(encoding="utf-8")) if EVIDENCE_PATH.exists() else {}
+    )
+    previous = {item["id"]: item for item in existing.get("items", [])}
+    commit = BASELINE_COMMIT if side == "before" else _current_commit()
+    items = []
+    for definition in ITEMS:
+        item = {
+            **definition,
+            **{key: previous.get(definition["id"], {}).get(key) for key in ("before", "after")},
+        }
+        item[side] = {"commit": commit, "values": measured[definition["scenario"]]}
+        items.append(item)
+    EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    EVIDENCE_PATH.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "synthetic": True,
+                "generator": "apps/worker/tests/test_controlled_ai_evidence.py",
+                "items": items,
+                "upcoming": UPCOMING_STEPS,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+# -- 테스트 ---------------------------------------------------------------------
+
+
+def _evidence() -> dict[str, Any]:
+    return json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("item", ITEMS, ids=lambda item: item["id"])
+async def test_committed_after_values_match_the_current_code(item: dict[str, Any]) -> None:
+    # 코드가 바뀌었는데 공개 화면의 수치가 그대로 남는 일을 막는다.
+    committed = next(entry for entry in _evidence()["items"] if entry["id"] == item["id"])
+
+    assert await SCENARIOS[item["scenario"]]() == committed["after"]["values"]
+
+
+def test_evidence_definitions_match_the_generator() -> None:
+    evidence = _evidence()
+
+    assert evidence["synthetic"] is True
+    assert evidence["upcoming"] == UPCOMING_STEPS
+    for definition, committed in zip(ITEMS, evidence["items"], strict=True):
+        assert {key: committed[key] for key in definition} == definition
+
+
+@pytest.mark.parametrize("item", ITEMS, ids=lambda item: item["id"])
+def test_each_item_records_a_real_before_and_after(item: dict[str, Any]) -> None:
+    committed = next(entry for entry in _evidence()["items"] if entry["id"] == item["id"])
+    keys = {metric["key"] for metric in item["metrics"]}
+
+    assert committed["before"]["commit"] == BASELINE_COMMIT
+    assert re.fullmatch(rf"[0-9a-f]{{7,40}}|{_UNCOMMITTED}", committed["after"]["commit"])
+    assert set(committed["before"]["values"]) == keys
+    assert set(committed["after"]["values"]) == keys
+    # 전후가 같으면 그 항목은 통제의 효과를 보여주지 못한다.
+    assert committed["before"]["values"] != committed["after"]["values"]
+
+
+def test_upcoming_steps_carry_no_example_numbers() -> None:
+    # 구현되지 않은 Step의 예시 수치가 실제 결과처럼 보이면 안 된다.
+    for step in _evidence()["upcoming"]:
+        assert set(step) == {"step", "title", "description"}
+        assert not re.search(r"\d", step["title"] + step["description"])
+
+
+_FORBIDDEN_PATTERNS = {
+    "uuid": r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+    "email": r"[\w.+-]+@[\w-]+\.[\w.-]+",
+    "openrouter_or_openai_key": r"\bsk-[A-Za-z0-9_-]{6,}",
+    "supabase_key": r"\bsb_(?:secret|publishable)_[A-Za-z0-9_-]+",
+    "langfuse_key": r"\b[ps]k-lf-[A-Za-z0-9_-]+",
+    "jwt": r"\beyJ[A-Za-z0-9_-]{10,}",
+    "bearer": r"(?i)\bbearer\s+\S+",
+}
+
+
+def test_evidence_contains_no_identifier_or_credential_shapes() -> None:
+    text = EVIDENCE_PATH.read_text(encoding="utf-8")
+
+    found = {name for name, pattern in _FORBIDDEN_PATTERNS.items() if re.search(pattern, text)}
+
+    assert found == set()
+
+
+@pytest.mark.parametrize(
+    ("name", "sample"),
+    [
+        ("uuid", "7f3a19c2-1111-4222-8333-444455556666"),
+        ("email", "someone@example.com"),
+        ("openrouter_or_openai_key", "sk-or-v1-abcdef"),
+        ("supabase_key", "sb_secret_abcdef"),
+        ("langfuse_key", "sk-lf-abcdef"),
+        ("jwt", "eyJhbGciOiJIUzI1NiJ9"),
+        ("bearer", "Bearer abc"),
+    ],
+)
+def test_forbidden_patterns_actually_match_their_shape(name: str, sample: str) -> None:
+    # 정규식이 깨지면 위 검사는 아무것도 찾지 못하고 조용히 통과한다.
+    assert re.search(_FORBIDDEN_PATTERNS[name], sample)
+
+
+if __name__ == "__main__":
+    command = sys.argv[1]
+    if command == "measure":
+        Path(sys.argv[2]).write_text(json.dumps(_measure(), ensure_ascii=False), encoding="utf-8")
+    elif command == "write":
+        _write(sys.argv[2], json.loads(Path(sys.argv[3]).read_text(encoding="utf-8")))
+    else:
+        raise SystemExit(f"알 수 없는 명령: {command}")

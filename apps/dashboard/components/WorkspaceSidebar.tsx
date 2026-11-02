@@ -2,6 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  Activity,
   BookOpen,
   CircleAlert,
   Compass,
@@ -9,8 +10,8 @@ import {
   HelpCircle,
   Layers,
   Map,
-  MonitorPlay,
   MessageSquare,
+  MonitorPlay,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -406,6 +407,20 @@ export function WorkspaceSidebar({
           <div className="nav-label" aria-hidden="true">
             <span>팀 관리</span>
           </div>
+
+          <Link
+            href={`${base}/control`}
+            prefetch={true}
+            onClick={handleItemClick}
+            aria-label="Control Room"
+            aria-current={
+              pathname.startsWith(`${base}/control`) ? "page" : undefined
+            }
+            className={`nav-item ${pathname.startsWith(`${base}/control`) ? "active" : ""}`}
+          >
+            <Activity className="nav-icon" aria-hidden="true" />
+            <span>Control Room</span>
+          </Link>
 
           <Link
             href={`${base}/settings`}

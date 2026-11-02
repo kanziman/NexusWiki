@@ -23,7 +23,7 @@ def _vector() -> list[float]:
 
 
 class _QueryEmbedding:
-    async def embed(self, _text: str) -> list[float]:
+    async def embed(self, _text: str, *, workspace_id: str) -> list[float]:
         return _vector()
 
 

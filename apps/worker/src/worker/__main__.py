@@ -11,20 +11,27 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+import structlog
 import uvicorn
 from fastapi import FastAPI
 
 from nexuswiki_core.deployment import resolve_git_sha
-from nexuswiki_core.domain import UsageKind
 from nexuswiki_core.logging import (
     bind_job_context,
     clear_job_context,
     configure_logging,
     get_logger,
 )
+from nexuswiki_core.observability import configure_observability, flush_observability
+from nexuswiki_core.trace import TraceMiddleware
 from worker.db.service import ServiceDb, service_client
-from worker.embedding import embed_texts
-from worker.llm import cost_micros, openrouter_client, stream_chat
+from worker.llm import openrouter_client
+from worker.llm_gateway import (
+    LlmCallContext,
+    LlmGateway,
+    open_answer_stream,
+    record_stream_usage,
+)
 from worker.llm_stream import LlmChatRequest, LlmStreamService, add_llm_stream_route
 from worker.query_embedding import QueryEmbeddingService, add_query_embedding_route
 from worker.queue import resolve_worker_id, run_queue_loop
@@ -45,10 +52,44 @@ from worker.youtube import (
     search_channels,
 )
 
+# 응답 뒤에 끝나는 사용량 기록 태스크. 강한 참조가 없으면 GC가 완료 전에 거둬 갈 수 있다.
+_pending_usage_writes: set[asyncio.Task[None]] = set()
+
+
+class _QueryUsageSink:
+    """질의 임베딩의 사용량을 응답과 분리해 기록한다.
+
+    ⚠️ 기록을 기다리면 임베딩 타임아웃(`QUERY_EMBEDDING_TIMEOUT_SECONDS`) 안에 DB 왕복이 들어가고,
+    기록 실패가 검색 실패가 된다. 스펙은 기록 실패가 질의를 실패시키지 않도록 요구한다.
+    """
+
+    def __init__(self, settings: WorkerSettings) -> None:
+        self._settings = settings
+
+    async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+        if not workspace_id:
+            # 이전 버전 API는 워크스페이스를 보내지 않는다. 귀속할 곳이 없으니 흔적만 남긴다.
+            get_logger(__name__).warning("worker.query_embedding_usage_unattributed")
+            return
+        task = asyncio.create_task(self._write(workspace_id, row))
+        _pending_usage_writes.add(task)
+        task.add_done_callback(_pending_usage_writes.discard)
+
+    async def _write(self, workspace_id: str, row: dict[str, Any]) -> None:
+        try:
+            async with service_client(self._settings) as client:
+                await ServiceDb(client).insert_usage_event(workspace_id=workspace_id, row=row)
+        except Exception:  # noqa: BLE001 - 응답은 이미 나갔다. 원인은 로그로 남긴다.
+            get_logger(__name__).exception("worker.query_embedding_usage_failed")
+
 
 async def _embed_query(settings: WorkerSettings, text: str) -> list[float]:
+    workspace_id = structlog.contextvars.get_contextvars().get("workspace_id")
     async with openrouter_client(settings) as client:
-        result = await embed_texts(client, settings=settings, texts=[text])
+        result = await LlmGateway(_QueryUsageSink(settings), client, settings).embed_texts(
+            LlmCallContext(workspace_id=str(workspace_id or ""), call="query_embedding"),
+            texts=[text],
+        )
     return result.vectors[0]
 
 
@@ -98,7 +139,7 @@ async def _stream_llm_chat(
 ) -> AsyncIterator[bytes]:
     """`_embed_query`와 같은 형태 — per-call client를 열고 스트림이 끝날 때까지 붙든다."""
     async with openrouter_client(settings) as client:
-        async for chunk in stream_chat(client, settings=settings, messages=request.messages):
+        async for chunk in open_answer_stream(client, settings=settings, messages=request.messages):
             yield chunk
 
 
@@ -116,24 +157,21 @@ async def _check_ask_budget(settings: WorkerSettings, workspace_id: str) -> bool
 
 
 async def _record_ask_usage(
-    settings: WorkerSettings, workspace_id: str, usage: dict[str, Any]
+    settings: WorkerSettings,
+    workspace_id: str,
+    usage: dict[str, Any],
+    *,
+    incomplete: bool,
+    duration_ms: int,
 ) -> None:
-    """Persist one completed Ask call, including a zero-cost incomplete stream."""
+    """Persist one Ask call, marking a stream that ended before final usage arrived."""
     async with service_client(settings) as client:
-        db = ServiceDb(client)
-        await db.insert_usage_event(
-            workspace_id=workspace_id,
-            row={
-                "job_id": None,
-                "kind": UsageKind.LLM.value,
-                "provider": usage.get("provider") or "openrouter",
-                "model": usage.get("model") or "unknown",
-                "prompt_tokens": int(usage.get("prompt_tokens") or 0),
-                "completion_tokens": int(usage.get("completion_tokens") or 0),
-                "total_tokens": int(usage.get("total_tokens") or 0),
-                "cost_micros": cost_micros(usage),
-                "metadata": {},
-            },
+        await record_stream_usage(
+            ServiceDb(client),
+            LlmCallContext(workspace_id=workspace_id, call="ask"),
+            usage=usage,
+            duration_ms=duration_ms,
+            incomplete=incomplete,
         )
 
 
@@ -153,6 +191,11 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
         # No listener is safer than an unauthenticated listener during local setup.
         return
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+    # 이 리스너는 내부 토큰으로 인증되는 사설망 전용이라 API가 보낸 trace를 신뢰한다.
+    # 값이 없으면 이전 버전 API의 호출이므로 거부하지 않고 새로 발급한다 (design D2).
+    app.add_middleware(
+        TraceMiddleware, log_event="worker.internal_request_completed", trust_inbound=True
+    )
     if settings.QUERY_EMBEDDING_INTERNAL_TOKEN:
         add_query_embedding_route(
             app,
@@ -173,8 +216,14 @@ async def _serve_internal_listeners(settings: WorkerSettings, stop: asyncio.Even
                 lambda request: _stream_llm_chat(settings, request),
                 internal_token=settings.LLM_STREAM_INTERNAL_TOKEN,
                 check_budget=lambda workspace_id: _check_ask_budget(settings, workspace_id),
-                record_usage=lambda workspace_id, usage: _record_ask_usage(
-                    settings, workspace_id, usage
+                record_usage=lambda workspace_id, usage, *, incomplete, duration_ms: (
+                    _record_ask_usage(
+                        settings,
+                        workspace_id,
+                        usage,
+                        incomplete=incomplete,
+                        duration_ms=duration_ms,
+                    )
                 ),
                 max_concurrency=settings.LLM_STREAM_MAX_CONCURRENCY,
                 rate_capacity=settings.LLM_STREAM_RATE_CAPACITY,
@@ -277,6 +326,13 @@ async def main() -> None:
         "worker.started",
         git_sha=git_sha,
     )
+    configure_observability(
+        public_key=settings.LANGFUSE_PUBLIC_KEY,
+        secret_key=settings.LANGFUSE_SECRET_KEY,
+        base_url=settings.LANGFUSE_BASE_URL,
+        environment=settings.ENVIRONMENT,
+        release=git_sha,
+    )
     try:
         # 필수 설정 누락으로 프로브를 건너뛰는 분기는 없앴다 — 그 경우 위에서 이미
         # 죽는다. 남은 것은 의도적으로 프로브를 끄는 운영 토글뿐이다.
@@ -332,6 +388,9 @@ async def main() -> None:
         bind_job_context(job_id="shutdown", workspace_id="shutdown")
         logger.info("worker.stopped", worker_id=worker_id, processed=processed)
     finally:
+        # ⚠️ 큐 루프가 끝난 뒤에만 flush한다. 앞에 두면 `WORKER_GRACE_SECONDS`를 소모해 잡 반납이
+        #    늦어진다. 호출이 3초로 제한되므로 기본 실행기의 종료를 막지 않는다.
+        await asyncio.to_thread(flush_observability)
         clear_job_context()
 
 

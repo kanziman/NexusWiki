@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
+from nexuswiki_core.trace import TRACE_HEADER, current_trace_id
 from worker.query_embedding import (
     QueryEmbeddingRequest,
     QueryEmbeddingService,
@@ -41,6 +42,57 @@ async def test_private_endpoint_rejects_missing_token_before_embedding() -> None
 
     assert response.status_code == 401
     assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_internal_call_runs_under_the_trace_sent_by_the_api() -> None:
+    seen: list[str | None] = []
+    trace_id = "7f3a19c2-1111-4222-8333-444455556666"
+
+    async def embed(text: str) -> list[float]:
+        seen.append(current_trace_id())
+        return [0.0] * 1024
+
+    app = create_query_embedding_app(QueryEmbeddingService(embed, internal_token=_INTERNAL_TOKEN))
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/internal/query-embedding",
+            json={"text": "hello"},
+            headers={"Authorization": f"Bearer {_INTERNAL_TOKEN}", TRACE_HEADER: trace_id},
+        )
+
+    assert response.status_code == 200
+    assert seen == [trace_id]
+    assert response.headers[TRACE_HEADER] == trace_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra", [{}, {TRACE_HEADER: "not-a-uuid"}])
+async def test_internal_call_without_valid_trace_is_served_under_a_new_trace(
+    extra: dict[str, str],
+) -> None:
+    seen: list[str | None] = []
+
+    async def embed(text: str) -> list[float]:
+        seen.append(current_trace_id())
+        return [0.0] * 1024
+
+    app = create_query_embedding_app(QueryEmbeddingService(embed, internal_token=_INTERNAL_TOKEN))
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/internal/query-embedding",
+            json={"text": "hello"},
+            headers={"Authorization": f"Bearer {_INTERNAL_TOKEN}", **extra},
+        )
+
+    assert response.status_code == 200
+    assert seen[0] is not None
+    assert seen[0] != "not-a-uuid"
+    assert response.headers[TRACE_HEADER] == seen[0]
 
 
 @pytest.mark.asyncio

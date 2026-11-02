@@ -58,6 +58,7 @@ from api.storage import UserStorage, sanitize_filename, storage_path_for
 from nexuswiki_core.domain import YOUTUBE_VIDEO_ID_PATTERN, SourceType
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.tokenizer import normalize
+from nexuswiki_core.trace import current_trace_id
 
 router = APIRouter(prefix="/workspaces", tags=["sources"])
 
@@ -263,6 +264,7 @@ async def _insert_and_enqueue(
             params={
                 "p_workspace_id": str(workspace_id),
                 "p_raw_source_id": str(row["id"]),
+                "p_trace_id": current_trace_id(),
             },
         )
     except DatabaseError as error:

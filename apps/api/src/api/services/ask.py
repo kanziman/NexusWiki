@@ -29,8 +29,11 @@ from api.db.user import UserDb
 from api.errors import DatabaseError, WorkspaceForbidden
 from api.services.retrieval import RetrievalService
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN, ISSUED_ANCHOR_PATTERN
+from nexuswiki_core.observability import export_ask_turn
+from nexuswiki_core.router import RouteDecision, decide_ask_route
 from nexuswiki_core.rrf import EvidenceHit
 from nexuswiki_core.sentences import split_sentences
+from nexuswiki_core.trace import TraceRecorder, trace_headers
 
 __all__ = [
     "NO_EVIDENCE_MESSAGE",
@@ -111,7 +114,7 @@ class HttpLlmStreamClient:
             "POST",
             f"{self._url.rstrip('/')}/internal/llm-chat",
             json={"workspace_id": workspace_id, "messages": messages},
-            headers={"Authorization": f"Bearer {self._token}"},
+            headers={"Authorization": f"Bearer {self._token}", **trace_headers()},
             timeout=httpx.Timeout(connect=5.0, read=self._timeout_seconds, write=5.0, pool=5.0),
         )
 
@@ -168,7 +171,9 @@ def resolve_citations(
         return ""  # 조작이거나(파싱은 됐지만 미발급) 애초에 우리가 발급하지 않는 모양이다.
 
     rendered_text = BROAD_ANCHOR_PATTERN.sub(_strip_fabricated, full_text)
-    sentences = split_sentences(full_text)
+    # ⚠️ 지표는 위조를 지운 뒤의 텍스트로 잰다. 원문으로 재면 위조 앵커만 달린 문장이
+    #    이중 인용으로 계산되어 품질 지표가 조용히 부풀려진다 (design D6).
+    sentences = split_sentences(rendered_text)
     dual_cited_count = sum(
         1
         for sentence in sentences
@@ -342,6 +347,88 @@ def _error_token(status_code: int) -> str:
     return _ERROR_TOKENS.get(status_code, "llm_unavailable")
 
 
+class _AnswerStreamFailed(RuntimeError):
+    """HTTP 200으로 시작한 답변 스트림이 도중에 실패했다.
+
+    `AskService.ask`의 기존 공급자 미가용 분기로 수렴시키려고 `RuntimeError`를 상속한다.
+    """
+
+
+def _delta_text(line: str) -> str:
+    """SSE `data:` 한 줄에서 답변 조각을 꺼낸다. 실패 프레임이면 예외를 던진다.
+
+    ⚠️ OpenRouter는 스트림 중간 오류를 HTTP 200 안의 이벤트로 보낸다(최상위 `error` +
+    `finish_reason: "error"`). 이를 놓치면 잘린 답변이 정상 답변으로 저장된다. 공급자
+    메시지는 예외에 담지 않는다. 깨진 프레임을 그대로 올려 보내면 어떤 분기도 잡지 못해
+    턴이 `streaming`에 영원히 남는다 (design D6).
+    """
+    try:
+        payload = json.loads(line[len("data: ") :])
+    except ValueError:
+        raise _AnswerStreamFailed("malformed_frame") from None
+    if not isinstance(payload, dict) or payload.get("error"):
+        raise _AnswerStreamFailed("provider_error_frame")
+    choices = payload.get("choices") or []
+    if not choices:
+        return ""
+    if choices[0].get("finish_reason") == "error":
+        raise _AnswerStreamFailed("provider_error_frame")
+    return (choices[0].get("delta") or {}).get("content") or ""
+
+
+def _control_report(
+    *,
+    recorder: TraceRecorder,
+    route: RouteDecision,
+    retrieval_meta: Mapping[str, Any],
+    evidence: list[EvidenceHit],
+    citations: Mapping[str, Any],
+    outcome: str,
+) -> dict[str, Any]:
+    """턴에 함께 저장할 통제 보고서.
+
+    ⚠️ 허용 필드로만 조립한다. 검색 메타의 `raw_hit_ids`나 답변 텍스트가 섞이면 복원 경로와
+    Control Room이 본문 유출 경로가 된다.
+    """
+    return {
+        "version": 1,
+        "outcome": outcome,
+        "route": route.as_report(),
+        "total_ms": recorder.total_ms(),
+        "spans": recorder.spans(),
+        "evidence": {
+            "wiki": sum(1 for hit in evidence if hit.kind == "wiki"),
+            "source": sum(1 for hit in evidence if hit.kind == "source"),
+        },
+        "retrieval": {
+            "policy_version": retrieval_meta.get("policy_version"),
+            "missing_channels": _missing_channels(retrieval_meta),
+        },
+        "citation": {
+            key: citations.get(key, 0)
+            for key in (
+                "cited_anchor_count",
+                "fabricated_anchor_count",
+                "dual_citation_rate",
+                "unsourced_sentence_ratio",
+            )
+        },
+    }
+
+
+def _missing_channels(retrieval_meta: Mapping[str, Any]) -> list[str]:
+    """이번 요청에서 실패한 검색 채널 이름.
+
+    ⚠️ `failed`만 고른다. 정책으로 꺼 둔 그래프(`disabled`)까지 넣으면 모든 답변에
+    부분 검색 안내가 떠서 안내가 의미를 잃는다.
+    """
+    return sorted(
+        name
+        for name, channel in retrieval_meta.items()
+        if isinstance(channel, Mapping) and channel.get("status") == "failed"
+    )
+
+
 class AskService:
     """소스-of-truth: `POST /workspaces/{id}/ask`가 스트리밍하는 이벤트 시퀀스를 만든다.
 
@@ -365,6 +452,7 @@ class AskService:
         answer_text: str,
         citations: dict[str, Any],
         status: str,
+        control_report: dict[str, Any],
     ) -> UUID | None:
         """citations 조립 후 done 전에 한 논리 턴을 저장한다. 실패하면 done을 보내지 않는다."""
         stored_citations = {
@@ -381,11 +469,19 @@ class AskService:
                     "p_answer_text": answer_text,
                     "p_citations": stored_citations,
                     "p_status": status,
+                    "p_control_report": control_report,
                 },
             )
         except (WorkspaceForbidden, DatabaseError):
+            export_ask_turn(
+                workspace_id=str(workspace_id), control_report=control_report, persisted=False
+            )
             return None
-        if not rows or not rows[0].get("thread_id"):
+        persisted = bool(rows and rows[0].get("thread_id"))
+        export_ask_turn(
+            workspace_id=str(workspace_id), control_report=control_report, persisted=persisted
+        )
+        if not persisted:
             return None
         return UUID(str(rows[0]["thread_id"]))
 
@@ -399,6 +495,7 @@ class AskService:
         answer_text: str,
         citations: dict[str, Any],
         status: str,
+        control_report: dict[str, Any],
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         persisted = await self._finalize_turn(
             user_db=user_db,
@@ -408,6 +505,7 @@ class AskService:
             answer_text=answer_text,
             citations=citations,
             status=status,
+            control_report=control_report,
         )
         if persisted is None:
             return
@@ -424,10 +522,33 @@ class AskService:
         thread_id: UUID,
         client_turn_id: UUID,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        recorder = TraceRecorder()
+        recorder.start("retrieval")
         result = await self._retrieval_service.retrieve(workspace_id, query, requested_k, user_db)
+        missing_channels = _missing_channels(result.meta)
+        # ⚠️ 기록만 한다. 아래의 근거 0건 단락 외에는 이 결정으로 분기하지 않는다 (design D7).
+        route = decide_ask_route(query, result.evidence)
+
+        def report(citations: Mapping[str, Any], outcome: str) -> dict[str, Any]:
+            return _control_report(
+                recorder=recorder,
+                route=route,
+                retrieval_meta=result.meta,
+                evidence=result.evidence,
+                citations=citations,
+                outcome=outcome,
+            )
+
         if not result.evidence:
             # CITE-04 — 근거가 하나도 없으면 provider 호출을 아예 하지 않는다.
-            yield "meta", {"thread_id": str(thread_id), "no_evidence": True}
+            yield (
+                "meta",
+                {
+                    "thread_id": str(thread_id),
+                    "no_evidence": True,
+                    "missing_channels": missing_channels,
+                },
+            )
             no_evidence_citations = {
                 "text": NO_EVIDENCE_MESSAGE,
                 "resolved": [],
@@ -445,10 +566,12 @@ class AskService:
                 answer_text=NO_EVIDENCE_MESSAGE,
                 citations=no_evidence_citations,
                 status="no-evidence",
+                control_report=report(no_evidence_citations, "no-evidence"),
             ):
                 yield event
             return
 
+        recorder.start("context")
         issuance = build_issuance_map(result.evidence)
         content_by_id = await _fetch_evidence_content(
             user_db, workspace_id=workspace_id, evidence=result.evidence
@@ -476,6 +599,7 @@ class AskService:
                 answer_text="",
                 citations=error_citations,
                 status="error",
+                control_report=report(error_citations, "error"),
             ):
                 yield event
             return
@@ -494,10 +618,12 @@ class AskService:
                 "template_name": template["name"],
                 "evidence_count": len(result.evidence),
                 "policy_version": result.meta.get("policy_version"),
+                "missing_channels": missing_channels,
             },
         )
 
         accumulated: list[str] = []
+        recorder.start("llm_stream")
         try:
             async with self._llm_client.stream(
                 workspace_id=str(workspace_id),
@@ -524,24 +650,22 @@ class AskService:
                         answer_text="",
                         citations=error_citations,
                         status="error",
+                        control_report=report(error_citations, "error"),
                     ):
                         yield event
                     return
                 async for line in upstream.aiter_lines():
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
-                    payload = json.loads(line[len("data: ") :])
-                    choices = payload.get("choices") or []
-                    delta_text = ""
-                    if choices:
-                        delta_text = (choices[0].get("delta") or {}).get("content") or ""
+                    delta_text = _delta_text(line)
                     if delta_text:
                         accumulated.append(delta_text)
                         yield "delta", {"text": delta_text}
         except asyncio.CancelledError:
             raise
         except (RuntimeError, httpx.HTTPError):
-            # 설정 부재(RuntimeError) 또는 전송 계층 실패 — 둘 다 provider 미가용으로 다룬다.
+            # 설정 부재·스트림 도중 실패(RuntimeError) 또는 전송 계층 실패 — 모두 provider
+            # 미가용으로 다룬다. 이미 보낸 델타는 저장하지 않고 오류 상태가 대체한다.
             error_citations = {
                 "error": "llm_unavailable",
                 "resolved": [],
@@ -559,10 +683,12 @@ class AskService:
                 answer_text="",
                 citations=error_citations,
                 status="error",
+                control_report=report(error_citations, "error"),
             ):
                 yield event
             return
 
+        recorder.start("citation")
         full_text = "".join(accumulated)
         resolution = resolve_citations(full_text, issuance)
         success_citations = {
@@ -582,5 +708,6 @@ class AskService:
             answer_text=resolution.rendered_text,
             citations=success_citations,
             status="resolved",
+            control_report=report(success_citations, "resolved"),
         ):
             yield event

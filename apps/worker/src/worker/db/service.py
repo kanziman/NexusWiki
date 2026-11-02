@@ -15,6 +15,7 @@ from typing import Any, Final
 import httpx
 
 from nexuswiki_core.domain import VerificationStatus
+from nexuswiki_core.trace import current_trace_id
 from worker.settings import WorkerSettings
 
 __all__ = [
@@ -49,6 +50,7 @@ TABLE_HELPERS: Final[frozenset[str]] = frozenset(
         "upsert_wiki_page",
         "list_wiki_pages_for_source",
         "insert_usage_event",
+        "latest_compile_fingerprint",
         "get_workspace_budget_cap",
         "list_wiki_links",
         "upsert_wiki_links",
@@ -167,6 +169,8 @@ class ServiceDb:
         하지 않는다 — 유니크 인덱스에서 NULL은 서로 다른 값이기 때문이다. 중복
         인큐는 23505로 돌아오므로 호출부가 "이미 큐에 있음"으로 처리해야 한다.
         """
+        # 값이 없으면 키를 싣지 않는다. 컬럼 기본값(null)이 그대로 적용된다.
+        trace_id = current_trace_id()
         rows = await self._insert(
             "jobs",
             row={
@@ -174,6 +178,7 @@ class ServiceDb:
                 "type": job_type,
                 "payload": payload,
                 "max_attempts": max_attempts,
+                **({"trace_id": trace_id} if trace_id else {}),
             },
         )
         return rows[0] if rows else None
@@ -446,6 +451,32 @@ class ServiceDb:
         """
         rows = await self._insert_many("usage_events", rows=[{**row, "workspace_id": workspace_id}])
         return rows[0] if rows else None
+
+    async def latest_compile_fingerprint(
+        self, *, workspace_id: str, raw_source_id: str
+    ) -> str | None:
+        """이 원문의 직전 **성공한** 컴파일 지문.
+
+        ⚠️ 사용량은 검증 전에 기록되므로 실패한 시도의 행도 지문을 담는다. 잡 상태로 거르지 않으면
+        실패한 컴파일을 "이미 처리됨"으로 오판한다.
+        """
+        rows = await self._select(
+            "usage_events",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "select": "metadata,jobs!inner(status)",
+                "jobs.status": "eq.succeeded",
+                "metadata->>call": "eq.compile",
+                "metadata->>raw_source_id": f"eq.{raw_source_id}",
+                "metadata->>fingerprint": "not.is.null",
+                "order": "occurred_at.desc",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            return None
+        fingerprint = rows[0]["metadata"].get("fingerprint")
+        return fingerprint if isinstance(fingerprint, str) else None
 
     async def get_workspace_budget_cap(self, *, workspace_id: str) -> int | None:
         """Return the workspace's monthly cap, or ``None`` when it has no row."""

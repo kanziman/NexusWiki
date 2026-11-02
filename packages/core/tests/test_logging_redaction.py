@@ -38,10 +38,19 @@ def test_worker_settings_secret_fields_stay_inside_the_denylist() -> None:
         "DATABASE_URL",
         "OPENROUTER_API_KEY",
         "YOUTUBE_API_KEY",
+        "LANGFUSE_SECRET_KEY",
     }
 
     assert secret_fields <= set(WorkerSettings.model_fields)
     assert {name.casefold() for name in secret_fields} <= REDACTED_KEYS
+
+
+def test_api_settings_langfuse_secret_stays_inside_the_denylist() -> None:
+    # API가 갖는 유일한 외부 서비스 secret이다. 공급자 자격 증명이 아니라 허용되지만 마스킹은 같다.
+    from api.settings import ApiSettings
+
+    assert "LANGFUSE_SECRET_KEY" in ApiSettings.model_fields
+    assert "langfuse_secret_key" in REDACTED_KEYS
 
 
 def test_openai_key_name_remains_redacted_for_supabase_studio_ai() -> None:

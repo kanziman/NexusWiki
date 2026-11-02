@@ -13,6 +13,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
+from nexuswiki_core.trace import TRACE_HEADER, TraceMiddleware, current_trace_id
 from worker.llm_stream import (
     LlmChatRequest,
     LlmStreamService,
@@ -26,7 +27,7 @@ async def _allowed(_: str) -> bool:
     return True
 
 
-async def _ignore_usage(_: str, __: dict[str, Any]) -> None:
+async def _ignore_usage(_: str, __: dict[str, Any], **___: Any) -> None:
     return None
 
 
@@ -45,6 +46,40 @@ def _app(service: LlmStreamService) -> FastAPI:
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
     add_llm_stream_route(app, service)
     return app
+
+
+@pytest.mark.asyncio
+async def test_stream_generator_runs_under_the_trace_sent_by_the_api() -> None:
+    seen: list[str | None] = []
+    trace_id = "7f3a19c2-1111-4222-8333-444455556666"
+
+    async def chat_stream(request: LlmChatRequest) -> AsyncIterator[bytes]:
+        seen.append(current_trace_id())
+        yield b"data: [DONE]\n"
+
+    app = _app(
+        LlmStreamService(
+            chat_stream,
+            internal_token=_INTERNAL_TOKEN,
+            check_budget=_allowed,
+            record_usage=_ignore_usage,
+        )
+    )
+    app.add_middleware(TraceMiddleware, log_event="test", trust_inbound=True)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await asyncio.wait_for(
+            client.post(
+                "/internal/llm-chat",
+                json={"workspace_id": "w", "messages": []},
+                headers={"Authorization": f"Bearer {_INTERNAL_TOKEN}", TRACE_HEADER: trace_id},
+            ),
+            timeout=5,
+        )
+
+    assert response.status_code == 200
+    assert seen == [trace_id]
 
 
 @pytest.mark.asyncio
@@ -189,7 +224,7 @@ async def test_completed_stream_records_latest_provider_usage_once() -> None:
         yield b'data: {"usage":{"cost":0.000003,"completion_tokens":4}}\n'
         yield b"data: [DONE]\n"
 
-    async def record_usage(workspace_id: str, usage: dict[str, Any]) -> None:
+    async def record_usage(workspace_id: str, usage: dict[str, Any], **_: Any) -> None:
         recorded.append((workspace_id, usage))
 
     service = LlmStreamService(
@@ -220,7 +255,7 @@ async def test_completed_stream_without_usage_records_an_empty_usage_event() -> 
         yield b'data: {"choices":[{"delta":{"content":"hello"}}]}\n'
         yield b"data: [DONE]\n"
 
-    async def record_usage(workspace_id: str, usage: dict[str, Any]) -> None:
+    async def record_usage(workspace_id: str, usage: dict[str, Any], **_: Any) -> None:
         recorded.append((workspace_id, usage))
 
     service = LlmStreamService(
@@ -241,3 +276,111 @@ async def test_completed_stream_without_usage_records_an_empty_usage_event() -> 
 
     assert response.status_code == 200
     assert recorded == [("ws-1", {})]
+
+
+def _usage_service(chat_stream: Any, recorded: list[dict[str, Any]]) -> LlmStreamService:
+    async def record_usage(workspace_id: str, usage: dict[str, Any], **values: Any) -> None:
+        recorded.append({"workspace_id": workspace_id, "usage": usage, **values})
+
+    return LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=record_usage,
+    )
+
+
+_REQUEST = LlmChatRequest(workspace_id="ws-1", messages=[])
+_AUTH = f"Bearer {_INTERNAL_TOKEN}"
+
+
+@pytest.mark.asyncio
+async def test_completed_stream_records_usage_with_routing_as_complete() -> None:
+    recorded: list[dict[str, Any]] = []
+
+    async def chat_stream(_: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b'data: {"choices":[{"delta":{"content":"a"}}]}\n'
+        yield b'data: {"model":"m","provider":"P","usage":{"prompt_tokens":3,"cost":0.5}}\n'
+
+    chunks = await _usage_service(chat_stream, recorded).stream(_REQUEST, _AUTH)
+    async for _ in chunks:
+        pass
+
+    assert recorded[0]["incomplete"] is False
+    assert recorded[0]["usage"] == {"prompt_tokens": 3, "cost": 0.5, "model": "m", "provider": "P"}
+    assert recorded[0]["duration_ms"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_stream_closed_by_client_still_records_incomplete_usage() -> None:
+    recorded: list[dict[str, Any]] = []
+
+    async def chat_stream(_: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b'data: {"choices":[{"delta":{"content":"a"}}]}\n'
+        yield b'data: {"choices":[{"delta":{"content":"b"}}]}\n'
+
+    chunks = await _usage_service(chat_stream, recorded).stream(_REQUEST, _AUTH)
+    await chunks.__anext__()
+    await chunks.aclose()
+
+    assert [row["incomplete"] for row in recorded] == [True]
+    assert recorded[0]["workspace_id"] == "ws-1"
+
+
+@pytest.mark.asyncio
+async def test_cancelled_stream_task_still_records_incomplete_usage() -> None:
+    recorded: list[dict[str, Any]] = []
+    started = asyncio.Event()
+
+    async def chat_stream(_: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b'data: {"choices":[{"delta":{"content":"a"}}]}\n'
+        started.set()
+        await asyncio.sleep(60)
+
+    chunks = await _usage_service(chat_stream, recorded).stream(_REQUEST, _AUTH)
+
+    async def consume() -> None:
+        async for _ in chunks:
+            pass
+
+    task = asyncio.create_task(consume())
+    await asyncio.wait_for(started.wait(), timeout=5)
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert [row["incomplete"] for row in recorded] == [True]
+
+
+@pytest.mark.asyncio
+async def test_stream_that_ends_without_final_usage_is_marked_incomplete() -> None:
+    recorded: list[dict[str, Any]] = []
+
+    async def chat_stream(_: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b'data: {"choices":[{"delta":{"content":"a"}}]}\n'
+
+    chunks = await _usage_service(chat_stream, recorded).stream(_REQUEST, _AUTH)
+    async for _ in chunks:
+        pass
+
+    assert recorded[0]["incomplete"] is True
+
+
+@pytest.mark.asyncio
+async def test_usage_record_failure_does_not_break_a_finished_response() -> None:
+    async def chat_stream(_: LlmChatRequest) -> AsyncIterator[bytes]:
+        yield b"data: [DONE]\n"
+
+    async def failing_record(*_: Any, **__: Any) -> None:
+        raise RuntimeError("db unavailable")
+
+    service = LlmStreamService(
+        chat_stream,
+        internal_token=_INTERNAL_TOKEN,
+        check_budget=_allowed,
+        record_usage=failing_record,
+    )
+    received = [chunk async for chunk in await service.stream(_REQUEST, _AUTH)]
+
+    assert received == [b"data: [DONE]\n"]

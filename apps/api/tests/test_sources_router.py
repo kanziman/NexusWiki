@@ -255,6 +255,27 @@ async def test_text_exactly_at_the_limit_is_accepted_and_enqueued(
 
 
 @pytest.mark.asyncio
+async def test_enqueued_parse_job_keeps_the_trace_of_the_request(
+    two_workspaces_two_users: tuple[Any, ...],
+    authed_client: Callable[..., Any],
+    user_db: Callable[..., Any],
+) -> None:
+    """요청에서 발급한 trace가 잡 행까지 이어진다 (ai-request-tracing, #160)."""
+    owner, _ = two_workspaces_two_users
+
+    async with authed_client(owner) as client:
+        response = await client.post(
+            TEXT_PATH.format(workspace_id=owner.workspace_id),
+            json=body(text="trace를 확인하는 본문입니다."),
+        )
+
+    assert response.status_code == 202, response.text
+    async with user_db(owner) as db:
+        jobs = await db.select("jobs", match={"id": response.json()["job_id"]})
+    assert jobs[0]["trace_id"] == response.headers["x-trace-id"]
+
+
+@pytest.mark.asyncio
 async def test_upload_exactly_at_the_byte_limit_is_accepted(
     two_workspaces_two_users: tuple[Any, ...],
     authed_client: Callable[..., Any],

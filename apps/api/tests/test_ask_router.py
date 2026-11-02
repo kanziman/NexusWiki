@@ -233,6 +233,233 @@ async def test_grounded_answer_streams_meta_delta_citations_done_with_fabricatio
     assert fake_llm.calls == 1
 
 
+async def _post_ask_capturing_finalize(
+    upstream: _UpstreamResponse, retrieval_service: Any = None
+) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Any]]:
+    """Ask를 끝까지 돌리고 SSE 이벤트와 `finalize_ask_turn`에 실린 값을 돌려준다."""
+    finalized: dict[str, Any] = {}
+    base = _mock_prompt_and_content_transport()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
+            finalized.update(json.loads(request.content))
+        return base.handler(request)
+
+    app = create_app(_settings(), git_sha="test-sha")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), timeout=httpx.Timeout(2.0)
+        )
+        app.state.ask_service = AskService(
+            retrieval_service or _NonEmptyRetrievalService(), _FakeLlmStream(upstream)
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(requested_k=8),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+    assert response.status_code == 200
+    return _parse_sse(response.text), finalized
+
+
+@pytest.mark.asyncio
+async def test_control_report_is_saved_without_any_body() -> None:
+    _, finalized = await _post_ask_capturing_finalize(
+        _UpstreamResponse(
+            [
+                'data: {"choices":[{"delta":{"content":"고유한-답변-문자열 [[wiki:w1]] '
+                '[[src:s1]]."}}]}',
+                "data: [DONE]",
+            ]
+        )
+    )
+
+    report = finalized["p_control_report"]
+    assert report["outcome"] == "resolved"
+    assert report["route"] == {"decision": "STANDARD", "reason": "default"}
+    assert report["evidence"] == {"wiki": 1, "source": 1}
+    assert report["citation"]["dual_citation_rate"] == 1.0
+    assert [span["name"] for span in report["spans"]] == [
+        "retrieval",
+        "context",
+        "llm_stream",
+        "citation",
+    ]
+    assert all(span["duration_ms"] >= 0 for span in report["spans"])
+    serialized = json.dumps(report, ensure_ascii=False)
+    for forbidden in ("고유한-답변-문자열", "위키 본문", "원문 본문", "질문", _WIKI_ID):
+        assert forbidden not in serialized
+
+
+@pytest.mark.asyncio
+async def test_lookup_decision_is_recorded_but_the_llm_still_runs() -> None:
+    class ExactTitleRetrieval:
+        async def retrieve(self, *_: object) -> RetrievalResult:
+            return RetrievalResult(
+                evidence=[
+                    EvidenceHit.wiki(wiki_id=_WIKI_ID, rank=1, metadata={"title": "질문"}),
+                    EvidenceHit.source(chunk_id=_SOURCE_CHUNK_ID, rank=1),
+                ],
+                meta={"policy_version": "test-v1"},
+            )
+
+    upstream = _UpstreamResponse(
+        ['data: {"choices":[{"delta":{"content":"답변"}}]}', "data: [DONE]"]
+    )
+    events, finalized = await _post_ask_capturing_finalize(upstream, ExactTitleRetrieval())
+
+    assert finalized["p_control_report"]["route"]["decision"] == "LOOKUP"
+    assert "delta" in [name for name, _ in events]
+    assert finalized["p_status"] == "resolved"
+
+
+@pytest.mark.asyncio
+async def test_no_evidence_report_and_error_report_are_saved() -> None:
+    _, no_evidence = await _post_ask_capturing_finalize(
+        _UpstreamResponse([]), _EmptyRetrievalService()
+    )
+    _, failed = await _post_ask_capturing_finalize(_UpstreamResponse(["data: {broken"]))
+
+    assert no_evidence["p_control_report"]["route"]["decision"] == "NO_EVIDENCE"
+    assert no_evidence["p_control_report"]["outcome"] == "no-evidence"
+    assert failed["p_control_report"]["outcome"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_replayed_turn_keeps_the_original_trace_in_the_response() -> None:
+    original_trace = str(uuid4())
+    base = _mock_prompt_and_content_transport()
+    started: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/v1/rpc/start_ask_turn":
+            started.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "thread_id": _PERSISTED_THREAD_ID,
+                        "message_id": str(uuid4()),
+                        "trace_id": original_trace,
+                    }
+                ],
+            )
+        return base.handler(request)
+
+    app = create_app(_settings(), git_sha="test-sha")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        app.state.ask_service = AskService(
+            _EmptyRetrievalService(), _FakeLlmStream(_UpstreamResponse([]))
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+
+    assert started["p_trace_id"] != original_trace
+    assert response.headers["x-trace-id"] == original_trace
+
+
+@pytest.mark.asyncio
+async def test_malformed_stream_frame_ends_turn_with_error() -> None:
+    events, finalized = await _post_ask_capturing_finalize(
+        _UpstreamResponse(
+            [
+                'data: {"choices":[{"delta":{"content":"앞부분"}}]}',
+                "data: {broken",
+            ]
+        )
+    )
+
+    names = [name for name, _ in events]
+    assert names == ["meta", "delta", "citations", "done"]
+    assert dict(events)["citations"]["error"] == "llm_unavailable"
+    assert finalized["p_status"] == "error"
+    assert finalized["p_answer_text"] == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error_frame",
+    [
+        'data: {"error":{"code":502,"message":"공급자 오류"},'
+        '"choices":[{"delta":{"content":""},"finish_reason":"error"}]}',
+        'data: {"choices":[{"delta":{"content":""},"finish_reason":"error"}]}',
+        'data: {"error":{"code":429,"message":"한도 초과"}}',
+    ],
+)
+async def test_provider_error_frame_does_not_store_partial_answer(error_frame: str) -> None:
+    events, finalized = await _post_ask_capturing_finalize(
+        _UpstreamResponse(['data: {"choices":[{"delta":{"content":"앞부분"}}]}', error_frame])
+    )
+
+    assert [name for name, _ in events] == ["meta", "delta", "citations", "done"]
+    citations = dict(events)["citations"]
+    assert citations["error"] == "llm_unavailable"
+    assert "공급자 오류" not in json.dumps(citations, ensure_ascii=False)
+    assert finalized["p_status"] == "error"
+    assert finalized["p_answer_text"] == ""
+
+
+class _RetrievalWithChannelMeta:
+    def __init__(self, evidence: list[EvidenceHit]) -> None:
+        self._evidence = evidence
+
+    async def retrieve(
+        self, workspace_id: object, query: str, requested_k: int, user_db: object
+    ) -> RetrievalResult:
+        return RetrievalResult(
+            evidence=self._evidence,
+            meta={
+                "policy_version": "test-v1",
+                "returned": len(self._evidence),
+                "wiki_vector": {"status": "failed", "error_code": "embedding_unavailable"},
+                "source_vector": {"status": "ok"},
+                "wiki_lexical": {"status": "ok"},
+                "source_lexical": {"status": "failed", "error_code": "rpc_unavailable"},
+                "graph": {"status": "disabled"},
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_meta_reports_only_failed_channels_and_not_disabled_graph() -> None:
+    evidence = [EvidenceHit.source(chunk_id=_SOURCE_CHUNK_ID, rank=1)]
+    events, _ = await _post_ask_capturing_finalize(
+        _UpstreamResponse(["data: [DONE]"]), _RetrievalWithChannelMeta(evidence)
+    )
+
+    assert dict(events)["meta"]["missing_channels"] == ["source_lexical", "wiki_vector"]
+
+
+@pytest.mark.asyncio
+async def test_no_evidence_meta_also_reports_failed_channels() -> None:
+    events, _ = await _post_ask_capturing_finalize(
+        _UpstreamResponse([]), _RetrievalWithChannelMeta([])
+    )
+
+    meta = dict(events)["meta"]
+    assert meta["no_evidence"] is True
+    assert meta["missing_channels"] == ["source_lexical", "wiki_vector"]
+
+
+@pytest.mark.asyncio
+async def test_healthy_channels_report_no_missing_channels() -> None:
+    events, _ = await _post_ask_capturing_finalize(_UpstreamResponse(["data: [DONE]"]))
+
+    assert dict(events)["meta"]["missing_channels"] == []
+
+
 @pytest.mark.asyncio
 async def test_visible_requested_template_is_used_for_ask() -> None:
     selected_template_id = str(uuid4())

@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "generator": "apps/worker/tests/test_controlled_ai_evidence.py",
+  "items": [
+    {
+      "id": "conflict-judge-cost",
+      "title": "충돌 판정 비용 누락",
+      "problem": "충돌 판정의 LLM 비용이 회계에 전혀 남지 않아 월 상한 계산에서 빠졌습니다.",
+      "fix": "모든 공급자 호출을 하나의 경계로 모아 호출마다 사용량을 기록합니다.",
+      "scenario": "conflict_judge_cost",
+      "metrics": [
+        {
+          "key": "provider_reported_cost_micros",
+          "label": "공급자가 보고한 비용",
+          "unit": "usd_micros"
+        },
+        {
+          "key": "recorded_cost_micros",
+          "label": "회계에 기록된 비용",
+          "unit": "usd_micros"
+        },
+        {
+          "key": "recorded_usage_rows",
+          "label": "기록된 사용량 행",
+          "unit": "count"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "provider_reported_cost_micros": 2000,
+          "recorded_cost_micros": 0,
+          "recorded_usage_rows": 0
+        }
+      },
+      "after": {
+        "commit": "uncommitted",
+        "values": {
+          "provider_reported_cost_micros": 2000,
+          "recorded_cost_micros": 2000,
+          "recorded_usage_rows": 2
+        }
+      }
+    },
+    {
+      "id": "compile-retry-cost",
+      "title": "컴파일 재시도 비용 누락",
+      "problem": "검증에 실패한 시도의 비용이 버려져, 마지막 시도의 비용만 기록되었습니다.",
+      "fix": "공급자가 사용량을 보고하는 즉시, 응답을 검증하기 전에 시도별로 기록합니다.",
+      "scenario": "compile_retry_cost",
+      "metrics": [
+        {
+          "key": "provider_reported_cost_micros",
+          "label": "공급자가 보고한 비용",
+          "unit": "usd_micros"
+        },
+        {
+          "key": "recorded_cost_micros",
+          "label": "회계에 기록된 비용",
+          "unit": "usd_micros"
+        },
+        {
+          "key": "recorded_usage_rows",
+          "label": "기록된 사용량 행",
+          "unit": "count"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "provider_reported_cost_micros": 2000,
+          "recorded_cost_micros": 1000,
+          "recorded_usage_rows": 1
+        }
+      },
+      "after": {
+        "commit": "uncommitted",
+        "values": {
+          "provider_reported_cost_micros": 2000,
+          "recorded_cost_micros": 2000,
+          "recorded_usage_rows": 2
+        }
+      }
+    },
+    {
+      "id": "ask-broken-stream-frame",
+      "title": "깨진 스트림의 미종결 턴",
+      "problem": "깨진 프레임에서 예외가 나 연결이 끊기고, 턴이 종결되지 않고 남았습니다.",
+      "fix": "깨진 프레임을 받으면 턴을 오류로 종결하고 부분 답변은 저장하지 않습니다.",
+      "scenario": "ask_broken_stream_frame",
+      "metrics": [
+        {
+          "key": "turn_final_status",
+          "label": "턴의 최종 상태",
+          "unit": "text"
+        },
+        {
+          "key": "terminal_event",
+          "label": "클라이언트가 받은 마지막 이벤트",
+          "unit": "text"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "turn_final_status": "not_finalized",
+          "terminal_event": "delta"
+        }
+      },
+      "after": {
+        "commit": "uncommitted",
+        "values": {
+          "turn_final_status": "error",
+          "terminal_event": "done"
+        }
+      }
+    },
+    {
+      "id": "ask-fabricated-citation",
+      "title": "위조 앵커의 인용 지표 왜곡",
+      "problem": "근거에 없는 앵커만 단 문장이 이중 인용으로 계산되었습니다.",
+      "fix": "위조 앵커를 제거한 텍스트로 인용 지표를 계산합니다.",
+      "scenario": "ask_fabricated_citation",
+      "metrics": [
+        {
+          "key": "fabricated_anchor_count",
+          "label": "적발한 위조 앵커",
+          "unit": "count"
+        },
+        {
+          "key": "dual_citation_rate",
+          "label": "이중 인용률",
+          "unit": "rate"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "fabricated_anchor_count": 2,
+          "dual_citation_rate": 1.0
+        }
+      },
+      "after": {
+        "commit": "uncommitted",
+        "values": {
+          "fabricated_anchor_count": 2,
+          "dual_citation_rate": 0.0
+        }
+      }
+    }
+  ],
+  "upcoming": [
+    {
+      "step": 2,
+      "title": "예산",
+      "description": "프롬프트 크기와 출력 토큰의 상한을 적용합니다."
+    },
+    {
+      "step": 3,
+      "title": "품질",
+      "description": "출력 계약을 검증하고 인용을 사후에 수리합니다."
+    },
+    {
+      "step": 4,
+      "title": "리스크",
+      "description": "공통 정책을 주입하고 위키 쓰기를 분류합니다."
+    }
+  ]
+}

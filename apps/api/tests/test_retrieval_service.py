@@ -13,7 +13,7 @@ from nexuswiki_core.rrf import EvidenceHit
 
 
 class FakeEmbeddingClient:
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, workspace_id: str) -> list[float]:
         assert text == "hello world"
         return [0.0] * 1024
 
@@ -96,7 +96,7 @@ async def test_embedding_failure_marks_exactly_dense_channels_failed_and_leaves_
     None
 ):
     class FailingEmbeddingClient:
-        async def embed(self, text: str) -> list[float]:
+        async def embed(self, text: str, *, workspace_id: str) -> list[float]:
             raise RuntimeError("provider secret must not leak")
 
     result = await RetrievalService(FailingEmbeddingClient()).retrieve(
@@ -137,7 +137,7 @@ async def test_failed_or_malformed_channel_cannot_cancel_siblings_or_leak_error(
 @pytest.mark.asyncio
 async def test_cancellation_propagates() -> None:
     class CancelledEmbeddingClient:
-        async def embed(self, text: str) -> list[float]:
+        async def embed(self, text: str, *, workspace_id: str) -> list[float]:
             raise asyncio.CancelledError
 
     with pytest.raises(asyncio.CancelledError):

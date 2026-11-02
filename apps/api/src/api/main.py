@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -15,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import errors
 from api.routers.ask import router as ask_router
+from api.routers.control import router as control_router
 from api.routers.graph import router as graph_router
 from api.routers.health import router as health_router
 from api.routers.jobs import router as jobs_router
@@ -26,6 +28,8 @@ from api.routers.youtube import router as youtube_router
 from api.settings import ApiSettings
 from nexuswiki_core.deployment import resolve_git_sha
 from nexuswiki_core.logging import configure_logging
+from nexuswiki_core.observability import configure_observability, flush_observability
+from nexuswiki_core.trace import TRACE_HEADER, TraceMiddleware
 
 
 @asynccontextmanager
@@ -35,11 +39,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         environment=settings.ENVIRONMENT,
         log_level=settings.LOG_LEVEL,
     )
+    configure_observability(
+        public_key=settings.LANGFUSE_PUBLIC_KEY,
+        secret_key=settings.LANGFUSE_SECRET_KEY,
+        base_url=settings.LANGFUSE_BASE_URL,
+        environment=settings.ENVIRONMENT,
+        release=app.state.git_sha,
+    )
     app.state.http_client = httpx.AsyncClient(timeout=httpx.Timeout(2.0))
     try:
         yield
     finally:
         await app.state.http_client.aclose()
+        await asyncio.to_thread(flush_observability)
 
 
 def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
@@ -63,8 +75,10 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Ask-Thread-Id"],
+        expose_headers=["X-Ask-Thread-Id", TRACE_HEADER],
     )
+    # 마지막에 추가한 미들웨어가 가장 바깥이다. CORS 응답에도 trace가 실리도록 뒤에 둔다.
+    app.add_middleware(TraceMiddleware, log_event="api.request_completed")
     errors.register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(workspaces_router)
@@ -79,6 +93,7 @@ def create_app(settings: ApiSettings, *, git_sha: str | None = None) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(retrieval_router)
     app.include_router(ask_router)
+    app.include_router(control_router)
     app.include_router(graph_router)
     app.include_router(wiki_router)
     app.include_router(youtube_router)

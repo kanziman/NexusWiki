@@ -14,10 +14,11 @@ import httpx
 from nexuswiki_core.retrieval_policy import DEFAULT_RETRIEVAL_POLICY, RetrievalPolicy
 from nexuswiki_core.rrf import EvidenceHit, fuse_ranked_hits
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
+from nexuswiki_core.trace import trace_headers
 
 
 class QueryEmbeddingClient(Protocol):
-    async def embed(self, text: str) -> list[float]: ...
+    async def embed(self, text: str, *, workspace_id: str) -> list[float]: ...
 
 
 class RpcUserDb(Protocol):
@@ -44,13 +45,18 @@ class HttpQueryEmbeddingClient:
             timeout_seconds,
         )
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, workspace_id: str) -> list[float]:
         if not self._url or not self._token:
             raise RuntimeError("query_embedding_unavailable")
         response = await self._client.post(
             f"{self._url.rstrip('/')}/internal/query-embedding",
             json={"text": text},
-            headers={"Authorization": f"Bearer {self._token}"},
+            # 워커가 사용량을 이 워크스페이스에 귀속한다. 이전 버전 워커는 헤더를 무시한다.
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "X-Workspace-Id": workspace_id,
+                **trace_headers(),
+            },
             timeout=self._timeout_seconds,
         )
         if response.is_error:
@@ -99,7 +105,7 @@ class RetrievalService:
         channel_hits: dict[str, list[EvidenceHit]] = {}
 
         try:
-            vector = await self._embedding_client.embed(normalized)
+            vector = await self._embedding_client.embed(normalized, workspace_id=str(workspace_id))
             if not _valid_vector(vector):
                 raise ValueError("invalid_vector")
         except asyncio.CancelledError:

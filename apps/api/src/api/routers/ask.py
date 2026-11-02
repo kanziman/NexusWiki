@@ -25,6 +25,7 @@ from api.db.user import UserDb
 from api.errors import WorkspaceForbidden
 from api.services.ask import AskService, HttpLlmStreamClient
 from api.services.retrieval import HttpQueryEmbeddingClient, RetrievalService
+from nexuswiki_core.trace import bind_trace, current_trace_id
 
 router = APIRouter(prefix="/workspaces", tags=["ask"])
 _bearer = HTTPBearer()
@@ -92,10 +93,15 @@ async def _start_ask_turn(
             "p_thread_id": str(thread_id) if thread_id is not None else None,
             "p_client_turn_id": str(client_turn_id),
             "p_question": query,
+            "p_trace_id": current_trace_id(),
         },
     )
     if len(rows) != 1 or not rows[0].get("thread_id"):
         raise WorkspaceForbidden(table="ask_messages", affected=len(rows))
+    # 재전달이면 원래 턴의 trace로 다시 묶어 사용량과 턴을 한 trace에 모은다 (design D3).
+    stored_trace_id = rows[0].get("trace_id")
+    if stored_trace_id:
+        bind_trace(str(stored_trace_id))
     return UUID(str(rows[0]["thread_id"]))
 
 

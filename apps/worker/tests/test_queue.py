@@ -12,6 +12,7 @@ SQL 수준에서 이미 고정했다.
 """
 
 import asyncio
+import json
 import os
 import secrets
 import uuid
@@ -25,8 +26,11 @@ from urllib.parse import urlsplit
 import httpx
 import pytest
 
+from nexuswiki_core import observability
+from nexuswiki_core.trace import current_trace_id
 from worker import __main__ as worker_main
 from worker import handlers, queue
+from worker import llm as llm_provider
 from worker.db.service import ServiceDb, service_client
 from worker.errors import (
     NON_RETRYABLE_ERRORS,
@@ -287,6 +291,47 @@ async def test_missing_transcript_does_not_burn_the_retry_budget(
     assert db.called("fail_job") == []
     # 사유 토큰만 남는다 — 대시보드가 이 값으로 문구를 고른다 (Task 4.4).
     assert row["last_error"] == NO_TRANSCRIPT
+
+
+@pytest.mark.asyncio
+async def test_handler_runs_under_the_job_trace_and_it_does_not_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace_id = "7f3a19c2-1111-4222-8333-444455556666"
+    seen: list[str | None] = []
+    db = FakeQueue()
+    db.enqueue()["trace_id"] = trace_id
+
+    async def handler(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        seen.append(current_trace_id())
+
+    install_handler(monkeypatch, handler)
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    assert seen == [trace_id]
+    assert current_trace_id() is None
+
+
+@pytest.mark.asyncio
+async def test_job_without_trace_is_processed_without_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str | None] = []
+    db = FakeQueue()
+    db.enqueue()
+
+    async def handler(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        seen.append(current_trace_id())
+
+    install_handler(monkeypatch, handler)
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    assert seen == [None]
+    assert db.rows[JOB_ID]["status"] == "succeeded"
 
 
 @pytest.mark.asyncio
@@ -905,7 +950,7 @@ async def test_local_automated_dispute_retains_human_verification_audit(
             payload=conflict.ConflictJudgement(is_contradiction=True, rationale="facts clash")
         )
 
-    monkeypatch.setattr(conflict, "complete_structured", contradiction)
+    monkeypatch.setattr(llm_provider, "complete_structured", contradiction)
     await conflict.run_conflict_check(
         CandidateAdapter(local_queue.db),  # type: ignore[arg-type]
         object(),
@@ -1020,3 +1065,220 @@ async def test_real_job_delivers_its_workspace_scope_to_the_handler(
         {"job_id": job["id"], "workspace_id": local_queue.workspace_id, "payload": payload}
     ], seen
     assert (await local_queue.fetch(job["id"]))["status"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_local_fingerprint_lookup_ignores_failed_compiles(
+    local_queue: LocalQueueStack,
+) -> None:
+    """실패한 컴파일의 지문은 "이미 처리됨"의 근거가 되지 않는다 (#164)."""
+    db = local_queue.db
+    workspace_id = local_queue.workspace_id
+    raw_source_id = str(uuid.uuid4())
+
+    async def compile_usage(fingerprint: str, *, succeed: bool) -> None:
+        job = await db.enqueue_job(
+            workspace_id=workspace_id,
+            job_type="compile_fp_test",
+            payload={"target_id": str(uuid.uuid4())},
+            max_attempts=1,
+        )
+        assert job is not None
+        claimed = await db.claim_job(worker_id=WORKER_ID, types=["compile_fp_test"])
+        assert claimed is not None
+        await db.insert_usage_event(
+            workspace_id=workspace_id,
+            row={
+                "job_id": claimed["id"],
+                "kind": "llm",
+                "provider": "p",
+                "model": "m",
+                "cost_micros": 0,
+                "metadata": {
+                    "call": "compile",
+                    "raw_source_id": raw_source_id,
+                    "fingerprint": fingerprint,
+                },
+            },
+        )
+        if succeed:
+            await db.complete_job(claimed["id"])
+        else:
+            await db.fail_job(claimed["id"], error="boom")
+
+    assert (
+        await db.latest_compile_fingerprint(workspace_id=workspace_id, raw_source_id=raw_source_id)
+        is None
+    )
+    await compile_usage("ok-1", succeed=True)
+    await compile_usage("failed-2", succeed=False)
+
+    assert (
+        await db.latest_compile_fingerprint(workspace_id=workspace_id, raw_source_id=raw_source_id)
+        == "ok-1"
+    )
+
+
+# -----------------------------------------------------------------------------
+# 외부 관측: 잡 종결 내보내기 (#167)
+# -----------------------------------------------------------------------------
+
+
+_TRACE_ID = "7f3a19c2-1111-4222-8333-444455556666"
+# ASCII만 쓴다. 한글은 JSON 직렬화에서 XXXX로 바뀌어 유출되어도 부재 단언을 통과한다.
+_BODY = "unique-body-zq81x"
+
+
+class _FakeLangfuse:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def create_trace_id(self, *, seed: str) -> str:
+        return f"lf-{seed}"
+
+    def start_observation(self, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        return SimpleNamespace(end=lambda: None)
+
+
+class _BrokenLangfuse:
+    def create_trace_id(self, *, seed: str) -> str:
+        return seed
+
+    def start_observation(self, **_: Any) -> None:
+        raise ConnectionError("관측 서비스 장애")
+
+
+@pytest.fixture
+def langfuse(monkeypatch: pytest.MonkeyPatch) -> _FakeLangfuse:
+    fake = _FakeLangfuse()
+    monkeypatch.setattr(observability, "_client", fake)
+    return fake
+
+
+def _traced_queue(**enqueue: Any) -> FakeQueue:
+    db = FakeQueue()
+    db.enqueue(**enqueue)["trace_id"] = _TRACE_ID
+    return db
+
+
+@pytest.mark.asyncio
+async def test_completed_job_exports_success_under_its_trace(
+    monkeypatch: pytest.MonkeyPatch, langfuse: _FakeLangfuse
+) -> None:
+    db = _traced_queue()
+
+    async def handler(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+
+    install_handler(monkeypatch, handler)
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    [call] = langfuse.calls
+    assert call["name"] == "job.noop"
+    assert call["trace_context"] == {"trace_id": f"lf-{_TRACE_ID}"}
+    assert call["metadata"]["outcome"] == "succeeded"
+    assert call["level"] == "DEFAULT"
+
+
+@pytest.mark.asyncio
+async def test_failed_job_exports_only_the_error_class(
+    monkeypatch: pytest.MonkeyPatch, langfuse: _FakeLangfuse
+) -> None:
+    db = _traced_queue(max_attempts=3)
+
+    async def exploding(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        raise RuntimeError(_BODY)
+
+    install_handler(monkeypatch, exploding)
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    [call] = langfuse.calls
+    assert call["metadata"]["outcome"] == "failed"
+    assert call["metadata"]["error_type"] == "RuntimeError"
+    assert call["level"] == "ERROR"
+    assert _BODY not in json.dumps(call, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_job_exports_dead(
+    monkeypatch: pytest.MonkeyPatch, langfuse: _FakeLangfuse
+) -> None:
+    db = _traced_queue(max_attempts=3)
+
+    async def unsafe(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        raise UnsafeFetchTarget(reason="blocked")
+
+    install_handler(monkeypatch, unsafe)
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    assert langfuse.calls[0]["metadata"]["outcome"] == "dead"
+    assert langfuse.calls[0]["metadata"]["error_type"] == "UnsafeFetchTarget"
+
+
+@pytest.mark.asyncio
+async def test_released_job_exports_after_the_release(
+    monkeypatch: pytest.MonkeyPatch, langfuse: _FakeLangfuse
+) -> None:
+    db = _traced_queue()
+    stop = asyncio.Event()
+    started = asyncio.Event()
+
+    async def never_finishing(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+        started.set()
+        await asyncio.Event().wait()
+
+    install_handler(monkeypatch, never_finishing)
+
+    task = asyncio.create_task(
+        queue.process_next_job(db, worker_id=WORKER_ID, stop=stop, grace_seconds=0.01)
+    )
+    await started.wait()
+    stop.set()
+    await task
+
+    assert db.called("release_job") == [JOB_ID]
+    assert langfuse.calls[0]["metadata"]["outcome"] == "released"
+
+
+@pytest.mark.asyncio
+async def test_export_outage_does_not_change_job_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(observability, "_client", _BrokenLangfuse())
+    db = _traced_queue()
+
+    async def handler(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+
+    install_handler(monkeypatch, handler)
+
+    claimed = await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    assert claimed is True
+    assert db.rows[JOB_ID]["status"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_job_without_trace_is_not_exported(
+    monkeypatch: pytest.MonkeyPatch, langfuse: _FakeLangfuse
+) -> None:
+    # 마이그레이션 이전 잡은 값 없이 정상 처리된다. 이을 trace가 없으니 내보내지 않는다.
+    db = FakeQueue()
+    db.enqueue()
+
+    async def handler(*, job_id: str, workspace_id: str, payload: dict[str, Any]) -> None:
+        del job_id, workspace_id, payload
+
+    install_handler(monkeypatch, handler)
+
+    await queue.process_next_job(db, worker_id=WORKER_ID, stop=asyncio.Event())
+
+    assert db.rows[JOB_ID]["status"] == "succeeded"
+    assert langfuse.calls == []

@@ -6,12 +6,16 @@ from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
+import httpx
 import pytest
 
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN
 from nexuswiki_core.extract import ExtractionQualityError
+from nexuswiki_core.router import compile_fingerprint
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
+from worker import embedding as embedding_provider
 from worker import handlers
+from worker import llm as llm_provider
 from worker.handlers import compile as compile_handler
 from worker.handlers import conflict, delete_source_storage, embed, link_sync, noop, parse
 from worker.handlers.noop import handle_noop
@@ -163,7 +167,7 @@ async def test_wiki_embed_skips_pages_already_at_the_current_embedding_version(
     monkeypatch.setattr(embed, "openrouter_client", no_op_client)
     monkeypatch.setattr(embed, "ServiceDb", lambda _client: Db())
     monkeypatch.setattr(embed, "embedding_version", lambda _settings: "model@provider-v1")
-    monkeypatch.setattr(embed, "embed_texts", unexpected_embedding)
+    monkeypatch.setattr(embedding_provider, "embed_texts", unexpected_embedding)
 
     await embed.handle_embed(
         job_id=JOB_ID,
@@ -257,7 +261,7 @@ async def test_conflict_check_marks_both_pages_only_for_real_contradictions(
             payload=conflict.ConflictJudgement(is_contradiction=True, rationale="facts clash")
         )
 
-    monkeypatch.setattr(conflict, "complete_structured", contradiction)
+    monkeypatch.setattr(llm_provider, "complete_structured", contradiction)
     db = Db()
     await conflict.run_conflict_check(
         db,  # type: ignore[arg-type]
@@ -305,7 +309,7 @@ async def test_conflict_check_skips_variations_and_zero_candidate_llm_calls(
             payload=conflict.ConflictJudgement(is_contradiction=False, rationale="scope differs")
         )
 
-    monkeypatch.setattr(conflict, "complete_structured", variation)
+    monkeypatch.setattr(llm_provider, "complete_structured", variation)
     variation_db = Db([{"candidate_wiki_id": "page-b", "similarity": 0.93}])
     await conflict.run_conflict_check(
         variation_db,  # type: ignore[arg-type]
@@ -699,3 +703,165 @@ async def test_parse_url_updates_response_metadata_after_extraction(
         "mime_type": "text/plain",
         "byte_size": 200,
     }
+
+
+@pytest.mark.asyncio
+async def test_conflict_judgement_cost_is_recorded_before_the_page_is_flagged() -> None:
+    """충돌 판정은 비용을 기록하지 않던 경로다 (ai-control-flow-accounting D4)."""
+    order: list[str] = []
+    usage_rows: list[dict[str, Any]] = []
+
+    class Db:
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": "A"}]
+
+        async def find_similar_wiki_pages(self, **_values: Any) -> list[dict[str, float | str]]:
+            return [{"candidate_wiki_id": "page-b", "similarity": 0.95}]
+
+        async def _select(self, _table: str, *, params: dict[str, str]) -> list[dict[str, str]]:
+            return [{"id": "page-b", "content": "B"}]
+
+        async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+            order.append("usage")
+            usage_rows.append(row)
+
+        async def set_wiki_page_disputed(self, wiki_id: str, *, workspace_id: str) -> None:
+            order.append("disputed")
+
+        async def complete_job_and_chain(self, _job_id: str) -> None:
+            return None
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"is_contradiction": true, "rationale": "facts clash"}'
+                        }
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 3,
+                    "total_tokens": 12,
+                    "cost": 0.002,
+                },
+                "provider": "Anthropic",
+                "model": "m",
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url=llm_provider.OPENROUTER_BASE_URL
+    ) as client:
+        await conflict.run_conflict_check(
+            Db(),  # type: ignore[arg-type]
+            client,
+            settings=SimpleNamespace(LLM_MODEL="m"),  # type: ignore[arg-type]
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+        )
+
+    assert order[0] == "usage"
+    assert usage_rows[0]["cost_micros"] == 2000
+    assert usage_rows[0]["job_id"] == JOB_ID
+    assert usage_rows[0]["metadata"]["call"] == "conflict_check"
+
+
+class _CompileDb:
+    """컴파일 Router 기록을 검증하는 최소 대역."""
+
+    def __init__(self, *, previous: str | None = None, fail_lookup: bool = False) -> None:
+        self.previous = previous
+        self.fail_lookup = fail_lookup
+        self.usage: list[dict[str, Any]] = []
+
+    async def get_raw_source(self, _id: str, *, workspace_id: str) -> dict[str, str]:
+        return {"title": "원문", "source_type": "text", "content_hash": "hash-1"}
+
+    async def get_default_prompt_template(self, **_: str) -> dict[str, str]:
+        return {"id": "template-1", "system_prompt": "s", "template": "{{source_content}}"}
+
+    async def list_wiki_slugs(self, **_: str) -> list[str]:
+        return []
+
+    async def list_source_chunks(self, **_: str) -> list[dict[str, str]]:
+        return [{"content": "첫째 청크"}, {"content": "둘째 청크"}]
+
+    async def latest_compile_fingerprint(self, **_: str) -> str | None:
+        if self.fail_lookup:
+            raise RuntimeError("조회 실패")
+        return self.previous
+
+    async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+        self.usage.append(row)
+
+    async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
+        return None
+
+
+async def _run_compile(db: _CompileDb, *, max_input_tokens: int = 24000) -> int:
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": '{"pages": []}'}}],
+                "usage": {"prompt_tokens": 1, "total_tokens": 1, "cost": 0.001},
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url=llm_provider.OPENROUTER_BASE_URL
+    ) as client:
+        await compile_handler.run_compile(
+            db,  # type: ignore[arg-type]
+            client,
+            settings=SimpleNamespace(  # type: ignore[arg-type]
+                LLM_MODEL="m", COMPILE_MAX_INPUT_TOKENS=max_input_tokens, COMPILE_MAX_PAGES=8
+            ),
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+        )
+    return calls
+
+
+def _fingerprint() -> str:
+    return compile_fingerprint(content_hash="hash-1", template_id="template-1", model="m")
+
+
+@pytest.mark.asyncio
+async def test_unchanged_input_is_recorded_as_skippable_but_the_llm_still_runs() -> None:
+    db = _CompileDb(previous=_fingerprint())
+
+    assert await _run_compile(db) == 1
+
+    metadata = db.usage[0]["metadata"]
+    assert metadata["route"] == "SKIP_UNCHANGED"
+    assert metadata["fingerprint"] == _fingerprint()
+
+
+@pytest.mark.asyncio
+async def test_truncated_input_is_recorded_and_compiled() -> None:
+    db = _CompileDb(previous="다른 지문")
+
+    assert await _run_compile(db, max_input_tokens=1) == 1
+
+    assert db.usage[0]["metadata"]["route"] == "TRUNCATED"
+    assert db.usage[0]["metadata"]["truncated_input"] is True
+
+
+@pytest.mark.asyncio
+async def test_fingerprint_lookup_failure_does_not_fail_the_job() -> None:
+    db = _CompileDb(fail_lookup=True)
+
+    assert await _run_compile(db) == 1
+
+    assert db.usage[0]["metadata"]["route"] == "STANDARD"
