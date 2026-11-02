@@ -214,6 +214,7 @@ async def complete_structured(
     system_prompt: str,
     user_prompt: str,
     schema_model: type[BaseModel],
+    max_tokens: int | None = None,
     on_attempt: Callable[[AttemptUsage], Awaitable[None]] | None = None,
 ) -> LlmResult:
     """스키마를 만족하는 응답이 나올 때까지 오류를 되먹여 최대 3회 시도한다.
@@ -247,6 +248,7 @@ async def complete_structured(
             messages=messages,
             schema_model=schema_model,
             structured_supported=structured_supported,
+            max_tokens=max_tokens,
         )
         del body  # 요청 본문은 로그에도 예외에도 남기지 않는다.
         completion = _read_body(response)
@@ -311,6 +313,7 @@ def _chat_body(
     messages: list[dict[str, str]],
     schema_model: type[BaseModel],
     structured: bool,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": settings.LLM_MODEL,
@@ -321,6 +324,8 @@ def _chat_body(
         #    나쁘다 — 있다고 믿게 만들기 때문이다.
         "usage": {"include": True},
     }
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
     if structured:
         body["response_format"] = {
             "type": "json_schema",
@@ -343,6 +348,7 @@ async def _post_chat(
     messages: list[dict[str, str]],
     schema_model: type[BaseModel],
     structured_supported: bool,
+    max_tokens: int | None = None,
 ) -> tuple[dict[str, Any], bool, httpx.Response]:
     """한 번의 완성 요청. 능력 탐지 실패는 시도 횟수를 소모하지 않는다."""
     body = _chat_body(
@@ -350,6 +356,7 @@ async def _post_chat(
         messages=messages,
         schema_model=schema_model,
         structured=structured_supported,
+        max_tokens=max_tokens,
     )
     response = await _send(client, body)
 
@@ -368,6 +375,7 @@ async def _post_chat(
             messages=messages,
             schema_model=schema_model,
             structured=False,
+            max_tokens=max_tokens,
         )
         response = await _send(client, body)
 

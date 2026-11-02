@@ -209,6 +209,164 @@ async def compile_retry_cost() -> dict[str, Any]:
     return _usage_values(db.usage, reported)
 
 
+async def compile_unchanged_skip() -> dict[str, Any]:
+    """원문 해시와 프롬프트·모델 지문이 이전 컴파일과 같고 위키 페이지가 이미 존재한다."""
+    import hashlib
+
+    from worker.handlers import compile as compile_handler
+
+    body = hashlib.sha256("합성 원문".encode()).hexdigest()
+    fingerprint = hashlib.sha256(
+        f"{body}\x1fscenario-template\x1fscenario-model".encode()
+    ).hexdigest()
+
+    class Db:
+        def __init__(self) -> None:
+            self.usage: list[dict[str, Any]] = []
+
+        async def get_raw_source(self, *_: Any, **__: Any) -> dict[str, str]:
+            return {
+                "title": "합성 문서",
+                "source_type": "text",
+                "content_hash": "scenario-hash",
+            }
+
+        async def get_default_prompt_template(self, **_: Any) -> dict[str, str]:
+            return {
+                "id": "scenario-template",
+                "system_prompt": "합성 지시",
+                "template": "{{source_content}}",
+            }
+
+        async def list_wiki_slugs(self, **_: Any) -> list[str]:
+            return []
+
+        async def list_source_chunks(self, **_: Any) -> list[dict[str, str]]:
+            return [{"content": "합성 원문"}]
+
+        async def latest_compile_fingerprint(self, **_: Any) -> str:
+            return fingerprint
+
+        async def list_wiki_pages_for_source(self, **_: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": "합성 본문"}]
+
+        async def get_wiki_page_by_slug(self, **_: Any) -> None:
+            return None
+
+        async def upsert_wiki_page(self, **_: Any) -> dict[str, str]:
+            return {"id": "page-a"}
+
+        async def index_wiki_page_lexical(self, **_: Any) -> None:
+            return None
+
+        async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
+            return None
+
+        async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+            self.usage.append(row)
+
+    db = Db()
+    client, reported = _provider(
+        [
+            json.dumps(
+                {
+                    "pages": [
+                        {
+                            "title": "합성 문서",
+                            "category": "guides",
+                            "confidence": "medium",
+                            "content": "합성 본문",
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    async with client:
+        await compile_handler.run_compile(
+            db,  # type: ignore[arg-type]
+            client,
+            settings=_worker_settings(),
+            job_id="scenario-job",
+            workspace_id=_WORKSPACE_ID,
+            payload={"raw_source_id": _RAW_SOURCE_ID},
+        )
+    return _usage_values(db.usage, reported)
+
+
+async def structured_output_max_tokens() -> dict[str, Any]:
+    """긴 위키 페이지 쌍의 충돌 판정 요청에서 입력 토큰과 max_tokens 상한을 관측한다."""
+    import tiktoken
+
+    from worker.handlers import conflict
+
+    long_text = "합성 충돌 검증 문장입니다. " * 600
+    captured_bodies: list[dict[str, Any]] = []
+
+    class Db:
+        def __init__(self) -> None:
+            self.usage: list[dict[str, Any]] = []
+
+        async def list_wiki_pages_for_source(self, **_: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": long_text}]
+
+        async def find_similar_wiki_pages(self, **_: Any) -> list[dict[str, Any]]:
+            return [{"candidate_wiki_id": "page-b", "similarity": 0.93}]
+
+        async def _select(self, _table: str, *, params: dict[str, str]) -> list[dict[str, str]]:
+            return [{"id": params["id"].removeprefix("eq."), "content": long_text}]
+
+        async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
+            return None
+
+        async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+            self.usage.append(row)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"is_contradiction": false, "rationale": "합성 판정"}'
+                        }
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                    "cost": _COST_PER_ATTEMPT_USD,
+                },
+                "provider": "scenario-provider",
+                "model": "scenario-model",
+            },
+        )
+
+    db = Db()
+    client = httpx.AsyncClient(
+        base_url="https://provider.test", transport=httpx.MockTransport(handler)
+    )
+    async with client:
+        await conflict.run_conflict_check(
+            db,  # type: ignore[arg-type]
+            client,
+            settings=_worker_settings(),
+            job_id="scenario-job",
+            workspace_id=_WORKSPACE_ID,
+            payload={"raw_source_id": _RAW_SOURCE_ID},
+        )
+    body = captured_bodies[0]
+    encoding = tiktoken.get_encoding("cl100k_base")
+    user_prompt = body["messages"][-1]["content"]
+    return {
+        "input_tokens": len(encoding.encode(user_prompt)),
+        "requested_max_tokens": body.get("max_tokens"),
+    }
+
+
 # -- Ask 시나리오 -----------------------------------------------------------------
 
 
@@ -354,6 +512,123 @@ async def ask_fabricated_citation() -> dict[str, Any]:
     }
 
 
+async def ask_context_budget_quota() -> dict[str, Any]:
+    """긴 위키 근거 세 건이 앞순위를 차지할 때 컨텍스트 토큰 상한과 원문 최소 몫을 관측한다."""
+    import tiktoken
+
+    from api.main import create_app
+    from api.services.ask import AskService
+    from api.services.retrieval import RetrievalResult
+    from api.settings import ApiSettings
+    from nexuswiki_core.rrf import EvidenceHit
+
+    wiki_ids = ["scenario-wiki-1", "scenario-wiki-2", "scenario-wiki-3"]
+    chunk_id = "scenario-chunk-1"
+    raw_source_id = "scenario-source-1"
+    long_wiki = "합성 위키 본문 문장입니다. " * 500
+    source_text = "합성 원문 근거 문장입니다. " * 20
+    captured_messages: list[list[dict[str, str]]] = []
+
+    class BudgetRetrieval:
+        async def retrieve(self, *_: Any) -> Any:
+            return RetrievalResult(
+                evidence=[
+                    EvidenceHit.wiki(
+                        wiki_id=wiki_ids[0], rank=1, metadata={"title": "합성 위키 가"}
+                    ),
+                    EvidenceHit.wiki(
+                        wiki_id=wiki_ids[1], rank=2, metadata={"title": "합성 위키 나"}
+                    ),
+                    EvidenceHit.wiki(
+                        wiki_id=wiki_ids[2], rank=3, metadata={"title": "합성 위키 다"}
+                    ),
+                    EvidenceHit.source(
+                        chunk_id=chunk_id,
+                        rank=4,
+                        metadata={"raw_source_id": raw_source_id, "chunk_index": 0},
+                    ),
+                ],
+                meta={"policy_version": "scenario"},
+            )
+
+    class CapturingStream(_LlmStream):
+        def stream(self, **kwargs: Any) -> _LlmStream:
+            if "messages" in kwargs:
+                captured_messages.append(kwargs["messages"])
+            return self
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/rest/v1/wiki_pages":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": wid,
+                        "slug": f"wiki-{idx}",
+                        "title": f"합성 위키 {idx}",
+                        "content": long_wiki,
+                    }
+                    for idx, wid in enumerate(wiki_ids, start=1)
+                ],
+            )
+        if path == "/rest/v1/source_chunks":
+            return httpx.Response(200, json=[{"id": chunk_id, "content": source_text}])
+        if path == "/rest/v1/prompt_templates":
+            if "workspace_id" in request.url.params:
+                return httpx.Response(200, json=[])
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": str(uuid4()),
+                        "name": "합성 템플릿",
+                        "workspace_id": None,
+                        "system_prompt": "합성 지시",
+                        "template": "{{question}} {{wiki_context}} {{source_context}}",
+                    }
+                ],
+            )
+        if path in {"/rest/v1/rpc/start_ask_turn", "/rest/v1/rpc/finalize_ask_turn"}:
+            return httpx.Response(
+                200, json=[{"thread_id": str(uuid4()), "message_id": str(uuid4())}]
+            )
+        raise AssertionError(f"시나리오에 없는 요청: {path}")
+
+    lines = [
+        'data: {"choices":[{"delta":{"content":"합성 답변 [[wiki:w1]] [[src:s1]]."}}]}',
+        "data: [DONE]",
+    ]
+    app = create_app(
+        ApiSettings(
+            SUPABASE_URL="https://example.invalid",
+            SUPABASE_PUBLISHABLE_KEY="scenario-publishable",
+        ),
+        git_sha="scenario",
+    )
+    async with app.router.lifespan_context(app):
+        await app.state.http_client.aclose()
+        app.state.http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        app.state.ask_service = AskService(BudgetRetrieval(), CapturingStream(lines))
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                f"/workspaces/{_WORKSPACE_ID}/ask",
+                json={"query": "합성 질문", "client_turn_id": str(uuid4())},
+                headers={"Authorization": "Bearer scenario"},
+            )
+    assert response.status_code == 200, response.text
+    user_prompt = captured_messages[0][-1]["content"]
+    encoding = tiktoken.get_encoding("cl100k_base")
+    return {
+        "prompt_context_tokens": len(encoding.encode(user_prompt)),
+        "prompt_wiki_anchors": user_prompt.count("[[wiki:"),
+        "prompt_source_anchors": user_prompt.count("[[src:"),
+    }
+
+
 # -- 증거 항목 정의 -----------------------------------------------------------------
 
 _COST_METRICS = [
@@ -401,10 +676,53 @@ ITEMS: list[dict[str, Any]] = [
             {"key": "dual_citation_rate", "label": "이중 인용률", "unit": "rate"},
         ],
     },
+    {
+        "id": "compile-unchanged-skip",
+        "title": "변경 없는 원문의 중복 재컴파일",
+        "problem": "원문 해시와 프롬프트·모델 지문이 그대로여도 매번 공급자를 다시 호출했습니다.",
+        "fix": (
+            "지문이 일치하고 기존 위키 페이지가 있으면 "
+            "공급자 호출을 생략하고 후속 작업으로 넘깁니다."
+        ),
+        "scenario": "compile_unchanged_skip",
+        "metrics": _COST_METRICS,
+    },
+    {
+        "id": "ask-context-budget-quota",
+        "title": "질문 컨텍스트 무제한 주입과 원문 근거 기아",
+        "problem": (
+            "긴 위키 페이지들이 프롬프트에 그대로 들어가 "
+            "컨텍스트가 비대해지고 원문 근거를 밀어냈습니다."
+        ),
+        "fix": (
+            "컨텍스트 토큰 상한과 원문 최소 몫을 강제해 "
+            "상한 안에서 위키와 원문 근거를 함께 유지합니다."
+        ),
+        "scenario": "ask_context_budget_quota",
+        "metrics": [
+            {"key": "prompt_context_tokens", "label": "프롬프트 컨텍스트 크기", "unit": "tokens"},
+            {"key": "prompt_wiki_anchors", "label": "포함된 위키 근거", "unit": "count"},
+            {"key": "prompt_source_anchors", "label": "포함된 원문 근거", "unit": "count"},
+        ],
+    },
+    {
+        "id": "structured-output-max-tokens",
+        "title": "구조화 호출의 입출력 토큰 무제한 요청",
+        "problem": (
+            "충돌 판정과 컴파일이 긴 본문을 그대로 보내고 출력 토큰 상한도 지정하지 않았습니다."
+        ),
+        "fix": (
+            "작업별 입력 토큰 상한으로 본문을 절단하고 공급자 요청에 출력 토큰 상한을 명시합니다."
+        ),
+        "scenario": "structured_output_max_tokens",
+        "metrics": [
+            {"key": "input_tokens", "label": "전송한 입력 크기", "unit": "tokens"},
+            {"key": "requested_max_tokens", "label": "요청한 출력 상한", "unit": "tokens"},
+        ],
+    },
 ]
 
 UPCOMING_STEPS = [
-    {"step": 2, "title": "예산", "description": "프롬프트 크기와 출력 토큰의 상한을 적용합니다."},
     {"step": 3, "title": "품질", "description": "출력 계약을 검증하고 인용을 사후에 수리합니다."},
     {"step": 4, "title": "리스크", "description": "공통 정책을 주입하고 위키 쓰기를 분류합니다."},
 ]
@@ -414,6 +732,9 @@ SCENARIOS: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {
     "compile_retry_cost": compile_retry_cost,
     "ask_broken_stream_frame": ask_broken_stream_frame,
     "ask_fabricated_citation": ask_fabricated_citation,
+    "compile_unchanged_skip": compile_unchanged_skip,
+    "ask_context_budget_quota": ask_context_budget_quota,
+    "structured_output_max_tokens": structured_output_max_tokens,
 }
 
 

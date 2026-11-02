@@ -19,7 +19,7 @@ import json
 import re
 from collections.abc import AsyncIterator, Mapping
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Final, Protocol
 from uuid import UUID
 
@@ -29,6 +29,12 @@ from api.db.user import UserDb
 from api.errors import DatabaseError, WorkspaceForbidden
 from api.services.retrieval import RetrievalResult, RetrievalService
 from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN, ISSUED_ANCHOR_PATTERN
+from nexuswiki_core.context_budget import (
+    DEFAULT_ASK_MAX_CONTEXT_TOKENS,
+    AskContextBudgetResult,
+    allocate_ask_context_budget,
+    select_dual_evidence,
+)
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.router import RouteDecision, decide_ask_route
 from nexuswiki_core.rrf import EvidenceHit
@@ -294,8 +300,8 @@ def _render(template: str, values: Mapping[str, str]) -> str:
 
 async def _fetch_evidence_content(
     user_db: UserDb, *, workspace_id: UUID, evidence: list[EvidenceHit]
-) -> dict[str, str]:
-    """evidence가 가리키는 실제 본문을 배치로 페치한다 (id -> content).
+) -> tuple[dict[str, str], list[EvidenceHit]]:
+    """evidence가 가리키는 실제 본문을 배치로 페치하고 위키 메타데이터(slug·title)를 보강한다.
 
     ⚠️ `UserDb.select()`의 공용 필터는 eq 전용이라 다건 조회(`in.(...)`)를 표현할 수 없다.
     `jobs.py::_usage_rows_since`가 이미 세운 좁은 seam을 그대로 미러링한다 — `UserDb`에
@@ -307,19 +313,28 @@ async def _fetch_evidence_content(
     wiki_ids = sorted({hit.document_id for hit in evidence if hit.kind == "wiki"})
     source_ids = sorted({hit.evidence_id for hit in evidence if hit.kind == "source"})
     content: dict[str, str] = {}
+    wiki_meta: dict[str, dict[str, str]] = {}
     if wiki_ids:
         response = await user_db._client.get(  # noqa: SLF001 - 제한적 in-filter seam
             f"{user_db._base_url}/wiki_pages",
             params={
                 "id": f"in.({','.join(wiki_ids)})",
                 "workspace_id": f"eq.{workspace_id}",
-                "select": "id,content",
+                "select": "id,slug,title,content",
             },
             headers=user_db._headers,  # noqa: SLF001
         )
         rows = user_db._payload(response)  # noqa: SLF001
         for row in rows if isinstance(rows, list) else [rows]:
-            content[str(row["id"])] = str(row.get("content") or "")
+            doc_id = str(row["id"])
+            content[doc_id] = str(row.get("content") or "")
+            meta_row: dict[str, str] = {}
+            if isinstance(row.get("slug"), str) and row["slug"]:
+                meta_row["slug"] = row["slug"]
+            if isinstance(row.get("title"), str) and row["title"]:
+                meta_row["title"] = row["title"]
+            if meta_row:
+                wiki_meta[doc_id] = meta_row
     if source_ids:
         response = await user_db._client.get(  # noqa: SLF001 - 제한적 in-filter seam
             f"{user_db._base_url}/source_chunks",
@@ -333,7 +348,14 @@ async def _fetch_evidence_content(
         rows = user_db._payload(response)  # noqa: SLF001
         for row in rows if isinstance(rows, list) else [rows]:
             content[str(row["id"])] = str(row.get("content") or "")
-    return content
+
+    enriched: list[EvidenceHit] = []
+    for hit in evidence:
+        if hit.kind == "wiki" and hit.document_id in wiki_meta:
+            enriched.append(replace(hit, metadata={**wiki_meta[hit.document_id], **hit.metadata}))
+        else:
+            enriched.append(hit)
+    return content, enriched
 
 
 async def _select_default_ask_template(
@@ -486,6 +508,7 @@ def _control_report(
     *,
     recorder: TraceRecorder,
     route: RouteDecision | None,
+    budget: AskContextBudgetResult | None,
     retrieval_meta: Mapping[str, Any],
     evidence: list[EvidenceHit],
     citations: Mapping[str, Any],
@@ -502,6 +525,7 @@ def _control_report(
         "version": 1,
         "outcome": outcome,
         "route": route.as_report() if route is not None else None,
+        "budget": budget.as_report() if budget is not None else None,
         "total_ms": recorder.total_ms(),
         "spans": recorder.spans(),
         "evidence": {
@@ -551,10 +575,13 @@ class AskService:
         retrieval_service: RetrievalService,
         llm_client: LlmStreamClient,
         turn_exporter: AskTurnExporter | None = None,
+        *,
+        max_context_tokens: int = DEFAULT_ASK_MAX_CONTEXT_TOKENS,
     ) -> None:
         self._retrieval_service = retrieval_service
         self._llm_client = llm_client
         self._turn_exporter = turn_exporter
+        self._max_context_tokens = max_context_tokens
 
     def _export_turn(
         self, *, workspace_id: UUID, control_report: Mapping[str, Any], persisted: bool
@@ -651,13 +678,19 @@ class AskService:
         recorder.start("retrieval")
         result: RetrievalResult | None = None
         route: RouteDecision | None = None
+        budget: AskContextBudgetResult | None = None
 
         def report(citations: Mapping[str, Any], outcome: str) -> dict[str, Any]:
             return _control_report(
                 recorder=recorder,
                 route=route,
+                budget=budget,
                 retrieval_meta=result.meta if result is not None else {},
-                evidence=result.evidence if result is not None else [],
+                evidence=(
+                    list(budget.included_evidence)
+                    if budget is not None
+                    else (result.evidence if result is not None else [])
+                ),
                 citations=citations,
                 outcome=outcome,
             )
@@ -709,6 +742,13 @@ class AskService:
             result = await self._retrieval_service.retrieve(
                 workspace_id, query, requested_k, user_db
             )
+            # 조립 단계의 쿼터가 볼 수 있도록 여기서 위키와 원문을 함께 고른다. 후보가 없는
+            # 구현(테스트 대역)은 검색 결과를 그대로 쓴다.
+            if result.candidates:
+                result = replace(
+                    result,
+                    evidence=select_dual_evidence(result.candidates, requested_k=requested_k),
+                )
             # ⚠️ 기록만 한다. 아래의 근거 0건 단락 외에는 이 결정으로 분기하지 않는다 (design D7).
             route = decide_ask_route(query, result.evidence)
         except Exception as exc:  # noqa: BLE001 - 턴을 종결하는 것이 이 분기의 목적이다.
@@ -751,16 +791,25 @@ class AskService:
 
         recorder.start("context")
         try:
-            issuance = build_issuance_map(result.evidence)
-            content_by_id = await _fetch_evidence_content(
+            content_by_id, enriched_evidence = await _fetch_evidence_content(
                 user_db, workspace_id=workspace_id, evidence=result.evidence
             )
+            # 벡터 채널만 히트한 위키 문서의 slug·title이 wiki_pages 조회로 보강되면
+            # LOOKUP 판정도 보강된 메타데이터로 다시 계산한다.
+            route = decide_ask_route(query, enriched_evidence)
+            budget = allocate_ask_context_budget(
+                enriched_evidence,
+                content_by_id,
+                max_context_tokens=self._max_context_tokens,
+            )
+            included_evidence = list(budget.included_evidence)
+            issuance = build_issuance_map(included_evidence)
             template = await _select_ask_template(
                 user_db, workspace_id=workspace_id, template_id=template_id
             )
             if template is not None:
                 wiki_context, source_context = _context_blocks(
-                    result.evidence, issuance, content_by_id
+                    included_evidence, issuance, budget.content_by_id
                 )
                 user_prompt = _render(
                     str(template["template"]),

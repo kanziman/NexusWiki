@@ -79,6 +79,7 @@ def _ask_service(request: Request) -> AskService:
             url=settings.LLM_STREAM_INTERNAL_URL,
             token=settings.LLM_STREAM_INTERNAL_TOKEN,
         ),
+        max_context_tokens=settings.ASK_MAX_CONTEXT_TOKENS,
     )
 
 

@@ -120,6 +120,10 @@ class WorkerSettings(BaseAppSettings):
     #    얼마나 넘길지는 막지 못한다. 그 창을 좁히는 것이 아래 둘이다 (T-03-24).
     COMPILE_MAX_PAGES: int = 8
     COMPILE_MAX_INPUT_TOKENS: int = 24000
+    COMPILE_MAX_OUTPUT_TOKENS: int = 4096
+    COMPILE_MAX_EXISTING_SLUGS: int = 200
+    CONFLICT_MAX_INPUT_TOKENS: int = 4000
+    CONFLICT_MAX_OUTPUT_TOKENS: int = 512
 
     # -- 임베딩 (03-09이 소비한다) --------------------------------------------
     #

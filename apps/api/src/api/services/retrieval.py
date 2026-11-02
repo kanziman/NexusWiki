@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -72,6 +72,9 @@ class HttpQueryEmbeddingClient:
 class RetrievalResult:
     evidence: list[EvidenceHit]
     meta: dict[str, Any]
+    # k개로 자르기 전의 융합 결과. `/retrieval` 응답은 `evidence`만 내보내며, Ask가 이중 근거를
+    # 고를 때 쓴다 (`select_dual_evidence`).
+    candidates: list[EvidenceHit] = field(default_factory=list)
 
 
 class RetrievalService:
@@ -163,9 +166,11 @@ class RetrievalService:
         else:
             meta["graph"] = _disabled_meta(self._policy.graph_total_limit)
 
-        evidence = evidence[:requested_k]
+        candidates = evidence
+        evidence = candidates[:requested_k]
         return RetrievalResult(
             evidence=evidence,
+            candidates=candidates,
             meta={
                 "policy_version": self._policy.version,
                 "requested_k": requested_k,

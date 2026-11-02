@@ -99,6 +99,13 @@ def fuse_ranked_hits(
                 combined[canonical_id] = hit
                 contribution_maps[canonical_id] = {channel: contribution}
             else:
+                # 선행 채널·선행 순위가 세운 키(`embedding_chunk_id` 등)는 그대로 두고,
+                # 후행 채널(`wiki_lexical`의 `slug`·`title` 등)에만 있는 메타데이터만 보강한다.
+                if hit.metadata:
+                    combined[canonical_id] = replace(
+                        previous,
+                        metadata={**hit.metadata, **previous.metadata},
+                    )
                 contribution_maps[canonical_id][channel] = (
                     contribution_maps[canonical_id].get(channel, 0.0) + contribution
                 )

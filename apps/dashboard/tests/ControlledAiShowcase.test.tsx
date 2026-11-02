@@ -72,16 +72,40 @@ describe("ControlledAiShowcase", () => {
     }
   });
 
-  it("Step 2~4는 준비 중으로만 표시하고 수치를 보여주지 않는다", () => {
+  it("Step 2 예산 통제 항목에 토큰 상한과 절감 결과를 표시한다", () => {
+    render(<ControlledAiShowcasePage />);
+
+    const budgetItem = article("질문 컨텍스트 무제한 주입과 원문 근거 기아");
+    const contextRow = budgetItem.getByRole("row", {
+      name: /프롬프트 컨텍스트 크기/,
+    });
+    expect(
+      within(contextRow)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["19,842토큰", "6,000토큰"]);
+
+    const maxTokensItem = article("구조화 호출의 입출력 토큰 무제한 요청");
+    const maxTokensRow = maxTokensItem.getByRole("row", {
+      name: /요청한 출력 상한/,
+    });
+    expect(
+      within(maxTokensRow)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["기록 없음", "512토큰"]);
+  });
+
+  it("Step 3~4는 준비 중으로만 표시하고 수치를 보여주지 않는다", () => {
     render(<ControlledAiShowcasePage />);
 
     const items = within(
       screen.getByRole("region", { name: "다음 단계" }),
     ).getAllByRole("listitem");
 
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(2);
     items.forEach((item, index) => {
-      expect(item).toHaveTextContent(`Step ${index + 2}`);
+      expect(item).toHaveTextContent(`Step ${index + 3}`);
       expect(item).toHaveTextContent("준비 중");
       expect(item.textContent?.replace(/Step \d/, "")).not.toMatch(/\d/);
     });

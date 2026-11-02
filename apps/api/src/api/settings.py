@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from nexuswiki_core.context_budget import DEFAULT_ASK_MAX_CONTEXT_TOKENS
 from nexuswiki_core.settings import BaseAppSettings
 
 __all__ = ["ApiSettings"]
@@ -66,6 +67,9 @@ class ApiSettings(BaseAppSettings):
     QUERY_EMBEDDING_INTERNAL_TOKEN: str | None = None
     QUERY_EMBEDDING_TIMEOUT_SECONDS: float = 5.0
     RETRIEVAL_MAX_QUERY_CHARS: int = 10_000
+    # Ask 프롬프트에 실리는 위키·원문 근거 블록의 총 토큰 상한 (ai-context-budget > D1).
+    # 자격증명이 아니라 비용·컨텍스트 폭주를 막는 운영 한도 토글이다.
+    ASK_MAX_CONTEXT_TOKENS: int = DEFAULT_ASK_MAX_CONTEXT_TOKENS
 
     # Private worker-bound LLM-chat-streaming capability (05-CONTEXT.md > D-01).
     # Distinct token from QUERY_EMBEDDING_INTERNAL_TOKEN — intentionally not a provider key.

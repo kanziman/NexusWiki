@@ -706,3 +706,75 @@ def test_control_report_size_is_limited(
     )
 
     assert oversized.status_code >= 400
+
+
+@pytest.mark.asyncio
+async def test_control_budget_separates_editor_and_viewer_scopes_and_denies_outsider(
+    two_workspaces_two_users: tuple[Any, Any],
+    workspace_member_with_role: Any,
+    authed_client: Callable[..., Any],
+    local_stack: httpx.Client,
+) -> None:
+    owner, outsider = two_workspaces_two_users
+    viewer = workspace_member_with_role(owner, "viewer")
+    _seed_ask_turn(local_stack, owner, cost=2300)
+    raw_source_id = _seed_raw_source(local_stack, owner)
+    seeded_compile = local_stack.post(
+        "/rest/v1/usage_events",
+        headers=_admin_headers(),
+        json={
+            "workspace_id": owner.workspace_id,
+            "kind": "llm",
+            "provider": "openrouter",
+            "model": "test-model",
+            "prompt_tokens": 500,
+            "completion_tokens": 100,
+            "total_tokens": 600,
+            "cost_micros": 1700,
+            "metadata": {"call": "compile", "route": "TRUNCATED", "max_tokens": 4096},
+        },
+    )
+    assert seeded_compile.status_code < 400, seeded_compile.text
+    seeded_skip = local_stack.post(
+        "/rest/v1/jobs",
+        headers=_admin_headers(),
+        json={
+            "workspace_id": owner.workspace_id,
+            "type": "link_sync",
+            "status": "succeeded",
+            "payload": {
+                "target_id": raw_source_id,
+                "raw_source_id": raw_source_id,
+                "compile_route": "SKIP_UNCHANGED",
+                "secret": "고유한-payload",
+            },
+        },
+    )
+    assert seeded_skip.status_code < 400, seeded_skip.text
+
+    path = f"/workspaces/{owner.workspace_id}/control/budget"
+    async with authed_client(owner) as owner_client:
+        owner_resp = await owner_client.get(path)
+    async with authed_client(viewer) as viewer_client:
+        viewer_resp = await viewer_client.get(path)
+    async with authed_client(outsider) as outsider_client:
+        outsider_resp = await outsider_client.get(path)
+
+    assert outsider_resp.status_code == 403
+    assert owner_resp.status_code == 200, owner_resp.text
+    owner_body = owner_resp.json()
+    assert owner_body["can_view_workspace"] is True
+    assert owner_body["reported_micros"] == 4000
+    assert owner_body["budget_micros"] == 4000
+    assert owner_body["savings"]["compile_truncated_count"] == 1
+    assert owner_body["savings"]["compile_skipped_count"] == 1
+    assert {item["call"] for item in owner_body["by_call_path"]} == {"ask", "compile"}
+    assert "고유한-payload" not in owner_resp.text
+
+    assert viewer_resp.status_code == 200, viewer_resp.text
+    viewer_body = viewer_resp.json()
+    assert viewer_body["can_view_workspace"] is False
+    assert viewer_body["budget_micros"] == 4000
+    assert viewer_body["savings"]["compile_truncated_count"] == 0
+    assert viewer_body["savings"]["compile_skipped_count"] == 0
+    assert viewer_body["by_call_path"] == []

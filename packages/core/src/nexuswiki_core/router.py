@@ -84,10 +84,18 @@ def compile_fingerprint(*, content_hash: str, template_id: str, model: str) -> s
 
 
 def decide_compile_route(
-    *, fingerprint: str, previous_fingerprint: str | None, truncated: bool
+    *,
+    fingerprint: str,
+    previous_fingerprint: str | None,
+    truncated: bool,
+    has_existing_pages: bool = True,
 ) -> RouteDecision:
-    """컴파일 호출 직전의 경로를 판정한다. 건너뛸 수 있음이 잘림보다 우선이다."""
-    if previous_fingerprint is not None and fingerprint == previous_fingerprint:
+    """컴파일 호출 직전의 경로를 판정한다. 기존 위키 페이지가 있고 지문이 같으면 생략을 택한다."""
+    if (
+        has_existing_pages
+        and previous_fingerprint is not None
+        and fingerprint == previous_fingerprint
+    ):
         return RouteDecision(CompileRoute.SKIP_UNCHANGED, "fingerprint_unchanged")
     if truncated:
         return RouteDecision(CompileRoute.TRUNCATED, "input_over_budget")

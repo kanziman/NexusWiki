@@ -301,9 +301,72 @@ describe("ControlRoom", () => {
     expect(screen.queryByRole("article", { name: "trace 상세" })).toBeNull();
   });
 
-  it("이후 Step 탭은 지어낸 수치 없이 빈 상태만 표시한다", async () => {
+  it("예산 탭에서 editor에게 당월 예산 현황, 토큰 정책, 절감 카운트, 호출 경로별 내역을 표시한다", async () => {
     respond({
-      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/traces": { items: [], can_view_workspace: true },
+      "/control/ask-aggregate": {
+        days: 30,
+        turn_count: 0,
+        resolved_count: 0,
+        no_evidence_count: 0,
+        error_count: 0,
+        decision_counts: {},
+        p50_total_ms: null,
+        p95_total_ms: null,
+        total_cost_micros: 0,
+        incomplete_call_count: 0,
+      },
+      "/control/budget": {
+        days: 30,
+        can_view_workspace: true,
+        month_start: "2026-11-01T00:00:00Z",
+        cap_micros: 5000000,
+        reported_micros: 12000,
+        pending_micros: 3000,
+        budget_micros: 15000,
+        remaining_micros: 4985000,
+        unresolved_count: 1,
+        manual_review_count: 0,
+        over_reserve_count: 0,
+        policy: {
+          ask_max_context_tokens: 6000,
+          compile_max_input_tokens: 24000,
+          compile_max_output_tokens: 4096,
+          compile_max_pages: 8,
+          conflict_max_input_tokens: 4000,
+          conflict_max_output_tokens: 512,
+        },
+        savings: {
+          ask_no_evidence_count: 3,
+          ask_context_truncated_count: 2,
+          compile_truncated_count: 1,
+          compile_skipped_count: 4,
+        },
+        by_call_path: [
+          {
+            call: "compile",
+            kind: "llm",
+            call_count: 5,
+            prompt_tokens: 10000,
+            completion_tokens: 2000,
+            total_tokens: 12000,
+            reported_micros: 10000,
+            pending_micros: 0,
+            budget_micros: 10000,
+          },
+          {
+            call: "ask",
+            kind: "llm",
+            call_count: 2,
+            prompt_tokens: 800,
+            completion_tokens: 200,
+            total_tokens: 1000,
+            reported_micros: 2000,
+            pending_micros: 3000,
+            budget_micros: 5000,
+          },
+        ],
+      },
     });
     const user = userEvent.setup();
 
@@ -312,8 +375,93 @@ describe("ControlRoom", () => {
 
     await user.click(screen.getByRole("tab", { name: "예산" }));
 
+    const monthly = await screen.findByRole("region", {
+      name: "당월 예산 현황",
+    });
+    expect(monthly).toHaveTextContent("$5.0000");
+    expect(monthly).toHaveTextContent("$0.0150");
+    expect(monthly).toHaveTextContent("1건 / 0건");
+
+    const policy = screen.getByRole("region", { name: "활성 토큰 예산 정책" });
+    expect(policy).toHaveTextContent("6,000 토큰");
+    expect(policy).toHaveTextContent("24,000 토큰");
+    expect(policy).toHaveTextContent("4,096 토큰");
+
+    const savings = screen.getByRole("region", {
+      name: "최근 30일 예산 절감 실행",
+    });
+    expect(savings).toHaveTextContent("4건");
+
+    const table = screen.getByRole("table", {
+      name: "호출 경로별 비용 및 토큰",
+    });
+    expect(table).toHaveTextContent("위키 컴파일 (compile)");
+    expect(table).toHaveTextContent("질문 답변 (ask)");
+  });
+
+  it("예산 탭에서 viewer에게는 월간 예산과 본인 절감 건수만 표시하고 호출 경로 표는 숨긴다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/budget": {
+        days: 30,
+        can_view_workspace: false,
+        month_start: "2026-11-01T00:00:00Z",
+        cap_micros: 5000000,
+        reported_micros: 2000,
+        pending_micros: 0,
+        budget_micros: 2000,
+        remaining_micros: 4998000,
+        unresolved_count: 0,
+        manual_review_count: 0,
+        over_reserve_count: 0,
+        policy: {
+          ask_max_context_tokens: 6000,
+          compile_max_input_tokens: 24000,
+          compile_max_output_tokens: 4096,
+          compile_max_pages: 8,
+          conflict_max_input_tokens: 4000,
+          conflict_max_output_tokens: 512,
+        },
+        savings: {
+          ask_no_evidence_count: 1,
+          ask_context_truncated_count: 1,
+          compile_truncated_count: 0,
+          compile_skipped_count: 0,
+        },
+        by_call_path: [],
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("tab", { name: "예산" }));
+
+    await screen.findByRole("region", { name: "당월 예산 현황" });
+    expect(
+      screen.getByText(
+        /조회 전용\(viewer\) 멤버에게는 워크스페이스 월간 예산 현황과/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("table", { name: "호출 경로별 비용 및 토큰" }),
+    ).toBeNull();
+  });
+
+  it("이후 Step 탭(품질·리스크)은 지어낸 수치 없이 빈 상태만 표시한다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("tab", { name: "품질" }));
+
     const panel = screen.getByRole("tabpanel");
-    expect(panel).toHaveTextContent("Step 2에서 수집을 시작합니다");
+    expect(panel).toHaveTextContent("Step 3에서 수집을 시작합니다");
     expect(panel).toHaveTextContent("아직 수집된 데이터가 없습니다.");
     expect(panel.textContent).not.toMatch(/\d+%|\$\d/);
   });

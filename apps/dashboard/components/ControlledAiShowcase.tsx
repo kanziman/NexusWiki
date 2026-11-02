@@ -11,7 +11,7 @@ import styles from "./ControlledAiShowcase.module.css";
  * 만들지 않고, 증거가 없는 Step에는 어떤 수치도 표시하지 않는다.
  */
 
-type MetricUnit = "usd_micros" | "count" | "rate" | "text";
+type MetricUnit = "usd_micros" | "count" | "tokens" | "rate" | "text";
 type MetricValue = string | number | null;
 
 type EvidenceSide = {
@@ -51,6 +51,7 @@ function formatValue(value: MetricValue, unit: string): string {
     return `$${(Number(value) / 1_000_000).toFixed(4)}`;
   if (kind === "rate") return `${Math.round(Number(value) * 100)}%`;
   if (kind === "count") return `${value}건`;
+  if (kind === "tokens") return `${Number(value).toLocaleString("ko-KR")}토큰`;
   return TEXT_LABELS[String(value)] ?? String(value);
 }
 
@@ -72,7 +73,7 @@ export function ControlledAiShowcase({
           NexusWiki
         </Link>
         <p className={styles.eyebrow}>
-          Controlled AI · Step 1 추적과 비용 회계
+          Controlled AI · Step 1–2 추적·비용 회계 및 컨텍스트 예산
         </p>
         <h1>AI 호출을 통제하기 전과 후</h1>
         <p className={styles.lede}>

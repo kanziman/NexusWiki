@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Final
 
 import httpx
@@ -24,7 +25,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from nexuswiki_core.chunking import count_tokens
 from nexuswiki_core.domain import WikiCategory, WikiConfidence
 from nexuswiki_core.logging import get_logger
-from nexuswiki_core.router import RouteDecision, compile_fingerprint, decide_compile_route
+from nexuswiki_core.router import (
+    CompileRoute,
+    RouteDecision,
+    compile_fingerprint,
+    decide_compile_route,
+)
 from nexuswiki_core.slug import slugify
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from worker.db.service import ServiceDb, service_client
@@ -118,7 +124,8 @@ async def run_compile(
     if template is None:
         raise LookupError("compile 기본 프롬프트 템플릿이 없다 — 0006 시드가 적용되지 않았다")
 
-    existing_slugs = await db.list_wiki_slugs(workspace_id=workspace_id)
+    max_existing_slugs = int(getattr(settings, "COMPILE_MAX_EXISTING_SLUGS", 200))
+    existing_slugs = (await db.list_wiki_slugs(workspace_id=workspace_id))[:max_existing_slugs]
     chunks = await db.list_source_chunks(workspace_id=workspace_id, raw_source_id=raw_source_id)
     source_content, truncated = _join_within_budget(
         [str(chunk.get("content") or "") for chunk in chunks],
@@ -145,8 +152,11 @@ async def run_compile(
         },
     )
 
+    # ⚠️ `raw_sources.content_hash`가 아니라 **실제로 컴파일할 본문**의 해시를 쓴다. 그 컬럼은
+    #    수집 시점의 값이고 경로마다 규칙이 달라(URL은 주소 기준) 재처리로 본문이 바뀌어도
+    #    그대로다. 그 값을 쓰면 바뀐 원문을 건너뛰어 위키가 조용히 낡는다.
     fingerprint = compile_fingerprint(
-        content_hash=str(source.get("content_hash") or ""),
+        content_hash=hashlib.sha256(source_content.encode("utf-8")).hexdigest(),
         template_id=str(template.get("id") or ""),
         model=settings.LLM_MODEL,
     )
@@ -157,7 +167,24 @@ async def run_compile(
         fingerprint=fingerprint,
         truncated=truncated,
     )
+    if route.decision == CompileRoute.SKIP_UNCHANGED:
+        _logger.info(
+            "worker.compile_skipped_unchanged",
+            raw_source_id=raw_source_id,
+            fingerprint=fingerprint,
+        )
+        await db.complete_job_and_chain(
+            job_id,
+            next_type="link_sync",
+            next_payload={
+                "target_id": raw_source_id,
+                "raw_source_id": raw_source_id,
+                "compile_route": CompileRoute.SKIP_UNCHANGED.value,
+            },
+        )
+        return
 
+    max_output_tokens = int(getattr(settings, "COMPILE_MAX_OUTPUT_TOKENS", 4096))
     # ⚠️ 사용량은 게이트웨이가 공급자 응답 직후 시도마다 기록한다. 그래서 검증 실패나 뒤따르는
     #    업서트 실패가 이미 지불한 비용을 지우지 못한다 (T-03-27).
     result: LlmResult = await LlmGateway(db, llm_client, settings).complete_structured(
@@ -177,6 +204,7 @@ async def run_compile(
         system_prompt=str(template["system_prompt"]),
         user_prompt=user_prompt,
         schema_model=CompileResult,
+        max_tokens=max_output_tokens,
     )
 
     compiled = result.payload
@@ -237,20 +265,30 @@ async def _decide_route(
     fingerprint: str,
     truncated: bool,
 ) -> RouteDecision:
-    """Router 결정을 구한다. 기록만 하며 컴파일은 결정과 무관하게 실행된다 (design D7).
+    """Router 결정을 구한다. 지문이 같고 기존 위키 페이지가 존재할 때만 SKIP_UNCHANGED로 단락한다.
 
-    ⚠️ 관측용 조회가 실패해도 잡을 실패시키지 않는다. 기록을 위해 유료 파이프라인을 멈추면
-    주객이 뒤바뀐다.
+    ⚠️ 관측용 조회가 실패해도 잡을 실패시키지 않는다. 조회 실패나 기존 페이지 부재 시에는
+    LLM 호출을 생략하지 않고 STANDARD/TRUNCATED로 실행한다.
     """
     previous: str | None = None
+    has_existing_pages = False
     try:
         previous = await db.latest_compile_fingerprint(
             workspace_id=workspace_id, raw_source_id=raw_source_id
         )
+        if previous is not None and previous == fingerprint:
+            list_pages = getattr(db, "list_wiki_pages_for_source", None)
+            if callable(list_pages):
+                pages = await list_pages(workspace_id=workspace_id, raw_source_id=raw_source_id)
+                has_existing_pages = bool(pages)
     except Exception:  # noqa: BLE001 - 관측 조회 실패는 잡의 성패와 무관하다.
         _logger.warning("worker.compile_fingerprint_unavailable", raw_source_id=raw_source_id)
+        has_existing_pages = False
     return decide_compile_route(
-        fingerprint=fingerprint, previous_fingerprint=previous, truncated=truncated
+        fingerprint=fingerprint,
+        previous_fingerprint=previous,
+        truncated=truncated,
+        has_existing_pages=has_existing_pages,
     )
 
 

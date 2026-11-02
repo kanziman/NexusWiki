@@ -159,6 +159,30 @@ async def test_request_body_is_unchanged_by_the_gateway() -> None:
 
 
 @pytest.mark.asyncio
+async def test_max_tokens_is_forwarded_to_provider_and_recorded_in_usage_metadata() -> None:
+    bodies: list[dict[str, Any]] = []
+    sink = _Sink()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return _completion(json.dumps({"value": "ok"}), cost=0.01)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url=llm.OPENROUTER_BASE_URL
+    ) as client:
+        await LlmGateway(sink, client, _settings()).complete_structured(
+            _CONTEXT,
+            system_prompt="s",
+            user_prompt="u",
+            schema_model=_Payload,
+            max_tokens=512,
+        )
+
+    assert bodies[0]["max_tokens"] == 512
+    assert sink.rows[0]["metadata"]["max_tokens"] == 512
+
+
+@pytest.mark.asyncio
 async def test_embedding_call_records_usage_and_empty_input_records_nothing() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
