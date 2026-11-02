@@ -677,14 +677,14 @@ class ServiceDb:
     async def list_wiki_embeddings(
         self, *, workspace_id: str, wiki_id: str, embedding_version: str
     ) -> list[dict[str, Any]]:
-        """현재 버전의 행만 읽어 재처리 OpenRouter 호출을 막는다."""
+        """현재 버전의 행과 본문을 읽어 바뀌지 않은 청크의 재처리 호출을 막는다."""
         return await self._select(
             "wiki_embeddings",
             params={
                 "workspace_id": f"eq.{workspace_id}",
                 "wiki_id": f"eq.{wiki_id}",
                 "embedding_version": f"eq.{embedding_version}",
-                "select": "chunk_index,embedding_version",
+                "select": "chunk_index,chunk_content,embedding_version",
             },
         )
 

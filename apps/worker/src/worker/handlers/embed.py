@@ -70,13 +70,17 @@ async def run_embed(
             workspace_id=workspace_id, raw_source_id=source_id
         ):
             chunks = chunk_text(str(page.get("content") or ""))
-            current_indices = {
-                int(row["chunk_index"])
+            # ⚠️ 번호만 비교하면 재컴파일이나 승인으로 본문이 바뀌어도 건너뛰어, 벡터 채널이 이전
+            #    본문으로 계속 검색된다. 잡은 성공으로 끝나므로 어디에도 드러나지 않는다.
+            current_contents = {
+                int(row["chunk_index"]): row.get("chunk_content")
                 for row in await db.list_wiki_embeddings(
                     workspace_id=workspace_id, wiki_id=str(page["id"]), embedding_version=version
                 )
             }
-            missing_chunks = [chunk for chunk in chunks if chunk.index not in current_indices]
+            missing_chunks = [
+                chunk for chunk in chunks if current_contents.get(chunk.index) != chunk.content
+            ]
             if not missing_chunks:
                 await db.delete_wiki_embeddings_from(
                     workspace_id=workspace_id, wiki_id=str(page["id"]), from_index=len(chunks)

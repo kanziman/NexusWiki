@@ -20,6 +20,7 @@ from nexuswiki_core.wiki_write_policy import WikiWriteRisk, classify_wiki_write
 from worker import llm
 from worker.handlers import resolve_handler
 from worker.handlers.compile import run_compile
+from worker.handlers.embed import run_embed
 from worker.handlers.wiki_proposal_apply import (
     WIKI_PROPOSAL_APPLY_JOB_TYPE,
     handle_wiki_proposal_apply,
@@ -341,7 +342,15 @@ async def test_off_skips_classification() -> None:
 
 @pytest.mark.asyncio
 async def test_unchanged_body_leaves_no_revision_or_proposal() -> None:
-    db = _WikiDb(_verified_page(content="새 본문입니다"))
+    db = _WikiDb(
+        _verified_page(
+            content="새 본문입니다",
+            title="제목",
+            category="concepts",
+            aliases=[],
+            confidence="high",
+        )
+    )
     await _compile(db, mode="enforce")
     assert db.revisions == []
     assert db.proposals == []
@@ -407,9 +416,9 @@ async def test_approved_proposal_applies_with_revision_index_and_chain() -> None
     assert db.chained[0]["next_type"] == "link_sync"
 
 
-@pytest.mark.parametrize("status", ["applied", "rejected", "pending"])
+@pytest.mark.parametrize("status", ["rejected", "pending"])
 @pytest.mark.asyncio
-async def test_proposal_not_in_approved_state_is_a_no_op(status: str) -> None:
+async def test_undecided_or_rejected_proposal_is_a_no_op(status: str) -> None:
     db = _ApplyDb(status)
     await run_wiki_proposal_apply(
         db, job_id="job-2", workspace_id="ws", payload={"proposal_id": "p-1"}
@@ -419,5 +428,139 @@ async def test_proposal_not_in_approved_state_is_a_no_op(status: str) -> None:
     assert db.chained == [{}]
 
 
+@pytest.mark.asyncio
+async def test_rerun_after_applied_restores_the_chain_without_rewriting() -> None:
+    """적용 표시 뒤 체인 등록 전에 죽으면 재실행이 체인을 이어야 색인이 이전 본문에 남지 않는다."""
+    db = _ApplyDb("applied")
+    await run_wiki_proposal_apply(
+        db, job_id="job-2", workspace_id="ws", payload={"proposal_id": "p-1"}
+    )
+    assert db.upserts == []
+    assert db.revisions == []
+    assert db.chained[0]["next_type"] == "link_sync"
+    assert db.chained[0]["next_payload"]["raw_source_id"] == "rs"
+
+
+@pytest.mark.parametrize(
+    "existing",
+    [{"verification_status": "verified"}, {"verification_status": "unverified"}],
+    ids=["verified", "published"],
+)
+def test_metadata_change_on_protected_pages_is_high_risk(existing: dict[str, Any]) -> None:
+    decision = classify_wiki_write(
+        {"content": "같음", **existing},
+        new_content="같음",
+        raw_source_id="rs",
+        published=existing["verification_status"] != "verified",
+        metadata_changed=True,
+    )
+    assert decision.risk == WikiWriteRisk.HIGH
+    assert decision.changed is True
+
+
+def test_metadata_change_on_plain_pages_is_not_a_revision() -> None:
+    decision = classify_wiki_write(
+        {"content": "같음"},
+        new_content="같음",
+        raw_source_id="rs",
+        published=False,
+        metadata_changed=True,
+    )
+    assert decision.changed is False
+
+
+@pytest.mark.asyncio
+async def test_enforce_holds_metadata_only_change_on_verified_page() -> None:
+    db = _WikiDb(
+        _verified_page(
+            content="새 본문입니다",
+            title="제목",
+            category="entities",
+            aliases=[],
+            confidence="high",
+        )
+    )
+    await _compile(db, mode="enforce")
+    assert db.upserts == []
+    assert db.proposals[0]["category"] == "concepts"
+
+
+@pytest.mark.asyncio
+async def test_other_source_update_records_a_medium_revision() -> None:
+    db = _WikiDb(_verified_page(verification_status="unverified", sources=["other"]))
+    await _compile(db, mode="enforce")
+    assert db.proposals == []
+    assert db.revisions[0]["risk_level"] == "medium"
+    assert db.revisions[0]["reason"] == "other_source_page"
+    assert len(db.upserts) == 1
+
+
 def test_apply_job_type_is_registered() -> None:
     assert resolve_handler(WIKI_PROPOSAL_APPLY_JOB_TYPE) is handle_wiki_proposal_apply
+
+
+class _EmbedDb:
+    def __init__(self, stored: list[dict[str, Any]]) -> None:
+        self.stored = stored
+        self.upserted: list[dict[str, Any]] = []
+
+    async def list_wiki_pages_for_source(self, **_: Any) -> list[dict[str, str]]:
+        return [{"id": "wiki-1", "content": "바뀐 본문입니다"}]
+
+    async def list_wiki_embeddings(self, **_: Any) -> list[dict[str, Any]]:
+        return self.stored
+
+    async def upsert_wiki_embeddings(self, *, rows: Any, **_: Any) -> None:
+        self.upserted.extend(rows)
+
+    async def delete_wiki_embeddings_from(self, **_: Any) -> None:
+        return None
+
+    async def insert_usage_event(self, **_: Any) -> None:
+        return None
+
+    async def complete_job_and_chain(self, *_: Any, **__: Any) -> None:
+        return None
+
+
+async def _embed(db: _EmbedDb) -> int:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        texts = json.loads(request.content)["input"]
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"embedding": [0.0] * 1024} for _ in texts],
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+                "model": "baai/bge-m3",
+                "provider": "DeepInfra",
+            },
+        )
+
+    async with _client(handler) as client:
+        await run_embed(
+            db,
+            client,
+            settings=_settings(),
+            job_id="job-1",
+            workspace_id="ws",
+            payload={"raw_source_id": "rs", "scope": "wiki"},
+        )
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_changed_wiki_body_is_reembedded_even_when_the_index_exists() -> None:
+    """번호만 비교하면 벡터 채널이 승인이나 재컴파일 전 본문으로 계속 검색된다."""
+    db = _EmbedDb([{"chunk_index": 0, "chunk_content": "이전 본문"}])
+    assert await _embed(db) == 1
+    assert db.upserted[0]["chunk_content"] == "바뀐 본문입니다"
+
+
+@pytest.mark.asyncio
+async def test_unchanged_wiki_body_is_not_reembedded() -> None:
+    db = _EmbedDb([{"chunk_index": 0, "chunk_content": "바뀐 본문입니다"}])
+    assert await _embed(db) == 0

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Control Room 리스크 탭
-시스템은 Control Room 리스크 탭에서 적용 중인 정책 버전, 쓰기 모드, 위험 등급별 쓰기 건수, 승인 대기 목록을 SHALL 제공한다. `editor` 이상은 대기 제안의 이전·제안 본문을 보고 승인하거나 거부할 수 있다. `viewer`는 집계만 보며 제안 본문을 MUST NOT 받는다. 비멤버는 HTTP 403이다.
+시스템은 Control Room 리스크 탭에서 적용 중인 정책 버전, 쓰기 모드, 위험 등급별 개정 건수, 승인 후 반영 중인 건수, 승인 대기 목록을 SHALL 제공한다. `editor` 이상은 대기 제안의 이전·제안 본문을 보고 승인하거나 거부할 수 있다. `viewer`는 집계만 보며 제안 본문을 MUST NOT 받는다. 비멤버는 HTTP 403이다.
 
 #### Scenario: editor가 대기 제안을 처리한다
 - **WHEN** `editor`가 리스크 탭에서 대기 제안을 승인한다

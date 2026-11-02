@@ -40,17 +40,22 @@ def classify_wiki_write(
     new_content: str,
     raw_source_id: str,
     published: bool,
+    metadata_changed: bool = False,
 ) -> WikiWriteDecision:
     """기존 페이지와 새 본문을 비교해 등급을 정한다. 입력만 보는 순수 함수다."""
     if existing is None:
         return WikiWriteDecision(WikiWriteRisk.LOW, "new_page", changed=False)
     previous = str(existing.get("content") or "")
-    if previous == new_content:
+    body_changed = previous != new_content
+    # ⚠️ 사람이 검증하거나 공개한 페이지는 제목과 분류도 승인 대상이다. 본문만 보면 메타데이터가
+    #    승인도 이력도 없이 바뀐다.
+    if body_changed or metadata_changed:
+        if existing.get("verification_status") == "verified":
+            return WikiWriteDecision(WikiWriteRisk.HIGH, "verified_page", changed=True)
+        if published:
+            return WikiWriteDecision(WikiWriteRisk.HIGH, "published_page", changed=True)
+    if not body_changed:
         return WikiWriteDecision(WikiWriteRisk.LOW, "unchanged", changed=False)
-    if existing.get("verification_status") == "verified":
-        return WikiWriteDecision(WikiWriteRisk.HIGH, "verified_page", changed=True)
-    if published:
-        return WikiWriteDecision(WikiWriteRisk.HIGH, "published_page", changed=True)
     sources = existing.get("sources")
     other_sources = [
         str(item)

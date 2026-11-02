@@ -577,9 +577,10 @@ describe("ControlRoom", () => {
   const RISK_BASE = {
     days: 30,
     write_mode: "enforce",
-    policy_versions: ["llm-policy-v1"],
+    policy_version: "llm-policy-v1",
+    recorded_policy_versions: ["llm-policy-v1"],
     revisions: { low: 3, medium: 2, high: 1 },
-    proposals: { pending: 1, applied: 4, rejected: 0 },
+    proposals: { pending: 1, approved_waiting: 2, applied: 4, rejected: 0 },
   };
 
   it("리스크 탭에서 editor는 대기 제안을 보고 승인한다", async () => {
@@ -616,6 +617,25 @@ describe("ControlRoom", () => {
       },
       "/wiki-proposals/p-1/approve": { id: "p-1", status: "approved" },
     });
+    const baseRespond = apiFetch.getMockImplementation();
+    let approved = false;
+    apiFetch.mockImplementation(async (path: string, init?: unknown) => {
+      if (path.endsWith("/approve")) approved = true;
+      if (approved && path.endsWith("/control/risk")) {
+        return {
+          ...RISK_BASE,
+          can_view_workspace: true,
+          proposals: {
+            pending: 0,
+            approved_waiting: 1,
+            applied: 4,
+            rejected: 0,
+          },
+          pending_proposals: [],
+        };
+      }
+      return baseRespond?.(path, init);
+    });
     const user = userEvent.setup();
 
     render(<ControlRoom workspaceId="ws" />);
@@ -629,7 +649,7 @@ describe("ControlRoom", () => {
     expect(list).toHaveTextContent("검증 완료 문서");
     expect(list).toHaveTextContent("제안 본문 내용");
     expect(
-      screen.getByRole("region", { name: "최근 30일 위키 쓰기 위험 등급" }),
+      screen.getByRole("region", { name: "최근 30일 위키 개정 위험 등급" }),
     ).toHaveTextContent("1건");
     expect(screen.getByText(/llm-policy-v1/)).toBeInTheDocument();
 
@@ -641,6 +661,15 @@ describe("ControlRoom", () => {
         { method: "POST" },
       ),
     );
+    // 처리한 뒤 목록을 다시 읽어 제안이 사라지고 집계가 갱신된다.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "승인 대기 위키 변경" }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.getByText("승인을 기다리는 위키 변경이 없습니다."),
+    ).toBeInTheDocument();
   });
 
   it("리스크 탭에서 viewer에게는 집계만 표시하고 처리 버튼이 없다", async () => {
@@ -648,7 +677,7 @@ describe("ControlRoom", () => {
       "/control/traces": { items: [], can_view_workspace: false },
       "/control/risk": {
         ...RISK_BASE,
-        policy_versions: [],
+        recorded_policy_versions: [],
         can_view_workspace: false,
         pending_proposals: [],
       },
@@ -660,7 +689,7 @@ describe("ControlRoom", () => {
     await user.click(screen.getByRole("tab", { name: "리스크" }));
 
     await screen.findByRole("region", {
-      name: "최근 30일 위키 쓰기 위험 등급",
+      name: "최근 30일 위키 개정 위험 등급",
     });
     expect(screen.getByText(/집계만 표시합니다/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "승인" })).toBeNull();

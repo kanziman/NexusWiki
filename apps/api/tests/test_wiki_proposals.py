@@ -263,3 +263,48 @@ async def test_approval_enqueues_apply_and_applies_exactly_once(
         params={"wiki_id": f"eq.{wiki_id}"},
     ).json()
     assert [row["previous_content"] for row in revisions] == ["사람이 검증한 본문"]
+
+
+def _revision(stack: httpx.Client, *, workspace_id: str, wiki_id: str, job_id: str) -> Any:
+    return stack.post(
+        "/rest/v1/wiki_page_revisions",
+        headers={**_admin(), "Prefer": "resolution=ignore-duplicates,return=representation"},
+        params={"on_conflict": "wiki_id,job_id"},
+        json={
+            "workspace_id": workspace_id,
+            "wiki_id": wiki_id,
+            "job_id": job_id,
+            "risk_level": "medium",
+            "reason": "other_source_page",
+            "previous_title": "t",
+            "previous_content": "이전",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_same_job_rerun_keeps_one_revision_and_only_members_read_it(
+    two_workspaces_two_users: tuple[Any, Any], local_stack: httpx.Client
+) -> None:
+    owner, outsider = two_workspaces_two_users
+    wiki_id, _, _ = _seed(local_stack, owner)
+    job_id = str(uuid4())
+    for _ in range(2):
+        response = _revision(
+            local_stack, workspace_id=owner.workspace_id, wiki_id=wiki_id, job_id=job_id
+        )
+        assert response.status_code < 400, response.text
+
+    def read(actor: Any) -> list[dict[str, Any]]:
+        return _get(
+            local_stack,
+            "/rest/v1/wiki_page_revisions",
+            headers={
+                "apikey": LOCAL_STACK["publishable_key"],
+                "Authorization": f"Bearer {actor.access_token}",
+            },
+            params={"wiki_id": f"eq.{wiki_id}"},
+        ).json()
+
+    assert len(read(owner)) == 1
+    assert read(outsider) == []

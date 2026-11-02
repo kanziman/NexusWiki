@@ -429,6 +429,12 @@ async def _upsert_page(
             published=await db.is_wiki_page_published(
                 workspace_id=workspace_id, wiki_id=str(existing["id"])
             ),
+            metadata_changed=(
+                existing.get("title") != page.title
+                or existing.get("category") != page.category.value
+                or (existing.get("aliases") or []) != page.aliases
+                or existing.get("confidence") != page.confidence.value
+            ),
         )
         if decision.changed:
             if decision.risk == WikiWriteRisk.HIGH and risk_mode == "enforce":

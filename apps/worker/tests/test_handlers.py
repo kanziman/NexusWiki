@@ -158,7 +158,13 @@ async def test_wiki_embed_skips_pages_already_at_the_current_embedding_version(
             return [{"id": "page-1", "content": "이미 임베딩된 본문"}]
 
         async def list_wiki_embeddings(self, **_values: Any) -> list[dict[str, int | str]]:
-            return [{"chunk_index": 0, "embedding_version": "model@provider-v1"}]
+            return [
+                {
+                    "chunk_index": 0,
+                    "chunk_content": "이미 임베딩된 본문",
+                    "embedding_version": "model@provider-v1",
+                }
+            ]
 
         async def delete_wiki_embeddings_from(self, **_values: Any) -> None:
             return None

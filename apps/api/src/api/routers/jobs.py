@@ -36,6 +36,7 @@ STEP_LABELS: Final[dict[str, str]] = {
     "link_sync": "링크 동기화",
     "embed": "임베딩",
     "conflict_check": "지식 충돌 검사",
+    "wiki_proposal_apply": "위키 변경 승인 반영",
     "noop": "무동작",
 }
 

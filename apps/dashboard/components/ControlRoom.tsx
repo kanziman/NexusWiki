@@ -166,9 +166,15 @@ type RiskSnapshot = {
   days: number;
   can_view_workspace: boolean;
   write_mode: string;
-  policy_versions: string[];
+  policy_version: string;
+  recorded_policy_versions: string[];
   revisions: { low: number; medium: number; high: number };
-  proposals: { pending: number; applied: number; rejected: number };
+  proposals: {
+    pending: number;
+    approved_waiting: number;
+    applied: number;
+    rejected: number;
+  };
   pending_proposals: PendingProposal[];
 };
 
@@ -626,17 +632,19 @@ function RiskPanel({
         위키 쓰기 모드:{" "}
         {RISK_MODE_LABELS[snapshot.write_mode] ?? snapshot.write_mode}
       </p>
-      {snapshot.policy_versions.length > 0 ? (
-        <p>적용된 LLM 정책: {snapshot.policy_versions.join(", ")}</p>
-      ) : null}
+      <p>적용 중인 LLM 정책: {snapshot.policy_version}</p>
       <section
         className={styles.aggregate}
-        aria-label={`최근 ${snapshot.days}일 위키 쓰기 위험 등급`}
+        aria-label={`최근 ${snapshot.days}일 위키 개정 위험 등급`}
       >
-        <Metric label="낮음" value={`${revisions.low}건`} />
-        <Metric label="중간" value={`${revisions.medium}건`} />
-        <Metric label="높음" value={`${revisions.high}건`} />
+        <Metric label="개정 낮음" value={`${revisions.low}건`} />
+        <Metric label="개정 중간" value={`${revisions.medium}건`} />
+        <Metric label="개정 높음" value={`${revisions.high}건`} />
         <Metric label="승인 대기" value={`${proposals.pending}건`} />
+        <Metric
+          label="승인 후 반영 중"
+          value={`${proposals.approved_waiting}건`}
+        />
         <Metric label="승인 반영" value={`${proposals.applied}건`} />
         <Metric label="거부" value={`${proposals.rejected}건`} />
       </section>

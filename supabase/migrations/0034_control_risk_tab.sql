@@ -19,6 +19,7 @@ returns table (
   revisions_medium   bigint,
   revisions_high     bigint,
   pending_proposals  bigint,
+  approved_proposals bigint,
   applied_proposals  bigint,
   rejected_proposals bigint,
   policy_versions    jsonb
@@ -50,6 +51,9 @@ begin
       where r.workspace_id = p_workspace_id and r.created_at >= v_since and r.risk_level = 'high'),
     (select count(*)::bigint from public.wiki_write_proposals p
       where p.workspace_id = p_workspace_id and p.status = 'pending'),
+    -- 승인했지만 적용 잡이 끝나지 않은 제안이다. 잡이 죽으면 여기에 남아 드러난다.
+    (select count(*)::bigint from public.wiki_write_proposals p
+      where p.workspace_id = p_workspace_id and p.status = 'approved'),
     (select count(*)::bigint from public.wiki_write_proposals p
       where p.workspace_id = p_workspace_id and p.created_at >= v_since and p.status = 'applied'),
     (select count(*)::bigint from public.wiki_write_proposals p

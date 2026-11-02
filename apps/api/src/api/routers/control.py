@@ -37,6 +37,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from api.db.user import UserDb
 from api.errors import WorkspaceForbidden
 from api.routers.jobs import CHAIN_ORDER, STEP_LABELS
+from nexuswiki_core.llm_policy import LLM_POLICY_VERSION
 
 router = APIRouter(prefix="/workspaces", tags=["control"])
 _bearer = HTTPBearer()
@@ -628,16 +629,17 @@ async def control_risk(
             order="created_at.desc",
             limit=_RISK_PROPOSAL_LIMIT,
         )
-        pages = (
-            await db.select(
+        # ⚠️ 위키 전체를 읽지 않는다. 행 상한에 잘리면 현재 본문이 빈 채로 승인될 수 있다.
+        by_id: dict[str, dict[str, Any]] = {}
+        for wiki_id in {str(item["wiki_id"]) for item in pending}:
+            rows = await db.select(
                 "wiki_pages",
-                match={"workspace_id": str(workspace_id)},
+                match={"id": wiki_id, "workspace_id": str(workspace_id)},
                 columns="id,slug,title,content",
+                limit=1,
             )
-            if pending
-            else []
-        )
-        by_id = {str(page["id"]): page for page in pages}
+            if rows:
+                by_id[wiki_id] = rows[0]
         proposals = [
             {
                 "id": item["id"],
@@ -658,7 +660,8 @@ async def control_risk(
         "days": days,
         "can_view_workspace": can_view,
         "write_mode": str(getattr(settings, "AI_CONTROL_RISK_MODE", "shadow")),
-        "policy_versions": (
+        "policy_version": LLM_POLICY_VERSION,
+        "recorded_policy_versions": (
             [str(item) for item in raw_versions[:8]] if isinstance(raw_versions, list) else []
         ),
         "revisions": {
@@ -668,6 +671,7 @@ async def control_risk(
         },
         "proposals": {
             "pending": int(_number(row.get("pending_proposals"))),
+            "approved_waiting": int(_number(row.get("approved_proposals"))),
             "applied": int(_number(row.get("applied_proposals"))),
             "rejected": int(_number(row.get("rejected_proposals"))),
         },

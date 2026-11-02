@@ -50,13 +50,21 @@ async def run_wiki_proposal_apply(
         raise ValueError("wiki_proposal_apply 잡 payload에 proposal_id가 없다")
 
     proposal = await db.get_wiki_write_proposal(proposal_id, workspace_id=workspace_id)
-    if proposal is None or proposal.get("status") != "approved":
-        # 이미 적용됐거나 사라졌다. at-least-once의 정상 경로이므로 실패가 아니다.
+    if proposal is None or proposal.get("status") not in {"approved", "applied"}:
         await db.complete_job_and_chain(job_id)
+        return
+    raw_source_id = str(proposal["raw_source_id"])
+    if proposal.get("status") == "applied":
+        # ⚠️ 적용 표시 뒤 체인 등록 전에 죽은 재실행이다. 여기서 체인 없이 끝내면 링크와 임베딩이
+        #    영구히 이전 본문에 남는다. 본문은 다시 쓰지 않고 체인만 잇는다.
+        await db.complete_job_and_chain(
+            job_id,
+            next_type="link_sync",
+            next_payload={"target_id": raw_source_id, "raw_source_id": raw_source_id},
+        )
         return
 
     wiki_id = str(proposal["wiki_id"])
-    raw_source_id = str(proposal["raw_source_id"])
     page = await db.get_wiki_page(wiki_id, workspace_id=workspace_id)
     if page is None:
         # 승인 뒤 페이지가 지워졌다. 제안은 FK cascade로 함께 사라지므로 여기엔 드물게만 온다.
