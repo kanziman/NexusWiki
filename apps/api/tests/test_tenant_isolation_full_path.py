@@ -610,3 +610,37 @@ async def test_retrieval_member_control_still_reaches_embedding(
 
     assert response.status_code == 200, response.text
     assert embedding.calls == 1
+
+
+async def test_control_budget_snapshot_enforces_tenant_and_role_boundaries(
+    isolation_principals: tuple[TenantActor, ...],
+    authed_client: Callable[..., Any],
+) -> None:
+    """통제실 예산 스냅샷은 외부 테넌트·비멤버를 403으로 막고 viewer의 세부 분해를 숨긴다."""
+    owner_a, editor_a, viewer_a, owner_b, non_member = isolation_principals
+
+    for member in (owner_a, editor_a):
+        async with authed_client(member) as client:
+            res = await client.get(f"/workspaces/{owner_a.workspace_id}/control/budget")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["can_view_workspace"] is True
+        assert isinstance(body["by_call_path"], list)
+        assert isinstance(body["savings"]["compile_skipped_count"], int)
+
+    async with authed_client(viewer_a) as client:
+        viewer_res = await client.get(f"/workspaces/{owner_a.workspace_id}/control/budget")
+    assert viewer_res.status_code == 200, viewer_res.text
+    viewer_body = viewer_res.json()
+    assert viewer_body["can_view_workspace"] is False
+    assert viewer_body["by_call_path"] == []
+    assert viewer_body["savings"]["compile_skipped_count"] == 0
+
+    for foreign in (owner_b, non_member):
+        async with authed_client(foreign) as client:
+            blocked = await client.get(f"/workspaces/{owner_a.workspace_id}/control/budget")
+        assert blocked.status_code == 403, blocked.text
+
+    async with authed_client(None) as client:
+        anonymous = await client.get(f"/workspaces/{owner_a.workspace_id}/control/budget")
+    assert anonymous.status_code == 401, anonymous.text

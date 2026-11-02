@@ -842,3 +842,96 @@ async def test_non_http_exporter_failure_stays_inside_the_task() -> None:
     await ask_service_module.drain_turn_exports(timeout_seconds=1.0)
 
     assert not ask_service_module._pending_turn_exports
+
+
+@pytest.mark.asyncio
+async def test_ask_context_budget_preserves_dual_evidence_and_records_budget_report() -> None:
+    wiki_2 = str(uuid4())
+    wiki_3 = str(uuid4())
+    finalized: dict[str, Any] = {}
+    base = _mock_prompt_and_content_transport()
+
+    class _HeavyRetrieval:
+        async def retrieve(self, *_: object) -> RetrievalResult:
+            return RetrievalResult(
+                evidence=[
+                    EvidenceHit.wiki(wiki_id=_WIKI_ID, rank=1, metadata={"title": "위키 1"}),
+                    EvidenceHit.wiki(wiki_id=wiki_2, rank=2, metadata={"title": "위키 2"}),
+                    EvidenceHit.wiki(wiki_id=wiki_3, rank=3, metadata={"title": "위키 3"}),
+                    EvidenceHit.source(
+                        chunk_id=_SOURCE_CHUNK_ID,
+                        rank=4,
+                        metadata={"raw_source_id": _RAW_SOURCE_ID, "chunk_index": 0},
+                    ),
+                ],
+                meta={"policy_version": "test-v1"},
+            )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/v1/wiki_pages":
+            long_wiki = "위키 상세 설명 문장입니다. " * 120
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": _WIKI_ID, "slug": "wiki-1", "title": "위키 1", "content": long_wiki},
+                    {"id": wiki_2, "slug": "wiki-2", "title": "위키 2", "content": long_wiki},
+                    {"id": wiki_3, "slug": "wiki-3", "title": "위키 3", "content": long_wiki},
+                ],
+            )
+        if request.url.path == "/rest/v1/source_chunks":
+            return httpx.Response(
+                200,
+                json=[{"id": _SOURCE_CHUNK_ID, "content": "원문 핵심 근거 문장입니다. " * 60}],
+            )
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
+            finalized.update(json.loads(request.content))
+        return base.handler(request)
+
+    fake_llm = _FakeLlmStream(
+        _UpstreamResponse(
+            [
+                (
+                    'data: {"choices":[{"delta":{"content":'
+                    '"결론 [[wiki:w1]] [[src:s1]] [[wiki:w2]]."}}]}'
+                ),
+                "data: [DONE]",
+            ]
+        )
+    )
+    app = create_app(_settings(), git_sha="test-sha")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        app.state.ask_service = AskService(
+            _HeavyRetrieval(),  # type: ignore[arg-type]
+            fake_llm,
+            max_context_tokens=180,
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(requested_k=8),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+
+    assert response.status_code == 200
+    prompt_body = fake_llm.messages[1]["content"]
+    assert "[[wiki:w1]]" in prompt_body
+    assert "[[src:s1]]" in prompt_body
+    assert "[[wiki:w2]]" not in prompt_body
+
+    events = dict(_parse_sse(response.text))
+    # 예산 초과로 제외된 w2는 발급되지 않았으므로 조작/미발급 앵커로 제거된다.
+    assert "[[wiki:w2]]" not in events["citations"]["text"]
+    assert events["citations"]["dual_citation_rate"] == 1.0
+
+    budget_report = finalized["p_control_report"]["budget"]
+    assert budget_report["max_context_tokens"] == 180
+    assert budget_report["estimated_context_tokens"] <= 180
+    assert budget_report["truncated"] is True
+    assert budget_report["dual_evidence_preserved"] is True
+    assert budget_report["dropped_blocks"] == 2
+    assert budget_report["wiki_blocks"] == 1
+    assert budget_report["source_blocks"] == 1

@@ -80,19 +80,29 @@ def test_fingerprint_changes_with_each_input() -> None:
 
 
 @pytest.mark.parametrize(
-    ("previous", "truncated", "expected"),
+    ("previous", "truncated", "has_existing_pages", "expected"),
     [
-        ("same", False, CompileRoute.SKIP_UNCHANGED),
-        ("same", True, CompileRoute.SKIP_UNCHANGED),
-        ("other", True, CompileRoute.TRUNCATED),
-        (None, True, CompileRoute.TRUNCATED),
-        (None, False, CompileRoute.STANDARD),
-        ("other", False, CompileRoute.STANDARD),
+        ("same", False, True, CompileRoute.SKIP_UNCHANGED),
+        ("same", True, True, CompileRoute.SKIP_UNCHANGED),
+        ("same", False, False, CompileRoute.STANDARD),
+        ("same", True, False, CompileRoute.TRUNCATED),
+        ("other", True, True, CompileRoute.TRUNCATED),
+        (None, True, True, CompileRoute.TRUNCATED),
+        (None, False, True, CompileRoute.STANDARD),
+        ("other", False, True, CompileRoute.STANDARD),
     ],
 )
-def test_compile_route(previous: str | None, truncated: bool, expected: CompileRoute) -> None:
+def test_compile_route(
+    previous: str | None,
+    truncated: bool,
+    has_existing_pages: bool,
+    expected: CompileRoute,
+) -> None:
     decision = decide_compile_route(
-        fingerprint="same", previous_fingerprint=previous, truncated=truncated
+        fingerprint="same",
+        previous_fingerprint=previous,
+        truncated=truncated,
+        has_existing_pages=has_existing_pages,
     )
 
     assert decision.decision == expected

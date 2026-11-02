@@ -71,3 +71,33 @@ def test_rrf_breaks_equal_scores_by_canonical_id() -> None:
     )
 
     assert [hit.canonical_id for hit in fused] == ["source:a", "source:z"]
+
+
+def test_rrf_merges_channel_metadata_without_overwriting_first_hit_keys() -> None:
+    fused = fuse_ranked_hits(
+        {
+            "wiki_vector": [
+                EvidenceHit.wiki(
+                    wiki_id="wiki-a",
+                    rank=1,
+                    embedding_chunk_id="chunk-1",
+                    metadata={"chunk_index": 0},
+                )
+            ],
+            "wiki_lexical": [
+                EvidenceHit.wiki(
+                    wiki_id="wiki-a",
+                    rank=2,
+                    embedding_chunk_id="chunk-2",
+                    metadata={"slug": "overview", "title": "개요 문서", "chunk_index": 99},
+                )
+            ],
+        },
+        policy=DEFAULT_RETRIEVAL_POLICY,
+    )
+
+    assert len(fused) == 1
+    assert fused[0].metadata["embedding_chunk_id"] == "chunk-1"
+    assert fused[0].metadata["chunk_index"] == 0
+    assert fused[0].metadata["slug"] == "overview"
+    assert fused[0].metadata["title"] == "개요 문서"

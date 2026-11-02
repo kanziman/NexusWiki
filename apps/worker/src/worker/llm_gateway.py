@@ -83,10 +83,14 @@ class LlmGateway:
         system_prompt: str,
         user_prompt: str,
         schema_model: type[BaseModel],
+        max_tokens: int | None = None,
     ) -> LlmResult:
         """구조화 출력 호출. 재시도마다 그 시도의 사용량을 따로 기록한다."""
 
         async def record_attempt(attempt: AttemptUsage) -> None:
+            attempt_meta: dict[str, Any] = {"attempt": attempt.attempt}
+            if max_tokens is not None:
+                attempt_meta["max_tokens"] = max_tokens
             await _record(
                 self._sink,
                 context,
@@ -98,9 +102,12 @@ class LlmGateway:
                 total_tokens=attempt.total_tokens,
                 cost_micros=attempt.cost_micros,
                 duration_ms=attempt.duration_ms,
-                metadata={"attempt": attempt.attempt},
+                metadata=attempt_meta,
             )
 
+        extra_kwargs: dict[str, Any] = {}
+        if max_tokens is not None:
+            extra_kwargs["max_tokens"] = max_tokens
         return await llm_provider.complete_structured(
             self._client,
             settings=self._settings,
@@ -108,6 +115,7 @@ class LlmGateway:
             user_prompt=user_prompt,
             schema_model=schema_model,
             on_attempt=record_attempt,
+            **extra_kwargs,
         )
 
     async def embed_texts(self, context: LlmCallContext, *, texts: list[str]) -> EmbeddingResult:

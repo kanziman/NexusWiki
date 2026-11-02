@@ -468,3 +468,72 @@ async def ask_aggregate(
         "unresolved_count": cost.get("unresolved_count", 0),
         "incomplete_call_count": row.get("incomplete_call_count", 0),
     }
+
+
+def _call_path_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "call": _short_text(item.get("call")) or "compile",
+        "kind": _short_text(item.get("kind")) or "llm",
+        "call_count": int(_number(item.get("call_count"))),
+        "prompt_tokens": int(_number(item.get("prompt_tokens"))),
+        "completion_tokens": int(_number(item.get("completion_tokens"))),
+        "total_tokens": int(_number(item.get("total_tokens"))),
+        "reported_micros": int(_number(item.get("reported_micros"))),
+        "pending_micros": int(_number(item.get("pending_micros"))),
+        "budget_micros": int(_number(item.get("budget_micros"))),
+    }
+
+
+@router.get("/{workspace_id}/control/budget")
+async def control_budget(
+    workspace_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    days: Annotated[int, Query(ge=1, le=90)] = 30,
+) -> dict[str, Any]:
+    """Control Room [예산] 탭 스냅샷. 역할 검사와 범위 분리는 RPC 함수 본문이 수행한다."""
+    since = datetime.now(UTC) - timedelta(days=days)
+    rows = await _user_db(request, credentials).rpc(
+        "control_budget_snapshot",
+        params={"p_workspace_id": str(workspace_id), "p_since": since.isoformat()},
+    )
+    if not rows:
+        raise WorkspaceForbidden(table="workspace_members", affected=0)
+    row = rows[0]
+    settings = request.app.state.settings
+    cap_micros = int(_number(row.get("cap_micros")))
+    budget_micros = int(_number(row.get("budget_micros")))
+    raw_by_call = row.get("by_call_path")
+    by_call_path = (
+        [_call_path_item(item) for item in raw_by_call[:16] if isinstance(item, Mapping)]
+        if isinstance(raw_by_call, list)
+        else []
+    )
+    return {
+        "days": days,
+        "can_view_workspace": row.get("can_view_workspace") is True,
+        "month_start": row.get("month_start"),
+        "cap_micros": cap_micros,
+        "reported_micros": int(_number(row.get("reported_micros"))),
+        "pending_micros": int(_number(row.get("pending_micros"))),
+        "budget_micros": budget_micros,
+        "remaining_micros": cap_micros - budget_micros,
+        "unresolved_count": int(_number(row.get("unresolved_count"))),
+        "manual_review_count": int(_number(row.get("manual_review_count"))),
+        "over_reserve_count": int(_number(row.get("over_reserve_count"))),
+        "policy": {
+            "ask_max_context_tokens": int(getattr(settings, "ASK_MAX_CONTEXT_TOKENS", 6000)),
+            "compile_max_input_tokens": 24000,
+            "compile_max_output_tokens": 4096,
+            "compile_max_pages": 8,
+            "conflict_max_input_tokens": 4000,
+            "conflict_max_output_tokens": 512,
+        },
+        "savings": {
+            "ask_no_evidence_count": int(_number(row.get("ask_no_evidence_count"))),
+            "ask_context_truncated_count": int(_number(row.get("ask_context_truncated_count"))),
+            "compile_truncated_count": int(_number(row.get("compile_truncated_count"))),
+            "compile_skipped_count": int(_number(row.get("compile_skipped_count"))),
+        },
+        "by_call_path": by_call_path,
+    }

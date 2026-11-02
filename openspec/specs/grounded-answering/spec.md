@@ -88,3 +88,18 @@ The system SHALL report retrieval channels that failed for the request in Ask me
 #### Scenario: Graph channel is disabled
 - **WHEN** all enabled channels succeed and the graph channel is disabled by policy
 - **THEN** the `meta` event reports no missing channels and no notice is shown
+
+### Requirement: Ask 컨텍스트 토큰 예산과 이중 근거 쿼터
+시스템은 Ask 프롬프트의 근거 블록을 조립할 때 설정된 컨텍스트 토큰 상한을 MUST 강제해야 한다. 검색 결과에 위키 근거와 원문 근거가 모두 포함되어 있을 때는 한 종류의 긴 문서가 다른 종류의 근거를 전부 밀어내지 못하도록 두 종류 모두 최소 1건 이상의 근거 블록과 별칭(`[[wiki:...]]`, `[[src:...]]`)을 프롬프트에 SHALL 보존해야 한다. 근거 융합(RRF) 시 동일 문서가 여러 채널에서 검색되면 채널별 메타데이터(`title`, `slug` 등)를 MUST 병합해 벡터 채널이 먼저 적중한 위키 근거도 제목과 슬러그를 잃지 않게 한다. 컨텍스트 예산 적용 결과(예산 토큰, 사용 토큰, 위키·원문 토큰, 잘림 여부)는 본문 없이 턴의 `control_report`에 SHALL 기록한다.
+
+#### Scenario: 긴 위키 근거가 있어도 원문 근거가 함께 보존된다
+- **WHEN** 검색 결과에 컨텍스트 예산을 초과하는 긴 위키 근거와 원문 근거가 함께 있다
+- **THEN** 조립된 컨텍스트는 토큰 상한 안에서 잘리며 위키 별칭 블록과 원문 별칭 블록이 모두 최소 1건 이상 포함되고, `control_report`에 잘림 여부가 기록된다
+
+#### Scenario: 한 종류 근거만 있을 때 남은 예산을 사용한다
+- **WHEN** 검색 결과에 위키 근거만 있거나 원문 근거만 있다
+- **THEN** 해당 종류 근거가 전체 컨텍스트 토큰 상한까지 사용할 수 있다
+
+#### Scenario: 벡터 채널과 어휘 채널이 같은 위키 문서를 반환한다
+- **WHEN** 벡터 채널이 메타데이터 없이 먼저 적중하고 어휘 채널이 같은 위키 문서의 `title`과 `slug`를 반환한다
+- **THEN** 융합된 위키 근거는 `title`과 `slug`를 보존하여 컨텍스트 블록 제목과 Router `LOOKUP` 판정에 사용한다

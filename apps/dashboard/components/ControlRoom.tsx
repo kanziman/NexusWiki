@@ -98,13 +98,62 @@ type AskAggregate = {
   incomplete_call_count: number;
 };
 
+type BudgetCallPathItem = {
+  call: string;
+  kind: string;
+  call_count: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  reported_micros: number;
+  pending_micros: number;
+  budget_micros: number;
+};
+
+type BudgetSnapshot = {
+  days: number;
+  can_view_workspace: boolean;
+  month_start: string;
+  cap_micros: number;
+  reported_micros: number;
+  pending_micros: number;
+  budget_micros: number;
+  remaining_micros: number;
+  unresolved_count: number;
+  manual_review_count: number;
+  over_reserve_count: number;
+  policy: {
+    ask_max_context_tokens: number;
+    compile_max_input_tokens: number;
+    compile_max_output_tokens: number;
+    compile_max_pages: number;
+    conflict_max_input_tokens: number;
+    conflict_max_output_tokens: number;
+  };
+  savings: {
+    ask_no_evidence_count: number;
+    ask_context_truncated_count: number;
+    compile_truncated_count: number;
+    compile_skipped_count: number;
+  };
+  by_call_path: BudgetCallPathItem[];
+};
+
+const CALL_PATH_LABELS: Record<string, string> = {
+  ask: "질문 답변 (ask)",
+  compile: "위키 컴파일 (compile)",
+  conflict_check: "지식 충돌 검사 (conflict_check)",
+  embed_source: "원문 임베딩 (embed_source)",
+  embed_wiki: "위키 임베딩 (embed_wiki)",
+  query_embedding: "질의 임베딩 (query_embedding)",
+};
+
 const FUTURE_TABS = [
-  { id: "budget", label: "예산", step: "Step 2" },
   { id: "quality", label: "품질", step: "Step 3" },
   { id: "risk", label: "리스크", step: "Step 4" },
 ] as const;
 
-type TabId = "trace" | (typeof FUTURE_TABS)[number]["id"];
+type TabId = "trace" | "budget" | (typeof FUTURE_TABS)[number]["id"];
 
 const STATUS_LABELS: Record<string, string> = {
   resolved: "완료",
@@ -152,11 +201,25 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
   const [tab, setTab] = useState<TabId>("trace");
   const [list, setList] = useState<TraceList | null>(null);
   const [aggregate, setAggregate] = useState<AskAggregate | null>(null);
+  const [budget, setBudget] = useState<BudgetSnapshot | null>(null);
+  const [budgetError, setBudgetError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TraceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [detailError, setDetailError] = useState(false);
+
+  const loadBudget = useCallback(async () => {
+    setBudgetError(false);
+    try {
+      const next = await apiFetch<BudgetSnapshot>(
+        `/workspaces/${workspaceId}/control/budget`,
+      );
+      setBudget(next);
+    } catch {
+      setBudgetError(true);
+    }
+  }, [workspaceId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,17 +237,26 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
           ),
         );
       }
+      if (tab === "budget") {
+        await loadBudget();
+      }
     } catch {
       // 원시 오류는 운영 정보가 될 수 있으므로 계약 문구만 렌더한다.
       setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, tab, loadBudget]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab === "budget" && !budget && !budgetError) {
+      void loadBudget();
+    }
+  }, [tab, budget, budgetError, loadBudget]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -241,6 +313,16 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
         >
           추적
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="control-tab-budget"
+          aria-selected={tab === "budget"}
+          className={tab === "budget" ? styles.tabActive : styles.tab}
+          onClick={() => setTab("budget")}
+        >
+          예산
+        </button>
         {FUTURE_TABS.map((item) => (
           <button
             key={item.id}
@@ -256,7 +338,16 @@ export function ControlRoom({ workspaceId }: ControlRoomProps) {
         ))}
       </div>
 
-      {tab !== "trace" ? (
+      {tab === "budget" ? (
+        <section role="tabpanel" aria-labelledby="control-tab-budget">
+          {budgetError ? (
+            <p role="alert" className="invite-feedback error show">
+              예산 정보를 불러오지 못했습니다. 새로고침을 시도해주세요.
+            </p>
+          ) : null}
+          {budget ? <BudgetPanel snapshot={budget} /> : null}
+        </section>
+      ) : tab !== "trace" ? (
         <section
           role="tabpanel"
           aria-labelledby={`control-tab-${tab}`}
@@ -379,6 +470,138 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className={styles.metric}>
       <span>{label}</span>
       <b>{value}</b>
+    </div>
+  );
+}
+
+function BudgetPanel({ snapshot }: { snapshot: BudgetSnapshot }) {
+  const utilizationPct =
+    snapshot.cap_micros > 0
+      ? ((snapshot.budget_micros / snapshot.cap_micros) * 100).toFixed(1)
+      : "0.0";
+  return (
+    <div>
+      <section className={styles.aggregate} aria-label="당월 예산 현황">
+        <Metric
+          label="월간 예산 한도"
+          value={microsDisplay(snapshot.cap_micros)}
+        />
+        <Metric
+          label="예산 판정액 (소진율)"
+          value={`${microsDisplay(snapshot.budget_micros)} (${utilizationPct}%)`}
+        />
+        <Metric
+          label="공급자 보고 비용"
+          value={microsDisplay(snapshot.reported_micros)}
+        />
+        <Metric
+          label="미확정 예산 점유"
+          value={microsDisplay(snapshot.pending_micros)}
+        />
+        <Metric
+          label="남은 한도"
+          value={microsDisplay(snapshot.remaining_micros)}
+        />
+        <Metric
+          label="미정산 / 수동검토"
+          value={`${snapshot.unresolved_count}건 / ${snapshot.manual_review_count}건`}
+        />
+      </section>
+
+      <section className={styles.metrics} aria-label="활성 토큰 예산 정책">
+        <Metric
+          label="Ask 컨텍스트 토큰 상한"
+          value={`${snapshot.policy.ask_max_context_tokens.toLocaleString("ko-KR")} 토큰 (이중 근거 1+1 보장)`}
+        />
+        <Metric
+          label="위키 컴파일 입력 상한"
+          value={`${snapshot.policy.compile_max_input_tokens.toLocaleString("ko-KR")} 토큰`}
+        />
+        <Metric
+          label="위키 컴파일 출력 상한"
+          value={`${snapshot.policy.compile_max_output_tokens.toLocaleString("ko-KR")} 토큰 · 최대 ${snapshot.policy.compile_max_pages}페이지`}
+        />
+        <Metric
+          label="충돌 검사 입·출력 상한"
+          value={`입력 ${snapshot.policy.conflict_max_input_tokens.toLocaleString("ko-KR")} / 출력 ${snapshot.policy.conflict_max_output_tokens.toLocaleString("ko-KR")} 토큰`}
+        />
+      </section>
+
+      <section
+        className={styles.metrics}
+        aria-label={`최근 ${snapshot.days}일 예산 절감 실행`}
+      >
+        <Metric
+          label="Ask 근거 0건 단락 (NO_EVIDENCE)"
+          value={`${snapshot.savings.ask_no_evidence_count}건`}
+        />
+        <Metric
+          label="Ask 컨텍스트 예산 절단"
+          value={`${snapshot.savings.ask_context_truncated_count}건`}
+        />
+        {snapshot.can_view_workspace ? (
+          <>
+            <Metric
+              label="컴파일 입력 절단 (TRUNCATED)"
+              value={`${snapshot.savings.compile_truncated_count}건`}
+            />
+            <Metric
+              label="변경 없는 원문 컴파일 생략 (SKIP_UNCHANGED)"
+              value={`${snapshot.savings.compile_skipped_count}건`}
+            />
+          </>
+        ) : (
+          <p className={styles.note}>
+            조회 전용(viewer) 멤버에게는 워크스페이스 월간 예산 현황과 본인의
+            질문 절감 건수만 표시됩니다.
+          </p>
+        )}
+      </section>
+
+      {snapshot.can_view_workspace ? (
+        snapshot.by_call_path.length > 0 ? (
+          <div className={styles.tableScroll}>
+            <table className={styles.calls}>
+              <caption>호출 경로별 비용 및 토큰</caption>
+              <thead>
+                <tr>
+                  <th scope="col">호출 경로</th>
+                  <th scope="col">종류</th>
+                  <th scope="col">호출 건수</th>
+                  <th scope="col">입력 토큰</th>
+                  <th scope="col">출력 토큰</th>
+                  <th scope="col">총 토큰</th>
+                  <th scope="col">공급자 보고 비용</th>
+                  <th scope="col">미확정 점유</th>
+                  <th scope="col">예산 판정액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.by_call_path.map((item) => (
+                  <tr key={`${item.call}-${item.kind}`}>
+                    <td>{CALL_PATH_LABELS[item.call] ?? item.call}</td>
+                    <td>{item.kind}</td>
+                    <td>{item.call_count.toLocaleString("ko-KR")}건</td>
+                    <td>{item.prompt_tokens.toLocaleString("ko-KR")}</td>
+                    <td>{item.completion_tokens.toLocaleString("ko-KR")}</td>
+                    <td>{item.total_tokens.toLocaleString("ko-KR")}</td>
+                    <td>{microsDisplay(item.reported_micros)}</td>
+                    <td>{microsDisplay(item.pending_micros)}</td>
+                    <td>{microsDisplay(item.budget_micros)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={styles.empty}>
+            <h2>최근 {snapshot.days}일 동안 기록된 공급자 호출이 없습니다</h2>
+            <p>
+              질문이나 원문 컴파일이 실행되면 경로별 비용과 토큰이 집계됩니다.
+            </p>
+          </div>
+        )
+      ) : null}
     </div>
   );
 }

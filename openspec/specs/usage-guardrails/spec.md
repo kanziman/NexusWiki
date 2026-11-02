@@ -122,3 +122,14 @@ The system MUST define the temporary reservation calculation and its assumptions
 #### Scenario: A user attempts to settle another workspace's call
 - **WHEN** a user submits or reuses another workspace's call or generation identifier
 - **THEN** no reservation, cost, or lookup result from that workspace is exposed or changed
+
+### Requirement: 구조화 출력 호출의 입력·출력 토큰 상한
+시스템은 컴파일과 충돌 판정을 포함한 모든 구조화 출력 LLM 호출에 설정된 입력 토큰 상한과 출력 `max_tokens` 상한을 MUST 적용해야 한다. 공급자 요청 본문에는 `max_tokens`가 명시적으로 포함되어야 하며, 입력이 상한에서 잘렸는지 여부와 적용된 `max_tokens`는 본문 없이 사용량 메타데이터에 SHALL 기록한다.
+
+#### Scenario: 컴파일과 충돌 판정이 공급자를 호출한다
+- **WHEN** 워커가 컴파일 또는 충돌 판정을 위해 구조화 출력 호출을 보낸다
+- **THEN** 공급자 요청에 각 작업의 `max_tokens` 상한이 실리고 사용량 메타데이터에 기록된다
+
+#### Scenario: 긴 위키 본문 쌍의 충돌 판정 입력 제한
+- **WHEN** 충돌 판정 대상 위키 페이지 본문이 설정된 입력 토큰 상한을 넘는다
+- **THEN** 프롬프트 입력은 상한 안에서 잘려 전송되고 잘림 여부가 사용량 메타데이터에 기록된다

@@ -772,12 +772,20 @@ async def test_conflict_judgement_cost_is_recorded_before_the_page_is_flagged() 
 
 
 class _CompileDb:
-    """컴파일 Router 기록을 검증하는 최소 대역."""
+    """컴파일 Router 판정 및 SKIP_UNCHANGED 단락을 검증하는 최소 대역."""
 
-    def __init__(self, *, previous: str | None = None, fail_lookup: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        previous: str | None = None,
+        fail_lookup: bool = False,
+        existing_pages: list[dict[str, str]] | None = None,
+    ) -> None:
         self.previous = previous
         self.fail_lookup = fail_lookup
+        self.existing_pages = [{"id": "wiki-1"}] if existing_pages is None else existing_pages
         self.usage: list[dict[str, Any]] = []
+        self.chained: list[dict[str, Any]] = []
 
     async def get_raw_source(self, _id: str, *, workspace_id: str) -> dict[str, str]:
         return {"title": "원문", "source_type": "text", "content_hash": "hash-1"}
@@ -791,6 +799,9 @@ class _CompileDb:
     async def list_source_chunks(self, **_: str) -> list[dict[str, str]]:
         return [{"content": "첫째 청크"}, {"content": "둘째 청크"}]
 
+    async def list_wiki_pages_for_source(self, **_: str) -> list[dict[str, str]]:
+        return self.existing_pages
+
     async def latest_compile_fingerprint(self, **_: str) -> str | None:
         if self.fail_lookup:
             raise RuntimeError("조회 실패")
@@ -799,8 +810,8 @@ class _CompileDb:
     async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
         self.usage.append(row)
 
-    async def complete_job_and_chain(self, _job_id: str, **_: Any) -> None:
-        return None
+    async def complete_job_and_chain(self, _job_id: str, **values: Any) -> None:
+        self.chained.append(values)
 
 
 async def _run_compile(db: _CompileDb, *, max_input_tokens: int = 24000) -> int:
@@ -838,14 +849,31 @@ def _fingerprint() -> str:
 
 
 @pytest.mark.asyncio
-async def test_unchanged_input_is_recorded_as_skippable_but_the_llm_still_runs() -> None:
-    db = _CompileDb(previous=_fingerprint())
+async def test_unchanged_input_with_existing_pages_skips_llm_and_chains_to_link_sync() -> None:
+    db = _CompileDb(previous=_fingerprint(), existing_pages=[{"id": "wiki-1"}])
+
+    assert await _run_compile(db) == 0
+    assert db.usage == []
+    assert db.chained == [
+        {
+            "next_type": "link_sync",
+            "next_payload": {
+                "target_id": "raw-source",
+                "raw_source_id": "raw-source",
+                "compile_route": "SKIP_UNCHANGED",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_unchanged_input_without_existing_pages_still_runs_the_llm() -> None:
+    db = _CompileDb(previous=_fingerprint(), existing_pages=[])
 
     assert await _run_compile(db) == 1
-
-    metadata = db.usage[0]["metadata"]
-    assert metadata["route"] == "SKIP_UNCHANGED"
-    assert metadata["fingerprint"] == _fingerprint()
+    assert db.usage[0]["metadata"]["route"] == "STANDARD"
+    assert db.usage[0]["metadata"]["fingerprint"] == _fingerprint()
+    assert db.usage[0]["metadata"]["max_tokens"] == 4096
 
 
 @pytest.mark.asyncio
@@ -865,3 +893,74 @@ async def test_fingerprint_lookup_failure_does_not_fail_the_job() -> None:
     assert await _run_compile(db) == 1
 
     assert db.usage[0]["metadata"]["route"] == "STANDARD"
+
+
+@pytest.mark.asyncio
+async def test_conflict_check_truncates_oversized_pages_and_sends_max_tokens() -> None:
+    usage_rows: list[dict[str, Any]] = []
+    sent_bodies: list[dict[str, Any]] = []
+    long_content = "충돌 판정 대상 위키 문서의 긴 본문입니다. " * 120
+
+    class Db:
+        async def list_wiki_pages_for_source(self, **_values: Any) -> list[dict[str, str]]:
+            return [{"id": "page-a", "content": long_content}]
+
+        async def find_similar_wiki_pages(self, **_values: Any) -> list[dict[str, float | str]]:
+            return [{"candidate_wiki_id": "page-b", "similarity": 0.94}]
+
+        async def _select(self, _table: str, *, params: dict[str, str]) -> list[dict[str, str]]:
+            return [{"id": "page-b", "content": long_content}]
+
+        async def insert_usage_event(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+            usage_rows.append(row)
+
+        async def set_wiki_page_disputed(self, wiki_id: str, *, workspace_id: str) -> None:
+            return None
+
+        async def complete_job_and_chain(self, _job_id: str) -> None:
+            return None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent_bodies.append(httpx.Response(200, content=request.content).json())
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"is_contradiction": false, "rationale": "compatible"}'
+                        }
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 50,
+                    "completion_tokens": 5,
+                    "total_tokens": 55,
+                    "cost": 0.001,
+                },
+                "provider": "Anthropic",
+                "model": "m",
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url=llm_provider.OPENROUTER_BASE_URL
+    ) as client:
+        await conflict.run_conflict_check(
+            Db(),  # type: ignore[arg-type]
+            client,
+            settings=SimpleNamespace(  # type: ignore[arg-type]
+                LLM_MODEL="m",
+                CONFLICT_MAX_INPUT_TOKENS=120,
+                CONFLICT_MAX_OUTPUT_TOKENS=256,
+            ),
+            job_id=JOB_ID,
+            workspace_id=WORKSPACE_ID,
+            payload={"raw_source_id": "raw-source"},
+        )
+
+    assert sent_bodies[0]["max_tokens"] == 256
+    assert len(sent_bodies[0]["messages"][1]["content"]) < len(long_content) * 2
+    assert usage_rows[0]["metadata"]["truncated_input"] is True
+    assert usage_rows[0]["metadata"]["max_input_tokens"] == 120
+    assert usage_rows[0]["metadata"]["max_tokens"] == 256
