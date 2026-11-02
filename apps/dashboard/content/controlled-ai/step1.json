@@ -35,7 +35,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -75,7 +75,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -109,7 +109,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "turn_final_status": "error",
           "terminal_event": "done"
@@ -142,7 +142,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "fabricated_anchor_count": 2,
           "dual_citation_rate": 0.0
@@ -181,7 +181,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "provider_reported_cost_micros": 0,
           "recorded_cost_micros": 0,
@@ -221,7 +221,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "prompt_context_tokens": 6000,
           "prompt_wiki_anchors": 1,
@@ -255,7 +255,7 @@
         }
       },
       "after": {
-        "commit": "3744e4f",
+        "commit": "26235f9",
         "values": {
           "input_tokens": 4017,
           "requested_max_tokens": 512
