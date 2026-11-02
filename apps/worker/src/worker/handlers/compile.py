@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Final
 
 import httpx
@@ -151,8 +152,11 @@ async def run_compile(
         },
     )
 
+    # ⚠️ `raw_sources.content_hash`가 아니라 **실제로 컴파일할 본문**의 해시를 쓴다. 그 컬럼은
+    #    수집 시점의 값이고 경로마다 규칙이 달라(URL은 주소 기준) 재처리로 본문이 바뀌어도
+    #    그대로다. 그 값을 쓰면 바뀐 원문을 건너뛰어 위키가 조용히 낡는다.
     fingerprint = compile_fingerprint(
-        content_hash=str(source.get("content_hash") or ""),
+        content_hash=hashlib.sha256(source_content.encode("utf-8")).hexdigest(),
         template_id=str(template.get("id") or ""),
         model=settings.LLM_MODEL,
     )

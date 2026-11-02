@@ -215,8 +215,9 @@ async def compile_unchanged_skip() -> dict[str, Any]:
 
     from worker.handlers import compile as compile_handler
 
+    body = hashlib.sha256("합성 원문".encode()).hexdigest()
     fingerprint = hashlib.sha256(
-        b"scenario-hash\x1fscenario-template\x1fscenario-model"
+        f"{body}\x1fscenario-template\x1fscenario-model".encode()
     ).hexdigest()
 
     class Db:

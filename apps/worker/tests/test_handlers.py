@@ -1,5 +1,6 @@
 """핸들러 레지스트리 계약 회귀 테스트 — 미등록 type이 조용히 통과하지 않는다."""
 
+import hashlib
 import inspect
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -845,7 +846,8 @@ async def _run_compile(db: _CompileDb, *, max_input_tokens: int = 24000) -> int:
 
 
 def _fingerprint() -> str:
-    return compile_fingerprint(content_hash="hash-1", template_id="template-1", model="m")
+    body = hashlib.sha256("첫째 청크\n\n둘째 청크".encode()).hexdigest()
+    return compile_fingerprint(content_hash=body, template_id="template-1", model="m")
 
 
 @pytest.mark.asyncio
@@ -964,3 +966,17 @@ async def test_conflict_check_truncates_oversized_pages_and_sends_max_tokens() -
     assert usage_rows[0]["metadata"]["truncated_input"] is True
     assert usage_rows[0]["metadata"]["max_input_tokens"] == 120
     assert usage_rows[0]["metadata"]["max_tokens"] == 256
+
+
+@pytest.mark.asyncio
+async def test_changed_body_with_the_same_content_hash_is_recompiled() -> None:
+    """재처리는 `content_hash`를 바꾸지 않는다. 본문이 바뀌면 지문도 바뀌어야 위키가 낡지 않는다."""
+
+    class Db(_CompileDb):
+        async def list_source_chunks(self, **_: str) -> list[dict[str, str]]:
+            return [{"content": "재처리로 바뀐 본문"}]
+
+    db = Db(previous=_fingerprint(), existing_pages=[{"id": "wiki-1"}])
+
+    assert await _run_compile(db) == 1
+    assert db.usage[0]["metadata"]["route"] == "STANDARD"
