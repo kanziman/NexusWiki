@@ -83,3 +83,22 @@ The workflow SHALL verify GitHub command responses before reporting success and 
 #### Scenario: GitHub publication or comment fails
 - **WHEN** push, PR creation or lookup, or issue commenting fails
 - **THEN** the workflow reports the verified partial state and does not claim the failed action completed
+
+### Requirement: 자동 운영 배포 전 마이그레이션 게이트
+main 머지가 운영 애플리케이션 배포를 자동으로 시작하는 저장소에서, 마이그레이션을 포함한 PR의 운영자는 머지 전에 현재 운영 코드와의 호환성을 MUST 확인한다. 호환되는 마이그레이션은 머지 전에 운영 DB에 적용하고, 명령 응답으로 적용 원장과 해당 PR에 필요한 미적용 마이그레이션이 없음을 MUST 확인한다. 에이전트는 이 확인 없이 머지 준비가 완료됐다고 MUST NOT 보고한다. 이 게이트는 DB 쓰기나 머지 권한을 자동으로 부여하지 않는다.
+
+#### Scenario: 이전 코드와 호환되는 마이그레이션
+- **WHEN** main 머지가 자동 배포를 시작하고 PR에 현재 운영 코드와 호환되는 마이그레이션이 포함되어 있다
+- **THEN** 운영자는 원격 원장과 dry-run 대상을 확인한 뒤 승인된 권한으로 DB에 선적용하고, 필요한 버전의 적용과 미적용 대상이 없음을 확인한 결과를 PR에 기록한 후에만 머지한다
+
+#### Scenario: 적용 또는 확인이 완료되지 않았다
+- **WHEN** 필요한 마이그레이션이 미적용 상태이거나 적용 결과를 확인할 권한 또는 명령 응답이 없다
+- **THEN** PR은 머지하지 않고 필요한 운영자 조치와 확인되지 않은 상태를 보고한다
+
+#### Scenario: 이전 운영 코드와 호환되지 않는다
+- **WHEN** 마이그레이션 선적용이 현재 운영 코드의 동작을 깨뜨린다
+- **THEN** 호환 단계로 변경을 분리하거나 자동 배포를 통제하는 별도 승인된 전환 계획을 마련하고, 그 계획의 선행 조건을 충족하기 전에는 머지하지 않는다
+
+#### Scenario: 문서와 합성 증거만 바뀐다
+- **WHEN** PR이 문서나 합성 증거만 변경하고 마이그레이션을 포함하지 않는다
+- **THEN** 운영 DB 적용은 요구하지 않으며 마이그레이션 게이트가 해당하지 않음을 기록한다
