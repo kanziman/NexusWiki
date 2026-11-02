@@ -35,7 +35,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -75,7 +75,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -109,7 +109,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "turn_final_status": "error",
           "terminal_event": "done"
@@ -142,7 +142,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "fabricated_anchor_count": 2,
           "dual_citation_rate": 0.0
@@ -181,7 +181,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "provider_reported_cost_micros": 0,
           "recorded_cost_micros": 0,
@@ -221,7 +221,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "prompt_context_tokens": 6000,
           "prompt_wiki_anchors": 1,
@@ -255,7 +255,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "input_tokens": 4017,
           "requested_max_tokens": 512
@@ -288,7 +288,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "provider_calls": 1,
           "pages_saved": 1
@@ -321,7 +321,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "provider_calls": 2,
           "pages_saved": 0
@@ -360,7 +360,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "turn_final_status": "fallback",
           "provider_calls": 2,
@@ -394,7 +394,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "verified_body": "보존",
           "pending_proposals": 1
@@ -421,7 +421,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "data_collection": "deny"
         }
@@ -447,7 +447,7 @@
         }
       },
       "after": {
-        "commit": "73e880e",
+        "commit": "3696506",
         "values": {
           "material_boundary_policy": "있음"
         }
