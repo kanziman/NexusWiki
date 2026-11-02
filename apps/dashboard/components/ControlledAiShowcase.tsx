@@ -73,7 +73,7 @@ export function ControlledAiShowcase({
           NexusWiki
         </Link>
         <p className={styles.eyebrow}>
-          Controlled AI · Step 1–2 추적·비용 회계 및 컨텍스트 예산
+          Controlled AI · Step 1–3 추적·비용 회계, 컨텍스트 예산, 출력 계약
         </p>
         <h1>AI 호출을 통제하기 전과 후</h1>
         <p className={styles.lede}>

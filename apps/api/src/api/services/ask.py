@@ -28,12 +28,23 @@ import httpx
 from api.db.user import UserDb
 from api.errors import DatabaseError, WorkspaceForbidden
 from api.services.retrieval import RetrievalResult, RetrievalService
-from nexuswiki_core.citations import BROAD_ANCHOR_PATTERN, ISSUED_ANCHOR_PATTERN
+from nexuswiki_core.answer_contract import (
+    build_fallback_answer,
+    check_answer_contract,
+    repair_instruction,
+)
+from nexuswiki_core.citations import (
+    BROAD_ANCHOR_PATTERN,
+    ISSUED_ANCHOR_PATTERN,
+    neutralize_anchor_brackets,
+    strip_forged_anchors,
+)
 from nexuswiki_core.context_budget import (
     DEFAULT_ASK_MAX_CONTEXT_TOKENS,
     AskContextBudgetResult,
     allocate_ask_context_budget,
     select_dual_evidence,
+    truncate_text_to_tokens,
 )
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.router import RouteDecision, decide_ask_route
@@ -70,6 +81,10 @@ _ERROR_TOKENS: Final[dict[int, str]] = {
     502: "llm_unavailable",
     504: "llm_unavailable",
 }
+
+# 수리 호출에 되돌려 보내는 초안의 상한. 위반 답변이 재주입 비용을 키우면 안 된다.
+_REPAIR_DRAFT_MAX_TOKENS: Final[int] = 2000
+_MAX_RENDER_ROUNDS: Final[int] = 8
 
 # 내보내기는 개발자용 사본이다. 답변 완료를 지연시키지 않도록 짧게 끊는다.
 _TURN_EXPORT_TIMEOUT_SECONDS: Final[float] = 2.0
@@ -251,6 +266,17 @@ def resolve_citations(
         return ""  # 조작이거나(파싱은 됐지만 미발급) 애초에 우리가 발급하지 않는 모양이다.
 
     rendered_text = BROAD_ANCHOR_PATTERN.sub(_strip_fabricated, full_text)
+    # 지운 자리에서 미발급 앵커가 재조립될 수 있다. 횟수를 제한해 비용이 입력 크기에 묶이게 한다.
+    for _ in range(_MAX_RENDER_ROUNDS):
+        stripped = BROAD_ANCHOR_PATTERN.sub(_strip_fabricated, rendered_text)
+        if stripped == rendered_text:
+            break
+        rendered_text = stripped
+    else:
+        # 상한까지 안정되지 않은 깊은 중첩이다. 믿을 앵커를 가릴 수 없으므로 인용으로 치지 않아
+        # 인용 계약 위반으로 수리나 근거 목록으로 끝나게 한다.
+        rendered_text = neutralize_anchor_brackets(rendered_text)
+        resolved_aliases = set()
     # ⚠️ 지표는 위조를 지운 뒤의 텍스트로 잰다. 원문으로 재면 위조 앵커만 달린 문장이
     #    이중 인용으로 계산되어 품질 지표가 조용히 부풀려진다 (design D6).
     sentences = split_sentences(rendered_text)
@@ -427,14 +453,16 @@ def _context_blocks(
     for hit in evidence:
         if hit.kind == "wiki":
             alias = alias_by_key[("wiki", hit.document_id)]
-            title = hit.metadata.get("title") or hit.document_id
-            content = content_by_id.get(hit.document_id, "")
+            # ⚠️ 이미 저장된 제목과 본문에 앵커가 남아 있을 수 있다. 그대로 실으면 모델이 베껴 쓴
+            #    앵커가 이 요청의 별칭으로 해소된다.
+            title = strip_forged_anchors(str(hit.metadata.get("title") or hit.document_id))
+            content = strip_forged_anchors(content_by_id.get(hit.document_id, ""))
             wiki_blocks.append(f"[[wiki:{alias}]] {title}\n{content}")
         else:
             alias = alias_by_key[("source", hit.evidence_id)]
             raw_source_id = hit.metadata.get("raw_source_id") or ""
             chunk_index = hit.metadata.get("chunk_index")
-            content = content_by_id.get(hit.evidence_id, "")
+            content = strip_forged_anchors(content_by_id.get(hit.evidence_id, ""))
             source_blocks.append(f"[[src:{alias}]] ({raw_source_id} {chunk_index})\n{content}")
     return "\n\n".join(wiki_blocks), "\n\n".join(source_blocks)
 
@@ -509,6 +537,7 @@ def _control_report(
     recorder: TraceRecorder,
     route: RouteDecision | None,
     budget: AskContextBudgetResult | None,
+    quality: Mapping[str, Any] | None,
     retrieval_meta: Mapping[str, Any],
     evidence: list[EvidenceHit],
     citations: Mapping[str, Any],
@@ -526,6 +555,7 @@ def _control_report(
         "outcome": outcome,
         "route": route.as_report() if route is not None else None,
         "budget": budget.as_report() if budget is not None else None,
+        "quality": dict(quality) if quality is not None else None,
         "total_ms": recorder.total_ms(),
         "spans": recorder.spans(),
         "evidence": {
@@ -577,11 +607,56 @@ class AskService:
         turn_exporter: AskTurnExporter | None = None,
         *,
         max_context_tokens: int = DEFAULT_ASK_MAX_CONTEXT_TOKENS,
+        quality_mode: str = "enforce",
     ) -> None:
+        self._quality_mode = quality_mode
         self._retrieval_service = retrieval_service
         self._llm_client = llm_client
         self._turn_exporter = turn_exporter
         self._max_context_tokens = max_context_tokens
+
+    async def _repair_answer(
+        self,
+        *,
+        workspace_id: UUID,
+        system_prompt: str,
+        user_prompt: str,
+        draft: str,
+        violations: tuple[str, ...],
+        issuance: Mapping[str, tuple[str, str]],
+    ) -> str | None:
+        """위반을 되먹여 1회 다시 묻는다. 어떤 실패든 `None`이며 호출부가 Fallback으로 끝낸다.
+
+        비용은 같은 내부 경계를 지나므로 일반 호출과 똑같이 예약·기록된다.
+        """
+        collected: list[str] = []
+        try:
+            async with self._llm_client.stream(
+                workspace_id=str(workspace_id),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                    {
+                        "role": "assistant",
+                        "content": truncate_text_to_tokens(draft, _REPAIR_DRAFT_MAX_TOKENS)[0]
+                        or "(빈 답변)",
+                    },
+                    {"role": "user", "content": repair_instruction(violations, list(issuance))},
+                ],
+            ) as upstream:
+                if upstream.status_code >= 400:
+                    return None
+                async for line in upstream.aiter_lines():
+                    if not line.startswith("data: ") or line == "data: [DONE]":
+                        continue
+                    collected.append(_delta_text(line))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 수리는 부가 경로다. 실패가 턴 종결을 막으면 안 된다.
+            # ⚠️ 여기서 놓치면 `citations`와 `done` 없이 끊겨 턴이 `streaming`에 영구히 남는다.
+            _logger.warning("ask.repair_failed", error_type=type(exc).__name__)
+            return None
+        return "".join(collected)
 
     def _export_turn(
         self, *, workspace_id: UUID, control_report: Mapping[str, Any], persisted: bool
@@ -679,12 +754,14 @@ class AskService:
         result: RetrievalResult | None = None
         route: RouteDecision | None = None
         budget: AskContextBudgetResult | None = None
+        quality: dict[str, Any] | None = None
 
         def report(citations: Mapping[str, Any], outcome: str) -> dict[str, Any]:
             return _control_report(
                 recorder=recorder,
                 route=route,
                 budget=budget,
+                quality=quality,
                 retrieval_meta=result.meta if result is not None else {},
                 evidence=(
                     list(budget.included_evidence)
@@ -913,6 +990,53 @@ class AskService:
         recorder.start("citation")
         full_text = "".join(accumulated)
         resolution = resolve_citations(full_text, issuance)
+        violations: tuple[str, ...] = ()
+        if self._quality_mode != "off":
+            violations = check_answer_contract(
+                resolution.rendered_text,
+                cited_anchor_count=resolution.cited_anchor_count,
+                fabricated_anchor_count=resolution.fabricated_anchor_count,
+            )
+        terminal_status = "resolved"
+        repair_attempted = False
+        repaired = False
+        if violations and self._quality_mode == "enforce":
+            # ⚠️ 델타를 보내지 않고 모아서 아래 `citations.text`로 교체한다. SSE 순서는 그대로다
+            #    (ai-control-output-contract D6).
+            recorder.start("repair")
+            repair_attempted = True
+            repaired_text = await self._repair_answer(
+                workspace_id=workspace_id,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                draft=resolution.rendered_text,
+                violations=violations,
+                issuance=issuance,
+            )
+            repaired_resolution = (
+                resolve_citations(repaired_text, issuance) if repaired_text else None
+            )
+            if repaired_resolution is not None and not check_answer_contract(
+                repaired_resolution.rendered_text,
+                cited_anchor_count=repaired_resolution.cited_anchor_count,
+                fabricated_anchor_count=repaired_resolution.fabricated_anchor_count,
+            ):
+                resolution = repaired_resolution
+                repaired = True
+            else:
+                # 수리도 실패하면 모델 없이 끝낸다. 앵커는 발급 맵에서만 나온다.
+                resolution = resolve_citations(
+                    build_fallback_answer(included_evidence, issuance, budget.content_by_id),
+                    issuance,
+                )
+                terminal_status = "fallback"
+        quality = {
+            "mode": self._quality_mode,
+            "violations": list(violations),
+            "repair_attempted": repair_attempted,
+            "repaired": repaired,
+            "fallback": terminal_status == "fallback",
+        }
         success_citations = {
             "text": resolution.rendered_text,
             "resolved": resolution.resolved,
@@ -921,6 +1045,8 @@ class AskService:
             "dual_citation_rate": resolution.dual_citation_rate,
             "unsourced_sentence_ratio": resolution.unsourced_sentence_ratio,
         }
+        if terminal_status == "fallback":
+            success_citations["fallback"] = True
         yield "citations", success_citations
         async for event in self._yield_done_if_finalized(
             user_db=user_db,
@@ -929,7 +1055,7 @@ class AskService:
             client_turn_id=client_turn_id,
             answer_text=resolution.rendered_text,
             citations=success_citations,
-            status="resolved",
-            control_report=report(success_citations, "resolved"),
+            status=terminal_status,
+            control_report=report(success_citations, terminal_status),
         ):
             yield event

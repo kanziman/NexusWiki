@@ -35,7 +35,7 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -75,7 +75,7 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "provider_reported_cost_micros": 2000,
           "recorded_cost_micros": 2000,
@@ -109,7 +109,7 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "turn_final_status": "error",
           "terminal_event": "done"
@@ -142,7 +142,7 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "fabricated_anchor_count": 2,
           "dual_citation_rate": 0.0
@@ -181,7 +181,7 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "provider_reported_cost_micros": 0,
           "recorded_cost_micros": 0,
@@ -221,7 +221,7 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "prompt_context_tokens": 6000,
           "prompt_wiki_anchors": 1,
@@ -255,20 +255,121 @@
         }
       },
       "after": {
-        "commit": "26235f9",
+        "commit": "c325a0a",
         "values": {
           "input_tokens": 4017,
           "requested_max_tokens": 512
         }
       }
+    },
+    {
+      "id": "compile-fence-retry",
+      "title": "코드 펜스 하나가 부른 유료 재시도",
+      "problem": "온전한 JSON도 코드 펜스로 감싸이면 실패로 처리되어 호출을 다시 지불했습니다.",
+      "fix": "응답 전체를 감싼 펜스 한 겹은 코드로 벗겨 재시도 없이 통과시킵니다.",
+      "scenario": "compile_fence_retry",
+      "metrics": [
+        {
+          "key": "provider_calls",
+          "label": "공급자 호출",
+          "unit": "count"
+        },
+        {
+          "key": "pages_saved",
+          "label": "저장된 페이지",
+          "unit": "count"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "provider_calls": 2,
+          "pages_saved": 1
+        }
+      },
+      "after": {
+        "commit": "c325a0a",
+        "values": {
+          "provider_calls": 1,
+          "pages_saved": 1
+        }
+      }
+    },
+    {
+      "id": "compile-placeholder-page",
+      "title": "placeholder 페이지 저장",
+      "problem": "본문이 TODO인 페이지도 스키마를 통과해 위키에 저장되었습니다.",
+      "fix": "공백과 placeholder를 의미 검증으로 거부하고 호출을 2회로 제한합니다.",
+      "scenario": "compile_placeholder_page",
+      "metrics": [
+        {
+          "key": "provider_calls",
+          "label": "공급자 호출",
+          "unit": "count"
+        },
+        {
+          "key": "pages_saved",
+          "label": "저장된 페이지",
+          "unit": "count"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "provider_calls": 1,
+          "pages_saved": 1
+        }
+      },
+      "after": {
+        "commit": "c325a0a",
+        "values": {
+          "provider_calls": 2,
+          "pages_saved": 0
+        }
+      }
+    },
+    {
+      "id": "ask-no-citation-terminal",
+      "title": "인용 없는 답변의 정상 저장",
+      "problem": "인용이 하나도 없는 답변이 정상 답변으로 저장되었습니다.",
+      "fix": "위반을 1회 수리하고, 실패하면 발급 앵커만 쓴 근거 목록으로 끝냅니다.",
+      "scenario": "ask_no_citation_terminal",
+      "metrics": [
+        {
+          "key": "turn_final_status",
+          "label": "턴의 최종 상태",
+          "unit": "text"
+        },
+        {
+          "key": "provider_calls",
+          "label": "공급자 호출",
+          "unit": "count"
+        },
+        {
+          "key": "cited_anchor_count",
+          "label": "해소된 인용",
+          "unit": "count"
+        }
+      ],
+      "before": {
+        "commit": "79b68fe",
+        "values": {
+          "turn_final_status": "resolved",
+          "provider_calls": 1,
+          "cited_anchor_count": 0
+        }
+      },
+      "after": {
+        "commit": "c325a0a",
+        "values": {
+          "turn_final_status": "fallback",
+          "provider_calls": 2,
+          "cited_anchor_count": 2
+        }
+      }
     }
   ],
   "upcoming": [
-    {
-      "step": 3,
-      "title": "품질",
-      "description": "출력 계약을 검증하고 인용을 사후에 수리합니다."
-    },
     {
       "step": 4,
       "title": "리스크",

@@ -449,7 +449,132 @@ describe("ControlRoom", () => {
     ).toBeNull();
   });
 
-  it("이후 Step 탭(품질·리스크)은 지어낸 수치 없이 빈 상태만 표시한다", async () => {
+  it("품질 탭에서 editor에게 답변 인용 계약과 구조화 출력, 근거 집계를 표시한다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/quality": {
+        days: 30,
+        can_view_workspace: true,
+        mode: "enforce",
+        ask: {
+          turns: 10,
+          violation_turns: 3,
+          no_citation_turns: 2,
+          fabricated_turns: 1,
+          repair_attempted: 3,
+          repaired: 2,
+          fallback: 1,
+        },
+        structured: {
+          calls: 8,
+          fence_stripped: 4,
+          json_invalid: 1,
+          schema_invalid: 0,
+          semantic_invalid: 2,
+          missing_content: 3,
+          exhausted: 1,
+        },
+        evidence: { pages_total: 6, pages_with_evidence: 5 },
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole("tab", { name: "품질" }));
+
+    const ask = await screen.findByRole("region", {
+      name: "최근 30일 답변 인용 계약",
+    });
+    expect(ask).toHaveTextContent("2건 / 3건");
+    expect(screen.getByText(/수리·근거 목록 대체 적용 중/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).toHaveTextContent("코드 펜스 제거");
+    expect(
+      screen.getByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).toHaveTextContent("본문 없는 응답3건");
+    expect(
+      screen.getByRole("region", { name: "위키 근거 청크" }),
+    ).toHaveTextContent("5쪽 / 6쪽");
+  });
+
+  it("품질 탭에서 viewer에게는 수집 집계를 표시하지 않는다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/quality": {
+        days: 30,
+        can_view_workspace: false,
+        mode: "enforce",
+        ask: {
+          turns: 1,
+          violation_turns: 0,
+          no_citation_turns: 0,
+          fabricated_turns: 0,
+          repair_attempted: 0,
+          repaired: 0,
+          fallback: 0,
+        },
+        structured: null,
+        evidence: null,
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole("tab", { name: "품질" }));
+
+    await screen.findByRole("region", { name: "최근 30일 답변 인용 계약" });
+    expect(
+      screen.queryByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).toBeNull();
+  });
+
+  it("품질 탭은 집계할 데이터가 없으면 0을 꾸미지 않고 빈 상태를 표시한다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/quality": {
+        days: 30,
+        can_view_workspace: true,
+        mode: "enforce",
+        ask: {
+          turns: 0,
+          violation_turns: 0,
+          no_citation_turns: 0,
+          fabricated_turns: 0,
+          repair_attempted: 0,
+          repaired: 0,
+          fallback: 0,
+        },
+        structured: {
+          calls: 0,
+          fence_stripped: 0,
+          json_invalid: 0,
+          schema_invalid: 0,
+          semantic_invalid: 0,
+          missing_content: 0,
+          exhausted: 0,
+        },
+        // 위키가 있어도 기간 안에 턴과 호출이 없으면 빈 상태다.
+        evidence: { pages_total: 12, pages_with_evidence: 12 },
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole("tab", { name: "품질" }));
+
+    expect(
+      await screen.findByText(/집계할 답변과 수집 호출이 없습니다/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "최근 30일 답변 인용 계약" }),
+    ).toBeNull();
+  });
+
+  it("리스크 탭은 지어낸 수치 없이 빈 상태만 표시한다", async () => {
     respond({
       "/control/traces": { items: [], can_view_workspace: false },
     });
@@ -458,10 +583,10 @@ describe("ControlRoom", () => {
     render(<ControlRoom workspaceId="ws" />);
     await waitFor(() => expect(apiFetch).toHaveBeenCalled());
 
-    await user.click(screen.getByRole("tab", { name: "품질" }));
+    await user.click(screen.getByRole("tab", { name: "리스크" }));
 
     const panel = screen.getByRole("tabpanel");
-    expect(panel).toHaveTextContent("Step 3에서 수집을 시작합니다");
+    expect(panel).toHaveTextContent("Step 4에서 수집을 시작합니다");
     expect(panel).toHaveTextContent("아직 수집된 데이터가 없습니다.");
     expect(panel.textContent).not.toMatch(/\d+%|\$\d/);
   });

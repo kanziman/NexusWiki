@@ -17,12 +17,14 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any, Final
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from nexuswiki_core.chunking import count_tokens
+from nexuswiki_core.citations import strip_forged_anchors
 from nexuswiki_core.domain import WikiCategory, WikiConfidence
 from nexuswiki_core.logging import get_logger
 from nexuswiki_core.router import (
@@ -52,6 +54,31 @@ COMPILE_TARGET_TYPE: Final[str] = "compile"
 
 _logger = get_logger(__name__)
 
+# ⚠️ **전체 일치로만** 판정한다. 부분 일치는 템플릿 문법을 설명하는 정상 문서를 거부해
+#    유료 재시도와 문서 유실을 낳는다 (ai-control-output-contract D3).
+_PLACEHOLDER_ONLY = re.compile(
+    r"(?:todo|tbd|tba|fixme|placeholder|n/?a|none|null|미정|내용\s*없음|\.{3,}|…+|\{\{\s*\w+\s*\}\})",
+    re.IGNORECASE,
+)
+
+
+def _clean_text(value: str) -> str:
+    """앵커를 지운 값을 돌려주고 빈 값과 placeholder를 거부한다.
+
+    ⚠️ 입력에 앵커가 있으므로 모델이 제목과 본문에 베껴 쓸 수 있다. 제목에 남으면 슬러그가
+    오염되고, 남은 앵커는 이후 Ask 컨텍스트에서 그 요청의 별칭으로 해소된다.
+    오류 메시지에 값을 싣지 않는다. 요약이 `jobs.last_error`로 흐른다.
+    """
+    cleaned = strip_forged_anchors(value).strip()
+    if not cleaned or _PLACEHOLDER_ONLY.fullmatch(cleaned):
+        raise ValueError("blank_or_placeholder")
+    return cleaned
+
+
+def _clean_aliases(values: list[str]) -> list[str]:
+    cleaned = (strip_forged_anchors(value).strip() for value in values)
+    return [value for value in cleaned if value]
+
 
 class CompiledPage(BaseModel):
     """LLM이 낸 페이지 하나.
@@ -72,6 +99,11 @@ class CompiledPage(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     confidence: WikiConfidence
     content: str = Field(min_length=1)
+    # 서버가 발급한 청크 별칭. 기존 워크스페이스 템플릿은 이 필드를 내지 않으므로 기본값이 있다.
+    evidence: list[str] = Field(default_factory=list)
+
+    _validate_text = field_validator("title", "content")(_clean_text)
+    _validate_aliases = field_validator("aliases")(_clean_aliases)
 
 
 class CompileResult(BaseModel):
@@ -127,10 +159,29 @@ async def run_compile(
     max_existing_slugs = int(getattr(settings, "COMPILE_MAX_EXISTING_SLUGS", 200))
     existing_slugs = (await db.list_wiki_slugs(workspace_id=workspace_id))[:max_existing_slugs]
     chunks = await db.list_source_chunks(workspace_id=workspace_id, raw_source_id=raw_source_id)
+    # 지문은 앵커가 붙기 전의 본문으로 계산한다. 앵커 표기를 바꿔도 재컴파일 비용이 들지 않는다.
+    plain_content = "\n\n".join(str(chunk.get("content") or "") for chunk in chunks)
+    # 앵커는 서버가 매기고 근거 대조의 기준이 된다. 수집 시 본문의 앵커 문법을 지웠으므로
+    # 원문이 앵커를 위조할 수 없다 (parse.py).
+    anchored = [
+        (
+            f"s{index}",
+            chunk,
+            # 이미 저장된 청크도 있어 여기서 다시 지운다. 위조되면 근거 대조가 깨진다.
+            f"[[src:s{index}]]\n{strip_forged_anchors(str(chunk.get('content') or ''))}",
+        )
+        for index, chunk in enumerate(chunks, start=1)
+    ]
     source_content, truncated = _join_within_budget(
-        [str(chunk.get("content") or "") for chunk in chunks],
+        [piece for _, _, piece in anchored],
         budget_tokens=settings.COMPILE_MAX_INPUT_TOKENS,
     )
+    # ⚠️ 예산에서 잘려 모델이 보지 못한 청크는 발급된 것이 아니다.
+    issued_chunks = {
+        alias: str(chunk["id"])
+        for alias, chunk, piece in anchored
+        if chunk.get("id") and piece in source_content
+    }
     if truncated:
         _logger.warning(
             "worker.compile_input_truncated",
@@ -156,7 +207,7 @@ async def run_compile(
     #    수집 시점의 값이고 경로마다 규칙이 달라(URL은 주소 기준) 재처리로 본문이 바뀌어도
     #    그대로다. 그 값을 쓰면 바뀐 원문을 건너뛰어 위키가 조용히 낡는다.
     fingerprint = compile_fingerprint(
-        content_hash=hashlib.sha256(source_content.encode("utf-8")).hexdigest(),
+        content_hash=hashlib.sha256(plain_content.encode("utf-8")).hexdigest(),
         template_id=str(template.get("id") or ""),
         model=settings.LLM_MODEL,
     )
@@ -224,13 +275,28 @@ async def run_compile(
         # 만들지 않는 상태가 반복되면 그것은 프롬프트나 추출의 문제라는 신호다.
         _logger.warning("worker.compile_produced_no_pages", raw_source_id=raw_source_id)
 
+    fabricated_evidence = 0
     for slug, page in _assign_slugs(pages):
-        await _upsert_page(
+        wiki_id = await _upsert_page(
             db,
             workspace_id=workspace_id,
             raw_source_id=raw_source_id,
             slug=slug,
             page=page,
+        )
+        chunk_ids, fabricated = _resolve_evidence(page.evidence, issued_chunks)
+        fabricated_evidence += fabricated
+        await db.replace_wiki_page_evidence(
+            workspace_id=workspace_id,
+            wiki_id=wiki_id,
+            raw_source_id=raw_source_id,
+            chunk_ids=chunk_ids,
+        )
+    if fabricated_evidence:
+        _logger.warning(
+            "worker.compile_fabricated_evidence",
+            raw_source_id=raw_source_id,
+            fabricated_evidence=fabricated_evidence,
         )
 
     _logger.info(
@@ -336,9 +402,12 @@ async def _upsert_page(
     raw_source_id: str,
     slug: str,
     page: CompiledPage,
-) -> None:
+) -> str:
     existing = await db.get_wiki_page_by_slug(workspace_id=workspace_id, slug=slug)
     sources = _union_sources(existing, raw_source_id)
+    # ⚠️ 입력에 앵커가 생겼으므로 모델이 본문에 베껴 쓸 수 있다. 그대로 저장하면 이후 Ask
+    #    컨텍스트에서 그 요청이 발급한 별칭과 혼동된다.
+    content = strip_forged_anchors(page.content)
 
     # ⚠️ `verification_status` · `explored` · `verified_by` · `disputed`를 **넣지 않는다**
     #    (T-03-28). 사람이 세운 검증 배지를 재컴파일이 지우면 검증이라는 행위가 소스가
@@ -350,7 +419,7 @@ async def _upsert_page(
             "slug": slug,
             "title": page.title,
             "category": page.category.value,
-            "content": page.content,
+            "content": content,
             "aliases": page.aliases,
             "confidence": page.confidence.value,
             "sources": sources,
@@ -362,9 +431,24 @@ async def _upsert_page(
     await db.index_wiki_page_lexical(
         workspace_id=workspace_id,
         wiki_id=wiki_id,
-        bigrams=bigram(normalize(page.content)),
+        bigrams=bigram(normalize(content)),
         tokenizer_version=TSV_TOKENIZER_VERSION,
     )
+    return wiki_id
+
+
+def _resolve_evidence(evidence: list[str], issued: dict[str, str]) -> tuple[list[str], int]:
+    """발급된 별칭만 청크 id로 바꾸고 지어낸 수를 센다. 모델이 앵커 표기로 내도 받아 준다."""
+    chunk_ids: list[str] = []
+    fabricated = 0
+    for raw in evidence:
+        alias = raw.strip().removeprefix("[[").removesuffix("]]").removeprefix("src:")
+        chunk_id = issued.get(alias)
+        if chunk_id is None:
+            fabricated += 1
+        elif chunk_id not in chunk_ids:
+            chunk_ids.append(chunk_id)
+    return chunk_ids, fabricated
 
 
 def _union_sources(existing: dict[str, Any] | None, raw_source_id: str) -> list[str]:

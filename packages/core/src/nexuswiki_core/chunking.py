@@ -85,7 +85,9 @@ def count_tokens(text: str) -> int:
     """`cl100k_base` 기준 토큰 수. 빈 문자열은 0이다."""
     if not text:
         return 0
-    return len(_encoding().encode(text))
+    # ⚠️ 기본값은 `<|endoftext|>` 같은 특수 토큰이 든 본문에서 예외를 던진다. 본문은 사용자 입력과
+    #    모델 출력이므로 그 문자열이 턴과 잡을 멈추게 하면 안 된다. 일반 텍스트로 센다.
+    return len(_encoding().encode(text, disallowed_special=()))
 
 
 def chunk_text(content: str) -> list[Chunk]:

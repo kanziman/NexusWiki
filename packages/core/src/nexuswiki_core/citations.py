@@ -22,6 +22,7 @@ import re
 __all__ = [
     "BROAD_ANCHOR_PATTERN",
     "ISSUED_ANCHOR_PATTERN",
+    "neutralize_anchor_brackets",
     "strip_forged_anchors",
 ]
 
@@ -34,10 +35,31 @@ BROAD_ANCHOR_PATTERN: re.Pattern[str] = re.compile(r"\[\[(?:wiki|src):[^\[\]]*\]
 ISSUED_ANCHOR_PATTERN: re.Pattern[str] = re.compile(r"\[\[(wiki:w\d+|src:s\d+)\]\]")
 
 
+_MAX_STRIP_ROUNDS: int = 8
+_BRACKET_RUN: re.Pattern[str] = re.compile(r"\[+")
+
+
+def neutralize_anchor_brackets(text: str) -> str:
+    """여는 괄호 연속을 하나로 줄여 어떤 앵커도 남거나 재조립되지 못하게 한다.
+
+    ⚠️ `"[["`를 치환하는 방식은 괄호가 홀수 개일 때 앵커를 남긴다. 연속 자체를 없앤다.
+    """
+    return _BRACKET_RUN.sub("[", text)
+
+
 def strip_forged_anchors(text: str) -> str:
     """CITE-06: 방금 수집한 원문에서 앵커 모양의 토큰을 전부 제거한다.
 
     ⚠️ `chunk_text()` 이전, 전체 추출 텍스트 위에서 **한 번만** 돌아야 한다 — 위조
     앵커가 청크 경계에 걸치면 청크별 정규식은 그것을 놓친다(D-04).
     """
-    return BROAD_ANCHOR_PATTERN.sub("", text)
+    # ⚠️ 한 번 지우면 끝이 아니다. `[[wi[[wiki:w8]]ki:w1]]`은 안쪽을 지우면 `[[wiki:w1]]`로
+    #    재조립되어 그 턴의 별칭으로 해소된다.
+    # ⚠️ 끝날 때까지 반복하면 깊게 중첩한 입력의 비용이 제곱으로 늘어 이벤트 루프가 멈춘다.
+    #    횟수를 제한하고, 그보다 깊으면 여는 괄호를 끊어 앵커가 될 수 없게 만든다.
+    for _ in range(_MAX_STRIP_ROUNDS):
+        stripped = BROAD_ANCHOR_PATTERN.sub("", text)
+        if stripped == text:
+            return text
+        text = stripped
+    return neutralize_anchor_brackets(text) if BROAD_ANCHOR_PATTERN.search(text) else text

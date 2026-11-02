@@ -13,6 +13,8 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from api.routers.control import _SPAN_LABELS
+from nexuswiki_core.observability import _SPAN_NAMES
 from tests.conftest import LOCAL_STACK
 
 _SECRET_QUESTION = "고유한-질문-문자열"  # noqa: S105 - 테스트 픽스처
@@ -778,3 +780,158 @@ async def test_control_budget_separates_editor_and_viewer_scopes_and_denies_outs
     assert viewer_body["savings"]["compile_truncated_count"] == 0
     assert viewer_body["savings"]["compile_skipped_count"] == 0
     assert viewer_body["by_call_path"] == []
+
+
+def _seed_quality_turn(stack: httpx.Client, actor: Any, *, status: str, quality: Any) -> None:
+    turn_id = str(uuid4())
+    started = _rpc(
+        stack,
+        actor.access_token,
+        "start_ask_turn",
+        {
+            "p_workspace_id": actor.workspace_id,
+            "p_thread_id": None,
+            "p_client_turn_id": turn_id,
+            "p_question": _SECRET_QUESTION,
+            "p_trace_id": str(uuid4()),
+        },
+    )
+    _rpc(
+        stack,
+        actor.access_token,
+        "finalize_ask_turn",
+        {
+            "p_workspace_id": actor.workspace_id,
+            "p_thread_id": started[0]["thread_id"],
+            "p_client_turn_id": turn_id,
+            "p_answer_text": _SECRET_ANSWER,
+            "p_citations": {"text": _SECRET_ANSWER, "resolved": []},
+            "p_status": status,
+            "p_control_report": {"version": 1, "outcome": status, "quality": quality},
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_control_quality_separates_scopes_and_survives_forged_reports(
+    two_workspaces_two_users: tuple[Any, Any],
+    workspace_member_with_role: Any,
+    authed_client: Callable[..., Any],
+    local_stack: httpx.Client,
+) -> None:
+    owner, outsider = two_workspaces_two_users
+    viewer = workspace_member_with_role(owner, "viewer")
+    _seed_quality_turn(
+        local_stack,
+        owner,
+        status="fallback",
+        quality={
+            "mode": "enforce",
+            "violations": ["no_citation"],
+            "repair_attempted": True,
+            "repaired": False,
+            "fallback": True,
+        },
+    )
+    _seed_quality_turn(
+        local_stack,
+        owner,
+        status="resolved",
+        quality={
+            "mode": "enforce",
+            "violations": ["fabricated_anchor"],
+            "repair_attempted": True,
+            "repaired": True,
+            "fallback": False,
+        },
+    )
+    # 작성자가 control_report를 조작해도 집계가 깨지면 안 된다.
+    _seed_quality_turn(
+        local_stack,
+        owner,
+        status="resolved",
+        quality={"violations": "조작", "repair_attempted": "yes", "repaired": 1},
+    )
+    _seed_quality_turn(local_stack, viewer, status="resolved", quality=None)
+    seeded = local_stack.post(
+        "/rest/v1/usage_events",
+        headers=_admin_headers(),
+        json={
+            "workspace_id": owner.workspace_id,
+            "kind": "llm",
+            "provider": "openrouter",
+            "model": "test-model",
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2,
+            "cost_micros": 1,
+            "metadata": {
+                "call": "compile",
+                "fence_stripped": True,
+                "violation": "semantic_invalid",
+                "exhausted": True,
+            },
+        },
+    )
+    assert seeded.status_code < 400, seeded.text
+    seeded_empty = local_stack.post(
+        "/rest/v1/usage_events",
+        headers=_admin_headers(),
+        json={
+            "workspace_id": owner.workspace_id,
+            "kind": "llm",
+            "provider": "openrouter",
+            "model": "test-model",
+            "prompt_tokens": 1,
+            "completion_tokens": 0,
+            "total_tokens": 1,
+            "cost_micros": 1,
+            "metadata": {"call": "conflict_check", "violation": "missing_content"},
+        },
+    )
+    assert seeded_empty.status_code < 400, seeded_empty.text
+
+    path = f"/workspaces/{owner.workspace_id}/control/quality"
+    async with authed_client(owner) as owner_client:
+        owner_resp = await owner_client.get(path)
+    async with authed_client(viewer) as viewer_client:
+        viewer_resp = await viewer_client.get(path)
+    async with authed_client(outsider) as outsider_client:
+        outsider_resp = await outsider_client.get(path)
+    async with authed_client(None) as anonymous_client:
+        anonymous_resp = await anonymous_client.get(path)
+
+    assert outsider_resp.status_code == 403
+    assert anonymous_resp.status_code == 401
+    assert owner_resp.status_code == 200, owner_resp.text
+    body = owner_resp.json()
+    assert body["can_view_workspace"] is True
+    assert body["ask"] == {
+        "turns": 4,
+        "violation_turns": 2,
+        "no_citation_turns": 1,
+        "fabricated_turns": 1,
+        "repair_attempted": 2,
+        "repaired": 1,
+        "fallback": 1,
+    }
+    assert body["structured"]["calls"] == 2
+    assert body["structured"]["fence_stripped"] == 1
+    assert body["structured"]["semantic_invalid"] == 1
+    assert body["structured"]["missing_content"] == 1
+    assert body["structured"]["exhausted"] == 1
+    assert _SECRET_ANSWER not in owner_resp.text
+    assert _SECRET_QUESTION not in owner_resp.text
+
+    assert viewer_resp.status_code == 200, viewer_resp.text
+    viewer_body = viewer_resp.json()
+    assert viewer_body["can_view_workspace"] is False
+    assert viewer_body["ask"]["turns"] == 1
+    assert viewer_body["ask"]["violation_turns"] == 0
+    assert viewer_body["structured"] is None
+    assert viewer_body["evidence"] is None
+
+
+def test_repair_span_passes_both_display_allowlists() -> None:
+    assert _SPAN_LABELS["repair"] == "인용 수리"
+    assert "repair" in _SPAN_NAMES

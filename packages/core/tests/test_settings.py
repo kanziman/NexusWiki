@@ -50,6 +50,8 @@ NON_SECRET_API_FIELDS = frozenset(
         # (2026-11-02, ai-context-budget: ASK_MAX_CONTEXT_TOKENS — Ask 근거 블록 총 토큰
         #  상한. 자격증명이 아니라 프롬프트 토큰 예산을 제한하는 운영 토글이다. 근거: design D1.)
         "ASK_MAX_CONTEXT_TOKENS",
+        # (2026-11-03, ai-control-output-contract: Ask 인용 계약 모드. 자격증명이 아니다.)
+        "AI_CONTROL_QUALITY_MODE",
         # (2026-08-12, 05-01: LLM_STREAM_INTERNAL_URL/_TOKEN/_TIMEOUT_SECONDS — worker의
         #  /internal/llm-chat 호출 캐퍼빌리티. 토큰 값은 provider credential이 아니라
         #  QUERY_EMBEDDING_INTERNAL_TOKEN과 같은 내부 호출자 자격이다.)
