@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // parseSseStream만 모킹한다 — AskConversation은 이 파서가 내보내는 이벤트
@@ -183,6 +189,27 @@ describe("AskConversation", () => {
 
     await waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
     unsubscribe();
+  });
+
+  it("새 대화 이벤트를 받으면 열려 있던 대화를 화면에서 내린다", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true } as Response);
+    sseFrames.mockReturnValue(
+      toAsyncGenerator([
+        { event: "citations", data: { text: "삭제될 답변입니다." } },
+        { event: "done", data: {} },
+      ]),
+    );
+    render(<AskConversation workspaceId="ws-1" />);
+    await askQuestion("삭제될 대화");
+    expect(await screen.findByText("삭제될 답변입니다.")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("nexuswiki:new-ask-thread"));
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText("삭제될 답변입니다.")).not.toBeInTheDocument(),
+    );
   });
 
   it("저장된 streaming 턴을 다시 열면 생성 중 상태로 복원한다", async () => {

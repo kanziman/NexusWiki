@@ -629,12 +629,14 @@ describe("ControlRoom", () => {
       ),
     );
 
-    expect(ask).toHaveTextContent("측정 4건 / 전체 6건");
+    expect(ask).toHaveTextContent("답변 턴 (측정 / 전체)");
+    expect(ask).toHaveTextContent("4건 / 6건");
     expect(ask).toHaveTextContent("계약 위반 턴");
     const structured = screen.getByRole("region", {
       name: "최근 30일 구조화 출력",
     });
-    expect(structured).toHaveTextContent("측정 1건 / 전체 2건");
+    expect(structured).toHaveTextContent("구조화 호출 (측정 / 전체)");
+    expect(structured).toHaveTextContent("1건 / 2건");
     expect(structured).toHaveTextContent("JSON 오류");
     expect(screen.queryByText(/측정 기록 없음/)).toBeNull();
   });
@@ -647,13 +649,13 @@ describe("ControlRoom", () => {
       ),
     );
 
-    expect(ask).toHaveTextContent("측정 0건 / 전체 2건");
+    expect(ask).toHaveTextContent("0건 / 2건");
     expect(ask).toHaveTextContent("측정 기록 없음");
     expect(ask).not.toHaveTextContent("계약 위반 턴");
     const structured = screen.getByRole("region", {
       name: "최근 30일 구조화 출력",
     });
-    expect(structured).toHaveTextContent("측정 0건 / 전체 1건");
+    expect(structured).toHaveTextContent("0건 / 1건");
     expect(structured).toHaveTextContent("측정 기록 없음");
     expect(structured).not.toHaveTextContent("JSON 오류");
   });
@@ -684,7 +686,7 @@ describe("ControlRoom", () => {
     delete structured.measured_calls;
     const region = await openQuality({ ...snapshot, ask, structured });
 
-    expect(region).toHaveTextContent("측정 0건 / 전체 2건");
+    expect(region).toHaveTextContent("0건 / 2건");
     expect(region).toHaveTextContent("측정 기록 없음");
     expect(region).not.toHaveTextContent("계약 위반 턴");
     expect(
