@@ -4,8 +4,8 @@
 
 PDF·URL·텍스트를 넣으면 LLM이 상호 링크된 위키로 컴파일합니다. 질문에는 하이브리드 검색으로 근거를 찾아, 원문 청크와 위키 페이지를 함께 인용한 답변을 돌려줍니다. 팀 워크스페이스가 기본 단위이며, 테넌트 격리는 애플리케이션이 아니라 Postgres RLS가 강제합니다.
 
-- **서비스:** <https://nexuswiki.vercel.app>
-- **Controlled AI 쇼케이스:** <https://nexuswiki.vercel.app/showcase/controlled-ai> (로그인 없이 볼 수 있으며, 합성 데이터만 사용합니다)
+- **서비스:** <https://nexuswiki.net>
+- **Controlled AI 쇼케이스:** <https://nexuswiki.net/showcase/controlled-ai> (로그인 없이 볼 수 있으며, 합성 데이터만 사용합니다)
 
 ## 핵심 아이디어: 이중 인용
 
@@ -94,7 +94,7 @@ flowchart LR
 - [CI 보안 게이트](docs/ops/ci-security-gate.md): 게이트가 위반을 실제로 실패시키는지 기록합니다.
 - [HNSW 순서 모드 벤치마크](docs/ops/hnsw-order-benchmark.md): 검색 순서 모드와 그래프 기본값을 결정한 측정 기록입니다.
 - [Ask 합성 샘플 재생](docs/ops/ask-sample-replay.md): 합성 문서와 고정 질문으로 코드 전후를 비교합니다. 운영 성과가 아닌 합성 샘플의 수치입니다.
-- [Controlled AI 쇼케이스](https://nexuswiki.vercel.app/showcase/controlled-ai): 자동화 테스트가 합성 입력으로 만든 통제 전후의 관측값을 보여 줍니다.
+- [Controlled AI 쇼케이스](https://nexuswiki.net/showcase/controlled-ai): 자동화 테스트가 합성 입력으로 만든 통제 전후의 관측값을 보여 줍니다.
 
 ## 빠르게 둘러보기
 
