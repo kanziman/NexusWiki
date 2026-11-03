@@ -568,6 +568,7 @@ async def control_quality(
         "mode": str(getattr(request.app.state.settings, "AI_CONTROL_QUALITY_MODE", "enforce")),
         "ask": {
             "turns": count("ask_turns"),
+            "measured_turns": count("ask_measured_turns"),
             "violation_turns": count("ask_violation_turns"),
             "no_citation_turns": count("ask_no_citation_turns"),
             "fabricated_turns": count("ask_fabricated_turns"),
@@ -580,6 +581,7 @@ async def control_quality(
         if not can_view
         else {
             "calls": count("structured_calls"),
+            "measured_calls": count("structured_measured_calls"),
             "fence_stripped": count("structured_fence_stripped"),
             "json_invalid": count("structured_json_invalid"),
             "schema_invalid": count("structured_schema_invalid"),

@@ -852,6 +852,34 @@ async def test_control_quality_separates_scopes_and_survives_forged_reports(
         status="resolved",
         quality={"violations": "조작", "repair_attempted": "yes", "repaired": 1},
     )
+    # 품질 기록이 객체가 아니면 측정 전 데이터다. Fallback 상태여도 지표에 세지 않는다.
+    _seed_quality_turn(local_stack, owner, status="fallback", quality="조작")
+    _seed_quality_turn(local_stack, owner, status="resolved", quality={})
+    # `off`는 계약 검사를 건너뛰고도 빈 위반 목록을 저장한다. 측정으로 세면 위반 0건으로 보인다.
+    _seed_quality_turn(
+        local_stack,
+        owner,
+        status="resolved",
+        quality={"mode": "off", "violations": [], "repair_attempted": False, "repaired": False},
+    )
+    # 모드가 유효해도 필드 하나의 형식이 틀리면 측정이 아니다.
+    for malformed in (
+        {"violations": "no_citation"},
+        {"repair_attempted": "yes"},
+        {"repaired": 1},
+    ):
+        _seed_quality_turn(
+            local_stack,
+            owner,
+            status="resolved",
+            quality={
+                "mode": "enforce",
+                "violations": ["no_citation"],
+                "repair_attempted": False,
+                "repaired": False,
+                **malformed,
+            },
+        )
     _seed_quality_turn(local_stack, viewer, status="resolved", quality=None)
     seeded = local_stack.post(
         "/rest/v1/usage_events",
@@ -867,6 +895,7 @@ async def test_control_quality_separates_scopes_and_survives_forged_reports(
             "cost_micros": 1,
             "metadata": {
                 "call": "compile",
+                "policy_version": "llm-policy-v1",
                 "fence_stripped": True,
                 "violation": "semantic_invalid",
                 "exhausted": True,
@@ -907,7 +936,8 @@ async def test_control_quality_separates_scopes_and_survives_forged_reports(
     body = owner_resp.json()
     assert body["can_view_workspace"] is True
     assert body["ask"] == {
-        "turns": 4,
+        "turns": 10,
+        "measured_turns": 2,
         "violation_turns": 2,
         "no_citation_turns": 1,
         "fabricated_turns": 1,
@@ -916,9 +946,11 @@ async def test_control_quality_separates_scopes_and_survives_forged_reports(
         "fallback": 1,
     }
     assert body["structured"]["calls"] == 2
+    assert body["structured"]["measured_calls"] == 1
     assert body["structured"]["fence_stripped"] == 1
     assert body["structured"]["semantic_invalid"] == 1
-    assert body["structured"]["missing_content"] == 1
+    # 정책 버전이 없는 호출은 측정 전이므로 그 위반 표기를 지표에 세지 않는다.
+    assert body["structured"]["missing_content"] == 0
     assert body["structured"]["exhausted"] == 1
     assert _SECRET_ANSWER not in owner_resp.text
     assert _SECRET_QUESTION not in owner_resp.text
@@ -927,6 +959,7 @@ async def test_control_quality_separates_scopes_and_survives_forged_reports(
     viewer_body = viewer_resp.json()
     assert viewer_body["can_view_workspace"] is False
     assert viewer_body["ask"]["turns"] == 1
+    assert viewer_body["ask"]["measured_turns"] == 0
     assert viewer_body["ask"]["violation_turns"] == 0
     assert viewer_body["structured"] is None
     assert viewer_body["evidence"] is None

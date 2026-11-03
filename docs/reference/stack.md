@@ -51,7 +51,7 @@
 
 `AI_CONTROL_RISK_MODE`는 API와 worker 두 배포 서비스에 같은 값으로 설정하고 함께 변경한다. 리스크 탭은 API 설정을 표시하지만 실제 쓰기 보류는 worker 설정을 따른다. 두 값이 달라도 자동 탐지되지 않으므로 화면 표시만으로 worker의 적용 모드를 확인할 수 없다.
 
-`supabase/migrations/`에 `0001` ~ `0035`가 있다. **파일명 번호 순서가 곧 적용 순서다.**
+`supabase/migrations/`에 `0001` ~ `0036`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 2026-11-03 `migration list --linked` 기준 운영은 `0035`까지 적용되어 있다. 표에 운영 미적용으로 표시된 번호는 해당 코드의 머지 전에 운영자가 먼저 적용한다.
 
 주요 지점만:
 
@@ -74,15 +74,16 @@
 | `0024` | 사용량 행의 trace와 호출 소요 시간 |
 | `0025` | Ask 턴의 trace와 본문 없는 통제 보고서 |
 | `0026` | 작성자를 드러내지 않는 Ask 집계 RPC |
-| `0027` | Ask 사전 비용 예약·추기형 정산·공통 비용 투영 (로컬 검증, 운영 미적용) |
-| `0028` | 통제실 `[예산]` 탭 역할별 비용·절감 집계 RPC (`control_budget_snapshot`, 로컬 검증, 운영 미적용) |
-| `0029` | Ask 턴 `fallback` 종결 상태 (로컬 검증, 운영 미적용) |
-| `0030` | 위키 페이지 근거 청크 `wiki_page_evidence`, 컴파일 템플릿 근거 표기 (로컬 검증, 운영 미적용) |
-| `0031` | 통제실 `[품질]` 탭 집계 RPC (`control_quality_snapshot`, 로컬 검증, 운영 미적용) |
-| `0032` | 전역 Ask 템플릿의 낡은 인용 지시 제거 (로컬 검증, 운영 미적용) |
-| `0033` | 위키 개정 이력·승인 대기 제안과 승인 RPC (로컬 검증, 운영 미적용) |
-| `0034` | 통제실 `[리스크]` 탭 집계 RPC (`control_risk_snapshot`, 로컬 검증, 운영 미적용) |
-| `0035` | 본문을 보존하는 위키 근거 백필 후보·추가 전용 RPC (`wiki_evidence_backfill_candidates`, `apply_wiki_evidence_backfill`, 로컬 검증, 운영 미적용) |
+| `0027` | Ask 사전 비용 예약·추기형 정산·공통 비용 투영 |
+| `0028` | 통제실 `[예산]` 탭 역할별 비용·절감 집계 RPC (`control_budget_snapshot`) |
+| `0029` | Ask 턴 `fallback` 종결 상태 |
+| `0030` | 위키 페이지 근거 청크 `wiki_page_evidence`, 컴파일 템플릿 근거 표기 |
+| `0031` | 통제실 `[품질]` 탭 집계 RPC (`control_quality_snapshot`) |
+| `0032` | 전역 Ask 템플릿의 낡은 인용 지시 제거 |
+| `0033` | 위키 개정 이력·승인 대기 제안과 승인 RPC |
+| `0034` | 통제실 `[리스크]` 탭 집계 RPC (`control_risk_snapshot`) |
+| `0035` | 본문을 보존하는 위키 근거 백필 후보·추가 전용 RPC (`wiki_evidence_backfill_candidates`, `apply_wiki_evidence_backfill`) |
+| `0036` | 통제실 `[품질]` 탭의 측정 건수 분리 (로컬 검증, 운영 미적용). 운영 순서는 `0036`, API, 대시보드다. 순서가 바뀌면 측정 기록 없음으로 잘못 표시된다 |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 
