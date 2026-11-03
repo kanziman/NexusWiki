@@ -11,10 +11,14 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from apps.api.tests.conftest import LOCAL_STACK
+from apps.api.tests.conftest import authed_client as authed_client
+from apps.api.tests.conftest import local_stack as local_stack
+from apps.api.tests.conftest import two_workspaces_two_users as two_workspaces_two_users
+from apps.api.tests.conftest import workspace_member_with_role as workspace_member_with_role
 
-from tests.conftest import LOCAL_STACK
-from worker.db.service import ServiceDb  # noqa: TID251 - 워커 적용 경로를 실제 DB로 검증한다
-from worker.handlers.wiki_proposal_apply import run_wiki_proposal_apply  # noqa: TID251
+from worker.db.service import ServiceDb
+from worker.handlers.wiki_proposal_apply import run_wiki_proposal_apply
 
 _PROPOSED_BODY = "고유한-제안-본문"
 
