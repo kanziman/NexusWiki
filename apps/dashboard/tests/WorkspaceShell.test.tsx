@@ -73,6 +73,24 @@ describe("WorkspaceShell", () => {
     expect(push).toHaveBeenCalledWith("/w/ws-1/ask?thread=thread-streaming-1");
   });
 
+  it("이미 Ask 화면이면 질문 시작 버튼은 이동 대신 질문 입력창에 포커스를 준다", () => {
+    pathnameRef.current = "/w/ws-1/ask";
+    sessionStorage.setItem(
+      "nexuswiki:active-ask-thread:ws-1",
+      "thread-streaming-1",
+    );
+    render(
+      <WorkspaceShell {...defaultProps}>
+        <textarea id="ask-question-input" aria-label="질문" />
+      </WorkspaceShell>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: /질문 시작/ }));
+
+    expect(screen.getByLabelText("질문")).toHaveFocus();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("renders topbar actions, breadcrumb, and children content", () => {
     render(
       <WorkspaceShell {...defaultProps}>

@@ -345,6 +345,46 @@ describe("WorkspaceSidebar", () => {
     expect(listAskThreads).not.toHaveBeenCalled();
   });
 
+  it("열려 있는 대화를 삭제하면 Ask 화면을 새 대화로 되돌린다", async () => {
+    mockUsePathname.mockReturnValue("/w/ws-1/ask");
+    mockSearchParamsGet.mockImplementation((key) =>
+      key === "thread" ? "thread-101" : null,
+    );
+    sessionStorage.setItem("nexuswiki:active-ask-thread:ws-1", "thread-101");
+    const reset = vi.fn();
+    window.addEventListener("nexuswiki:new-ask-thread", reset);
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "최근 질문 1 대화 삭제" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "삭제" }));
+
+    await waitFor(() => expect(reset).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenCalledWith("/w/ws-1/ask");
+    expect(
+      sessionStorage.getItem("nexuswiki:active-ask-thread:ws-1"),
+    ).toBeNull();
+    window.removeEventListener("nexuswiki:new-ask-thread", reset);
+  });
+
+  it("다른 화면에서 삭제해도 세션의 활성 대화를 지워 삭제된 대화로 돌아가지 않는다", async () => {
+    sessionStorage.setItem("nexuswiki:active-ask-thread:ws-1", "thread-101");
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "최근 질문 1 대화 삭제" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "삭제" }));
+
+    await waitFor(() =>
+      expect(
+        sessionStorage.getItem("nexuswiki:active-ask-thread:ws-1"),
+      ).toBeNull(),
+    );
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("이름 변경과 삭제를 Ask 화면에 알린다", async () => {
     const changed = vi.fn();
     const unsubscribe = subscribeAskThreadsChanged("conversation", changed);

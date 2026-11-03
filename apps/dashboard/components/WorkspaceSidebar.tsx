@@ -547,8 +547,20 @@ export function WorkspaceSidebar({
                         prev.filter((row) => row.id !== target.id),
                       );
                       notifyAskThreadsChanged("sidebar");
-                      if (activeThreadId === target.id) {
+                      // 서랍에서 연 대화는 주소에 없고 세션에만 남으므로 둘 다 확인한다.
+                      const isSessionThread =
+                        getActiveAskThread(currentWorkspaceId) === target.id;
+                      if (isSessionThread) {
                         clearActiveAskThread(currentWorkspaceId);
+                      }
+                      if (
+                        isAskSectionActive &&
+                        (isSessionThread || activeThreadId === target.id)
+                      ) {
+                        // 주소만 바꾸면 Ask 화면이 삭제된 대화를 계속 보여 준다.
+                        window.dispatchEvent(
+                          new CustomEvent("nexuswiki:new-ask-thread"),
+                        );
                         router.push(`${base}/ask`);
                       }
                       setDeleteTarget(null);

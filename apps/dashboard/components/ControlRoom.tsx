@@ -621,6 +621,14 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PolicyLine({ label, value }: { label: string; value: string }) {
+  return (
+    <p className={styles.policy}>
+      {label}: <b>{value}</b>
+    </p>
+  );
+}
+
 function RiskPanel({
   snapshot,
   onDecide,
@@ -631,11 +639,16 @@ function RiskPanel({
   const { revisions, proposals } = snapshot;
   return (
     <div>
-      <p>
-        위키 쓰기 모드:{" "}
-        {RISK_MODE_LABELS[snapshot.write_mode] ?? snapshot.write_mode}
-      </p>
-      <p>적용 중인 LLM 정책: {snapshot.policy_version}</p>
+      <div className={styles.policies}>
+        <PolicyLine
+          label="위키 쓰기 모드"
+          value={RISK_MODE_LABELS[snapshot.write_mode] ?? snapshot.write_mode}
+        />
+        <PolicyLine
+          label="적용 중인 LLM 정책"
+          value={snapshot.policy_version}
+        />
+      </div>
       <section
         className={styles.aggregate}
         aria-label={`최근 ${snapshot.days}일 위키 개정 위험 등급`}
@@ -725,17 +738,20 @@ function QualityPanel({ snapshot }: { snapshot: QualitySnapshot }) {
   }
   return (
     <div>
-      <p>
-        인용 계약 모드: {QUALITY_MODE_LABELS[snapshot.mode] ?? snapshot.mode}
-      </p>
+      <div className={styles.policies}>
+        <PolicyLine
+          label="인용 계약 모드"
+          value={QUALITY_MODE_LABELS[snapshot.mode] ?? snapshot.mode}
+        />
+      </div>
       <section
         className={styles.aggregate}
         aria-label={`최근 ${snapshot.days}일 답변 인용 계약`}
       >
         <p className={styles.note}>최근 {snapshot.days}일 · 측정된 답변 기준</p>
         <Metric
-          label="답변 턴"
-          value={`측정 ${measuredTurns}건 / 전체 ${ask.turns}건`}
+          label="답변 턴 (측정 / 전체)"
+          value={`${measuredTurns}건 / ${ask.turns}건`}
         />
         {/* 측정되지 않은 데이터를 0건으로 보여 주면 위반 없음으로 읽힌다. */}
         {measuredTurns === 0 ? (
@@ -763,8 +779,8 @@ function QualityPanel({ snapshot }: { snapshot: QualitySnapshot }) {
               최근 {snapshot.days}일 · 측정된 호출 기준
             </p>
             <Metric
-              label="구조화 호출"
-              value={`측정 ${measuredCalls}건 / 전체 ${structured.calls}건`}
+              label="구조화 호출 (측정 / 전체)"
+              value={`${measuredCalls}건 / ${structured.calls}건`}
             />
             {measuredCalls === 0 ? (
               <UnmeasuredNote total={structured.calls} noun="구조화 호출" />

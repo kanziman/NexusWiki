@@ -79,6 +79,16 @@ export function WorkspaceShell({
   }
 
   function handleAskNavigation(event: MouseEvent<HTMLAnchorElement>) {
+    // 이미 Ask 화면이면 같은 주소로 이동해 아무 변화가 없으므로 입력창으로 안내한다.
+    const askInput =
+      pathname === `${base}/ask`
+        ? document.getElementById("ask-question-input")
+        : null;
+    if (askInput) {
+      event.preventDefault();
+      askInput.focus();
+      return;
+    }
     const threadId = getActiveAskThread(currentWorkspaceId);
     if (!threadId) return;
     event.preventDefault();
