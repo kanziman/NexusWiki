@@ -1148,3 +1148,58 @@ async def test_unexpected_repair_failure_ends_in_fallback(monkeypatch: pytest.Mo
     events, finalized, _ = await _ask_with_mode(["인용 없는 답입니다."])
     assert [name for name, _ in events][-1] == "done"
     assert finalized["p_status"] == "fallback"
+
+
+def _disputed_transport(finalized: dict[str, Any]) -> httpx.MockTransport:
+    base = _mock_prompt_and_content_transport()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
+            finalized.update(json.loads(request.content))
+        if request.url.path == "/rest/v1/wiki_pages":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": _WIKI_ID,
+                        "slug": "s",
+                        "title": "분쟁 문서",
+                        "content": "본문",
+                        "disputed": True,
+                    }
+                ],
+            )
+        return base.handler(request)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.asyncio
+async def test_disputed_wiki_evidence_is_marked_in_prompt_and_citations() -> None:
+    fake_llm = _ScriptedLlm(["답변 [[wiki:w1]] [[src:s1]]."])
+    finalized: dict[str, Any] = {}
+    app = create_app(_settings(), git_sha="test-sha")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(
+            transport=_disputed_transport(finalized), timeout=httpx.Timeout(2.0)
+        )
+        app.state.ask_service = _EnforcingAskService(_NonEmptyRetrievalService(), fake_llm)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(requested_k=8),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+
+    assert "[[wiki:w1]] (분쟁 중인 문서)" in fake_llm.calls[0][1]["content"]
+    assert dict(_parse_sse(response.text))["citations"]["disputed_aliases"] == ["w1"]
+
+
+@pytest.mark.asyncio
+async def test_undisputed_evidence_has_no_marker_or_alias_list() -> None:
+    events, _, llm = await _ask_with_mode([_GOOD_ANSWER])
+    assert "분쟁 중인 문서" not in llm.calls[0][1]["content"]
+    assert "disputed_aliases" not in dict(events)["citations"]

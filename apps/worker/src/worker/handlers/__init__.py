@@ -26,6 +26,10 @@ from worker.handlers.embed import EMBED_JOB_TYPE, handle_embed
 from worker.handlers.link_sync import LINK_SYNC_JOB_TYPE, handle_link_sync
 from worker.handlers.noop import NOOP_JOB_TYPE, handle_noop
 from worker.handlers.parse import PARSE_JOB_TYPE, handle_parse
+from worker.handlers.wiki_proposal_apply import (
+    WIKI_PROPOSAL_APPLY_JOB_TYPE,
+    handle_wiki_proposal_apply,
+)
 
 __all__ = [
     "HANDLERS",
@@ -80,6 +84,7 @@ HANDLERS: Final[dict[str, JobHandler]] = {
     EMBED_JOB_TYPE: handle_embed,
     CONFLICT_CHECK_JOB_TYPE: handle_conflict_check,
     DELETE_SOURCE_STORAGE_JOB_TYPE: handle_delete_source_storage,
+    WIKI_PROPOSAL_APPLY_JOB_TYPE: handle_wiki_proposal_apply,
 }
 
 

@@ -12,6 +12,7 @@ import pytest
 import structlog
 from pydantic import BaseModel
 
+from nexuswiki_core.llm_policy import LLM_POLICY_VERSION, STRUCTURED_POLICY
 from nexuswiki_core.trace import bind_trace
 from worker import llm
 from worker.errors import EmbeddingProviderMismatch, LlmSchemaError
@@ -130,7 +131,12 @@ async def test_usage_row_carries_attribution_and_no_body() -> None:
     assert row["trace_id"] == _TRACE_ID
     assert row["kind"] == "llm"
     assert row["duration_ms"] >= 0
-    assert row["metadata"] == {"call": "compile", "raw_source_id": "r", "attempt": 1}
+    assert row["metadata"] == {
+        "call": "compile",
+        "raw_source_id": "r",
+        "attempt": 1,
+        "policy_version": LLM_POLICY_VERSION,
+    }
     serialized = json.dumps(row, ensure_ascii=False)
     assert "고유한-프롬프트-문자열" not in serialized
     assert "고유한-응답-문자열" not in serialized
@@ -151,8 +157,9 @@ async def test_request_body_is_unchanged_by_the_gateway() -> None:
             _CONTEXT, system_prompt="s", user_prompt="u", schema_model=_Payload
         )
 
+    # 게이트웨이 아래 경계가 공통 정책을 앞에 붙이고 템플릿과 사용자 턴은 그대로 둔다.
     assert bodies[0]["messages"] == [
-        {"role": "system", "content": "s"},
+        {"role": "system", "content": f"{STRUCTURED_POLICY}\n\ns"},
         {"role": "user", "content": "u"},
     ]
     assert set(bodies[0]) == {"model", "messages", "usage", "response_format", "provider"}
@@ -236,7 +243,7 @@ async def test_stream_usage_marks_incomplete_calls(
 
     assert sink.rows[0]["job_id"] is None
     assert sink.rows[0]["duration_ms"] == 12
-    assert sink.rows[0]["metadata"] == expected_metadata
+    assert sink.rows[0]["metadata"] == {**expected_metadata, "policy_version": LLM_POLICY_VERSION}
 
 
 _PROVIDER_FUNCTIONS = {"complete_structured", "stream_chat", "embed_texts"}

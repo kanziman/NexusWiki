@@ -73,7 +73,8 @@ export function ControlledAiShowcase({
           NexusWiki
         </Link>
         <p className={styles.eyebrow}>
-          Controlled AI · Step 1–3 추적·비용 회계, 컨텍스트 예산, 출력 계약
+          Controlled AI · Step 1–4 추적·비용 회계, 컨텍스트 예산, 출력 계약,
+          리스크 정책
         </p>
         <h1>AI 호출을 통제하기 전과 후</h1>
         <p className={styles.lede}>
@@ -169,19 +170,23 @@ export function ControlledAiShowcase({
         ))}
       </section>
 
-      <section className={styles.upcoming} aria-labelledby="upcoming-heading">
-        <h2 id="upcoming-heading">다음 단계</h2>
-        <ul>
-          {evidence.upcoming.map((step) => (
-            <li key={step.step}>
-              <span className={styles.stepLabel}>Step {step.step}</span>
-              <strong>{step.title}</strong>
-              <span className={styles.stepDescription}>{step.description}</span>
-              <span className={styles.pending}>준비 중</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {evidence.upcoming.length > 0 ? (
+        <section className={styles.upcoming} aria-labelledby="upcoming-heading">
+          <h2 id="upcoming-heading">다음 단계</h2>
+          <ul>
+            {evidence.upcoming.map((step) => (
+              <li key={step.step}>
+                <span className={styles.stepLabel}>Step {step.step}</span>
+                <strong>{step.title}</strong>
+                <span className={styles.stepDescription}>
+                  {step.description}
+                </span>
+                <span className={styles.pending}>준비 중</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <footer className={styles.footer}>
         증거 생성기: <code>{evidence.generator}</code>

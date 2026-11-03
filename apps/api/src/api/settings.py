@@ -75,6 +75,8 @@ class ApiSettings(BaseAppSettings):
     # Ask 인용 계약 모드 (ai-control-output-contract). 문제가 생기면 코드를 되돌리지 않고
     # `shadow`(기록만)나 `off`로 내린다.
     AI_CONTROL_QUALITY_MODE: Literal["off", "shadow", "enforce"] = "enforce"
+    # 리스크 탭 표시용. 실제 쓰기 분기는 워커의 같은 이름 설정이 정한다 (ai-control-risk-policy).
+    AI_CONTROL_RISK_MODE: Literal["off", "shadow", "enforce"] = "shadow"
 
     # Private worker-bound LLM-chat-streaming capability (05-CONTEXT.md > D-01).
     # Distinct token from QUERY_EMBEDDING_INTERNAL_TOKEN — intentionally not a provider key.

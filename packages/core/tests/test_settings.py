@@ -52,6 +52,8 @@ NON_SECRET_API_FIELDS = frozenset(
         "ASK_MAX_CONTEXT_TOKENS",
         # (2026-11-03, ai-control-output-contract: Ask 인용 계약 모드. 자격증명이 아니다.)
         "AI_CONTROL_QUALITY_MODE",
+        # (2026-11-03, ai-control-risk-policy: 위험한 위키 쓰기 모드 표시. 자격증명이 아니다.)
+        "AI_CONTROL_RISK_MODE",
         # (2026-08-12, 05-01: LLM_STREAM_INTERNAL_URL/_TOKEN/_TIMEOUT_SECONDS — worker의
         #  /internal/llm-chat 호출 캐퍼빌리티. 토큰 값은 provider credential이 아니라
         #  QUERY_EMBEDDING_INTERNAL_TOKEN과 같은 내부 호출자 자격이다.)

@@ -258,6 +258,52 @@ async def test_upload_maps_a_policy_denial_to_the_isolation_exception() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["upload", "delete"])
+@pytest.mark.parametrize("status", [401, 403, "401", "403"])
+async def test_code_less_storage_denial_uses_body_status(operation: str, status: int | str) -> None:
+    marker = "private-provider-path"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400, json={"statusCode": status, "error": "Unauthorized", "message": marker}
+        )
+
+    async with _mock_storage(handler) as client:
+        storage = _user_storage(client)
+        with pytest.raises(WorkspaceForbidden) as excinfo:
+            if operation == "upload":
+                await storage.upload(
+                    path=f"{WORKSPACE_ID}/{RAW_SOURCE_ID}/report.pdf",
+                    data=b"x",
+                    content_type="application/pdf",
+                )
+            else:
+                await storage.delete(path=f"{WORKSPACE_ID}/{RAW_SOURCE_ID}/report.pdf")
+    assert marker not in str(excinfo.value)
+    assert marker not in repr(excinfo.value.__dict__)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["upload", "delete"])
+@pytest.mark.parametrize("body", [{"statusCode": "500"}, {"statusCode": {}}, [], None])
+async def test_body_status_does_not_hide_storage_failures(operation: str, body: object) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json=body)
+
+    async with _mock_storage(handler) as client:
+        storage = _user_storage(client)
+        with pytest.raises(StorageUnavailable):
+            if operation == "upload":
+                await storage.upload(
+                    path=f"{WORKSPACE_ID}/{RAW_SOURCE_ID}/report.pdf",
+                    data=b"x",
+                    content_type="application/pdf",
+                )
+            else:
+                await storage.delete(path=f"{WORKSPACE_ID}/{RAW_SOURCE_ID}/report.pdf")
+
+
+@pytest.mark.asyncio
 async def test_upload_maps_anything_else_to_storage_unavailable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"statusCode": "500", "code": "InternalError"})

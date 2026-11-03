@@ -29,6 +29,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from nexuswiki_core.context_budget import truncate_text_to_tokens
+from nexuswiki_core.llm_policy import ASK_POLICY, STRUCTURED_POLICY, with_policy
 from nexuswiki_core.logging import get_logger
 from worker.errors import LlmSchemaError, ProviderCreditExhausted, ProviderError
 from worker.settings import WorkerSettings
@@ -67,6 +68,9 @@ STRUCTURED_OUTPUT_MAX_ATTEMPTS: Final[int] = 2
 # `usage_events` 컬럼 범위(토큰 int, 비용 bigint)를 넘는 값으로 저장이 실패하지 않게 막는다.
 _MAX_TOKEN_COUNT: Final[int] = 2**31 - 1
 _MAX_COST_MICROS: Final[int] = 2**63 - 1
+
+# 팀의 원문을 담는 요청이므로 학습에 쓰는 경로로 보내지 않는다.
+_DATA_COLLECTION: Final[str] = "deny"
 
 # 재시도에 다시 싣는 직전 출력의 상한. `max_tokens`만으로는 재주입 비용을 막지 못한다.
 RETRY_OUTPUT_MAX_TOKENS: Final[int] = 2000
@@ -195,9 +199,11 @@ def _chat_stream_body(
     """
     return {
         "model": settings.LLM_MODEL,
-        "messages": messages,
+        # ⚠️ 키가 있는 이 경계에서 주입한다. 템플릿에 두면 편집자가 지울 수 있다.
+        "messages": with_policy(messages, ASK_POLICY),
         "stream": True,
         "usage": {"include": True},
+        "provider": {"data_collection": _DATA_COLLECTION},
     }
 
 
@@ -374,7 +380,10 @@ def _chat_body(
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "model": settings.LLM_MODEL,
-        "messages": messages,
+        "messages": with_policy(messages, STRUCTURED_POLICY),
+        # ⚠️ 데이터 수집 거부는 구조화 지원 여부와 무관하게 항상 보낸다. 프롬프트 전용으로 내려간
+        #    재요청에서 빠지면 팀 원문이 거부 없이 전송된다.
+        "provider": {"data_collection": _DATA_COLLECTION},
         # ⚠️ 비용 회계를 명시적으로 요청한다. 이 키가 없으면 응답에 비용 필드가 없을 수
         #    있고, 그러면 `cost_micros = 0`이 기록되어 `0009`의 월 상한이 **영원히**
         #    걸리지 않는다 (T-03-27). 상한이 있는데 걸리지 않는 것이 상한이 없는 것보다
@@ -394,7 +403,7 @@ def _chat_body(
         }
         # 능력 탐지. 이 플래그가 있으면 OpenRouter는 위 파라미터를 실제로 지원하는
         # 엔드포인트로만 라우팅하고, 그런 엔드포인트가 없으면 4xx로 끊는다.
-        body["provider"] = {"require_parameters": True}
+        body["provider"]["require_parameters"] = True
     return body
 
 

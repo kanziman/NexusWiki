@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
@@ -9,8 +8,10 @@ import "./globals.css";
 // 없는 상용 서체라 이 프로젝트에서 쓸 수 없다 — Inter로 대체(06-UI-SPEC.md
 // Design System 표 근거). --font-inter 변수를 globals.css의 @theme이
 // --font-family-base 슬롯에 매핑한다(06-01 Task 2).
-const inter = Inter({
-  subsets: ["latin"],
+// 빌드 중 Google Fonts 응답을 파싱하지 않도록 고정 패키지의 서체를 로드한다.
+const inter = localFont({
+  src: "../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-inter",
 });
 
@@ -25,15 +26,15 @@ const inter = Inter({
 // 아무도 안 쓴다. mono는 500·600·700·800이 전부 쓰이는데 프로토타입
 // <link>는 500·600만 요청해 700/800 사용처(.stat b, .budget-amount 등)가
 // 로드 안 된 굵기로 폴백하고 있었다.
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["700", "800"],
+const jakarta = localFont({
+  src: "../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2",
+  weight: "700 800",
   variable: "--font-jakarta",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+const jetbrainsMono = localFont({
+  src: "../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2",
+  weight: "500 800",
   variable: "--font-jetbrains-mono",
 });
 

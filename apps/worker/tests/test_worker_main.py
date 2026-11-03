@@ -138,7 +138,7 @@ async def test_record_ask_usage_converts_provider_cost_to_microdollars(
         "completion_tokens": 0,
         "total_tokens": 0,
         "cost_micros": 2,
-        "metadata": {"call": "ask"},
+        "metadata": {"call": "ask", "policy_version": "llm-policy-v1"},
         "trace_id": None,
         "duration_ms": 15,
     }

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, Final
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict
 
@@ -422,3 +422,57 @@ async def _citation_snapshot(
             }
         )
     return citations
+
+
+async def _decide_proposal(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials,
+    *,
+    workspace_id: UUID,
+    proposal_id: UUID,
+    decision: str,
+) -> dict[str, Any]:
+    """권한 판정은 RPC가 42501로 한다. 0행은 없거나 이미 처리된 제안이다."""
+    rows = await _user_db(request, credentials).rpc(
+        "decide_wiki_write_proposal",
+        params={
+            "p_workspace_id": str(workspace_id),
+            "p_proposal_id": str(proposal_id),
+            "p_decision": decision,
+        },
+    )
+    if not rows:
+        raise HTTPException(status.HTTP_409_CONFLICT, "proposal_not_pending")
+    return {"id": rows[0]["id"], "status": rows[0]["status"]}
+
+
+@router.post("/{workspace_id}/wiki-proposals/{proposal_id}/approve")
+async def approve_wiki_proposal(
+    workspace_id: UUID,
+    proposal_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    return await _decide_proposal(
+        request,
+        credentials,
+        workspace_id=workspace_id,
+        proposal_id=proposal_id,
+        decision="approved",
+    )
+
+
+@router.post("/{workspace_id}/wiki-proposals/{proposal_id}/reject")
+async def reject_wiki_proposal(
+    workspace_id: UUID,
+    proposal_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> dict[str, Any]:
+    return await _decide_proposal(
+        request,
+        credentials,
+        workspace_id=workspace_id,
+        proposal_id=proposal_id,
+        decision="rejected",
+    )

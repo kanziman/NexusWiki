@@ -47,9 +47,11 @@
 
 ## 마이그레이션
 
-통제 모드 기본값은 `AI_CONTROL_QUALITY_MODE=enforce`다. 근거와 복구 방법은 `docs/ops/ask-sample-replay.md`에 있다.
+통제 모드 기본값은 `AI_CONTROL_QUALITY_MODE=enforce`, `AI_CONTROL_RISK_MODE=shadow`다. 근거와 복구 방법은 `docs/ops/ask-sample-replay.md`에 있다.
 
-`supabase/migrations/`에 `0001` ~ `0031`이 있다. **파일명 번호 순서가 곧 적용 순서다.**
+`AI_CONTROL_RISK_MODE`는 API와 worker 두 배포 서비스에 같은 값으로 설정하고 함께 변경한다. 리스크 탭은 API 설정을 표시하지만 실제 쓰기 보류는 worker 설정을 따른다. 두 값이 달라도 자동 탐지되지 않으므로 화면 표시만으로 worker의 적용 모드를 확인할 수 없다.
+
+`supabase/migrations/`에 `0001` ~ `0034`가 있다. **파일명 번호 순서가 곧 적용 순서다.**
 
 주요 지점만:
 
@@ -77,6 +79,9 @@
 | `0029` | Ask 턴 `fallback` 종결 상태 (로컬 검증, 운영 미적용) |
 | `0030` | 위키 페이지 근거 청크 `wiki_page_evidence`, 컴파일 템플릿 근거 표기 (로컬 검증, 운영 미적용) |
 | `0031` | 통제실 `[품질]` 탭 집계 RPC (`control_quality_snapshot`, 로컬 검증, 운영 미적용) |
+| `0032` | 전역 Ask 템플릿의 낡은 인용 지시 제거 (로컬 검증, 운영 미적용) |
+| `0033` | 위키 개정 이력·승인 대기 제안과 승인 RPC (로컬 검증, 운영 미적용) |
+| `0034` | 통제실 `[리스크]` 탭 집계 RPC (`control_risk_snapshot`, 로컬 검증, 운영 미적용) |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 

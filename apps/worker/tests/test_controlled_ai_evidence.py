@@ -29,11 +29,13 @@ import subprocess
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
 import httpx
 import pytest
+from pydantic import BaseModel
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 EVIDENCE_PATH = _REPO_ROOT / "apps" / "dashboard" / "content" / "controlled-ai" / "step1.json"
@@ -303,6 +305,111 @@ async def compile_placeholder_page() -> dict[str, Any]:
     """공급자가 본문이 placeholder인 페이지를 계속 돌려준다."""
     db, calls = await _run_output_contract_compile([_page_json("TODO")])
     return {"provider_calls": calls, "pages_saved": db.saved}
+
+
+class _RiskDb(_OutputContractDb):
+    """이미 검증된 페이지가 있는 컴파일 대역. 기준 커밋에는 없는 메서드도 그대로 둔다."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.body: str = "사람이 검증한 본문"
+        self.proposals = 0
+        self.revisions = 0
+
+    async def get_wiki_page_by_slug(self, **_: Any) -> dict[str, Any]:
+        return {
+            "id": "page-a",
+            "slug": "합성-문서",
+            "title": "합성 문서",
+            "content": self.body,
+            "verification_status": "verified",
+            "sources": [_RAW_SOURCE_ID],
+        }
+
+    async def upsert_wiki_page(self, *, workspace_id: str, row: dict[str, Any]) -> dict[str, str]:
+        self.body = row["content"]
+        return {"id": "page-a"}
+
+    async def is_wiki_page_published(self, **_: Any) -> bool:
+        return False
+
+    async def insert_wiki_page_revision(self, **_: Any) -> None:
+        self.revisions += 1
+
+    async def upsert_wiki_write_proposal(self, **_: Any) -> None:
+        self.proposals += 1
+
+
+async def verified_page_overwrite() -> dict[str, Any]:
+    """검증된 페이지와 다른 본문이 컴파일된다. 승인 보류 모드로 잰다."""
+    from worker.handlers import compile as compile_handler
+
+    db = _RiskDb()
+    settings = _worker_settings()
+    client, _ = _provider([_page_json("검증하지 않은 새 본문")])
+    async with client:
+        await compile_handler.run_compile(
+            db,  # type: ignore[arg-type]
+            client,
+            settings=SimpleNamespace(
+                **{
+                    name: getattr(settings, name)
+                    for name in ("LLM_MODEL", "COMPILE_MAX_INPUT_TOKENS", "COMPILE_MAX_PAGES")
+                },
+                AI_CONTROL_RISK_MODE="enforce",
+            ),
+            job_id="scenario-job",
+            workspace_id=_WORKSPACE_ID,
+            payload={"raw_source_id": _RAW_SOURCE_ID},
+        )
+    return {
+        "verified_body": "덮어씀" if db.body != "사람이 검증한 본문" else "보존",
+        "pending_proposals": db.proposals,
+    }
+
+
+async def _captured_body(contents: list[str]) -> dict[str, Any]:
+    from worker import llm
+
+    captured: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": contents[0]}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            },
+        )
+
+    class _Value(BaseModel):
+        value: str
+
+    async with httpx.AsyncClient(
+        base_url="https://provider.test", transport=httpx.MockTransport(handler)
+    ) as client:
+        await llm.complete_structured(
+            client,
+            settings=_worker_settings(),
+            system_prompt="인용 규칙을 뺀 템플릿",
+            user_prompt="자료",
+            schema_model=_Value,
+        )
+    return captured[0]
+
+
+async def chat_data_collection() -> dict[str, Any]:
+    """구조화 호출 요청에 데이터 수집 거부가 있는지 본다."""
+    body = await _captured_body(['{"value": "합성"}'])
+    return {"data_collection": (body.get("provider") or {}).get("data_collection") or "지정 없음"}
+
+
+async def template_policy_bypass() -> dict[str, Any]:
+    """규칙을 뺀 템플릿으로 호출해도 공통 정책이 실리는지 본다."""
+    body = await _captured_body(['{"value": "합성"}'])
+    system = next(m["content"] for m in body["messages"] if m["role"] == "system")
+    return {"material_boundary_policy": "있음" if "자료 경계" in system else "없음"}
 
 
 async def compile_unchanged_skip() -> dict[str, Any]:
@@ -873,11 +980,36 @@ ITEMS: list[dict[str, Any]] = [
             {"key": "cited_anchor_count", "label": "해소된 인용", "unit": "count"},
         ],
     },
+    {
+        "id": "verified-page-overwrite",
+        "title": "검증된 페이지의 무단 덮어쓰기",
+        "problem": "재컴파일이 사람이 검증한 본문을 승인 없이 바꾸고 검증 배지를 남겼습니다.",
+        "fix": "검증·공개 페이지의 변경은 승인 대기로 보류하고 이전 본문을 이력으로 남깁니다.",
+        "scenario": "verified_page_overwrite",
+        "metrics": [
+            {"key": "verified_body", "label": "검증된 본문", "unit": "text"},
+            {"key": "pending_proposals", "label": "승인 대기 제안", "unit": "count"},
+        ],
+    },
+    {
+        "id": "chat-data-collection",
+        "title": "채팅 요청의 데이터 수집 허용",
+        "problem": "임베딩만 데이터 수집을 거부하고 원문을 더 많이 담는 채팅 요청에는 없었습니다.",
+        "fix": "모든 채팅 요청을 조립하는 경계에서 데이터 수집 거부를 강제합니다.",
+        "scenario": "chat_data_collection",
+        "metrics": [{"key": "data_collection", "label": "데이터 수집 설정", "unit": "text"}],
+    },
+    {
+        "id": "template-policy-bypass",
+        "title": "템플릿으로 빠지는 공통 규칙",
+        "problem": "규칙이 템플릿에만 있어 편집자가 만든 템플릿은 규칙을 뺄 수 있었습니다.",
+        "fix": "버전이 있는 공통 정책을 워커 경계에서 시스템 프롬프트 앞에 주입합니다.",
+        "scenario": "template_policy_bypass",
+        "metrics": [{"key": "material_boundary_policy", "label": "자료 경계 정책", "unit": "text"}],
+    },
 ]
 
-UPCOMING_STEPS = [
-    {"step": 4, "title": "리스크", "description": "공통 정책을 주입하고 위키 쓰기를 분류합니다."},
-]
+UPCOMING_STEPS: list[dict[str, Any]] = []
 
 SCENARIOS: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {
     "conflict_judge_cost": conflict_judge_cost,
@@ -890,6 +1022,9 @@ SCENARIOS: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {
     "compile_fence_retry": compile_fence_retry,
     "compile_placeholder_page": compile_placeholder_page,
     "ask_no_citation_terminal": ask_no_citation_terminal,
+    "verified_page_overwrite": verified_page_overwrite,
+    "chat_data_collection": chat_data_collection,
+    "template_policy_bypass": template_policy_bypass,
 }
 
 

@@ -574,20 +574,124 @@ describe("ControlRoom", () => {
     ).toBeNull();
   });
 
-  it("리스크 탭은 지어낸 수치 없이 빈 상태만 표시한다", async () => {
+  const RISK_BASE = {
+    days: 30,
+    write_mode: "enforce",
+    policy_version: "llm-policy-v1",
+    recorded_policy_versions: ["llm-policy-v1"],
+    revisions: { low: 3, medium: 2, high: 1 },
+    proposals: { pending: 1, approved_waiting: 2, applied: 4, rejected: 0 },
+  };
+
+  it("리스크 탭에서 editor는 대기 제안을 보고 승인한다", async () => {
     respond({
-      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/traces": { items: [], can_view_workspace: true },
+      "/control/ask-aggregate": {
+        days: 30,
+        turn_count: 0,
+        resolved_count: 0,
+        no_evidence_count: 0,
+        error_count: 0,
+        decision_counts: {},
+        p50_total_ms: null,
+        p95_total_ms: null,
+        total_cost_micros: 0,
+        incomplete_call_count: 0,
+      },
+      "/control/risk": {
+        ...RISK_BASE,
+        can_view_workspace: true,
+        pending_proposals: [
+          {
+            id: "p-1",
+            wiki_id: "w-1",
+            risk_reason: "verified_page",
+            slug: "slug",
+            current_title: "현재 제목",
+            current_content: "현재 본문 내용",
+            proposed_title: "제안 제목",
+            proposed_content: "제안 본문 내용",
+            updated_at: "2026-11-03T00:00:00Z",
+          },
+        ],
+      },
+      "/wiki-proposals/p-1/approve": { id: "p-1", status: "approved" },
+    });
+    const baseRespond = apiFetch.getMockImplementation();
+    let approved = false;
+    apiFetch.mockImplementation(async (path: string, init?: unknown) => {
+      if (path.endsWith("/approve")) approved = true;
+      if (approved && path.endsWith("/control/risk")) {
+        return {
+          ...RISK_BASE,
+          can_view_workspace: true,
+          proposals: {
+            pending: 0,
+            approved_waiting: 1,
+            applied: 4,
+            rejected: 0,
+          },
+          pending_proposals: [],
+        };
+      }
+      return baseRespond?.(path, init);
     });
     const user = userEvent.setup();
 
     render(<ControlRoom workspaceId="ws" />);
     await waitFor(() => expect(apiFetch).toHaveBeenCalled());
-
     await user.click(screen.getByRole("tab", { name: "리스크" }));
 
-    const panel = screen.getByRole("tabpanel");
-    expect(panel).toHaveTextContent("Step 4에서 수집을 시작합니다");
-    expect(panel).toHaveTextContent("아직 수집된 데이터가 없습니다.");
-    expect(panel.textContent).not.toMatch(/\d+%|\$\d/);
+    const list = await screen.findByRole("region", {
+      name: "승인 대기 위키 변경",
+    });
+    expect(list).toHaveTextContent("제안 제목");
+    expect(list).toHaveTextContent("검증 완료 문서");
+    expect(list).toHaveTextContent("제안 본문 내용");
+    expect(
+      screen.getByRole("region", { name: "최근 30일 위키 개정 위험 등급" }),
+    ).toHaveTextContent("1건");
+    expect(screen.getByText(/llm-policy-v1/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "승인" }));
+
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/workspaces/ws/wiki-proposals/p-1/approve",
+        { method: "POST" },
+      ),
+    );
+    // 처리한 뒤 목록을 다시 읽어 제안이 사라지고 집계가 갱신된다.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "승인 대기 위키 변경" }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.getByText("승인을 기다리는 위키 변경이 없습니다."),
+    ).toBeInTheDocument();
+  });
+
+  it("리스크 탭에서 viewer에게는 집계만 표시하고 처리 버튼이 없다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/risk": {
+        ...RISK_BASE,
+        recorded_policy_versions: [],
+        can_view_workspace: false,
+        pending_proposals: [],
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole("tab", { name: "리스크" }));
+
+    await screen.findByRole("region", {
+      name: "최근 30일 위키 개정 위험 등급",
+    });
+    expect(screen.getByText(/집계만 표시합니다/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "승인" })).toBeNull();
   });
 });

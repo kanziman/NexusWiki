@@ -261,7 +261,7 @@ class UserStorage:
 
         if code == _CODE_ALREADY_EXISTS:
             raise StorageObjectExists
-        if code in _DENIED_CODES or response.status_code in _DENIED_STATUS_CODES:
+        if _is_permission_denied(response, code):
             # 정책이 막은 것을 502로 렌더하면 "편집 권한이 없다"가 "저장소가 죽었다"로
             # 보인다. 쓰기 0행과 같은 판정이므로 같은 단일 핸들러로 보낸다
             # (02-CONTEXT.md > D-11).
@@ -283,9 +283,21 @@ class UserStorage:
             return
 
         code = _error_code(response)
-        if code in _DENIED_CODES or response.status_code in _DENIED_STATUS_CODES:
+        if _is_permission_denied(response, code):
             raise WorkspaceForbidden(table=_OBJECTS_TABLE, affected=0)
         raise StorageUnavailable
+
+
+def _is_permission_denied(response: httpx.Response, code: str | None) -> bool:
+    if code in _DENIED_CODES or response.status_code in _DENIED_STATUS_CODES:
+        return True
+    try:
+        body: Any = response.json()
+    except ValueError:
+        return False
+    # ⚠️ Storage는 code 없이 HTTP 400과 본문 statusCode 403만 반환하기도 한다.
+    #    전송 상태만 읽으면 RLS 거부가 저장소 장애로 보인다.
+    return isinstance(body, dict) and body.get("statusCode") in (401, 403, "401", "403")
 
 
 def _error_code(response: httpx.Response) -> str | None:

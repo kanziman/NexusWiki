@@ -35,6 +35,11 @@ SERVICE_REQUEST_TIMEOUT_SECONDS: Final[float] = 10.0
 # `ServiceDb`가 직접 테이블을 읽고 쓰는 헬퍼. 전부 workspace_id를 필수로 요구한다.
 TABLE_HELPERS: Final[frozenset[str]] = frozenset(
     {
+        "is_wiki_page_published",
+        "insert_wiki_page_revision",
+        "get_wiki_write_proposal",
+        "get_wiki_page",
+        "mark_wiki_write_proposal_applied",
         "enqueue_job",
         "get_job",
         "list_jobs",
@@ -84,6 +89,7 @@ LEXICAL_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset(
         "index_source_chunk_lexical",
         "index_wiki_page_lexical",
         "replace_wiki_page_evidence",
+        "upsert_wiki_write_proposal",
     }
 )
 CONFLICT_RPC_FUNCTIONS: Final[frozenset[str]] = frozenset({"find_similar_wiki_pages"})
@@ -446,6 +452,91 @@ class ServiceDb:
             },
         )
 
+    async def is_wiki_page_published(self, *, workspace_id: str, wiki_id: str) -> bool:
+        rows = await self._select(
+            "wiki_page_publications",
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "wiki_page_id": f"eq.{wiki_id}",
+                "select": "wiki_page_id",
+                "limit": "1",
+            },
+        )
+        return bool(rows)
+
+    async def insert_wiki_page_revision(self, *, workspace_id: str, row: dict[str, Any]) -> None:
+        """이전 본문을 남긴다. 같은 잡의 재실행은 `(wiki_id, job_id)` 충돌로 무시된다."""
+        await self._insert_many(
+            "wiki_page_revisions",
+            rows=[{**row, "workspace_id": workspace_id}],
+            params={"on_conflict": "wiki_id,job_id"},
+            prefer="resolution=ignore-duplicates,return=representation",
+        )
+
+    async def upsert_wiki_write_proposal(
+        self,
+        *,
+        workspace_id: str,
+        wiki_id: str,
+        raw_source_id: str,
+        risk_reason: str,
+        title: str,
+        category: str,
+        aliases: list[str],
+        confidence: str,
+        content: str,
+        evidence_chunk_ids: list[str],
+    ) -> None:
+        """대기 제안을 하나로 유지한다 (`0033`). 부분 유니크 인덱스라 RPC로 처리한다."""
+        await self._rpc(
+            "upsert_wiki_write_proposal",
+            {
+                "p_workspace_id": workspace_id,
+                "p_wiki_id": wiki_id,
+                "p_raw_source_id": raw_source_id,
+                "p_risk_reason": risk_reason,
+                "p_title": title,
+                "p_category": category,
+                "p_aliases": aliases,
+                "p_confidence": confidence,
+                "p_content": content,
+                "p_evidence_chunk_ids": evidence_chunk_ids,
+            },
+        )
+
+    async def get_wiki_write_proposal(
+        self, proposal_id: str, *, workspace_id: str
+    ) -> dict[str, Any] | None:
+        rows = await self._select(
+            "wiki_write_proposals",
+            params={
+                "id": f"eq.{proposal_id}",
+                "workspace_id": f"eq.{workspace_id}",
+                "limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
+    async def get_wiki_page(self, wiki_id: str, *, workspace_id: str) -> dict[str, Any] | None:
+        rows = await self._select(
+            "wiki_pages",
+            params={"id": f"eq.{wiki_id}", "workspace_id": f"eq.{workspace_id}", "limit": "1"},
+        )
+        return rows[0] if rows else None
+
+    async def mark_wiki_write_proposal_applied(
+        self, proposal_id: str, *, workspace_id: str
+    ) -> None:
+        await self._update(
+            "wiki_write_proposals",
+            params={
+                "id": f"eq.{proposal_id}",
+                "workspace_id": f"eq.{workspace_id}",
+                "status": "eq.approved",
+            },
+            values={"status": "applied"},
+        )
+
     async def set_wiki_page_disputed(
         self, wiki_id: str, *, workspace_id: str
     ) -> dict[str, Any] | None:
@@ -586,14 +677,14 @@ class ServiceDb:
     async def list_wiki_embeddings(
         self, *, workspace_id: str, wiki_id: str, embedding_version: str
     ) -> list[dict[str, Any]]:
-        """현재 버전의 행만 읽어 재처리 OpenRouter 호출을 막는다."""
+        """현재 버전의 행과 본문을 읽어 바뀌지 않은 청크의 재처리 호출을 막는다."""
         return await self._select(
             "wiki_embeddings",
             params={
                 "workspace_id": f"eq.{workspace_id}",
                 "wiki_id": f"eq.{wiki_id}",
                 "embedding_version": f"eq.{embedding_version}",
-                "select": "chunk_index,embedding_version",
+                "select": "chunk_index,chunk_content,embedding_version",
             },
         )
 

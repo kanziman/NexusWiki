@@ -18,7 +18,15 @@ from worker import embedding as embedding_provider
 from worker import handlers
 from worker import llm as llm_provider
 from worker.handlers import compile as compile_handler
-from worker.handlers import conflict, delete_source_storage, embed, link_sync, noop, parse
+from worker.handlers import (
+    conflict,
+    delete_source_storage,
+    embed,
+    link_sync,
+    noop,
+    parse,
+    wiki_proposal_apply,
+)
 from worker.handlers.noop import handle_noop
 from worker.transcript import NO_TRANSCRIPT, TranscriptUnavailable
 
@@ -44,6 +52,7 @@ def test_registry_holds_exactly_the_job_types_this_phase_registered() -> None:
         "embed",
         "conflict_check",
         "delete_source_storage",
+        "wiki_proposal_apply",
     }
 
 
@@ -58,6 +67,7 @@ def test_each_handler_module_exports_a_job_type_constant_matching_its_key() -> N
         "embed": embed.EMBED_JOB_TYPE,
         "conflict_check": conflict.CONFLICT_CHECK_JOB_TYPE,
         "delete_source_storage": delete_source_storage.DELETE_SOURCE_STORAGE_JOB_TYPE,
+        "wiki_proposal_apply": wiki_proposal_apply.WIKI_PROPOSAL_APPLY_JOB_TYPE,
     }
 
     assert set(constants) == set(handlers.HANDLERS)
@@ -148,7 +158,13 @@ async def test_wiki_embed_skips_pages_already_at_the_current_embedding_version(
             return [{"id": "page-1", "content": "이미 임베딩된 본문"}]
 
         async def list_wiki_embeddings(self, **_values: Any) -> list[dict[str, int | str]]:
-            return [{"chunk_index": 0, "embedding_version": "model@provider-v1"}]
+            return [
+                {
+                    "chunk_index": 0,
+                    "chunk_content": "이미 임베딩된 본문",
+                    "embedding_version": "model@provider-v1",
+                }
+            ]
 
         async def delete_wiki_embeddings_from(self, **_values: Any) -> None:
             return None

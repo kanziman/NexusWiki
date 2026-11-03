@@ -37,6 +37,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from api.db.user import UserDb
 from api.errors import WorkspaceForbidden
 from api.routers.jobs import CHAIN_ORDER, STEP_LABELS
+from nexuswiki_core.llm_policy import LLM_POLICY_VERSION
 
 router = APIRouter(prefix="/workspaces", tags=["control"])
 _bearer = HTTPBearer()
@@ -592,4 +593,87 @@ async def control_quality(
             "pages_total": count("wiki_pages_total"),
             "pages_with_evidence": count("wiki_pages_with_evidence"),
         },
+    }
+
+
+_PROPOSAL_COLUMNS: Final[str] = (
+    "id,wiki_id,risk_reason,proposed_title,proposed_content,created_at,updated_at"
+)
+_RISK_PROPOSAL_LIMIT: Final[int] = 20
+
+
+@router.get("/{workspace_id}/control/risk")
+async def control_risk(
+    workspace_id: UUID,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    days: Annotated[int, Query(ge=1, le=90)] = 30,
+) -> dict[str, Any]:
+    """Control Room [리스크] 탭 스냅샷. 제안 본문은 RLS로 editor 이상에게만 보인다."""
+    since = datetime.now(UTC) - timedelta(days=days)
+    db = _user_db(request, credentials)
+    rows = await db.rpc(
+        "control_risk_snapshot",
+        params={"p_workspace_id": str(workspace_id), "p_since": since.isoformat()},
+    )
+    if not rows:
+        raise WorkspaceForbidden(table="workspace_members", affected=0)
+    row = rows[0]
+    can_view = row.get("can_view_workspace") is True
+    proposals: list[dict[str, Any]] = []
+    if can_view:
+        pending = await db.select(
+            "wiki_write_proposals",
+            match={"workspace_id": str(workspace_id), "status": "pending"},
+            columns=_PROPOSAL_COLUMNS,
+            order="created_at.desc",
+            limit=_RISK_PROPOSAL_LIMIT,
+        )
+        # ⚠️ 위키 전체를 읽지 않는다. 행 상한에 잘리면 현재 본문이 빈 채로 승인될 수 있다.
+        by_id: dict[str, dict[str, Any]] = {}
+        for wiki_id in {str(item["wiki_id"]) for item in pending}:
+            rows = await db.select(
+                "wiki_pages",
+                match={"id": wiki_id, "workspace_id": str(workspace_id)},
+                columns="id,slug,title,content",
+                limit=1,
+            )
+            if rows:
+                by_id[wiki_id] = rows[0]
+        proposals = [
+            {
+                "id": item["id"],
+                "wiki_id": item["wiki_id"],
+                "risk_reason": item["risk_reason"],
+                "slug": by_id.get(str(item["wiki_id"]), {}).get("slug"),
+                "current_title": by_id.get(str(item["wiki_id"]), {}).get("title"),
+                "current_content": by_id.get(str(item["wiki_id"]), {}).get("content"),
+                "proposed_title": item["proposed_title"],
+                "proposed_content": item["proposed_content"],
+                "updated_at": item["updated_at"],
+            }
+            for item in pending
+        ]
+    settings = request.app.state.settings
+    raw_versions = row.get("policy_versions")
+    return {
+        "days": days,
+        "can_view_workspace": can_view,
+        "write_mode": str(getattr(settings, "AI_CONTROL_RISK_MODE", "shadow")),
+        "policy_version": LLM_POLICY_VERSION,
+        "recorded_policy_versions": (
+            [str(item) for item in raw_versions[:8]] if isinstance(raw_versions, list) else []
+        ),
+        "revisions": {
+            "low": int(_number(row.get("revisions_low"))),
+            "medium": int(_number(row.get("revisions_medium"))),
+            "high": int(_number(row.get("revisions_high"))),
+        },
+        "proposals": {
+            "pending": int(_number(row.get("pending_proposals"))),
+            "approved_waiting": int(_number(row.get("approved_proposals"))),
+            "applied": int(_number(row.get("applied_proposals"))),
+            "rejected": int(_number(row.get("rejected_proposals"))),
+        },
+        "pending_proposals": proposals,
     }

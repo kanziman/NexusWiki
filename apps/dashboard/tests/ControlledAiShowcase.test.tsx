@@ -96,19 +96,13 @@ describe("ControlledAiShowcase", () => {
     ).toEqual(["기록 없음", "512토큰"]);
   });
 
-  it("Step 4는 준비 중으로만 표시하고 수치를 보여주지 않는다", () => {
+  it("모든 Step의 증거가 있으면 다음 단계 영역을 표시하지 않는다", () => {
     render(<ControlledAiShowcasePage />);
 
-    const items = within(
-      screen.getByRole("region", { name: "다음 단계" }),
-    ).getAllByRole("listitem");
-
-    expect(items).toHaveLength(1);
-    items.forEach((item) => {
-      expect(item).toHaveTextContent("Step 4");
-      expect(item).toHaveTextContent("준비 중");
-      expect(item.textContent?.replace(/Step \d/, "")).not.toMatch(/\d/);
-    });
+    expect(screen.queryByRole("region", { name: "다음 단계" })).toBeNull();
+    expect(
+      screen.getByText("검증된 페이지의 무단 덮어쓰기"),
+    ).toBeInTheDocument();
   });
 
   it("렌더링하는 동안 네트워크를 호출하지 않는다", () => {
