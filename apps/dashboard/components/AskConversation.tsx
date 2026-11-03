@@ -27,6 +27,10 @@ import {
   type AskThreadMessage,
   type AskThreadSummary,
 } from "@/lib/ask-threads";
+import {
+  notifyAskThreadsChanged,
+  subscribeAskThreadsChanged,
+} from "@/lib/ask-threads-events";
 import { requireEnv } from "@/lib/env";
 import { parseSseStream } from "@/lib/sse";
 import { createClient } from "@/lib/supabase/client";
@@ -200,6 +204,24 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
   }, [workspaceId]);
 
   useEffect(() => {
+    let cancelled = false;
+    // 답변을 받는 도중에도 올 수 있으므로 로딩 표시 없이 목록만 바꾼다.
+    const unsubscribe = subscribeAskThreadsChanged("conversation", () => {
+      listAskThreads(workspaceId)
+        .then((rows) => {
+          if (!cancelled) setThreads(rows);
+        })
+        .catch(() => {
+          // 현재 목록을 유지한다. 다음 알림이나 새로고침에서 다시 불러온다.
+        });
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
     const trimmed = initialQuery.trim();
     if (!trimmed || autoSubmittedRef.current) return;
     autoSubmittedRef.current = true;
@@ -342,6 +364,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         `${workspacePath(workspaceId)}/ask?thread=${encodeURIComponent(persistedId)}`,
       );
       void refreshThreads();
+      notifyAskThreadsChanged("conversation");
     }
 
     let accumulatedText = "";
@@ -454,6 +477,8 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
         delete next[streamKey];
         return next;
       });
+      // 답변이 끝나면 대화 순서와 크레딧 잔액이 바뀐다.
+      notifyAskThreadsChanged("conversation");
     }
   }
 
@@ -525,6 +550,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
               setThreads((prev) =>
                 prev.map((item) => (item.id === row.id ? row : item)),
               );
+              notifyAskThreadsChanged("conversation");
             })
             .catch((err) => {
               console.error("Failed to rename thread:", err);
@@ -783,6 +809,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                     setThreads((prev) =>
                       prev.filter((row) => row.id !== target.id),
                     );
+                    notifyAskThreadsChanged("conversation");
                     if (activeKey === target.id) {
                       handleNewConversation();
                     }
@@ -835,6 +862,7 @@ export function AskConversation({ workspaceId }: AskConversationProps) {
                     setThreads((prev) =>
                       prev.map((item) => (item.id === row.id ? row : item)),
                     );
+                    notifyAskThreadsChanged("conversation");
                     setRenameTarget(null);
                     setRenameTitle("");
                   })

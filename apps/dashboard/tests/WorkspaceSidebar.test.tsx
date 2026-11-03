@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/w/ws-1"));
@@ -58,9 +64,22 @@ vi.mock("@/lib/ask-threads", () => ({
       updated_at: "2026-08-23T00:00:00Z",
     },
   ]),
+  renameAskThread: vi.fn(async () => ({
+    id: "thread-101",
+    title: "바뀐 제목",
+    created_at: "2026-08-23T00:00:00Z",
+    updated_at: "2026-08-23T00:01:00Z",
+  })),
+  deleteAskThread: vi.fn(async () => undefined),
 }));
 
 import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
+import { apiFetch } from "@/lib/api-client";
+import { listAskThreads } from "@/lib/ask-threads";
+import {
+  notifyAskThreadsChanged,
+  subscribeAskThreadsChanged,
+} from "@/lib/ask-threads-events";
 
 describe("WorkspaceSidebar", () => {
   const defaultProps = {
@@ -287,5 +306,66 @@ describe("WorkspaceSidebar", () => {
     await waitFor(() => expect(apiFetch).toHaveBeenCalled());
     expect(screen.queryByText("무제한 이용 중")).not.toBeInTheDocument();
     expect(screen.queryByText("내 API 키 연결됨")).not.toBeInTheDocument();
+  });
+
+  it("경로가 그대로여도 Ask 화면의 알림을 받으면 최근 대화와 잔액을 다시 불러온다", async () => {
+    render(<WorkspaceSidebar {...defaultProps} />);
+    expect(await screen.findByText("350 크레딧 남음")).toBeInTheDocument();
+
+    vi.mocked(listAskThreads).mockResolvedValueOnce([
+      {
+        id: "thread-new",
+        title: "방금 만든 대화",
+        created_at: "2026-08-24T00:00:00Z",
+        updated_at: "2026-08-24T00:00:00Z",
+      },
+    ]);
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      cap_micros: 5000000,
+      spent_micros: 4000000,
+      remaining_micros: 1000000,
+      month_start: "2026-08-01T00:00:00Z",
+      truncated: false,
+      authoritative: false,
+    });
+
+    act(() => notifyAskThreadsChanged("conversation"));
+
+    expect(await screen.findByText("방금 만든 대화")).toBeInTheDocument();
+    expect(await screen.findByText("100 크레딧 남음")).toBeInTheDocument();
+  });
+
+  it("자기가 보낸 알림으로는 목록을 다시 불러오지 않는다", async () => {
+    render(<WorkspaceSidebar {...defaultProps} />);
+    expect(await screen.findByText("최근 질문 1")).toBeInTheDocument();
+    vi.mocked(listAskThreads).mockClear();
+
+    act(() => notifyAskThreadsChanged("sidebar"));
+
+    expect(listAskThreads).not.toHaveBeenCalled();
+  });
+
+  it("이름 변경과 삭제를 Ask 화면에 알린다", async () => {
+    const changed = vi.fn();
+    const unsubscribe = subscribeAskThreadsChanged("conversation", changed);
+    render(<WorkspaceSidebar {...defaultProps} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "최근 질문 1 대화 이름 바꾸기",
+      }),
+    );
+    const input = await screen.findByPlaceholderText("대화 제목");
+    fireEvent.change(input, { target: { value: "바뀐 제목" } });
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "바뀐 제목 대화 삭제" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "삭제" }));
+    await waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+
+    unsubscribe();
   });
 });

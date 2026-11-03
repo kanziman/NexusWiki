@@ -77,6 +77,7 @@ vi.mock("@/lib/api-client", () => ({
 
 import { AskConversation } from "@/components/AskConversation";
 import { apiFetch } from "@/lib/api-client";
+import { subscribeAskThreadsChanged } from "@/lib/ask-threads-events";
 
 async function* toAsyncGenerator<T>(items: T[]): AsyncGenerator<T> {
   for (const item of items) {
@@ -162,6 +163,26 @@ describe("AskConversation", () => {
       expect(window.location.search).toBe("?thread=thread-streaming-1");
       expect(screen.getByText("라우트를 떠나도 남나요?")).toBeInTheDocument();
     });
+  });
+
+  it("새 대화가 저장될 때와 답변이 끝날 때 사이드바에 알린다", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "X-Ask-Thread-Id": "thread-new-1" }),
+    } as Response);
+    sseFrames.mockReturnValue(
+      toAsyncGenerator([
+        { event: "done", data: { thread_id: "thread-new-1" } },
+      ]),
+    );
+    const changed = vi.fn();
+    const unsubscribe = subscribeAskThreadsChanged("sidebar", changed);
+
+    render(<AskConversation workspaceId="ws-1" />);
+    await askQuestion("사이드바에 바로 보이나요?");
+
+    await waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+    unsubscribe();
   });
 
   it("저장된 streaming 턴을 다시 열면 생성 중 상태로 복원한다", async () => {
