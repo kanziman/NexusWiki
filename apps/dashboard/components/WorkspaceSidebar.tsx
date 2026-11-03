@@ -37,6 +37,10 @@ import {
   type AskThreadSummary,
 } from "@/lib/ask-threads";
 import {
+  notifyAskThreadsChanged,
+  subscribeAskThreadsChanged,
+} from "@/lib/ask-threads-events";
+import {
   clearActiveAskThread,
   getActiveAskThread,
 } from "@/lib/ask-active-thread";
@@ -102,6 +106,15 @@ export function WorkspaceSidebar({
   const [renameTitle, setRenameTitle] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renameSubmitting, setRenameSubmitting] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(
+    () =>
+      subscribeAskThreadsChanged("sidebar", () => {
+        setRefreshTick((tick) => tick + 1);
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!currentWorkspaceId) return;
@@ -127,7 +140,8 @@ export function WorkspaceSidebar({
     return () => {
       cancelled = true;
     };
-  }, [currentWorkspaceId, pathname]);
+    // 이전 요청은 cleanup이 취소하므로 늦게 온 응답이 새 목록을 덮어쓰지 않는다.
+  }, [currentWorkspaceId, pathname, refreshTick]);
 
   const initial = accountEmail ? accountEmail.charAt(0).toUpperCase() : "W";
 
@@ -532,6 +546,7 @@ export function WorkspaceSidebar({
                       setRecentThreads((prev) =>
                         prev.filter((row) => row.id !== target.id),
                       );
+                      notifyAskThreadsChanged("sidebar");
                       if (activeThreadId === target.id) {
                         clearActiveAskThread(currentWorkspaceId);
                         router.push(`${base}/ask`);
@@ -587,6 +602,7 @@ export function WorkspaceSidebar({
                     setRecentThreads((prev) =>
                       prev.map((item) => (item.id === row.id ? row : item)),
                     );
+                    notifyAskThreadsChanged("sidebar");
                     setRenameTarget(null);
                     setRenameTitle("");
                   })
