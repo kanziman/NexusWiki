@@ -41,6 +41,7 @@ dist/
 .superpowers/
 .pnpm-store/
 .planning/research/.cache/
+.local/evidence-backfill/
 HANDOFF.md
 
 # --- 디자인 프로토타입 HTML ---
