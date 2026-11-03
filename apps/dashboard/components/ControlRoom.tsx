@@ -195,6 +195,8 @@ type QualitySnapshot = {
   mode: string;
   ask: {
     turns: number;
+    // 대시보드와 API는 따로 배포된다. 이전 API의 응답에는 이 필드가 없다.
+    measured_turns?: number;
     violation_turns: number;
     no_citation_turns: number;
     fabricated_turns: number;
@@ -204,6 +206,7 @@ type QualitySnapshot = {
   };
   structured: {
     calls: number;
+    measured_calls?: number;
     fence_stripped: number;
     json_invalid: number;
     schema_invalid: number;
@@ -637,16 +640,20 @@ function RiskPanel({
         className={styles.aggregate}
         aria-label={`최근 ${snapshot.days}일 위키 개정 위험 등급`}
       >
+        <p className={styles.note}>최근 {snapshot.days}일 기준</p>
         <Metric label="개정 낮음" value={`${revisions.low}건`} />
         <Metric label="개정 중간" value={`${revisions.medium}건`} />
         <Metric label="개정 높음" value={`${revisions.high}건`} />
+        <Metric label="승인 반영" value={`${proposals.applied}건`} />
+        <Metric label="거부" value={`${proposals.rejected}건`} />
+      </section>
+      <section className={styles.aggregate} aria-label="현재 승인 상태">
+        <p className={styles.note}>현재 상태 기준</p>
         <Metric label="승인 대기" value={`${proposals.pending}건`} />
         <Metric
           label="승인 후 반영 중"
           value={`${proposals.approved_waiting}건`}
         />
-        <Metric label="승인 반영" value={`${proposals.applied}건`} />
-        <Metric label="거부" value={`${proposals.rejected}건`} />
       </section>
       {snapshot.can_view_workspace ? (
         snapshot.pending_proposals.length > 0 ? (
@@ -693,8 +700,20 @@ function RiskPanel({
   );
 }
 
+function UnmeasuredNote({ total, noun }: { total: number; noun: string }) {
+  return (
+    <p className={styles.note}>
+      {total === 0
+        ? `이 기간의 ${noun}이 없습니다.`
+        : `측정 기록 없음: 품질 판정 기록이 있는 ${noun}이 없어 위반 여부를 알 수 없습니다.`}
+    </p>
+  );
+}
+
 function QualityPanel({ snapshot }: { snapshot: QualitySnapshot }) {
   const { ask, structured, evidence } = snapshot;
+  const measuredTurns = ask.measured_turns ?? 0;
+  const measuredCalls = structured?.measured_calls ?? 0;
   // 위키 쪽수는 기간과 무관하므로 빈 상태 판정에 넣지 않는다.
   if (ask.turns === 0 && !structured?.calls) {
     return (
@@ -713,15 +732,26 @@ function QualityPanel({ snapshot }: { snapshot: QualitySnapshot }) {
         className={styles.aggregate}
         aria-label={`최근 ${snapshot.days}일 답변 인용 계약`}
       >
-        <Metric label="답변 턴" value={`${ask.turns}건`} />
-        <Metric label="계약 위반 턴" value={`${ask.violation_turns}건`} />
-        <Metric label="인용 없음" value={`${ask.no_citation_turns}건`} />
-        <Metric label="위조 앵커" value={`${ask.fabricated_turns}건`} />
+        <p className={styles.note}>최근 {snapshot.days}일 · 측정된 답변 기준</p>
         <Metric
-          label="수리 성공 / 시도"
-          value={`${ask.repaired}건 / ${ask.repair_attempted}건`}
+          label="답변 턴"
+          value={`측정 ${measuredTurns}건 / 전체 ${ask.turns}건`}
         />
-        <Metric label="근거 목록 대체" value={`${ask.fallback}건`} />
+        {/* 측정되지 않은 데이터를 0건으로 보여 주면 위반 없음으로 읽힌다. */}
+        {measuredTurns === 0 ? (
+          <UnmeasuredNote total={ask.turns} noun="답변" />
+        ) : (
+          <>
+            <Metric label="계약 위반 턴" value={`${ask.violation_turns}건`} />
+            <Metric label="인용 없음" value={`${ask.no_citation_turns}건`} />
+            <Metric label="위조 앵커" value={`${ask.fabricated_turns}건`} />
+            <Metric
+              label="수리 성공 / 시도"
+              value={`${ask.repaired}건 / ${ask.repair_attempted}건`}
+            />
+            <Metric label="근거 목록 대체" value={`${ask.fallback}건`} />
+          </>
+        )}
       </section>
       {structured && evidence ? (
         <>
@@ -729,27 +759,43 @@ function QualityPanel({ snapshot }: { snapshot: QualitySnapshot }) {
             className={styles.aggregate}
             aria-label={`최근 ${snapshot.days}일 구조화 출력`}
           >
-            <Metric label="구조화 호출" value={`${structured.calls}건`} />
+            <p className={styles.note}>
+              최근 {snapshot.days}일 · 측정된 호출 기준
+            </p>
             <Metric
-              label="코드 펜스 제거"
-              value={`${structured.fence_stripped}건`}
+              label="구조화 호출"
+              value={`측정 ${measuredCalls}건 / 전체 ${structured.calls}건`}
             />
-            <Metric label="JSON 오류" value={`${structured.json_invalid}건`} />
-            <Metric
-              label="스키마 오류"
-              value={`${structured.schema_invalid}건`}
-            />
-            <Metric
-              label="내용 오류"
-              value={`${structured.semantic_invalid}건`}
-            />
-            <Metric
-              label="본문 없는 응답"
-              value={`${structured.missing_content}건`}
-            />
-            <Metric label="시도 소진" value={`${structured.exhausted}건`} />
+            {measuredCalls === 0 ? (
+              <UnmeasuredNote total={structured.calls} noun="구조화 호출" />
+            ) : (
+              <>
+                <Metric
+                  label="코드 펜스 제거"
+                  value={`${structured.fence_stripped}건`}
+                />
+                <Metric
+                  label="JSON 오류"
+                  value={`${structured.json_invalid}건`}
+                />
+                <Metric
+                  label="스키마 오류"
+                  value={`${structured.schema_invalid}건`}
+                />
+                <Metric
+                  label="내용 오류"
+                  value={`${structured.semantic_invalid}건`}
+                />
+                <Metric
+                  label="본문 없는 응답"
+                  value={`${structured.missing_content}건`}
+                />
+                <Metric label="시도 소진" value={`${structured.exhausted}건`} />
+              </>
+            )}
           </section>
           <section className={styles.aggregate} aria-label="위키 근거 청크">
+            <p className={styles.note}>기간과 무관한 전체 페이지 기준</p>
             <Metric
               label="근거가 연결된 페이지"
               value={`${evidence.pages_with_evidence}쪽 / ${evidence.pages_total}쪽`}

@@ -91,6 +91,7 @@ class LlmGateway:
         async def record_attempt(attempt: AttemptUsage) -> None:
             attempt_meta: dict[str, Any] = {
                 "attempt": attempt.attempt,
+                # ⚠️ 품질 집계(0036)가 이 키로 측정된 호출을 판별한다. 빼면 모두 미측정으로 보인다.
                 "policy_version": LLM_POLICY_VERSION,
             }
             if max_tokens is not None:

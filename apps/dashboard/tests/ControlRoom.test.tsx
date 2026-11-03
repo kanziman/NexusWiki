@@ -458,6 +458,7 @@ describe("ControlRoom", () => {
         mode: "enforce",
         ask: {
           turns: 10,
+          measured_turns: 10,
           violation_turns: 3,
           no_citation_turns: 2,
           fabricated_turns: 1,
@@ -467,6 +468,7 @@ describe("ControlRoom", () => {
         },
         structured: {
           calls: 8,
+          measured_calls: 8,
           fence_stripped: 4,
           json_invalid: 1,
           schema_invalid: 0,
@@ -508,6 +510,7 @@ describe("ControlRoom", () => {
         mode: "enforce",
         ask: {
           turns: 1,
+          measured_turns: 1,
           violation_turns: 0,
           no_citation_turns: 0,
           fabricated_turns: 0,
@@ -540,6 +543,7 @@ describe("ControlRoom", () => {
         mode: "enforce",
         ask: {
           turns: 0,
+          measured_turns: 0,
           violation_turns: 0,
           no_citation_turns: 0,
           fabricated_turns: 0,
@@ -549,6 +553,7 @@ describe("ControlRoom", () => {
         },
         structured: {
           calls: 0,
+          measured_calls: 0,
           fence_stripped: 0,
           json_invalid: 0,
           schema_invalid: 0,
@@ -572,6 +577,148 @@ describe("ControlRoom", () => {
     expect(
       screen.queryByRole("region", { name: "최근 30일 답변 인용 계약" }),
     ).toBeNull();
+  });
+
+  function qualitySnapshot(
+    ask: { turns: number; measured_turns: number },
+    structured: { calls: number; measured_calls: number } | null,
+  ) {
+    return {
+      days: 30,
+      can_view_workspace: structured !== null,
+      mode: "enforce",
+      ask: {
+        ...ask,
+        violation_turns: 0,
+        no_citation_turns: 0,
+        fabricated_turns: 0,
+        repair_attempted: 0,
+        repaired: 0,
+        fallback: 0,
+      },
+      structured: structured && {
+        ...structured,
+        fence_stripped: 0,
+        json_invalid: 0,
+        schema_invalid: 0,
+        semantic_invalid: 0,
+        missing_content: 0,
+        exhausted: 0,
+      },
+      evidence: structured && { pages_total: 30, pages_with_evidence: 30 },
+    };
+  }
+
+  async function openQuality(snapshot: unknown) {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/quality": snapshot,
+    });
+    const user = userEvent.setup();
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole("tab", { name: "품질" }));
+    return screen.findByRole("region", { name: "최근 30일 답변 인용 계약" });
+  }
+
+  it("품질 탭은 측정 건수를 전체 건수와 함께 표시한다", async () => {
+    const ask = await openQuality(
+      qualitySnapshot(
+        { turns: 6, measured_turns: 4 },
+        { calls: 2, measured_calls: 1 },
+      ),
+    );
+
+    expect(ask).toHaveTextContent("측정 4건 / 전체 6건");
+    expect(ask).toHaveTextContent("계약 위반 턴");
+    const structured = screen.getByRole("region", {
+      name: "최근 30일 구조화 출력",
+    });
+    expect(structured).toHaveTextContent("측정 1건 / 전체 2건");
+    expect(structured).toHaveTextContent("JSON 오류");
+    expect(screen.queryByText(/측정 기록 없음/)).toBeNull();
+  });
+
+  it("품질 탭은 측정 기록이 없는 경로의 지표를 0건으로 표시하지 않는다", async () => {
+    const ask = await openQuality(
+      qualitySnapshot(
+        { turns: 2, measured_turns: 0 },
+        { calls: 1, measured_calls: 0 },
+      ),
+    );
+
+    expect(ask).toHaveTextContent("측정 0건 / 전체 2건");
+    expect(ask).toHaveTextContent("측정 기록 없음");
+    expect(ask).not.toHaveTextContent("계약 위반 턴");
+    const structured = screen.getByRole("region", {
+      name: "최근 30일 구조화 출력",
+    });
+    expect(structured).toHaveTextContent("측정 0건 / 전체 1건");
+    expect(structured).toHaveTextContent("측정 기록 없음");
+    expect(structured).not.toHaveTextContent("JSON 오류");
+  });
+
+  it("품질 탭은 한 경로에 데이터가 없으면 그 경로의 0건 지표를 숨긴다", async () => {
+    const ask = await openQuality(
+      qualitySnapshot(
+        { turns: 0, measured_turns: 0 },
+        { calls: 1, measured_calls: 1 },
+      ),
+    );
+
+    expect(ask).toHaveTextContent("이 기간의 답변이 없습니다");
+    expect(ask).not.toHaveTextContent("계약 위반 턴");
+    expect(
+      screen.getByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).toHaveTextContent("JSON 오류");
+  });
+
+  it("품질 탭은 측정 건수가 없는 이전 API 응답도 측정 기록 없음으로 표시한다", async () => {
+    const snapshot = qualitySnapshot(
+      { turns: 2, measured_turns: 0 },
+      { calls: 1, measured_calls: 0 },
+    );
+    const ask: Record<string, unknown> = { ...snapshot.ask };
+    delete ask.measured_turns;
+    const structured: Record<string, unknown> = { ...snapshot.structured };
+    delete structured.measured_calls;
+    const region = await openQuality({ ...snapshot, ask, structured });
+
+    expect(region).toHaveTextContent("측정 0건 / 전체 2건");
+    expect(region).toHaveTextContent("측정 기록 없음");
+    expect(region).not.toHaveTextContent("계약 위반 턴");
+    expect(
+      screen.getByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).not.toHaveTextContent("JSON 오류");
+    expect(screen.queryByText(/undefined/)).toBeNull();
+  });
+
+  it("품질 탭에서 viewer도 본인 답변의 측정 기록 없음을 본다", async () => {
+    const ask = await openQuality(
+      qualitySnapshot({ turns: 1, measured_turns: 0 }, null),
+    );
+
+    expect(ask).toHaveTextContent("측정 기록 없음");
+    expect(
+      screen.queryByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).toBeNull();
+  });
+
+  it("품질 탭은 지표 묶음별 집계 기준을 화면 텍스트로 표시한다", async () => {
+    const ask = await openQuality(
+      qualitySnapshot(
+        { turns: 6, measured_turns: 4 },
+        { calls: 2, measured_calls: 1 },
+      ),
+    );
+
+    expect(ask).toHaveTextContent("최근 30일 · 측정된 답변 기준");
+    expect(
+      screen.getByRole("region", { name: "최근 30일 구조화 출력" }),
+    ).toHaveTextContent("최근 30일 · 측정된 호출 기준");
+    expect(
+      screen.getByRole("region", { name: "위키 근거 청크" }),
+    ).toHaveTextContent("기간과 무관한 전체 페이지 기준");
   });
 
   const RISK_BASE = {
@@ -670,6 +817,36 @@ describe("ControlRoom", () => {
     expect(
       screen.getByText("승인을 기다리는 위키 변경이 없습니다."),
     ).toBeInTheDocument();
+  });
+
+  it("리스크 탭은 최근 기간 지표와 현재 상태 지표를 나눠 표시한다", async () => {
+    respond({
+      "/control/traces": { items: [], can_view_workspace: false },
+      "/control/risk": {
+        ...RISK_BASE,
+        can_view_workspace: false,
+        pending_proposals: [],
+      },
+    });
+    const user = userEvent.setup();
+
+    render(<ControlRoom workspaceId="ws" />);
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole("tab", { name: "리스크" }));
+
+    const recent = await screen.findByRole("region", {
+      name: "최근 30일 위키 개정 위험 등급",
+    });
+    expect(recent).toHaveTextContent("최근 30일 기준");
+    expect(recent).toHaveTextContent("개정 높음");
+    expect(recent).toHaveTextContent("승인 반영");
+    expect(recent).toHaveTextContent("거부");
+    expect(recent).not.toHaveTextContent("승인 대기");
+    const current = screen.getByRole("region", { name: "현재 승인 상태" });
+    expect(current).toHaveTextContent("현재 상태 기준");
+    expect(current).toHaveTextContent("승인 대기1건");
+    expect(current).toHaveTextContent("승인 후 반영 중2건");
+    expect(screen.queryByRole("button", { name: "승인" })).toBeNull();
   });
 
   it("리스크 탭에서 viewer에게는 집계만 표시하고 처리 버튼이 없다", async () => {
