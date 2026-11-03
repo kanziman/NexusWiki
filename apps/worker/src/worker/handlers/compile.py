@@ -456,7 +456,8 @@ async def _upsert_page(
                     risk_reason=decision.reason,
                 )
                 return None
-            # ⚠️ 덮어쓰기 전에 남긴다. 순서를 바꾸면 실패 시 이전 본문이 사라진다.
+        if str(existing.get("content") or "") != content:
+            # ⚠️ 본문을 덮어쓰기 전에 남긴다. 메타데이터만 바뀌면 개정을 만들지 않는다.
             await db.insert_wiki_page_revision(
                 workspace_id=workspace_id,
                 row={

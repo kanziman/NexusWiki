@@ -72,18 +72,19 @@ async def run_wiki_proposal_apply(
         return
 
     content = str(proposal["proposed_content"])
-    await db.insert_wiki_page_revision(
-        workspace_id=workspace_id,
-        row={
-            "wiki_id": wiki_id,
-            "raw_source_id": raw_source_id,
-            "job_id": job_id,
-            "risk_level": "high",
-            "reason": "approved_proposal",
-            "previous_title": str(page.get("title") or ""),
-            "previous_content": str(page.get("content") or ""),
-        },
-    )
+    if str(page.get("content") or "") != content:
+        await db.insert_wiki_page_revision(
+            workspace_id=workspace_id,
+            row={
+                "wiki_id": wiki_id,
+                "raw_source_id": raw_source_id,
+                "job_id": job_id,
+                "risk_level": "high",
+                "reason": "approved_proposal",
+                "previous_title": str(page.get("title") or ""),
+                "previous_content": str(page.get("content") or ""),
+            },
+        )
 
     previous_sources = page.get("sources")
     sources = sorted(

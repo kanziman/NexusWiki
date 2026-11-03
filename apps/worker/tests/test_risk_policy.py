@@ -486,6 +486,31 @@ async def test_enforce_holds_metadata_only_change_on_verified_page() -> None:
 
 
 @pytest.mark.asyncio
+async def test_shadow_metadata_only_change_does_not_create_revision() -> None:
+    db = _WikiDb(_verified_page(content="새 본문입니다"))
+    await _compile(db, mode="shadow")
+    assert db.revisions == []
+    assert db.proposals == []
+    assert db.upserts[0]["title"] == "제목"
+    assert db.upserts[0]["content"] == "새 본문입니다"
+
+
+@pytest.mark.asyncio
+async def test_approved_metadata_only_change_applies_without_revision() -> None:
+    db = _ApplyDb("approved")
+    db.proposal["proposed_content"] = "사람이 검증한 본문"
+    await run_wiki_proposal_apply(
+        db, job_id="job-2", workspace_id="ws", payload={"proposal_id": "p-1"}
+    )
+    assert db.revisions == []
+    assert db.upserts[0]["title"] == "제안 제목"
+    assert db.upserts[0]["content"] == "사람이 검증한 본문"
+    assert db.marked == ["p-1"]
+    assert db.indexed[0]["wiki_id"] == "wiki-1"
+    assert db.chained[0]["next_type"] == "link_sync"
+
+
+@pytest.mark.asyncio
 async def test_other_source_update_records_a_medium_revision() -> None:
     db = _WikiDb(_verified_page(verification_status="unverified", sources=["other"]))
     await _compile(db, mode="enforce")

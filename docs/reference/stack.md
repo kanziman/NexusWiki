@@ -49,6 +49,8 @@
 
 통제 모드 기본값은 `AI_CONTROL_QUALITY_MODE=enforce`, `AI_CONTROL_RISK_MODE=shadow`다. 근거와 복구 방법은 `docs/ops/ask-sample-replay.md`에 있다.
 
+`AI_CONTROL_RISK_MODE`는 API와 worker 두 배포 서비스에 같은 값으로 설정하고 함께 변경한다. 리스크 탭은 API 설정을 표시하지만 실제 쓰기 보류는 worker 설정을 따른다. 두 값이 달라도 자동 탐지되지 않으므로 화면 표시만으로 worker의 적용 모드를 확인할 수 없다.
+
 `supabase/migrations/`에 `0001` ~ `0034`가 있다. **파일명 번호 순서가 곧 적용 순서다.**
 
 주요 지점만:
