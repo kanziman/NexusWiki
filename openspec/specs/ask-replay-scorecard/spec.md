@@ -7,7 +7,7 @@ ask 합성 재생의 결과를 질문별 통과 여부, 지연 백분위, 실행
 ## Requirements
 
 ### Requirement: Per-question pass verdict
-The system SHALL assign every replayed question a pass or fail verdict with a single-line reason when it fails. An answerable question MUST pass only when all of the following hold: the turn completed normally, the answer contains zero fabricated anchors, the expected-fact check is not false, and the answer cites both a wiki page and a raw source at least once. A question whose expected-fact check is undefined MUST NOT fail on that criterion. A question marked unanswerable MUST pass only when the turn ended in the no-evidence outcome and contains zero fabricated anchors. A turn that never reached the model MUST fail with a reason naming its outcome.
+The system SHALL assign every replayed question a pass or fail verdict with a single-line reason when it fails. An answerable question MUST pass only when all of the following hold: the turn completed normally, the answer contains zero fabricated anchors, the expected-fact check is not false, and the answer cites both a wiki page and a raw source at least once. A question whose expected-fact check is undefined MUST NOT fail on that criterion. A question marked unanswerable MUST pass only when it contains zero fabricated anchors and either the turn ended in the no-evidence outcome or the turn completed normally with an answer whose first body line, ignoring heading lines and whitespace differences, begins with the standard refusal statement the answer prompt instructs the model to use. A turn that never reached the model MUST fail with a reason naming its outcome.
 
 #### Scenario: Answerable question meets every criterion
 - **WHEN** an answerable question completes normally with zero fabricated anchors, a true expected-fact check, and at least one wiki and one raw-source citation
@@ -29,9 +29,25 @@ The system SHALL assign every replayed question a pass or fail verdict with a si
 - **WHEN** a question marked unanswerable ends in the no-evidence outcome with zero fabricated anchors
 - **THEN** the verdict is pass even though it carries no citations
 
+#### Scenario: Unanswerable question refused by the model after retrieval found unrelated evidence
+- **WHEN** a question marked unanswerable completes normally with zero fabricated anchors and its first body line begins with the standard refusal statement
+- **THEN** the verdict is pass even though the turn did not end in the no-evidence outcome
+
 #### Scenario: Unanswerable question answered anyway
-- **WHEN** a question marked unanswerable ends with a normally completed answer
+- **WHEN** a question marked unanswerable completes normally with an answer whose first body line does not begin with the standard refusal statement
 - **THEN** the verdict is fail and the reason states that it should have been refused
+
+#### Scenario: Refusal statement not at the start
+- **WHEN** a question marked unanswerable completes normally and the standard refusal statement appears only after other body text
+- **THEN** the verdict is fail because the answer is not a refusal
+
+#### Scenario: Refusal with fabricated anchors
+- **WHEN** a question marked unanswerable completes normally with a refusal first line but one or more fabricated anchors
+- **THEN** the verdict is fail and the reason names the fabricated anchors
+
+#### Scenario: Refusal wording differs only in spacing
+- **WHEN** the refusal first line differs from the standard statement only by whitespace
+- **THEN** the verdict treats it as the standard refusal
 
 #### Scenario: Turn did not reach the model
 - **WHEN** an answerable question ends in an HTTP error or the no-evidence outcome
