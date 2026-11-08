@@ -349,3 +349,60 @@ def test_count_kind_separates_missing_events_from_zero() -> None:
     assert replay._count_kind({"resolved": resolved}, "source") == 1
     assert replay._count_kind({"resolved": []}, "wiki") == 0
     assert replay._count_kind({}, "wiki") is None
+
+
+# --- #224: 답할 수 없는 질문의 거절 판정 ----------------------------------------------------
+
+# 첫 실제 재생(2026-11-07)에서 q30이 돌려준 답변 앞부분이다. 상태는 resolved였다.
+_Q30_REFUSAL = """## 핵심 답변
+
+제공된 자료로는 알 수 없습니다.
+
+푸른나래로지스의 영업이익에 관한 재무 데이터가 컨텍스트에 포함되어 있지 않습니다. \
+제공된 자료([[wiki:w1]], [[src:s1]])는 창고 운영 기준과 배송 규정에 한정되어 있습니다.
+"""
+
+
+def _unanswerable(answer: str, **overrides: Any) -> dict[str, Any]:
+    base = {"doc": "none", "status": "resolved", "answer": answer, "fabricated_anchor_count": 0}
+    return {**base, **overrides}
+
+
+def test_q30_refusal_after_a_heading_passes_even_though_status_is_resolved() -> None:
+    assert replay.verdict(_unanswerable(_Q30_REFUSAL)) == {"pass": True, "reason": None}
+
+
+def test_refusal_differing_only_in_spacing_is_still_a_refusal() -> None:
+    assert replay.verdict(_unanswerable("제공된  자료로는\t알 수 없습니다."))["pass"] is True
+
+
+def test_made_up_number_without_refusal_still_fails() -> None:
+    result = replay.verdict(
+        _unanswerable("## 핵심 답변\n\n푸른나래로지스의 영업이익은 1조원입니다.")
+    )
+    assert result["pass"] is False
+    assert "답하면 안 되는" in result["reason"]
+
+
+def test_refusal_statement_appearing_only_later_is_not_a_refusal() -> None:
+    answer = "영업이익은 1조원입니다.\n\n다만 제공된 자료로는 알 수 없습니다."
+    assert replay.verdict(_unanswerable(answer))["pass"] is False
+
+
+def test_refusal_with_fabricated_anchors_fails_with_the_anchor_reason() -> None:
+    result = replay.verdict(_unanswerable(_Q30_REFUSAL, fabricated_anchor_count=2))
+    assert result == {"pass": False, "reason": "위조 앵커 2건"}
+
+
+def test_no_evidence_still_passes_without_an_answer_text() -> None:
+    assert replay.verdict({"doc": "none", "status": "no-evidence"})["pass"] is True
+
+
+def test_fallback_status_is_not_a_refusal_even_with_the_statement() -> None:
+    assert replay.verdict(_unanswerable(_Q30_REFUSAL, status="fallback"))["pass"] is False
+
+
+def test_is_refusal_handles_missing_and_heading_only_answers() -> None:
+    assert replay.is_refusal(None) is False
+    assert replay.is_refusal("") is False
+    assert replay.is_refusal("## 핵심 답변\n\n") is False

@@ -117,14 +117,37 @@ def _ratio(flags: list[bool]) -> float | None:
     return sum(flags) / len(flags) if flags else None
 
 
+# 답변 프롬프트가 "컨텍스트로 답할 수 없으면" 쓰라고 지시하는 거절 문구다.
+# 출처: supabase/migrations/0006_seed_prompts.sql (151행, 184행). 재생은 이 전역 시드 템플릿을 쓴다.
+# ⚠️ 프롬프트의 문구를 바꾸면 이 상수도 함께 바꿔야 한다. 어긋나면 정확한 거절이 실패로 센다.
+REFUSAL_STATEMENT = "제공된 자료로는 알 수 없습니다"
+
+
+def is_refusal(answer: str | None) -> bool:
+    """답변이 표준 거절 문구로 시작하는지. 제목 줄(`#`)과 빈 줄을 건너뛴 첫 본문 줄만 본다.
+
+    문구가 본문 중간에 나오는 답("영업이익은 1조원입니다. ... 알 수 없습니다")은 거절이 아니다.
+    공백 차이는 `keyword_hit`과 같은 방식으로 무시한다.
+    """
+    for line in (answer or "").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return "".join(stripped.split()).startswith("".join(REFUSAL_STATEMENT.split()))
+    return False
+
+
 def verdict(row: dict[str, Any], answerable: bool | None = None) -> dict[str, Any]:
     """질문 한 개의 통과 여부와 실패 이유 한 줄. 행에 이미 있는 필드만 읽는다.
 
     저장된 값이 아니라 행에서 매번 다시 계산하므로, 기준을 고쳐도 옛 결과 파일을 재채점할 수 있다.
     이유는 아래 고정 순서의 첫 실패만 적는다: 상태 → 위조 앵커 → 기대 사실 → 이중 인용.
 
-    ⚠️ 답할 수 없는 질문(`doc == "none"`)은 `no-evidence`가 정답이다. 이 예외가 없으면 통과율이
-       구조적으로 한 문항 낮게 고정된다.
+    ⚠️ 답할 수 없는 질문(`doc == "none"`)은 거절이 정답이다. 거절은 두 모양이다: 검색이 근거를 못
+       찾아 `no-evidence`로 끝나거나, 무관한 근거가 잡혀 모델까지 갔다가 표준 문구로 거절한
+       `resolved`다. `no-evidence`만 인정하면 모델의 정확한 거절이 실패로 센다(#224).
+       알려진 한계: 질의 임베딩 일시 실패 같은 장애의 `no-evidence`도 통과로 세고, 거절 문구로
+       시작한 뒤 이어서 답하는 혼합 답변도 통과할 수 있다(위조 앵커만 잡는다).
     """
     if answerable is None:
         answerable = row.get("doc") != "none"
@@ -132,7 +155,10 @@ def verdict(row: dict[str, Any], answerable: bool | None = None) -> dict[str, An
     fabricated = int(row.get("fabricated_anchor_count") or 0)
 
     if not answerable:
-        if status != "no-evidence":
+        refused = status == "no-evidence" or (
+            status == "resolved" and is_refusal(row.get("answer"))
+        )
+        if not refused:
             return {"pass": False, "reason": f"답하면 안 되는 질문에 답했다 (상태 {status})"}
         if fabricated:
             return {"pass": False, "reason": f"위조 앵커 {fabricated}건"}
