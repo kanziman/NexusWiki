@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import importlib.util
 import json
 import sys
@@ -68,6 +67,7 @@ def _load_script(name: str) -> ModuleType:
 
 # 판정 규칙과 안전장치는 재생 스크립트의 것을 그대로 쓴다. 두 곳에 두면 정답 판정이 어긋난다.
 replay = _load_script("ask_replay")
+fingerprint = replay.fingerprint
 benchmark = _load_script("benchmark_retrieval")
 
 SCHEMA = "retrieval-ablation-v1"
@@ -93,13 +93,10 @@ MODEL_IDENTITY_MIN_COSINE = 0.999
 RetrieveFn = Callable[[str, str, str], Awaitable[tuple[list[dict[str, Any]], dict[str, Any]]]]
 
 
-def canonical_sha256(value: Any) -> str:
-    text = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def _text_sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+# 지문 정의는 재생 스크립트와 공유한다(eval-reliability 설계 D2). 두 곳에 두면 같은 수집인데도
+# 지문이 어긋나 반복 묶음이 거부된다.
+canonical_sha256 = fingerprint.canonical_sha256
+_text_sha256 = fingerprint.text_sha256
 
 
 def embedding_text(embedding_input: str, *, title: str, body: str) -> str:
@@ -123,74 +120,7 @@ def scope_policy(scope: str, base: RetrievalPolicy = DEFAULT_RETRIEVAL_POLICY) -
     return replace(base, enabled_channels=SCOPES[scope])
 
 
-def snapshot_inputs(
-    *,
-    raw_sources: list[dict[str, Any]],
-    source_chunks: list[dict[str, Any]],
-    wiki_pages: list[dict[str, Any]],
-    wiki_chunks: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """수집 스냅샷과 청크 경계를 해시로 고정한다. 본문은 기록에 남기지 않는다.
-
-    ⚠️ 제목도 스냅샷에 든다. 제목 머리말 입력은 제목에 의존하므로, 제목이 바뀐 수집과 비교하면
-       입력 효과와 데이터 변경이 섞인다.
-    """
-    snapshot = {
-        "raw_sources": sorted((str(r["id"]), str(r.get("title") or "")) for r in raw_sources),
-        "source_chunks": sorted(
-            (
-                str(c["raw_source_id"]),
-                int(c["chunk_index"]),
-                str(c["id"]),
-                _text_sha256(str(c.get("content") or "")),
-            )
-            for c in source_chunks
-        ),
-        "wiki_pages": sorted(
-            (
-                str(p["id"]),
-                str(p.get("title") or ""),
-                _text_sha256(str(p.get("content") or "")),
-                sorted(str(s) for s in (p.get("sources") or [])),
-            )
-            for p in wiki_pages
-        ),
-        "wiki_chunks": sorted(
-            (
-                str(c["wiki_id"]),
-                int(c["chunk_index"]),
-                _text_sha256(str(c.get("chunk_content") or "")),
-            )
-            for c in wiki_chunks
-        ),
-    }
-    boundaries = {
-        "source": sorted(
-            (
-                str(c["raw_source_id"]),
-                int(c["chunk_index"]),
-                int(c["char_start"]),
-                int(c["char_end"]),
-            )
-            for c in source_chunks
-        ),
-        "wiki": sorted(
-            (str(c["wiki_id"]), int(c["chunk_index"]), len(str(c.get("chunk_content") or "")))
-            for c in wiki_chunks
-        ),
-    }
-    versions = sorted({str(c.get("embedding_version")) for c in [*source_chunks, *wiki_chunks]})
-    return {
-        "snapshot_sha256": canonical_sha256(snapshot),
-        "chunk_boundaries_sha256": canonical_sha256(boundaries),
-        "embedding_versions": versions,
-        "counts": {
-            "raw_sources": len(raw_sources),
-            "source_chunks": len(source_chunks),
-            "wiki_pages": len(wiki_pages),
-            "wiki_chunks": len(wiki_chunks),
-        },
-    }
+snapshot_inputs = fingerprint.snapshot_inputs
 
 
 def fixed_inputs(
@@ -209,7 +139,7 @@ def fixed_inputs(
         "snapshot_sha256": snapshot["snapshot_sha256"],
         "chunk_boundaries_sha256": snapshot["chunk_boundaries_sha256"],
         "embedding_versions": list(snapshot["embedding_versions"]),
-        "fixture_sha256": canonical_sha256(sample),
+        "fixture_sha256": fingerprint.fixture_sha256(sample),
         "query_vectors_sha256": query_vectors_sha256(query_vectors),
         "policy_version": base.version,
         "policy_content_sha256": benchmark.policy_content_sha256(base),
@@ -1482,27 +1412,6 @@ def _evidence_json(hit: Any) -> dict[str, Any]:
     }
 
 
-POSTGREST_MAX_ROWS = 1000
-
-
-def _select_all(
-    client: httpx.Client, stack: str, table: str, workspace: str, columns: str, token: str
-) -> list[dict[str, Any]]:
-    rows = replay._select(
-        client,
-        stack,
-        table,
-        {"workspace_id": f"eq.{workspace}", "select": columns, "order": "id"},
-        token=token,
-    )
-    # ⚠️ PostgREST는 max_rows(1000)에서 오류 없이 자른다. 잘린 스냅샷의 해시는 조용히 틀린다.
-    if len(rows) >= POSTGREST_MAX_ROWS:
-        raise SystemExit(
-            f"retrieval_ablation: {table}가 {POSTGREST_MAX_ROWS}행 이상이라 잘렸을 수 있다"
-        )
-    return rows
-
-
 def _git_sha() -> str | None:
     """기록용 커밋. 커밋되지 않은 변경이 있으면 `+dirty`를 붙인다(ask_replay_serve.sh와 같다)."""
     import subprocess
@@ -1608,26 +1517,12 @@ def load_corpus(
     titles = {d["id"]: d["title"] for d in sample["documents"]}
     with httpx.Client(timeout=60) as client:
         token = replay._login(client, stack, state)
-        raw_sources = _select_all(client, stack, "raw_sources", workspace, "id,title", token)
-        source_chunks = _select_all(
-            client,
-            stack,
-            "source_chunks",
-            workspace,
-            "id,raw_source_id,chunk_index,content,char_start,char_end,embedding_version",
-            token,
-        )
-        wiki_pages = _select_all(
-            client, stack, "wiki_pages", workspace, "id,title,content,sources", token
-        )
-        wiki_chunks = _select_all(
-            client,
-            stack,
-            "wiki_embeddings",
-            workspace,
-            "id,wiki_id,chunk_index,chunk_content,embedding_version",
-            token,
-        )
+        tables = replay.snapshot_tables(client, stack, workspace, token)
+    raw_sources, source_chunks, wiki_pages = (
+        tables["raw_sources"],
+        tables["source_chunks"],
+        tables["wiki_pages"],
+    )
     raw_by_title: dict[str, str] = {}
     for source in raw_sources:
         title = str(source["title"])
@@ -1642,12 +1537,6 @@ def load_corpus(
             expected_by_question[str(question["id"])] = None
         else:
             expected_by_question[str(question["id"])] = {raw_by_title[titles[d]] for d in docs}
-    tables = {
-        "raw_sources": raw_sources,
-        "source_chunks": source_chunks,
-        "wiki_pages": wiki_pages,
-        "wiki_chunks": wiki_chunks,
-    }
     return {
         "token": token,
         "tables": tables,
@@ -1879,25 +1768,9 @@ def cmd_register(args: argparse.Namespace) -> int:
 
 
 def _default_ask_prompt_sha256(stack: str, workspace: str, token: str) -> str | None:
-    """답변에 쓰인 기본 Ask 템플릿의 해시. 조건 사이에 프롬프트가 바뀌면 비교가 깨진다."""
-    columns = "id,system_prompt,template"
+    """답변에 쓰인 기본 Ask 템플릿의 해시. 정의는 재생 스크립트와 공유한다."""
     with httpx.Client(timeout=30) as client:
-        for scope in (f"eq.{workspace}", "is.null"):
-            rows = replay._select(
-                client,
-                stack,
-                "prompt_templates",
-                {
-                    "workspace_id": scope,
-                    "target_type": "eq.ask",
-                    "is_default": "eq.true",
-                    "select": columns,
-                },
-                token=token,
-            )
-            if rows:
-                return canonical_sha256(rows[0])
-    return None
+        return replay.answer_prompt_sha256(client, stack, workspace, token)
 
 
 def _turn_message(stack: str, workspace: str, token: str, turn_id: str) -> dict[str, Any]:

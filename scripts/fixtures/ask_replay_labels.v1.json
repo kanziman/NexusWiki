@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "notice": "코드가 판정할 수 없는 실패 원인(질문 모호성 · 채점기 오류)을 사람이 근거와 함께 적는다. 답변 본문은 넣지 않는다. 계약: openspec/changes/eval-reliability/",
+  "labels": [
+    {
+      "id": "q06",
+      "cause": "question_ambiguity",
+      "known_failure": true,
+      "evidence": "#232 retrieval-evidence-ablation: 원문만 · 본문 조건에서 정답 원문이 6위로 잡혔는데도 반품 검수 48시간으로 답했다(docs/ops/ask-sample-replay.md 6조건 절)",
+      "note": "'입고 검수'가 일반 입고 검수(2시간)와 반품 검수(48시간) 사이에서 모호하다. RRF v2 이후 검색에서도 정답 근거가 상위 8 밖으로 밀린다"
+    }
+  ]
+}
