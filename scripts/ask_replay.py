@@ -513,6 +513,165 @@ def render_report(runs: list[dict[str, Any]], broken: int, notes: list[str]) -> 
     return _REPORT_HTML.replace("__DATA__", _json_for_script(payload))
 
 
+# --- 검색만 따로 채점 (강의 32편) -------------------------------------------------------
+
+RETRIEVAL_K = 8
+RETRIEVAL_METRIC_DEFINITION = (
+    "hit@k = 정답 문서의 근거가 하나라도 상위 k에 있는 질문의 비율(hit rate). "
+    "MRR = 첫 적중 순위의 역수 평균(적중 없음은 0). 이중 적중@8 = 상위 8 안에 정답 원문과 "
+    "정답 위키(정답 문서로 컴파일된 페이지)가 둘 다 있음. 답할 수 있는 질문만 센다."
+)
+
+
+def evidence_origins(
+    item: dict[str, Any],
+    wiki_sources: dict[str, set[str]],
+    chunk_sources: dict[str, str],
+) -> set[str]:
+    """근거 한 개가 어느 raw_source에서 왔는지.
+
+    ⚠️ 원문 근거의 `document_id`는 raw_source id가 아니라 **청크 id**다(`EvidenceHit.source`).
+       raw_source id는 `metadata.raw_source_id`에 있고, 없으면 청크 id로 조회한 값을 쓴다.
+       위키 근거는 그 페이지를 만든 원문 목록(`wiki_pages.sources`)이다.
+    """
+    if item.get("kind") == "wiki":
+        return set(wiki_sources.get(str(item.get("document_id")), set()))
+    metadata = item.get("metadata") or {}
+    raw = metadata.get("raw_source_id") or chunk_sources.get(str(item.get("id")))
+    return {str(raw)} if raw else set()
+
+
+def channel_failures(meta: dict[str, Any]) -> list[str]:
+    """검색 응답 `meta`에서 실패한 채널 이름.
+
+    ⚠️ 검색 API는 임베딩이나 RPC가 실패해도 200을 돌려주고 장애는 `meta`의 채널 상태에만
+       남긴다. 이걸 읽지 않으면 장애로 낮아진 지표가 정상 측정처럼 기준선에 남는다.
+    """
+    return sorted(
+        name
+        for name, value in meta.items()
+        if isinstance(value, dict) and value.get("status") == "failed"
+    )
+
+
+def retrieval_question_result(
+    evidence: list[dict[str, Any]],
+    expected: set[str],
+    wiki_sources: dict[str, set[str]],
+    chunk_sources: dict[str, str],
+) -> dict[str, Any]:
+    """질문 한 개의 순위별 적중과 첫 적중 순위. `expected`는 정답 raw_source id 집합이다."""
+    ranked = []
+    for rank, item in enumerate(evidence[:RETRIEVAL_K], start=1):
+        origins = evidence_origins(item, wiki_sources, chunk_sources)
+        ranked.append(
+            {"rank": rank, "kind": item.get("kind"), "relevant": bool(origins & expected)}
+        )
+    first = next((r["rank"] for r in ranked if r["relevant"]), None)
+    found = set()
+    for item in evidence[:RETRIEVAL_K]:
+        found |= evidence_origins(item, wiki_sources, chunk_sources) & expected
+    source_hit = any(r["relevant"] and r["kind"] == "source" for r in ranked)
+    wiki_hit = any(r["relevant"] and r["kind"] == "wiki" for r in ranked)
+    return {
+        "ranked": ranked,
+        "first_relevant_rank": first,
+        "source_hit": source_hit,
+        "wiki_hit": wiki_hit,
+        "dual_hit": source_hit and wiki_hit,
+        "expected_count": len(expected),
+        "found_count": len(found),
+    }
+
+
+def summarize_retrieval(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """답할 수 있는 질문만으로 지표를 낸다.
+
+    측정이 정상(`status == "ok"`)이 아닌 질문은 빼지 않고 모든 지표에서 미적중으로 센다.
+    HTTP 실패, 채널 장애, 정답 문서 매핑 실패, 근거 원문 확인 실패가 여기에 든다. 빼면 분모가
+    줄어 지표가 실제보다 좋아 보인다. 여러 문서 질문의 정답 문서 수도 결과가 아니라 질문의
+    `doc`에서 센다. 결과에서 세면 실패한 질문이 분모에서 사라진다.
+    """
+    answerable = [r for r in rows if r.get("doc") != "none"]
+    n = len(answerable)
+
+    def result(row: dict[str, Any]) -> dict[str, Any]:
+        return (row.get("result") or {}) if row.get("status") == "ok" else {}
+
+    def share(flags: list[bool]) -> float | None:
+        return sum(flags) / len(flags) if flags else None
+
+    def first(row: dict[str, Any]) -> int | None:
+        return result(row).get("first_relevant_rank")
+
+    def flag(row: dict[str, Any], key: str) -> bool:
+        return bool(result(row).get(key))
+
+    def expected_docs(row: dict[str, Any]) -> int:
+        return len(str(row.get("doc")).split("+"))
+
+    multi = [r for r in answerable if expected_docs(r) > 1]
+    statuses: dict[str, int] = {}
+    for row in rows:
+        statuses[str(row.get("status"))] = statuses.get(str(row.get("status")), 0) + 1
+    return {
+        "definition": RETRIEVAL_METRIC_DEFINITION,
+        "answerable": n,
+        "failed_requests": sum(1 for r in rows if r.get("status") != "ok"),
+        "status_counts": statuses,
+        "hit_at_1": share([(first(r) or 99) <= 1 for r in answerable]),
+        "hit_at_3": share([(first(r) or 99) <= 3 for r in answerable]),
+        "hit_at_8": share([first(r) is not None for r in answerable]),
+        "mrr": share([1 / first(r) if first(r) else 0.0 for r in answerable]) if n else None,
+        "source_hit_at_8": share([flag(r, "source_hit") for r in answerable]),
+        "wiki_hit_at_8": share([flag(r, "wiki_hit") for r in answerable]),
+        "dual_hit_at_8": share([flag(r, "dual_hit") for r in answerable]),
+        "multi_doc_questions": len(multi),
+        "multi_doc_any_found": sum(1 for r in multi if result(r).get("found_count", 0) >= 1),
+        "multi_doc_all_found": sum(
+            1 for r in multi if result(r).get("found_count", 0) == expected_docs(r)
+        ),
+        "unanswerable_evidence_counts": {
+            str(r.get("id")): int(r.get("evidence_count") or 0)
+            for r in rows
+            if r.get("doc") == "none"
+        },
+    }
+
+
+_RETRIEVAL_COMPARE_ROWS: tuple[tuple[str, str], ...] = (
+    ("hit_at_1", "hit@1"),
+    ("hit_at_3", "hit@3"),
+    ("hit_at_8", "hit@8"),
+    ("mrr", "MRR"),
+    ("source_hit_at_8", "원문만 hit@8"),
+    ("wiki_hit_at_8", "위키만 hit@8"),
+    ("dual_hit_at_8", "이중 적중@8"),
+    ("failed_requests", "측정 실패 질문"),
+)
+
+
+def retrieval_compare_table(before: dict[str, Any], after: dict[str, Any]) -> str:
+    """두 검색 기록을 공통 질문으로만 비교한다. 한쪽에만 있는 질문은 평균을 왜곡한다."""
+    after_ids = {row["id"] for row in after["rows"]}
+    keep = {row["id"] for row in before["rows"] if row["id"] in after_ids}
+    left = summarize_retrieval([r for r in before["rows"] if r["id"] in keep])
+    right = summarize_retrieval([r for r in after["rows"] if r["id"] in keep])
+    lines = [
+        f"합성 샘플 공통 문항 {len(keep)}개(답할 수 있는 질문 {left['answerable']}개) 기준이며 "
+        "운영 트래픽 수치가 아니다.",
+        RETRIEVAL_METRIC_DEFINITION,
+        f"검색 정책: `{before['label']}` {before.get('policy_versions') or '알 수 없음'} / "
+        f"`{after['label']}` {after.get('policy_versions') or '알 수 없음'}",
+        "",
+        f"| 지표 | {before['label']} | {after['label']} |",
+        "| --- | --- | --- |",
+    ]
+    for key, label in _RETRIEVAL_COMPARE_ROWS:
+        lines.append(f"| {label} | {_format(left.get(key))} | {_format(right.get(key))} |")
+    return "\n".join(lines)
+
+
 def _service_headers() -> dict[str, str]:
     return {"apikey": LOCAL_SERVICE_KEY, "Authorization": f"Bearer {LOCAL_SERVICE_KEY}"}
 
@@ -838,6 +997,162 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_retrieval_eval(args: argparse.Namespace) -> int:
+    out = Path(args.out)
+    # ⚠️ 기록은 append-only다. 덮어쓰면 비교의 기준선이 조용히 사라진다.
+    if out.exists():
+        raise SystemExit(f"ask_replay: 이미 있는 기록은 덮어쓰지 않는다: {out}")
+    api = assert_loopback(args.api_url)
+    state = json.loads(Path(args.state).read_text(encoding="utf-8"))
+    stack = assert_loopback(state["stack_url"])
+    sample = _load_sample(Path(args.sample))
+    seeded = set(state["documents"])
+    questions = [
+        q
+        for q in sample["questions"]
+        if q.get("doc") == "none" or set(str(q.get("doc")).split("+")) <= seeded
+    ]
+    if args.limit:
+        questions = questions[: args.limit]
+    workspace = state["workspace_id"]
+    titles = {d["id"]: d["title"] for d in sample["documents"]}
+    rows: list[dict[str, Any]] = []
+    policies: set[str] = set()
+    with httpx.Client(timeout=60) as client:
+        token = _login(client, stack, state)
+        sha = _api_sha(client, api)
+        # 조회는 모두 요청자 토큰으로 한다. RLS 아래에서 읽으므로 service_role이 필요 없다.
+        sources = _select(
+            client,
+            stack,
+            "raw_sources",
+            {"workspace_id": f"eq.{workspace}", "select": "id,title"},
+            token=token,
+        )
+        raw_by_title: dict[str, str] = {}
+        for source in sources:
+            title = str(source["title"])
+            # 같은 제목이 둘이면 정답 문서를 하나로 정할 수 없다. 조용히 하나만 남기지 않는다.
+            if title in raw_by_title:
+                raise SystemExit(f"ask_replay: 제목이 같은 원문이 둘 이상이다: {title}")
+            raw_by_title[title] = str(source["id"])
+        pages = _select(
+            client,
+            stack,
+            "wiki_pages",
+            {"workspace_id": f"eq.{workspace}", "select": "id,sources"},
+            token=token,
+        )
+        wiki_sources = {str(p["id"]): {str(x) for x in (p.get("sources") or [])} for p in pages}
+        for question in questions:
+            doc = str(question.get("doc"))
+            unmapped = [
+                d
+                for d in ([] if doc == "none" else doc.split("+"))
+                if titles.get(d) not in raw_by_title
+            ]
+            if unmapped:
+                # 정답 문서를 못 찾은 채 재면 미적중이 검색 탓처럼 보인다. 측정 실패로 남긴다.
+                rows.append(
+                    {
+                        "id": question["id"],
+                        "doc": doc,
+                        "status": "unmapped_expected",
+                        "unmapped": unmapped,
+                        "evidence_count": 0,
+                        "result": None,
+                    }
+                )
+                continue
+            expected = set() if doc == "none" else {raw_by_title[titles[d]] for d in doc.split("+")}
+            response = client.post(
+                f"{api}/workspaces/{workspace}/retrieval",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"query": question["query"], "requested_k": RETRIEVAL_K},
+            )
+            if response.status_code != 200:
+                rows.append(
+                    {
+                        "id": question["id"],
+                        "doc": doc,
+                        "status": f"http_{response.status_code}",
+                        "evidence_count": 0,
+                        "result": None,
+                    }
+                )
+                continue
+            body = response.json()
+            evidence = list(body.get("evidence") or [])
+            meta = body.get("meta") or {}
+            if meta.get("policy_version"):
+                policies.add(str(meta["policy_version"]))
+            failed_channels = channel_failures(meta)
+            missing = [
+                str(e.get("id"))
+                for e in evidence
+                if e.get("kind") == "source" and not (e.get("metadata") or {}).get("raw_source_id")
+            ]
+            chunk_sources: dict[str, str] = {}
+            if missing:
+                found = _select(
+                    client,
+                    stack,
+                    "source_chunks",
+                    {
+                        "workspace_id": f"eq.{workspace}",
+                        "id": f"in.({','.join(missing)})",
+                        "select": "id,raw_source_id",
+                    },
+                    token=token,
+                )
+                chunk_sources = {str(r["id"]): str(r["raw_source_id"]) for r in found}
+            unresolved = [chunk for chunk in missing if chunk not in chunk_sources]
+            result = retrieval_question_result(evidence, expected, wiki_sources, chunk_sources)
+            # 채널 장애나 원문을 확인하지 못한 근거가 있으면 결과는 남기되 측정 실패로 센다.
+            if failed_channels:
+                status = "channel_failed"
+            elif unresolved:
+                status = "unresolved_evidence"
+            else:
+                status = "ok"
+            rows.append(
+                {
+                    "id": question["id"],
+                    "doc": doc,
+                    "status": status,
+                    "failed_channels": failed_channels,
+                    "unresolved_evidence": len(unresolved),
+                    "evidence_count": len(evidence),
+                    "result": result,
+                }
+            )
+            print(
+                f"ask_replay: {question['id']} 첫 적중={result['first_relevant_rank']} "
+                f"이중={result['dual_hit']}"
+            )
+    record = {
+        "label": args.label,
+        "git_sha": sha,
+        "k": RETRIEVAL_K,
+        # 두 기록을 비교할 때 같은 검색 정책에서 잰 것인지 확인하는 값이다.
+        "policy_versions": sorted(policies),
+        "rows": rows,
+        "summary": summarize_retrieval(rows),
+    }
+    # "x" 모드: 실행 중에 같은 경로가 생겼어도 덮어쓰지 않는다.
+    with out.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False, indent=2))
+    print(json.dumps(record["summary"], ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_retrieval_compare(args: argparse.Namespace) -> int:
+    before = json.loads(Path(args.before).read_text(encoding="utf-8"))
+    after = json.loads(Path(args.after).read_text(encoding="utf-8"))
+    print(retrieval_compare_table(before, after))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="합성 샘플로 Ask 전후를 재생한다")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -870,6 +1185,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--result", action="append", help="성적표 줄이 없는 옛 결과 파일을 더한다(여러 번 가능)"
     )
     report.set_defaults(func=cmd_report)
+
+    reval = sub.add_parser("retrieval-eval", help="답변 없이 검색만 채점한다(LLM 호출 없음)")
+    reval.add_argument("--state", required=True)
+    reval.add_argument("--label", required=True)
+    reval.add_argument("--out", required=True)
+    reval.add_argument("--api-url", default="http://127.0.0.1:8031")
+    reval.add_argument("--sample", default=str(DEFAULT_SAMPLE))
+    reval.add_argument("--limit", type=int, default=0)
+    reval.set_defaults(func=cmd_retrieval_eval)
+
+    rcompare = sub.add_parser("retrieval-compare", help="두 검색 기록을 공통 질문으로 비교한다")
+    rcompare.add_argument("before")
+    rcompare.add_argument("after")
+    rcompare.set_defaults(func=cmd_retrieval_compare)
 
     compare = sub.add_parser("compare", help="두 결과를 Markdown 표로 비교한다")
     compare.add_argument("before")

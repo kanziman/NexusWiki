@@ -12,6 +12,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import httpx
 import pytest
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -406,3 +407,323 @@ def test_is_refusal_handles_missing_and_heading_only_answers() -> None:
     assert replay.is_refusal(None) is False
     assert replay.is_refusal("") is False
     assert replay.is_refusal("## 핵심 답변\n\n") is False
+
+
+# --- 검색만 따로 채점 (32편) ---------------------------------------------------------------
+
+_RAW_A, _RAW_B, _RAW_C = "raw-a", "raw-b", "raw-c"
+_WIKI = {"w-a": {_RAW_A}, "w-ab": {_RAW_A, _RAW_B}, "w-c": {_RAW_C}}
+
+
+def _src(raw: str | None, chunk: str = "chunk") -> dict[str, Any]:
+    meta = {"raw_source_id": raw} if raw else {}
+    return {"kind": "source", "id": chunk, "document_id": chunk, "metadata": meta}
+
+
+def _wiki(page: str) -> dict[str, Any]:
+    return {"kind": "wiki", "id": f"emb-{page}", "document_id": page, "metadata": {}}
+
+
+def _qr(evidence: list[dict[str, Any]], expected: set[str], chunks=None) -> dict[str, Any]:
+    return replay.retrieval_question_result(evidence, expected, _WIKI, chunks or {})
+
+
+def test_relevant_source_first_counts_everywhere_with_rank_one() -> None:
+    result = _qr([_src(_RAW_A), _wiki("w-c")], {_RAW_A})
+    assert result["first_relevant_rank"] == 1
+    summary = replay.summarize_retrieval(
+        [{"id": "q1", "doc": "a", "status": "ok", "result": result}]
+    )
+    assert (summary["hit_at_1"], summary["hit_at_3"], summary["hit_at_8"], summary["mrr"]) == (
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+    )
+
+
+def test_source_document_id_is_a_chunk_and_falls_back_to_chunk_lookup() -> None:
+    result = _qr([_src(None, chunk="c9")], {_RAW_A}, chunks={"c9": _RAW_A})
+    assert result["first_relevant_rank"] == 1
+
+
+def test_wiki_counts_through_its_compiled_sources() -> None:
+    assert _qr([_wiki("w-ab")], {_RAW_B})["wiki_hit"] is True
+
+
+def test_wiki_compiled_from_another_document_does_not_count() -> None:
+    result = _qr([_wiki("w-c")], {_RAW_A})
+    assert result["first_relevant_rank"] is None
+    assert result["wiki_hit"] is False
+
+
+def test_no_relevant_item_counts_against_every_metric() -> None:
+    result = _qr([_src(_RAW_C), _wiki("w-c")], {_RAW_A})
+    summary = replay.summarize_retrieval(
+        [{"id": "q1", "doc": "a", "status": "ok", "result": result}]
+    )
+    assert summary["hit_at_8"] == 0.0
+    assert summary["mrr"] == 0.0
+
+
+def test_only_source_side_is_not_a_dual_hit() -> None:
+    result = _qr([_src(_RAW_A), _wiki("w-c")], {_RAW_A})
+    assert (result["source_hit"], result["wiki_hit"], result["dual_hit"]) == (True, False, False)
+
+
+def test_multi_document_question_separates_any_from_all() -> None:
+    result = _qr([_src(_RAW_A)], {_RAW_A, _RAW_B})
+    summary = replay.summarize_retrieval(
+        [{"id": "q1", "doc": "a+b", "status": "ok", "result": result}]
+    )
+    assert (summary["multi_doc_questions"], summary["multi_doc_any_found"]) == (1, 1)
+    assert summary["multi_doc_all_found"] == 0
+
+
+def test_unanswerable_question_is_excluded_and_reported_by_count() -> None:
+    rows = [
+        {"id": "q1", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_A)], {_RAW_A})},
+        {"id": "q30", "doc": "none", "status": "ok", "evidence_count": 6, "result": None},
+    ]
+    summary = replay.summarize_retrieval(rows)
+    assert summary["answerable"] == 1
+    assert summary["hit_at_8"] == 1.0
+    assert summary["unanswerable_evidence_counts"] == {"q30": 6}
+
+
+def test_failed_request_counts_as_not_found_and_is_reported() -> None:
+    rows = [
+        {"id": "q1", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_A)], {_RAW_A})},
+        {"id": "q2", "doc": "a", "status": "http_500", "evidence_count": 0, "result": None},
+    ]
+    summary = replay.summarize_retrieval(rows)
+    assert summary["failed_requests"] == 1
+    assert summary["hit_at_8"] == 0.5
+
+
+def test_metric_definition_says_hit_rate() -> None:
+    assert "hit rate" in replay.summarize_retrieval([])["definition"]
+
+
+def test_retrieval_eval_refuses_to_overwrite_before_any_request(tmp_path: Path) -> None:
+    out = tmp_path / "r.json"
+    out.write_text("{}", encoding="utf-8")
+    args = replay.build_parser().parse_args(
+        ["retrieval-eval", "--state", "missing.json", "--label", "x", "--out", str(out)]
+    )
+    with pytest.raises(SystemExit):
+        args.func(args)
+    assert out.read_text(encoding="utf-8") == "{}"
+
+
+def test_retrieval_compare_uses_shared_questions() -> None:
+    hit = {"id": "q1", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_A)], {_RAW_A})}
+    miss = {"id": "q1", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_C)], {_RAW_A})}
+    only = {"id": "q2", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_A)], {_RAW_A})}
+    table = replay.retrieval_compare_table(
+        {"label": "before", "rows": [miss, only]}, {"label": "after", "rows": [hit]}
+    )
+    assert "공통 문항 1개" in table
+    assert "| hit@8 | 0.000 | 1.000 |" in table
+
+
+# --- 리뷰 r1 지적: 측정 실패가 정상 측정으로 새지 않는다 --------------------------------------
+
+
+def test_channel_failures_reads_failed_channels_from_meta() -> None:
+    meta = {
+        "policy_version": "hybrid-rrf-v1",
+        "source_vector": {"status": "failed", "error_code": "embedding_unavailable"},
+        "wiki_lexical": {"status": "ok"},
+        "graph": {"status": "disabled"},
+    }
+    assert replay.channel_failures(meta) == ["source_vector"]
+    assert replay.channel_failures({"wiki_vector": {"status": "ok"}}) == []
+
+
+def test_degraded_row_counts_as_not_found_even_with_a_result() -> None:
+    good = _qr([_src(_RAW_A)], {_RAW_A})
+    rows = [{"id": "q1", "doc": "a", "status": "channel_failed", "result": good}]
+    summary = replay.summarize_retrieval(rows)
+    assert summary["hit_at_8"] == 0.0
+    assert summary["failed_requests"] == 1
+    assert summary["status_counts"] == {"channel_failed": 1}
+
+
+def test_failed_multi_document_question_stays_in_the_denominator() -> None:
+    rows = [
+        {
+            "id": "q1",
+            "doc": "a+b",
+            "status": "ok",
+            "result": _qr([_src(_RAW_A), _src(_RAW_B, "c2")], {_RAW_A, _RAW_B}),
+        },
+        {"id": "q2", "doc": "c+d", "status": "http_500", "result": None},
+    ]
+    summary = replay.summarize_retrieval(rows)
+    assert summary["multi_doc_questions"] == 2
+    assert (summary["multi_doc_any_found"], summary["multi_doc_all_found"]) == (1, 1)
+
+
+def test_unmapped_expected_document_is_a_measurement_failure() -> None:
+    rows = [{"id": "q1", "doc": "a", "status": "unmapped_expected", "result": None}]
+    summary = replay.summarize_retrieval(rows)
+    assert summary["failed_requests"] == 1
+    assert summary["hit_at_8"] == 0.0
+
+
+def test_retrieval_compare_states_the_policy_versions() -> None:
+    hit = {"id": "q1", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_A)], {_RAW_A})}
+    table = replay.retrieval_compare_table(
+        {"label": "before", "policy_versions": ["hybrid-rrf-v1"], "rows": [hit]},
+        {"label": "after", "rows": [hit]},
+    )
+    assert "['hybrid-rrf-v1']" in table
+    assert "알 수 없음" in table
+
+
+# --- 리뷰 r2 지적: 상태를 정하는 명령 분기를 가짜 HTTP로 직접 돈다 ----------------------------
+
+_STACK, _API, _WS = "http://127.0.0.1:54621", "http://127.0.0.1:8031", "ws-1"
+
+
+def _ok_meta() -> dict[str, Any]:
+    return {"policy_version": "hybrid-rrf-v1", "source_vector": {"status": "ok"}}
+
+
+def _run_retrieval_eval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    raw_sources: list[dict[str, Any]],
+    retrieval: dict[str, httpx.Response],
+) -> tuple[list[str], Path]:
+    sample = {
+        "documents": [
+            {"id": "a", "title": "A", "text": "."},
+            {"id": "b", "title": "B", "text": "."},
+        ],
+        "questions": [
+            {"id": "q-ok", "doc": "a", "query": "ok"},
+            {"id": "q-channel", "doc": "a", "query": "channel"},
+            {"id": "q-unmapped", "doc": "b", "query": "unmapped"},
+            {"id": "q-unresolved", "doc": "a", "query": "unresolved"},
+            {"id": "q-http", "doc": "a", "query": "http"},
+        ],
+    }
+    (tmp_path / "sample.json").write_text(json.dumps(sample), encoding="utf-8")
+    state = {
+        "stack_url": _STACK,
+        "workspace_id": _WS,
+        "documents": ["a", "b"],
+        "email": "e@example.com",
+        "credential": "secret-credential",
+    }
+    (tmp_path / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/auth/v1/token":
+            return httpx.Response(200, json={"access_token": "secret-token"})
+        if path == "/health":
+            return httpx.Response(200, json={"git_sha": "abc1234"})
+        if path == "/rest/v1/raw_sources":
+            return httpx.Response(200, json=raw_sources)
+        if path == "/rest/v1/wiki_pages":
+            return httpx.Response(200, json=[{"id": "w-a", "sources": ["raw-a"]}])
+        if path == "/rest/v1/source_chunks":
+            return httpx.Response(200, json=[])  # 청크 조회로도 원문을 못 찾는다
+        if path == f"/workspaces/{_WS}/retrieval":
+            query = json.loads(request.content)["query"]
+            calls.append(query)
+            return retrieval[query]
+        raise AssertionError(f"예상하지 못한 요청: {request.method} {path}")
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        replay.httpx,
+        "Client",
+        lambda *a, **k: real_client(transport=httpx.MockTransport(handler)),
+    )
+    out = tmp_path / "record.json"
+    args = replay.build_parser().parse_args(
+        [
+            "retrieval-eval",
+            "--state",
+            str(tmp_path / "state.json"),
+            "--label",
+            "t",
+            "--out",
+            str(out),
+            "--api-url",
+            _API,
+            "--sample",
+            str(tmp_path / "sample.json"),
+        ]
+    )
+    args.func(args)
+    return calls, out
+
+
+def test_command_assigns_each_measurement_failure_from_real_branches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    good = {
+        "kind": "source",
+        "id": "c1",
+        "document_id": "c1",
+        "metadata": {"raw_source_id": "raw-a"},
+    }
+    retrieval = {
+        "ok": httpx.Response(200, json={"evidence": [good], "meta": _ok_meta()}),
+        "channel": httpx.Response(
+            200,
+            json={
+                "evidence": [good],
+                "meta": {**_ok_meta(), "source_vector": {"status": "failed"}},
+            },
+        ),
+        "unresolved": httpx.Response(
+            200,
+            json={
+                "evidence": [{"kind": "source", "id": "c9", "document_id": "c9", "metadata": {}}],
+                "meta": _ok_meta(),
+            },
+        ),
+        "http": httpx.Response(500, json={"detail": "boom"}),
+    }
+    calls, out = _run_retrieval_eval(
+        tmp_path,
+        monkeypatch,
+        raw_sources=[{"id": "raw-a", "title": "A"}],  # B는 없다 → 매핑 실패
+        retrieval=retrieval,
+    )
+    record = json.loads(out.read_text(encoding="utf-8"))
+    statuses = {row["id"]: row["status"] for row in record["rows"]}
+    assert statuses == {
+        "q-ok": "ok",
+        "q-channel": "channel_failed",
+        "q-unmapped": "unmapped_expected",
+        "q-unresolved": "unresolved_evidence",
+        "q-http": "http_500",
+    }
+    assert "unmapped" not in calls  # 매핑 실패는 검색을 부르지 않는다
+    assert record["policy_versions"] == ["hybrid-rrf-v1"]
+    assert record["summary"]["failed_requests"] == 4
+    assert record["summary"]["hit_at_8"] == 1 / 5
+    text = out.read_text(encoding="utf-8")
+    assert "secret-token" not in text and "secret-credential" not in text
+
+
+def test_command_refuses_duplicate_titles_before_any_retrieval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(SystemExit):
+        _run_retrieval_eval(
+            tmp_path,
+            monkeypatch,
+            raw_sources=[{"id": "raw-a", "title": "A"}, {"id": "raw-a2", "title": "A"}],
+            retrieval={},
+        )
+    assert not (tmp_path / "record.json").exists()
