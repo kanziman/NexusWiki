@@ -170,3 +170,182 @@ def test_sample_expected_facts_exist_in_the_source_documents() -> None:
             assert any("".join(item.split()) in corpus for item in question["expect_any"]), (
                 question["id"]
             )
+
+
+# --- 성적표: 판정 · 지연 · 누적 기록 · 화면 -------------------------------------------------
+
+
+def _good(**overrides: Any) -> dict[str, Any]:
+    base = {"status": "resolved", "doc": "delivery", "elapsed_ms": 1000, "model": "m/x"}
+    return _row(**{**base, **overrides})
+
+
+def test_answerable_question_passes_when_every_criterion_holds() -> None:
+    assert replay.verdict(_good()) == {"pass": True, "reason": None}
+
+
+def test_missing_dual_citation_fails_with_that_reason() -> None:
+    result = replay.verdict(_good(dual_citation_rate=0.0))
+    assert result["pass"] is False
+    assert "함께 인용" in result["reason"]
+
+
+def test_failure_reason_follows_the_documented_order() -> None:
+    result = replay.verdict(_good(fabricated_anchor_count=2, keyword_hit=False))
+    assert result["reason"] == "위조 앵커 2건"
+
+
+def test_unknown_expected_fact_is_not_a_failure() -> None:
+    assert replay.verdict(_good(keyword_hit=None))["pass"] is True
+
+
+def test_unanswerable_question_passes_only_on_refusal() -> None:
+    refused = _row(doc="none", status="no-evidence", prompt_tokens=None, keyword_hit=None)
+    assert replay.verdict(refused)["pass"] is True
+    answered = _row(doc="none", status="resolved")
+    result = replay.verdict(answered)
+    assert result["pass"] is False
+    assert "답하면 안 되는" in result["reason"]
+
+
+def test_turn_that_never_reached_the_model_fails_with_its_status() -> None:
+    result = replay.verdict({"id": "q9", "doc": "delivery", "status": "http_500"})
+    assert result == {"pass": False, "reason": "정상 완료가 아니다 (상태 http_500)"}
+    assert "no-evidence" in replay.verdict({"doc": "delivery", "status": "no-evidence"})["reason"]
+
+
+def test_fallback_is_not_a_normal_completion() -> None:
+    result = replay.verdict(_good(status="fallback"))
+    assert result["pass"] is False
+    assert "fallback" in result["reason"]
+
+
+def test_summary_reports_pass_rate_and_latency_percentiles() -> None:
+    rows = [_good(id=f"q{i}", elapsed_ms=i * 1000) for i in range(1, 11)]
+    rows[0]["dual_citation_rate"] = 0.0  # 한 문항 불통과
+    summary = replay.summarize(rows)
+    assert (summary["passed"], summary["asked"]) == (9, 10)
+    assert summary["pass_rate"] == 0.9
+    assert summary["latency_p50_ms"] == 6000
+    assert summary["latency_p95_ms"] == 10000
+    assert summary["model"] == "m/x"
+
+
+def test_latency_is_absent_not_zero_without_elapsed_times() -> None:
+    summary = replay.summarize([{"id": "q1", "doc": "x", "status": "http_500"}])
+    assert summary["latency_p50_ms"] is None
+    assert summary["latency_p95_ms"] is None
+    assert summary["model"] == "unknown"
+
+
+def _result(label: str = "after", **kwargs: Any) -> dict[str, Any]:
+    rows = [_good(id="q01"), _good(id="q02", dual_citation_rate=0.0)]
+    return {
+        "label": label,
+        "git_sha": kwargs.get("git_sha", "abc1234"),
+        "planned_questions": kwargs.get("planned", 2),
+        "rows": rows,
+        "summary": replay.summarize(rows),
+    }
+
+
+def test_scorecard_line_has_no_text_and_marks_early_stops(tmp_path: Path) -> None:
+    line = replay.scorecard_line(_result(planned=30), "after.json")
+    assert (line["asked"], line["planned"]) == (2, 30)
+    assert line["pass_rate"] == 0.5
+    assert set(line) >= {"label", "git_sha", "model", "latency_p50_ms", "latency_p95_ms"}
+    assert "answer" not in json.dumps(line)
+
+
+def test_scorecard_line_records_unknown_revision_and_model() -> None:
+    result = _result(git_sha=None)
+    result["summary"]["model"] = None
+    line = replay.scorecard_line(result, None)
+    assert line["git_sha"] == "unknown"
+    assert line["model"] == "unknown"
+
+
+def test_append_keeps_earlier_lines_untouched(tmp_path: Path) -> None:
+    path = tmp_path / "scorecard.jsonl"
+    replay.append_scorecard(path, {"label": "first"})
+    first = path.read_text(encoding="utf-8")
+    replay.append_scorecard(path, {"label": "second"})
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith(first)
+    assert [json.loads(raw)["label"] for raw in text.splitlines()] == ["first", "second"]
+
+
+def test_broken_scorecard_lines_are_skipped_and_counted(tmp_path: Path) -> None:
+    path = tmp_path / "scorecard.jsonl"
+    path.write_text('{"label": "ok"}\n{broken\n[1]\n', encoding="utf-8")
+    lines, broken = replay.read_scorecard(path)
+    assert [line["label"] for line in lines] == ["ok"]
+    assert broken == 2
+
+
+def test_report_lists_runs_in_order_and_marks_missing_detail(tmp_path: Path) -> None:
+    scorecard = tmp_path / "scorecard.jsonl"
+    with_file = replay.scorecard_line(_result("a"), "a.json")
+    (tmp_path / "a.json").write_text(json.dumps(_result("a")), encoding="utf-8")
+    replay.append_scorecard(scorecard, with_file)
+    replay.append_scorecard(scorecard, replay.scorecard_line(_result("b"), "missing.json"))
+    runs, broken, _ = replay.build_report_data(scorecard, [])
+    assert [r["label"] for r in runs] == ["a", "b"]
+    assert runs[0]["rows"] is not None
+    assert runs[1]["rows"] is None
+    assert broken == 0
+
+
+def test_report_rederives_verdicts_for_old_result_files(tmp_path: Path) -> None:
+    old = _result("old")
+    for row in old["rows"]:
+        row.pop("verdict", None)
+    old_path = tmp_path / "old.json"
+    old_path.write_text(json.dumps(old), encoding="utf-8")
+    runs, _, _ = replay.build_report_data(tmp_path / "none.jsonl", [old_path])
+    assert [row["verdict"]["pass"] for row in runs[0]["rows"]] == [True, False]
+
+
+def test_empty_report_names_the_command(tmp_path: Path) -> None:
+    runs, broken, notes = replay.build_report_data(tmp_path / "none.jsonl", [])
+    html = replay.render_report(runs, broken, notes)
+    assert "합성 샘플 수치이며 운영 트래픽이 아닙니다" in html
+    assert "ask_replay.py ask" in html
+
+
+def test_markup_in_results_cannot_break_out_of_the_page(tmp_path: Path) -> None:
+    hostile = _result("x")
+    hostile["rows"][0]["answer"] = "</script><script>alert(1)</script><b>굵게</b>"
+    path = tmp_path / "x.json"
+    path.write_text(json.dumps(hostile), encoding="utf-8")
+    runs, broken, notes = replay.build_report_data(tmp_path / "none.jsonl", [path])
+    html = replay.render_report(runs, broken, notes)
+    assert "</script><script>alert(1)" not in html
+    assert html.count("</script>") == 2  # 데이터 블록과 화면 코드, 둘뿐이다
+    assert "textContent" in html and "innerHTML" not in html
+
+
+def test_wiki_and_source_in_different_sentences_still_pass() -> None:
+    """스펙은 답변 단위다. 한 문장에 둘이 없어도 위키와 원문을 각각 인용했으면 통과다."""
+    row = _good(dual_citation_rate=0.0, cited_wiki_count=2, cited_source_count=1)
+    assert replay.verdict(row) == {"pass": True, "reason": None}
+
+
+def test_answer_citing_only_wiki_fails_with_counts() -> None:
+    result = replay.verdict(_good(cited_wiki_count=3, cited_source_count=0))
+    assert result["pass"] is False
+    assert "위키 3, 원문 0" in result["reason"]
+
+
+def test_old_rows_fall_back_to_the_sentence_rate_and_say_so() -> None:
+    result = replay.verdict(_good(dual_citation_rate=0.0))
+    assert result["pass"] is False
+    assert "옛 결과" in result["reason"]
+
+
+def test_count_kind_separates_missing_events_from_zero() -> None:
+    resolved = [{"kind": "wiki"}, {"kind": "source"}, {"kind": "wiki"}]
+    assert replay._count_kind({"resolved": resolved}, "wiki") == 2
+    assert replay._count_kind({"resolved": resolved}, "source") == 1
+    assert replay._count_kind({"resolved": []}, "wiki") == 0
+    assert replay._count_kind({}, "wiki") is None

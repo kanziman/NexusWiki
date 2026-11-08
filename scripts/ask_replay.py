@@ -12,6 +12,9 @@
     # 3. 표로 비교한다.
     uv run python scripts/ask_replay.py compare before.json after.json
 
+    # 4. 실행마다 scorecard.jsonl에 한 줄이 쌓인다. 눈으로 볼 정적 HTML을 만든다(네트워크 불필요).
+    uv run python scripts/ask_replay.py report --scorecard scorecard.jsonl --html scorecard.html
+
 ⚠️ 로컬 스택 전용이다. `.env`의 SUPABASE_URL은 클라우드를 가리키므로 읽지 않으며,
    루프백이 아닌 주소는 거부한다. service_role 키를 쓰는 조회가 운영으로 나가면 안 된다.
 ⚠️ 이 값은 합성 문서로 잰 샘플 수치다. 운영 트래픽의 효과로 인용하면 안 된다.
@@ -21,10 +24,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -112,12 +117,64 @@ def _ratio(flags: list[bool]) -> float | None:
     return sum(flags) / len(flags) if flags else None
 
 
+def verdict(row: dict[str, Any], answerable: bool | None = None) -> dict[str, Any]:
+    """질문 한 개의 통과 여부와 실패 이유 한 줄. 행에 이미 있는 필드만 읽는다.
+
+    저장된 값이 아니라 행에서 매번 다시 계산하므로, 기준을 고쳐도 옛 결과 파일을 재채점할 수 있다.
+    이유는 아래 고정 순서의 첫 실패만 적는다: 상태 → 위조 앵커 → 기대 사실 → 이중 인용.
+
+    ⚠️ 답할 수 없는 질문(`doc == "none"`)은 `no-evidence`가 정답이다. 이 예외가 없으면 통과율이
+       구조적으로 한 문항 낮게 고정된다.
+    """
+    if answerable is None:
+        answerable = row.get("doc") != "none"
+    status = str(row.get("status"))
+    fabricated = int(row.get("fabricated_anchor_count") or 0)
+
+    if not answerable:
+        if status != "no-evidence":
+            return {"pass": False, "reason": f"답하면 안 되는 질문에 답했다 (상태 {status})"}
+        if fabricated:
+            return {"pass": False, "reason": f"위조 앵커 {fabricated}건"}
+        return {"pass": True, "reason": None}
+
+    if status == "fallback":
+        # 인용 계약 수리에 실패해 근거 목록으로 끝난 답이다. 정상 완료로 치지 않는다.
+        return {"pass": False, "reason": "수리 후 fallback으로 끝났다"}
+    if status != "resolved":
+        return {"pass": False, "reason": f"정상 완료가 아니다 (상태 {status})"}
+    if fabricated:
+        return {"pass": False, "reason": f"위조 앵커 {fabricated}건"}
+    if row.get("keyword_hit") is False:
+        return {"pass": False, "reason": "기대 사실이 답변에 없다"}
+    # 기대값이 없으면(None) 이 기준은 건너뛴다.
+    wiki, source = row.get("cited_wiki_count"), row.get("cited_source_count")
+    if wiki is not None and source is not None:
+        # 답변 단위: 위키와 원문을 각각 한 번 이상 인용하면 된다(서로 다른 문장이어도 된다).
+        if wiki < 1 or source < 1:
+            return {
+                "pass": False,
+                "reason": f"위키 또는 원문 인용이 없다 (위키 {wiki}, 원문 {source})",
+            }
+    elif not (row.get("dual_citation_rate") or 0) > 0:
+        # ⚠️ 옛 결과 파일에는 종류별 개수가 없다. 한 문장에 둘 다 있는 문장 비율로 대체하므로
+        #    답변 단위보다 엄격하다(위키와 원문을 다른 문장에서 인용한 답은 불통과로 나온다).
+        return {
+            "pass": False,
+            "reason": "위키와 원문을 함께 인용한 문장이 없다 (옛 결과, 문장 기준)",
+        }
+    return {"pass": True, "reason": None}
+
+
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """질문별 결과를 집계한다. 인용 지표는 LLM이 답한 턴만 본다.
 
     근거 없음으로 단락한 턴을 넣으면 인용률이 0으로 희석되어 전후 비교가 왜곡된다.
     """
     llm_rows = [row for row in rows if row.get("prompt_tokens") is not None]
+    elapsed = [float(r["elapsed_ms"]) for r in rows if r.get("elapsed_ms") is not None]
+    passed = sum(1 for row in rows if verdict(row)["pass"])
+    models = [str(r["model"]) for r in rows if r.get("model")]
     prompts = [float(row["prompt_tokens"]) for row in llm_rows]
     answerable = [row for row in rows if row.get("keyword_hit") is not None]
     budgets = [row["budget"] for row in rows if isinstance(row.get("budget"), dict)]
@@ -129,6 +186,16 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "questions": len(rows),
         "llm_turns": len(llm_rows),
         "statuses": statuses,
+        "asked": len(rows),
+        "passed": passed,
+        "pass_rate": passed / len(rows) if rows else None,
+        # 클라이언트가 잰 시간이다: 큐 대기와 네트워크가 섞이고 서버 처리 시간이 아니다.
+        # n이 작아 p95는 최댓값 가까이에 붙는다(기존 `_percentile`의 인덱스 방식 그대로).
+        "latency_p50_ms": _percentile(elapsed, 0.5),
+        "latency_p95_ms": _percentile(elapsed, 0.95),
+        "model": models[0] if models else "unknown",
+        "prompt_tokens_total": sum(int(r["prompt_tokens"]) for r in llm_rows),
+        "completion_tokens_total": sum(int(r.get("completion_tokens") or 0) for r in llm_rows),
         "prompt_tokens_mean": _mean(prompts),
         "prompt_tokens_p95": _percentile(prompts, 0.95),
         "prompt_tokens_max": max(prompts) if prompts else None,
@@ -201,6 +268,223 @@ def compare_table(before: dict[str, Any], after: dict[str, Any]) -> str:
             change = f"{(b - a) / a * 100:+.1f}%"
         lines.append(f"| {label} | {_format(a)} | {_format(b)} | {change} |")
     return "\n".join(lines)
+
+
+def scorecard_line(result: dict[str, Any], result_file: str | None) -> dict[str, Any]:
+    """실행 한 번을 성적표 한 줄로 줄인다. 질문·답변 본문과 키는 넣지 않는다.
+
+    ⚠️ 한 줄은 한 번 쓰면 고치지 않는다. 필드를 줄이거나 이름을 바꾸면 옛 줄을 읽는 화면이 깨진다.
+    """
+    summary = result.get("summary") or summarize(result.get("rows") or [])
+    asked = int(summary.get("asked") or 0)
+    cost_total = int(summary.get("cost_micros_total") or 0)
+    return {
+        "label": result.get("label") or "unknown",
+        "git_sha": result.get("git_sha") or "unknown",
+        "model": summary.get("model") or "unknown",
+        "date": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "asked": asked,
+        # 지출 상한으로 일찍 멈춘 실행이 전체 실행처럼 읽히지 않게 계획 문항 수를 같이 남긴다.
+        "planned": int(result.get("planned_questions") or asked),
+        "passed": int(summary.get("passed") or 0),
+        "pass_rate": summary.get("pass_rate"),
+        "prompt_tokens_total": int(summary.get("prompt_tokens_total") or 0),
+        "completion_tokens_total": int(summary.get("completion_tokens_total") or 0),
+        "cost_micros_total": cost_total,
+        "cost_micros_per_question": round(cost_total / asked) if asked else None,
+        "latency_p50_ms": summary.get("latency_p50_ms"),
+        "latency_p95_ms": summary.get("latency_p95_ms"),
+        "result_file": result_file,
+    }
+
+
+def append_scorecard(path: Path, line: dict[str, Any]) -> None:
+    """한 줄을 덧붙인다. 앞선 줄은 읽지도 고치지도 않는다."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+
+def read_scorecard(path: Path) -> tuple[list[dict[str, Any]], int]:
+    """줄 단위로 읽는다. 깨진 줄은 건너뛰고 개수를 돌려줘 화면이 알리게 한다."""
+    if not path.exists():
+        return [], 0
+    lines: list[dict[str, Any]] = []
+    broken = 0
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip():
+            continue
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            broken += 1
+            continue
+        if isinstance(parsed, dict):
+            lines.append(parsed)
+        else:
+            broken += 1
+    return lines, broken
+
+
+def _run_for_report(line: dict[str, Any], rows: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """화면에 실을 실행 한 개. 판정은 여기서 행마다 다시 계산한다(저장된 값을 믿지 않는다)."""
+    detail = None
+    if rows is not None:
+        detail = [{**row, "verdict": verdict(row)} for row in rows]
+    return {**line, "rows": detail}
+
+
+def build_report_data(
+    scorecard: Path, extra_results: list[Path]
+) -> tuple[list[dict[str, Any]], int, list[str]]:
+    """성적표 줄과 결과 파일을 읽어 화면용 실행 목록을 만든다. 네트워크·DB에 닿지 않는다."""
+    lines, broken = read_scorecard(scorecard)
+    runs: list[dict[str, Any]] = []
+    notes: list[str] = []
+    for line in lines:
+        rows = None
+        relative = line.get("result_file")
+        if relative:
+            candidate = scorecard.parent / str(relative)
+            if candidate.exists():
+                try:
+                    rows = json.loads(candidate.read_text(encoding="utf-8")).get("rows")
+                except (json.JSONDecodeError, OSError):
+                    notes.append(f"{relative}: 결과 파일을 읽지 못했다")
+        runs.append(_run_for_report(line, rows))
+    for path in extra_results:
+        # 성적표 줄이 생기기 전에 만든 결과 파일도 행 필드만으로 그린다.
+        result = json.loads(path.read_text(encoding="utf-8"))
+        rows = result.get("rows") or []
+        runs.append(_run_for_report(scorecard_line(result, path.name), rows))
+    return runs, broken, notes
+
+
+def _json_for_script(value: Any) -> str:
+    """<script> 안에 안전하게 넣을 JSON. `</script>`나 줄 구분자가 문서를 깨뜨리지 못하게 한다."""
+    text = json.dumps(value, ensure_ascii=False)
+    return (
+        text.replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+        .replace(" ", "\\u2028")
+        .replace(" ", "\\u2029")
+    )
+
+
+_REPORT_HTML = """<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask 성적표</title>
+<style>
+:root{--bg:#fafaf8;--fg:#1c1d21;--muted:#62666f;--line:#dcdde2;--card:#fff;--accent:#3b5bdb;--bad:#b42318;--badbg:#fdecea;--ok:#146c43}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111317;--fg:#e8eaf0;--muted:#9aa1b2;--line:#2c313c;--card:#181b22;--accent:#7b9bff;--bad:#ff8a80;--badbg:#3a1c1c;--ok:#6fd49b}}
+:root[data-theme="dark"]{--bg:#111317;--fg:#e8eaf0;--muted:#9aa1b2;--line:#2c313c;--card:#181b22;--accent:#7b9bff;--bad:#ff8a80;--badbg:#3a1c1c;--ok:#6fd49b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Apple SD Gothic Neo",system-ui,sans-serif;padding:24px 16px 64px}
+main{max-width:1100px;margin:0 auto}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:32px 0 8px}
+.notice{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);padding:10px 14px;border-radius:6px;color:var(--muted);margin:12px 0 20px}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{display:inline-block;width:90px;height:10px;background:var(--line);border-radius:5px;margin-right:8px;vertical-align:middle;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+button.run{all:unset;cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline}
+button.run:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+tr.sel td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+tr.fail td{background:var(--badbg)}
+.v-fail{color:var(--bad);font-weight:700}.v-ok{color:var(--ok)}.v-fail,.v-ok{white-space:nowrap}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+details summary{cursor:pointer;color:var(--muted)}
+details pre{white-space:pre-wrap;margin:6px 0 0;font:inherit;color:var(--fg)}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>Ask 성적표</h1>
+<div class="notice">합성 샘플 수치이며 운영 트래픽이 아닙니다. 질문 수가 적고 LLM 답변이 매번 달라 작은 차이는 의미가 없습니다.
+기대 사실은 키워드 포함 여부일 뿐이고, 지연은 클라이언트가 잰 시간(큐 대기·네트워크 포함)입니다.
+n이 작아 p95는 최댓값에 가깝습니다.</div>
+<div id="problems" class="muted"></div>
+<h2>실행별 성적표</h2>
+<div id="runs"></div>
+<h2 id="detail-title"></h2>
+<div id="detail"></div>
+</main>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function(){
+var data=JSON.parse(document.getElementById("data").textContent);
+var runs=data.runs,sel=runs.length-1;
+function el(tag,text,cls){var e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e}
+function fmt(n){return n==null?"-":Number(n).toLocaleString("ko-KR")}
+function sec(ms){return ms==null?"-":(ms/1000).toFixed(1)+"초"}
+function usd(m){return m==null?"-":"$"+(m/1e6).toFixed(4)}
+function pct(r){return r==null?"-":Math.round(r*100)+"%"}
+function th(row,labels){var tr=document.createElement("tr");labels.forEach(function(l){tr.appendChild(el("th",l))});row.appendChild(tr)}
+var problems=document.getElementById("problems");
+if(data.broken)problems.appendChild(el("p","읽지 못한 성적표 줄 "+data.broken+"개는 건너뛰었습니다."));
+data.notes.forEach(function(n){problems.appendChild(el("p",n))});
+function renderRuns(){
+ var box=document.getElementById("runs");box.textContent="";
+ if(!runs.length){
+  box.appendChild(el("p","아직 기록된 실행이 없습니다. 먼저 한 번 돌리세요:"));
+  box.appendChild(el("p","uv run python scripts/ask_replay.py ask --state state.json --label 이름 --out 결과.json","mono"));
+  return}
+ var wrap=el("div",null,"wrap"),t=document.createElement("table"),head=document.createElement("thead");
+ th(head,["실행","모델","통과율","문항","입력 토큰","$/문항","p50","p95","날짜"]);t.appendChild(head);
+ var body=document.createElement("tbody");
+ runs.forEach(function(r,i){
+  var tr=document.createElement("tr");if(i===sel)tr.className="sel";
+  var c=document.createElement("td"),b=el("button",r.label+(r.git_sha&&r.git_sha!=="unknown"?" ("+String(r.git_sha).slice(0,7)+")":""),"run");
+  b.type="button";b.addEventListener("click",function(){sel=i;renderRuns();renderDetail()});c.appendChild(b);tr.appendChild(c);
+  tr.appendChild(el("td",r.model));
+  var p=document.createElement("td"),bar=el("span",null,"bar"),fill=document.createElement("i");fill.style.width=Math.round((r.pass_rate||0)*100)+"%";bar.appendChild(fill);
+  p.appendChild(bar);p.appendChild(el("span",pct(r.pass_rate)+" ("+r.passed+"/"+r.asked+")"));tr.appendChild(p);
+  var q=r.asked<r.planned?r.asked+"/"+r.planned+" (중단)":String(r.asked);tr.appendChild(el("td",q,"num"));
+  tr.appendChild(el("td",fmt(r.prompt_tokens_total),"num"));
+  tr.appendChild(el("td",usd(r.cost_micros_per_question),"num"));
+  tr.appendChild(el("td",sec(r.latency_p50_ms),"num"));tr.appendChild(el("td",sec(r.latency_p95_ms),"num"));
+  tr.appendChild(el("td",r.date||"-","muted"));body.appendChild(tr)});
+ t.appendChild(body);wrap.appendChild(t);box.appendChild(wrap)}
+function renderDetail(){
+ var box=document.getElementById("detail"),title=document.getElementById("detail-title");box.textContent="";
+ if(sel<0||!runs[sel]){title.textContent="";return}
+ var r=runs[sel];title.textContent="문항 상세: "+r.label;
+ if(!r.rows){box.appendChild(el("p","이 실행의 결과 파일을 찾지 못해 상세를 볼 수 없습니다.","muted"));return}
+ var wrap=el("div",null,"wrap"),t=document.createElement("table"),head=document.createElement("thead");
+ th(head,["문항","판정","이유","상태","입력 토큰","지연","답변"]);t.appendChild(head);
+ var body=document.createElement("tbody");
+ r.rows.forEach(function(row){
+  var ok=row.verdict.pass,tr=document.createElement("tr");if(!ok)tr.className="fail";
+  tr.appendChild(el("td",row.id,"mono"));
+  tr.appendChild(el("td",ok?"✓ 통과":"✗ 실패",ok?"v-ok":"v-fail"));
+  tr.appendChild(el("td",row.verdict.reason||""));
+  tr.appendChild(el("td",row.status));
+  tr.appendChild(el("td",fmt(row.prompt_tokens),"num"));
+  tr.appendChild(el("td",sec(row.elapsed_ms),"num"));
+  var a=document.createElement("td");
+  if(row.answer){var d=document.createElement("details");d.appendChild(el("summary","보기"));d.appendChild(el("pre",row.answer));a.appendChild(d)}
+  tr.appendChild(a);body.appendChild(tr)});
+ t.appendChild(body);wrap.appendChild(t);box.appendChild(wrap)}
+renderRuns();renderDetail();
+})();
+</script>
+</body>
+</html>
+"""  # noqa: E501 — 화면 코드는 한 줄이 길다
+
+
+def render_report(runs: list[dict[str, Any]], broken: int, notes: list[str]) -> str:
+    payload = {"runs": runs, "broken": broken, "notes": notes}
+    return _REPORT_HTML.replace("__DATA__", _json_for_script(payload))
 
 
 def _service_headers() -> dict[str, str]:
@@ -362,6 +646,14 @@ def cmd_seed(args: argparse.Namespace) -> int:
     return 0
 
 
+def _count_kind(citations: dict[str, Any], kind: str) -> int | None:
+    """답변이 실제로 인용한 앵커 중 종류별 개수. 인용 이벤트가 없으면 None(0과 구분)."""
+    resolved = citations.get("resolved")
+    if not isinstance(resolved, list):
+        return None
+    return sum(1 for item in resolved if isinstance(item, dict) and item.get("kind") == kind)
+
+
 def _ask_once(
     client: httpx.Client,
     api: str,
@@ -418,7 +710,7 @@ def _ask_once(
                 "workspace_id": f"eq.{workspace_id}",
                 "trace_id": f"eq.{message['trace_id']}",
                 "kind": "neq.embedding",
-                "select": "prompt_tokens,completion_tokens,cost_micros",
+                "select": "prompt_tokens,completion_tokens,cost_micros,model",
             },
         )
     report = message.get("control_report") or {}
@@ -426,6 +718,7 @@ def _ask_once(
         "id": question["id"],
         "doc": question.get("doc"),
         "status": message.get("status") or "unknown",
+        "model": next((u["model"] for u in usage if u.get("model")), None),
         "elapsed_ms": elapsed_ms,
         "prompt_tokens": sum(int(u.get("prompt_tokens") or 0) for u in usage) if usage else None,
         "completion_tokens": sum(int(u.get("completion_tokens") or 0) for u in usage)
@@ -436,6 +729,8 @@ def _ask_once(
         "unsourced_sentence_ratio": citations.get("unsourced_sentence_ratio"),
         "fabricated_anchor_count": citations.get("fabricated_anchor_count"),
         "cited_anchor_count": citations.get("cited_anchor_count"),
+        "cited_wiki_count": _count_kind(citations, "wiki"),
+        "cited_source_count": _count_kind(citations, "source"),
         "keyword_hit": keyword_hit(answer, list(question.get("expect_any") or [])),
         "budget": report.get("budget"),
         "route": report.get("route"),
@@ -480,6 +775,8 @@ def cmd_ask(args: argparse.Namespace) -> int:
             if spent > args.max_spend_micros:
                 print(f"ask_replay: 지출 상한 {args.max_spend_micros} micros를 넘어 중단한다")
                 break
+    for row in rows:
+        row["verdict"] = verdict(row)
     result = {
         "label": args.label,
         "git_sha": sha,
@@ -487,9 +784,25 @@ def cmd_ask(args: argparse.Namespace) -> int:
         "rows": rows,
         "summary": summarize(rows),
     }
-    Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    out = Path(args.out)
+    out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result["summary"], ensure_ascii=False, indent=2))
+    # 성적표 한 줄을 쌓는다. 결과 파일은 성적표 옆 상대 경로로 가리켜 디렉터리를 옮겨도 이어진다.
+    scorecard = Path(args.scorecard) if args.scorecard else out.with_name("scorecard.jsonl")
+    relative = os.path.relpath(out.resolve(), scorecard.resolve().parent)
+    append_scorecard(scorecard, scorecard_line(result, relative))
+    print(f"ask_replay: 성적표에 한 줄을 더했다 → {scorecard}")
     return 0 if len(rows) == len(questions) else 1
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    runs, broken, notes = build_report_data(
+        Path(args.scorecard), [Path(p) for p in args.result or []]
+    )
+    html = render_report(runs, broken, notes)
+    Path(args.html).write_text(html, encoding="utf-8")
+    print(f"ask_replay: 실행 {len(runs)}개로 성적표를 만들었다 → {args.html}")
+    return 0
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
@@ -521,7 +834,16 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--limit", type=int, default=0)
     # 기본 3달러. 이 값을 넘으면 남은 질문을 포기하고 부분 결과로 끝낸다.
     ask.add_argument("--max-spend-micros", type=int, default=3_000_000)
+    ask.add_argument("--scorecard", help="성적표 파일. 기본은 --out 옆의 scorecard.jsonl")
     ask.set_defaults(func=cmd_ask)
+
+    report = sub.add_parser("report", help="성적표를 정적 HTML로 만든다(네트워크 불필요)")
+    report.add_argument("--scorecard", required=True)
+    report.add_argument("--html", required=True)
+    report.add_argument(
+        "--result", action="append", help="성적표 줄이 없는 옛 결과 파일을 더한다(여러 번 가능)"
+    )
+    report.set_defaults(func=cmd_report)
 
     compare = sub.add_parser("compare", help="두 결과를 Markdown 표로 비교한다")
     compare.add_argument("before")
