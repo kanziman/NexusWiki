@@ -232,6 +232,29 @@ def test_policy_content_hash_detects_policy_change_without_version_change() -> N
     assert module.policy_content_sha256(changed) != baseline
 
 
+def test_default_enabled_channels_keep_the_recorded_policy_hash() -> None:
+    """`enabled_channels` 추가 전 hybrid-rrf-v2 기록의 해시와 같아야 기존 비교가 이어진다."""
+    module = _benchmark_module()
+    from nexuswiki_core.retrieval_policy import RetrievalPolicy
+
+    recorded_v2 = "1c1b7673054415a5f6ffff3f93c59c1244683f73a8fc134bc68be32b8c8044c5"
+    assert module.policy_content_sha256() == recorded_v2
+    assert "enabled_channels" not in module.policy_content()
+
+    scoped = RetrievalPolicy(enabled_channels={"source_vector", "source_lexical"})
+    assert module.policy_content(scoped)["enabled_channels"] == ["source_lexical", "source_vector"]
+    assert module.policy_content_sha256(scoped) != recorded_v2
+
+
+def test_enabled_channels_must_be_a_non_empty_first_wave_subset() -> None:
+    from nexuswiki_core.retrieval_policy import RetrievalPolicy
+
+    with pytest.raises(ValueError, match="enabled channels"):
+        RetrievalPolicy(enabled_channels=set())
+    with pytest.raises(ValueError, match="enabled channels"):
+        RetrievalPolicy(enabled_channels={"graph"})
+
+
 def test_operational_validator_accepts_observed_empty_retrieval_result_only() -> None:
     """An empty service result is evidence; an empty label-built result is not."""
     module = _benchmark_module()

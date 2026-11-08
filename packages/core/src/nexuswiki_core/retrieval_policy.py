@@ -21,6 +21,7 @@ _FIRST_WAVE_CHANNELS: Final[tuple[str, ...]] = (
     "wiki_lexical",
     "source_lexical",
 )
+FIRST_WAVE_CHANNELS: Final[frozenset[str]] = frozenset(_FIRST_WAVE_CHANNELS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,9 @@ class RetrievalPolicy:
     channel_overfetch: Mapping[str, int] = field(
         default_factory=lambda: MappingProxyType(dict.fromkeys(_FIRST_WAVE_CHANNELS, 20))
     )
+    # 켜 둔 1차 채널. 기본은 넷 다다. 근거 범위 실험(원문만 · 위키만)이 채널을 끄며, 꺼진 채널은
+    # 실패가 아니라 `disabled`로 기록된다. 운영 요청은 기본값만 쓴다.
+    enabled_channels: frozenset[str] = FIRST_WAVE_CHANNELS
     requested_k: int = 8
     vector_sql_max_candidates: int = 100
     lexical_sql_max_candidates: int = 100
@@ -54,8 +58,11 @@ class RetrievalPolicy:
         object.__setattr__(
             self, "channel_overfetch", MappingProxyType(dict(self.channel_overfetch))
         )
+        object.__setattr__(self, "enabled_channels", frozenset(self.enabled_channels))
         if not self.version:
             raise ValueError("version must be non-empty")
+        if not self.enabled_channels or not self.enabled_channels <= FIRST_WAVE_CHANNELS:
+            raise ValueError("enabled channels must be a non-empty subset of first-wave channels")
         if self.rrf_k < 0:
             raise ValueError("rrf_k must be non-negative")
         if self.same_channel_aggregation not in SAME_CHANNEL_AGGREGATIONS:

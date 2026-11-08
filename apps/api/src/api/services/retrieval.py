@@ -106,39 +106,45 @@ class RetrievalService:
         }
         meta: dict[str, dict[str, Any]] = {}
         channel_hits: dict[str, list[EvidenceHit]] = {}
+        enabled = self._policy.enabled_channels
+        # ⚠️ 꺼 둔 채널은 `disabled`로 남긴다. `failed`로 적으면 부분 검색 안내가 뜨고, 실험
+        #    기록에서 의도된 단일 근거가 실행 장애로 잘못 분류된다.
+        for name in limits:
+            if name not in enabled:
+                meta[name] = _disabled_meta(limits[name])
+        vector_channels = [name for name in ("wiki_vector", "source_vector") if name in enabled]
+        vector: list[float] | None = None
+        if vector_channels:
+            try:
+                vector = await self._embedding_client.embed(
+                    normalized, workspace_id=str(workspace_id)
+                )
+                if not _valid_vector(vector):
+                    raise ValueError("invalid_vector")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                vector = None
+                for name in vector_channels:
+                    meta[name] = _failed_meta(limits[name], "embedding_unavailable")
 
-        try:
-            vector = await self._embedding_client.embed(normalized, workspace_id=str(workspace_id))
-            if not _valid_vector(vector):
-                raise ValueError("invalid_vector")
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            for name in ("wiki_vector", "source_vector"):
-                meta[name] = _failed_meta(limits[name], "embedding_unavailable")
-            coroutines: dict[str, Awaitable[tuple[list[EvidenceHit], dict[str, Any]]]] = {
-                "wiki_lexical": self._wiki_lexical(
-                    user_db, workspace_id, query_bigrams, limits["wiki_lexical"]
-                ),
-                "source_lexical": self._source_lexical(
-                    user_db, workspace_id, query_bigrams, limits["source_lexical"]
-                ),
-            }
-        else:
-            coroutines = {
-                "wiki_vector": self._wiki_vector(
-                    user_db, workspace_id, vector, limits["wiki_vector"]
-                ),
-                "source_vector": self._source_vector(
-                    user_db, workspace_id, vector, limits["source_vector"]
-                ),
-                "wiki_lexical": self._wiki_lexical(
-                    user_db, workspace_id, query_bigrams, limits["wiki_lexical"]
-                ),
-                "source_lexical": self._source_lexical(
-                    user_db, workspace_id, query_bigrams, limits["source_lexical"]
-                ),
-            }
+        coroutines: dict[str, Awaitable[tuple[list[EvidenceHit], dict[str, Any]]]] = {}
+        if vector is not None and "wiki_vector" in enabled:
+            coroutines["wiki_vector"] = self._wiki_vector(
+                user_db, workspace_id, vector, limits["wiki_vector"]
+            )
+        if vector is not None and "source_vector" in enabled:
+            coroutines["source_vector"] = self._source_vector(
+                user_db, workspace_id, vector, limits["source_vector"]
+            )
+        if "wiki_lexical" in enabled:
+            coroutines["wiki_lexical"] = self._wiki_lexical(
+                user_db, workspace_id, query_bigrams, limits["wiki_lexical"]
+            )
+        if "source_lexical" in enabled:
+            coroutines["source_lexical"] = self._source_lexical(
+                user_db, workspace_id, query_bigrams, limits["source_lexical"]
+            )
 
         outcomes = await asyncio.gather(*coroutines.values(), return_exceptions=True)
         for name, outcome in zip(coroutines, outcomes, strict=True):

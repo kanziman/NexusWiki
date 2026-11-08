@@ -18,7 +18,11 @@ from statistics import median
 from uuid import UUID, uuid5
 
 from api.services.retrieval import RetrievalService
-from nexuswiki_core.retrieval_policy import DEFAULT_RETRIEVAL_POLICY, POLICY_VERSION
+from nexuswiki_core.retrieval_policy import (
+    DEFAULT_RETRIEVAL_POLICY,
+    FIRST_WAVE_CHANNELS,
+    POLICY_VERSION,
+)
 
 _spec = importlib.util.spec_from_file_location(
     "generate_retrieval_benchmark_corpus",
@@ -93,6 +97,10 @@ def policy_content(policy=DEFAULT_RETRIEVAL_POLICY) -> dict:
     }
     values["channel_weights"] = dict(values["channel_weights"])
     values["channel_overfetch"] = dict(values["channel_overfetch"])
+    # ⚠️ 기본값(1차 4채널 전부)이면 넣지 않는다. 넣으면 이 필드가 생기기 전의 기록과 해시가
+    #    달라져 기존 벤치마크 비교가 모두 거부된다. 채널을 끈 정책만 해시가 바뀐다.
+    if policy.enabled_channels != FIRST_WAVE_CHANNELS:
+        values["enabled_channels"] = sorted(policy.enabled_channels)
     return values
 
 
