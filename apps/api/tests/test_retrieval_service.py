@@ -124,6 +124,64 @@ async def test_embedding_failure_marks_exactly_dense_channels_failed_and_leaves_
     assert result.meta["source_lexical"]["status"] == "ok"
 
 
+class RecordingDb(FourChannelDb):
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def rpc(self, function: str, *, params: dict[str, object]) -> list[dict[str, object]]:
+        self.calls.append(function)
+        return await super().rpc(function, params=params)
+
+
+@pytest.mark.asyncio
+async def test_wiki_only_scope_calls_only_wiki_channels_and_marks_source_disabled() -> None:
+    db = RecordingDb()
+    policy = replace(DEFAULT_RETRIEVAL_POLICY, enabled_channels={"wiki_vector", "wiki_lexical"})
+
+    result = await RetrievalService(FakeEmbeddingClient(), policy=policy).retrieve(
+        uuid4(), "Hello WORLD", requested_k=4, user_db=db
+    )
+
+    assert sorted(db.calls) == ["search_wiki_embeddings", "search_wiki_lexical"]
+    assert {hit.kind for hit in result.evidence} == {"wiki"}
+    for name in ("source_vector", "source_lexical"):
+        assert result.meta[name]["status"] == "disabled"
+        assert result.meta[name]["error_code"] is None
+    assert result.meta["wiki_vector"]["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_disabled_channel_stays_disabled_when_embedding_fails() -> None:
+    class FailingEmbeddingClient:
+        async def embed(self, text: str, *, workspace_id: str) -> list[float]:
+            raise RuntimeError("down")
+
+    policy = replace(DEFAULT_RETRIEVAL_POLICY, enabled_channels={"source_vector", "source_lexical"})
+    result = await RetrievalService(FailingEmbeddingClient(), policy=policy).retrieve(
+        uuid4(), "Hello WORLD", requested_k=2, user_db=FourChannelDb()
+    )
+
+    assert result.meta["source_vector"]["status"] == "failed"
+    assert result.meta["wiki_vector"]["status"] == "disabled"
+    assert result.meta["wiki_lexical"]["status"] == "disabled"
+    assert {hit.kind for hit in result.evidence} == {"source"}
+
+
+@pytest.mark.asyncio
+async def test_lexical_only_policy_never_embeds_the_query() -> None:
+    class ExplodingEmbeddingClient:
+        async def embed(self, text: str, *, workspace_id: str) -> list[float]:
+            raise AssertionError("embedding must not be called")
+
+    policy = replace(DEFAULT_RETRIEVAL_POLICY, enabled_channels={"wiki_lexical", "source_lexical"})
+    result = await RetrievalService(ExplodingEmbeddingClient(), policy=policy).retrieve(
+        uuid4(), "Hello WORLD", requested_k=2, user_db=FourChannelDb()
+    )
+
+    assert result.meta["wiki_vector"]["status"] == "disabled"
+    assert result.meta["source_vector"]["status"] == "disabled"
+
+
 @pytest.mark.asyncio
 async def test_failed_or_malformed_channel_cannot_cancel_siblings_or_leak_error() -> None:
     class PartialDb:
