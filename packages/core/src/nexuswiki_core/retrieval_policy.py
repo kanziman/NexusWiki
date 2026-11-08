@@ -11,7 +11,10 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Final
 
-POLICY_VERSION: Final[str] = "hybrid-rrf-v1"
+# v2: 같은 채널에서 반복된 근거는 최고 순위로 한 번만 기여한다(#195 B). v1은 반복을 합산해
+#     임베딩 청크가 많은 위키 페이지가 원문보다 항상 높게 매겨졌다.
+POLICY_VERSION: Final[str] = "hybrid-rrf-v2"
+SAME_CHANNEL_AGGREGATIONS: Final[frozenset[str]] = frozenset({"sum", "best_rank"})
 _FIRST_WAVE_CHANNELS: Final[tuple[str, ...]] = (
     "wiki_vector",
     "source_vector",
@@ -26,6 +29,10 @@ class RetrievalPolicy:
 
     version: str = POLICY_VERSION
     rrf_k: int = 60
+    # 같은 채널이 같은 근거(위키 페이지 · 원문 청크)를 여러 번 돌려줄 때의 처리.
+    # `best_rank`: 그 채널 안 최고 순위로 한 번만 기여(표준 RRF). `sum`: v1 동작(반복 합산).
+    # ⚠️ `sum`이면 청크가 많은 위키가 반복만으로 원문을 앞선다. 이전 기록 재현용으로만 남긴다.
+    same_channel_aggregation: str = "best_rank"
     channel_weights: Mapping[str, float] = field(
         default_factory=lambda: MappingProxyType(dict.fromkeys(_FIRST_WAVE_CHANNELS, 1.0))
     )
@@ -51,6 +58,8 @@ class RetrievalPolicy:
             raise ValueError("version must be non-empty")
         if self.rrf_k < 0:
             raise ValueError("rrf_k must be non-negative")
+        if self.same_channel_aggregation not in SAME_CHANNEL_AGGREGATIONS:
+            raise ValueError("same_channel_aggregation must be sum or best_rank")
         if self.requested_k <= 0:
             raise ValueError("requested_k must be positive")
         if self.vector_sql_max_candidates <= 0 or self.lexical_sql_max_candidates <= 0:

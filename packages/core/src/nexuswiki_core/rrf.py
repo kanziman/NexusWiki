@@ -106,9 +106,15 @@ def fuse_ranked_hits(
                         previous,
                         metadata={**hit.metadata, **previous.metadata},
                     )
-                contribution_maps[canonical_id][channel] = (
-                    contribution_maps[canonical_id].get(channel, 0.0) + contribution
-                )
+                existing = contribution_maps[canonical_id].get(channel)
+                if existing is None:
+                    contribution_maps[canonical_id][channel] = contribution
+                elif policy.same_channel_aggregation == "sum":
+                    contribution_maps[canonical_id][channel] = existing + contribution
+                else:
+                    # 같은 채널 안 반복은 최고 순위(가장 큰 기여) 한 번만 센다. 입력이 순위순이
+                    # 아니어도 같은 결과가 나오도록 비교로 고른다(#195 B).
+                    contribution_maps[canonical_id][channel] = max(existing, contribution)
 
     fused = []
     for canonical_id, hit in combined.items():

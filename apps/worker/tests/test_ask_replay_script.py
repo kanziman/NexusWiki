@@ -727,3 +727,41 @@ def test_command_refuses_duplicate_titles_before_any_retrieval(
             retrieval={},
         )
     assert not (tmp_path / "record.json").exists()
+
+
+# --- #195 B: 검색 기록에 근거별 채널 기여를 남긴다 ----------------------------------------------
+
+
+def test_ranked_items_keep_channels_and_contributions_without_text() -> None:
+    item = {
+        **_wiki("w-a"),
+        "channels": ["wiki_lexical", "wiki_vector"],
+        "contributions": {"wiki_vector": 0.0164, "wiki_lexical": 0.0159},
+        "content": "본문은 기록에 남으면 안 된다",
+    }
+    ranked = _qr([item], {_RAW_A})["ranked"][0]
+    assert ranked["channels"] == ["wiki_lexical", "wiki_vector"]
+    assert ranked["contributions"] == {"wiki_vector": 0.0164, "wiki_lexical": 0.0159}
+    assert "content" not in ranked
+
+
+def test_records_without_contributions_still_compare() -> None:
+    old = {
+        "id": "q1",
+        "doc": "a",
+        "status": "ok",
+        "result": {
+            "ranked": [{"rank": 1, "kind": "source", "relevant": True}],
+            "first_relevant_rank": 1,
+            "source_hit": True,
+            "wiki_hit": False,
+            "dual_hit": False,
+            "expected_count": 1,
+            "found_count": 1,
+        },
+    }
+    new = {"id": "q1", "doc": "a", "status": "ok", "result": _qr([_src(_RAW_A)], {_RAW_A})}
+    table = replay.retrieval_compare_table(
+        {"label": "old", "rows": [old]}, {"label": "new", "rows": [new]}
+    )
+    assert "| hit@1 | 1.000 | 1.000 |" in table

@@ -101,3 +101,77 @@ def test_rrf_merges_channel_metadata_without_overwriting_first_hit_keys() -> Non
     assert fused[0].metadata["chunk_index"] == 0
     assert fused[0].metadata["slug"] == "overview"
     assert fused[0].metadata["title"] == "개요 문서"
+
+
+# --- #195 B: 같은 채널 안 반복은 최고 순위로 한 번만 기여한다 --------------------------------
+
+
+def _wiki_chunk(rank: int, chunk: str, wiki_id: str = "wiki-a") -> EvidenceHit:
+    return EvidenceHit.wiki(wiki_id=wiki_id, rank=rank, embedding_chunk_id=chunk)
+
+
+def test_repeated_wiki_chunks_in_one_channel_count_once_at_best_rank() -> None:
+    fused = fuse_ranked_hits(
+        {"wiki_vector": [_wiki_chunk(1, "c1"), _wiki_chunk(2, "c2"), _wiki_chunk(3, "c3")]},
+        policy=DEFAULT_RETRIEVAL_POLICY,
+    )
+    k = DEFAULT_RETRIEVAL_POLICY.rrf_k
+    assert fused[0].contributions == {"wiki_vector": 1 / (k + 1)}
+    assert fused[0].rrf_score == 1 / (k + 1)
+
+
+def test_same_evidence_in_different_channels_is_summed() -> None:
+    fused = fuse_ranked_hits(
+        {
+            "wiki_vector": [_wiki_chunk(1, "c1"), _wiki_chunk(2, "c2")],
+            "wiki_lexical": [_wiki_chunk(3, "c9")],
+        },
+        policy=DEFAULT_RETRIEVAL_POLICY,
+    )
+    k = DEFAULT_RETRIEVAL_POLICY.rrf_k
+    assert fused[0].rrf_score == 1 / (k + 1) + 1 / (k + 3)
+
+
+def test_best_rank_does_not_depend_on_input_order() -> None:
+    fused = fuse_ranked_hits(
+        {"wiki_vector": [_wiki_chunk(3, "c3"), _wiki_chunk(1, "c1")]},
+        policy=DEFAULT_RETRIEVAL_POLICY,
+    )
+    assert fused[0].contributions == {"wiki_vector": 1 / (DEFAULT_RETRIEVAL_POLICY.rrf_k + 1)}
+
+
+def test_single_chunk_source_is_no_longer_outranked_by_repetition_alone() -> None:
+    """v1에서는 2·3위 위키 청크 둘의 합(1/62+1/63)이 1위 원문(1/61)보다 컸다."""
+    fused = fuse_ranked_hits(
+        {
+            "wiki_vector": [_wiki_chunk(2, "c2"), _wiki_chunk(3, "c3")],
+            "source_vector": [_source("chunk-s", rank=1)],
+        },
+        policy=DEFAULT_RETRIEVAL_POLICY,
+    )
+    assert fused[0].canonical_id == "source:chunk-s"
+
+
+def test_sum_policy_reproduces_v1_behaviour() -> None:
+    from dataclasses import replace
+
+    v1 = replace(DEFAULT_RETRIEVAL_POLICY, same_channel_aggregation="sum")
+    fused = fuse_ranked_hits(
+        {
+            "wiki_vector": [_wiki_chunk(2, "c2"), _wiki_chunk(3, "c3")],
+            "source_vector": [_source("chunk-s", rank=1)],
+        },
+        policy=v1,
+    )
+    k = v1.rrf_k
+    assert fused[0].canonical_id == "wiki:wiki-a"
+    assert fused[0].rrf_score == 1 / (k + 2) + 1 / (k + 3)
+
+
+def test_policy_rejects_unknown_aggregation() -> None:
+    import pytest
+
+    from nexuswiki_core.retrieval_policy import RetrievalPolicy
+
+    with pytest.raises(ValueError):
+        RetrievalPolicy(same_channel_aggregation="mean")

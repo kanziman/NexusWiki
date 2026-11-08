@@ -70,8 +70,20 @@ async def test_four_first_wave_channels_begin_before_any_channel_is_released() -
 
 
 @pytest.mark.asyncio
-async def test_one_vector_serves_both_dense_channels_and_meta_is_safe() -> None:
-    result = await RetrievalService(FakeEmbeddingClient()).retrieve(
+@pytest.mark.parametrize(
+    "policy",
+    [
+        DEFAULT_RETRIEVAL_POLICY,
+        replace(
+            DEFAULT_RETRIEVAL_POLICY,
+            version="hybrid-rrf-v1",
+            same_channel_aggregation="sum",
+        ),
+    ],
+    ids=["best_rank", "sum"],
+)
+async def test_one_vector_serves_both_dense_channels_and_meta_is_safe(policy) -> None:
+    result = await RetrievalService(FakeEmbeddingClient(), policy=policy).retrieve(
         uuid4(), "Hello WORLD", requested_k=4, user_db=FourChannelDb()
     )
 
@@ -81,7 +93,8 @@ async def test_one_vector_serves_both_dense_channels_and_meta_is_safe() -> None:
         "wiki:wiki-a",
         "wiki:wiki-b",
     }
-    assert result.meta["policy_version"] == DEFAULT_RETRIEVAL_POLICY.version
+    assert result.meta["policy_version"] == policy.version
+    assert result.meta["same_channel_aggregation"] == policy.same_channel_aggregation
     for name in ("wiki_vector", "source_vector", "wiki_lexical", "source_lexical"):
         channel = result.meta[name]
         assert channel["status"] == "ok"

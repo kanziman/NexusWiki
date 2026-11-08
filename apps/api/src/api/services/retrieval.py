@@ -173,6 +173,7 @@ class RetrievalService:
             candidates=candidates,
             meta={
                 "policy_version": self._policy.version,
+                "same_channel_aggregation": self._policy.same_channel_aggregation,
                 "requested_k": requested_k,
                 "returned": len(evidence),
                 "underfill": len(evidence) < requested_k,

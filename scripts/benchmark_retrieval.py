@@ -77,6 +77,7 @@ def policy_content(policy=DEFAULT_RETRIEVAL_POLICY) -> dict:
         for name in (
             "version",
             "rrf_k",
+            "same_channel_aggregation",
             "channel_weights",
             "channel_overfetch",
             "requested_k",
@@ -97,6 +98,11 @@ def policy_content(policy=DEFAULT_RETRIEVAL_POLICY) -> dict:
 
 def policy_content_sha256(policy=DEFAULT_RETRIEVAL_POLICY) -> str:
     return hashlib.sha256(_canonical(policy_content(policy)).encode()).hexdigest()
+
+
+def policy_content_sha256_of(content: dict) -> str:
+    """이미 만들어진 정책 내용의 해시. 기록 검증과 같은 정규화를 쓴다."""
+    return hashlib.sha256(_canonical(content).encode()).hexdigest()
 
 
 def benchmark_workspace(manifest: dict) -> UUID:
@@ -170,7 +176,10 @@ def _evaluate_query(query: dict, ranked: list[str]) -> dict:
 
 
 class BenchmarkEmbeddingClient:
-    async def embed(self, text: str) -> list[float]:
+    # ⚠️ `RetrievalService`는 `embed(text, workspace_id=...)`로 부른다. 인자를 받지 못하면 그 예외를
+    #    서비스가 `embedding_unavailable`로 삼켜 벡터 채널이 전부 꺼지고, 벤치마크는 실패 대신
+    #    "모든 질의 0건"을 기록한다(2026-11-08 #195 측정에서 발견).
+    async def embed(self, text: str, *, workspace_id: str | None = None) -> list[float]:
         return text_vector(text)
 
 
@@ -586,7 +595,7 @@ def operational(args, corpus: dict, golden: dict) -> dict:
             )
         mapping = logical_id_map(manifest, corpus)
         reverse = {value: key for key, value in mapping.items()}
-        policy = replace(DEFAULT_RETRIEVAL_POLICY, graph_enabled=args.graph == "on")
+        policy = _operational_policy(args)
         service = RetrievalService(BenchmarkEmbeddingClient(), policy=policy)
         db = LocalRetrievalDb(args.db_container, args.order_mode)
         results = []
@@ -671,7 +680,7 @@ def operational(args, corpus: dict, golden: dict) -> dict:
             "git_sha": subprocess.run(
                 ["git", "rev-parse", "HEAD"], capture_output=True, text=True
             ).stdout.strip(),
-            "policy_version": POLICY_VERSION,
+            "policy_version": policy.version,
             "policy_content": policy_content(policy),
             "policy_content_sha256": policy_content_sha256(policy),
             "corpus_version": corpus["version"],
@@ -703,6 +712,26 @@ def operational(args, corpus: dict, golden: dict) -> dict:
             LocalRetrievalDb(args.db_container, args.order_mode)._run(cleanup)
         except Exception:
             pass
+
+
+# `same_channel_aggregation="sum"`은 v1 융합을 그대로 재현하는 경로다. 같은 커밋에서 융합 방식만
+# 바꿔 두 팔을 돌려야 `git_sha`를 포함한 핀이 일치해 비교기가 받는다(그래프 비교와 같은 관례).
+HISTORICAL_SUM_POLICY_VERSION = "hybrid-rrf-v1"
+
+
+def _operational_policy(args: argparse.Namespace):
+    fusion = getattr(args, "fusion", None) or "best_rank"
+    return replace(
+        DEFAULT_RETRIEVAL_POLICY,
+        graph_enabled=args.graph == "on",
+        same_channel_aggregation=fusion,
+        version=HISTORICAL_SUM_POLICY_VERSION if fusion == "sum" else POLICY_VERSION,
+    )
+
+
+def _aggregation(record: dict) -> str:
+    """기록의 융합 방식. 필드가 생기기 전(v1) 기록은 합산이었다."""
+    return str(record["policy_content"].get("same_channel_aggregation", "sum"))
 
 
 def _pins(record: dict) -> dict:
@@ -767,9 +796,56 @@ def compare_graph_records(off: dict, on: dict) -> dict:
     }
 
 
+def compare_fusion_records(before: dict, after: dict) -> dict:
+    """같은 채널 반복 합산(`sum`) 대 최고 순위 한 번(`best_rank`) 비교. fail-closed.
+
+    핀이 모두 같고 정책 차이가 융합 방식과 버전뿐이어야 한다. 다른 값이 함께 바뀌면 효과를
+    융합 방식에 돌릴 수 없으므로 거부한다(retrieval-policy-change-log의 "값 하나" 원칙).
+    """
+    _validate_record(before)
+    _validate_record(after)
+    if _pins(before) != _pins(after):
+        raise VerificationError("fusion_pair_pin_mismatch")
+    # 채널이 실패한 기록은 융합 방식의 효과가 아니라 측정 실패를 잰다. 둘 다 0건이어도
+    # "차이 없음"으로 통과하므로 거부한다(2026-11-08, 벤치마크 임베딩 클라이언트의
+    # 인자 불일치로 실제로 일어났다).
+    for record in (before, after):
+        for query in record.get("query_results") or []:
+            for channel in (query.get("channels") or {}).values():
+                if isinstance(channel, dict) and channel.get("status") == "failed":
+                    raise VerificationError("fusion_pair_channel_failure")
+    if before.get("order_mode") != after.get("order_mode") or before.get(
+        "graph_enabled"
+    ) != after.get("graph_enabled"):
+        raise VerificationError("fusion_pair_mode_mismatch")
+    a, b = dict(before["policy_content"]), dict(after["policy_content"])
+    for key in ("version", "same_channel_aggregation"):
+        a.pop(key, None)
+        b.pop(key, None)
+    if (
+        _aggregation(before) != "sum"
+        or _aggregation(after) != "best_rank"
+        or before["policy_content"].get("version") == after["policy_content"].get("version")
+        or a != b
+    ):
+        raise VerificationError("fusion_policy_diff_invalid")
+    left, right = before["metrics"], after["metrics"]
+    return {
+        "status": "ok",
+        "quality_delta": right["strict_query_pass_rate"] - left["strict_query_pass_rate"],
+        "recall_delta": right["recall_at_k"] - left["recall_at_k"],
+        "mrr_delta": right["mrr"] - left["mrr"],
+        "underfill_delta": right["underfill"]["queries"] - left["underfill"]["queries"],
+        "latency_ms_delta": right["latency_ms"]["p50_total"] - left["latency_ms"]["p50_total"],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command")
+    fusion = sub.add_parser("compare-fusion-records")
+    fusion.add_argument("--before", type=Path, required=True)
+    fusion.add_argument("--after", type=Path, required=True)
     for name in ("compare-order-records", "compare-graph-records"):
         item = sub.add_parser(name)
         item.add_argument(
@@ -783,13 +859,16 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--order-mode", choices=("strict_order", "relaxed_order"))
     parser.add_argument("--graph", choices=("off", "on"))
+    parser.add_argument("--fusion", choices=("sum", "best_rank"), default="best_rank")
     parser.add_argument("--repeat-count", type=int, default=3)
     parser.add_argument("--db-container", default="supabase_db_NexusWiki")
     parser.add_argument("--run-id", default="phase-04")
     parser.add_argument("--reuse-loaded-workspace", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
-        if args.command == "compare-order-records":
+        if args.command == "compare-fusion-records":
+            output = compare_fusion_records(_load_json(args.before), _load_json(args.after))
+        elif args.command == "compare-order-records":
             output = compare_order_records(_load_json(args.left), _load_json(args.right))
         elif args.command == "compare-graph-records":
             output = compare_graph_records(_load_json(args.off), _load_json(args.on))
