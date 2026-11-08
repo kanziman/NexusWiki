@@ -76,7 +76,15 @@ append-only다. 러너는 기존 파일 덮어쓰기를 `refusing_to_overwrite_p
 | 2026-08-11 | `hybrid-rrf-v1` → `hybrid-rrf-v1` | Plan-08 measured, no policy change | [v4 strict](benchmark-records/phase-04-rerun-v4-strict-order.json) → [v4 relaxed](benchmark-records/phase-04-rerun-v4-relaxed-order.json) | order comparator `ok`; strict-pass delta −0.0277777778 (relaxed minus strict). `policy_content` byte-equivalent. | 정책 변경 없음. relaxed는 controlled direct-vector arm이며 deployed RPC 변경 근거가 아님. |
 | 2026-08-11 | `hybrid-rrf-v1` → `hybrid-rrf-v1` | Plan-08 measured, no policy change | [v4 graph off](benchmark-records/phase-04-rerun-v4-graph-off.json) → [v4 graph on](benchmark-records/phase-04-rerun-v4-graph-on.json) | graph comparator `ok`; quality +0.0277777778, contribution +366, underfill 0, p50 +49.1695 ms (on minus off); 36 real graph RPC envelopes on. | 정책 변경 없음. graph-on 측정은 승인되지 않았으며 current safe default remains off. |
 
-세 행 모두 `hybrid-rrf-v1` 값 자체를 바꾸지 않았다. 따라서 새 `POLICY_VERSION`,
+위 세 행 모두 `hybrid-rrf-v1` 값 자체를 바꾸지 않았다. 따라서 새 `POLICY_VERSION`,
 migration, reviewer approval for a default change, 또는 deployment record가 없다.
 현재 `strict_order`와 `graph_enabled = False`는 안전 기본값으로 유지되고, 그 변경은
 이 절차의 미래 별도 작업이다.
+
+### 2026-11-08 같은 채널 중복 제거 실험
+
+| 날짜 | POLICY_VERSION (before → after) | 상태 / 비교 | 기록 | 관측 | 리뷰어 / 결정 |
+|---|---|---|---|---|---|
+| 2026-11-08 | `hybrid-rrf-v1` → `hybrid-rrf-v2` | 채택 승인 · fusion comparator `ok` | [sum](benchmark-records/fusion-195b-v1-sum-strict.json) → [best_rank](benchmark-records/fusion-195b-v2-best-rank-strict.json) | 통과율·recall 26/36 → 27/36, MRR 0.316 → 0.563, 전체 언더필 0 → 0. 답변 공통 29문항 통과 23 → 28, 위조 앵커 0 → 0. q06은 검색 hit@8과 답변 모두 회귀. | 사용자(독립 사람) 승인, 2026-11-08. q06 회귀와 기대 사실 포함 29/29 → 28/29를 명시한 채택·로컬 커밋 요청에 “응”으로 승인. 배포 승인을 뜻하지 않음. |
+
+바꾼 정책 값은 `same_channel_aggregation` 하나(`sum` → `best_rank`)다. `fusion-195-*`의 앞선 쌍은 벡터 채널 실패가 있는 무효 기록으로 보존한다. 원인·재생 비교·남은 판정은 [Ask 재생 기록](ask-sample-replay.md#rrf-같은-채널-중복-제거-실험-2026-11-08)을 본다. 로컬 지연으로 운영 성능을 판단하지 않는다.

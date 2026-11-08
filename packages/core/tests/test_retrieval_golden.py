@@ -85,7 +85,9 @@ def test_benchmark_verify_emits_pinned_stamps_and_metrics(tmp_path: Path) -> Non
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(record.read_text(encoding="utf-8"))
-    assert payload["policy_version"] == "hybrid-rrf-v1"
+    from nexuswiki_core.retrieval_policy import POLICY_VERSION
+
+    assert payload["policy_version"] == POLICY_VERSION
     assert payload["corpus_sha256"] == _load(CORPUS)["sha256"]
     assert payload["golden_sha256"] == _load(GOLDEN)["sha256"]
     for metric in (
@@ -226,7 +228,7 @@ def test_policy_content_hash_detects_policy_change_without_version_change() -> N
             "source_lexical": 1.0,
         }
     )
-    assert changed.version == "hybrid-rrf-v1"
+    assert changed.version == RetrievalPolicy().version
     assert module.policy_content_sha256(changed) != baseline
 
 
@@ -391,3 +393,92 @@ def test_compare_graph_records_still_accepts_historical_valid_v4_graph_pair() ->
     assert off["git_sha"] == on["git_sha"] == "466205625053b00d785312db84ae9f1c228ae1b2"
     result = module.compare_graph_records(off, on)
     assert result["status"] == "ok"
+
+
+# --- #195 B: 융합 방식 비교기 ------------------------------------------------------------------
+
+
+def _as_best_rank(module, record: dict) -> dict:
+    """필드가 생기기 전(v1, 합산) 기록을 같은 핀의 best_rank 기록처럼 바꾼다."""
+    after = json.loads(json.dumps(record))
+    after["policy_content"]["version"] = "hybrid-rrf-v2"
+    after["policy_content"]["same_channel_aggregation"] = "best_rank"
+    after["policy_content_sha256"] = module.policy_content_sha256_of(after["policy_content"])
+    return after
+
+
+def _historical_sum_record() -> dict:
+    return _load(BENCHMARK_RECORDS / "phase-04-rerun-v4-graph-off.json")
+
+
+def test_compare_fusion_records_accepts_aggregation_only_pair() -> None:
+    module = _benchmark_module()
+    before = _historical_sum_record()
+    assert "same_channel_aggregation" not in before["policy_content"]  # 없음 = 합산
+    result = module.compare_fusion_records(before, _as_best_rank(module, before))
+    assert result["status"] == "ok"
+    assert set(result) >= {"quality_delta", "recall_delta", "mrr_delta", "underfill_delta"}
+
+
+def test_compare_fusion_records_rejects_a_second_policy_change() -> None:
+    module = _benchmark_module()
+    before = _historical_sum_record()
+    after = _as_best_rank(module, before)
+    after["policy_content"]["rrf_k"] = 30
+    after["policy_content_sha256"] = module.policy_content_sha256_of(after["policy_content"])
+    with pytest.raises(module.VerificationError, match="fusion_policy_diff_invalid"):
+        module.compare_fusion_records(before, after)
+
+
+def test_compare_fusion_records_rejects_pin_mismatch() -> None:
+    module = _benchmark_module()
+    before = _historical_sum_record()
+    after = _as_best_rank(module, before)
+    after["git_sha"] = "0" * 40
+    with pytest.raises(module.VerificationError, match="fusion_pair_pin_mismatch"):
+        module.compare_fusion_records(before, after)
+
+
+def test_compare_fusion_records_rejects_reversed_or_unversioned_pair() -> None:
+    module = _benchmark_module()
+    before = _historical_sum_record()
+    after = _as_best_rank(module, before)
+    with pytest.raises(module.VerificationError, match="fusion_policy_diff_invalid"):
+        module.compare_fusion_records(after, before)
+    same_version = json.loads(json.dumps(after))
+    same_version["policy_content"]["version"] = before["policy_content"]["version"]
+    same_version["policy_content_sha256"] = module.policy_content_sha256_of(
+        same_version["policy_content"]
+    )
+    with pytest.raises(module.VerificationError, match="fusion_policy_diff_invalid"):
+        module.compare_fusion_records(before, same_version)
+
+
+def test_operational_policy_reproduces_v1_version_for_sum_arm() -> None:
+    import argparse
+
+    module = _benchmark_module()
+    sum_arm = module._operational_policy(argparse.Namespace(graph="off", fusion="sum"))
+    best = module._operational_policy(argparse.Namespace(graph="off", fusion="best_rank"))
+    assert (sum_arm.version, sum_arm.same_channel_aggregation) == ("hybrid-rrf-v1", "sum")
+    assert best.same_channel_aggregation == "best_rank"
+    assert module.policy_content(sum_arm)["same_channel_aggregation"] == "sum"
+
+
+def test_benchmark_embedding_client_accepts_the_service_call_signature() -> None:
+    """서비스가 `workspace_id`를 넘겨도 임베딩이 실패하지 않아야 벡터 채널이 측정된다."""
+    import asyncio
+
+    module = _benchmark_module()
+    vector = asyncio.run(module.BenchmarkEmbeddingClient().embed("질의", workspace_id="ws"))
+    assert vector == module.text_vector("질의")
+
+
+def test_compare_fusion_records_rejects_records_with_failed_channels() -> None:
+    module = _benchmark_module()
+    before = _historical_sum_record()
+    after = _as_best_rank(module, before)
+    broken = json.loads(json.dumps(after))
+    broken["query_results"][0]["channels"]["wiki_vector"]["status"] = "failed"
+    with pytest.raises(module.VerificationError, match="fusion_pair_channel_failure"):
+        module.compare_fusion_records(before, broken)

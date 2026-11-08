@@ -565,7 +565,15 @@ def retrieval_question_result(
     for rank, item in enumerate(evidence[:RETRIEVAL_K], start=1):
         origins = evidence_origins(item, wiki_sources, chunk_sources)
         ranked.append(
-            {"rank": rank, "kind": item.get("kind"), "relevant": bool(origins & expected)}
+            {
+                "rank": rank,
+                "kind": item.get("kind"),
+                "relevant": bool(origins & expected),
+                # 순위 차이를 만든 채널을 기록에서 되짚기 위해 응답의 기여도를 그대로 남긴다.
+                # 근거 본문은 담지 않는다.
+                "channels": list(item.get("channels") or []),
+                "contributions": dict(item.get("contributions") or {}),
+            }
         )
     first = next((r["rank"] for r in ranked if r["relevant"]), None)
     found = set()
