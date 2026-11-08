@@ -18,4 +18,3 @@ The system SHALL fuse channel results by rank rather than comparing channel-spec
 #### Scenario: Policy identifies the aggregation rule
 - **WHEN** a retrieval result or benchmark record reports the policy that produced its ordering
 - **THEN** the reported policy content includes the same-channel aggregation rule and its version differs from the policy that summed repeated contributions
-
