@@ -88,6 +88,11 @@ export function ControlledAiShowcase({
           모델 도구 재검색 · 실제 OFF/ON 평가 보기 →
         </Link>
       </p>
+      <p>
+        <Link href="/showcase/evaluation" prefetch={false}>
+          Ask 평가 지도 · 반복 측정 보기 →
+        </Link>
+      </p>
 
       <aside className={styles.notice} role="note">
         <strong>합성 데이터입니다.</strong> 모든 값은 자동화 테스트가 가짜
