@@ -50,6 +50,8 @@ NON_SECRET_API_FIELDS = frozenset(
         # (2026-11-02, ai-context-budget: ASK_MAX_CONTEXT_TOKENS — Ask 근거 블록 총 토큰
         #  상한. 자격증명이 아니라 프롬프트 토큰 예산을 제한하는 운영 토글이다. 근거: design D1.)
         "ASK_MAX_CONTEXT_TOKENS",
+        # 재검색 기능의 비밀정보 없는 서버 토글. 기본 OFF, 설계 D2.
+        "ASK_EVIDENCE_RESEARCH_ENABLED",
         # (2026-11-03, ai-control-output-contract: Ask 인용 계약 모드. 자격증명이 아니다.)
         "AI_CONTROL_QUALITY_MODE",
         # (2026-11-03, ai-control-risk-policy: 위험한 위키 쓰기 모드 표시. 자격증명이 아니다.)

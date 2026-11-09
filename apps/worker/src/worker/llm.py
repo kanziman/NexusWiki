@@ -29,6 +29,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from nexuswiki_core.context_budget import truncate_text_to_tokens
+from nexuswiki_core.evidence_research import SEARCH_EVIDENCE_TOOL
 from nexuswiki_core.llm_policy import ASK_POLICY, STRUCTURED_POLICY, with_policy
 from nexuswiki_core.logging import get_logger
 from worker.errors import LlmSchemaError, ProviderCreditExhausted, ProviderError
@@ -214,6 +215,7 @@ async def stream_chat(
     messages: list[dict[str, str]],
     max_tokens: int | None = None,
     on_generation: Callable[[str], Awaitable[None]] | None = None,
+    evidence_research: bool = False,
 ) -> AsyncIterator[bytes]:
     """OpenRouter 채팅 완성을 원문 SSE 바이트로 그대로 릴레이한다.
 
@@ -225,6 +227,12 @@ async def stream_chat(
     body = _chat_stream_body(settings=settings, messages=messages)
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
+    if evidence_research:
+        body.update(
+            messages=with_policy(messages, STRUCTURED_POLICY),
+            tools=[SEARCH_EVIDENCE_TOOL],
+            tool_choice="auto",
+        )
     async with client.stream("POST", "/chat/completions", json=body) as response:
         if response.status_code >= 400:
             if response.status_code == 402:

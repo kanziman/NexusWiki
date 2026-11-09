@@ -83,6 +83,12 @@ export function ControlledAiShowcase({
         </p>
       </header>
 
+      <p>
+        <Link href="/showcase/evidence-research" prefetch={false}>
+          모델 도구 재검색 · 실제 OFF/ON 평가 보기 →
+        </Link>
+      </p>
+
       <aside className={styles.notice} role="note">
         <strong>합성 데이터입니다.</strong> 모든 값은 자동화 테스트가 가짜
         공급자와 합성 입력으로 만들었습니다. 실제 고객 데이터나 운영 성과가

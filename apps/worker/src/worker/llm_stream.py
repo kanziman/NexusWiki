@@ -60,6 +60,7 @@ class LlmChatRequest(BaseModel):
 
     workspace_id: str
     messages: list[dict[str, str]]
+    evidence_research: bool = False
     _cost_call: dict[str, Any] | None = PrivateAttr(default=None)
     _on_generation: Callable[[str], Awaitable[None]] | None = PrivateAttr(default=None)
 

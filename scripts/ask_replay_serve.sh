@@ -33,16 +33,49 @@ export OPENAI_API_KEY="unused-openrouter-covers-embeddings"
 export ENVIRONMENT=development LOG_LEVEL=INFO RTT_PROBE_ENABLED=false QUEUE_BASELINE_ENABLED=false
 export QUERY_EMBEDDING_INTERNAL_TOKEN="ask-replay-embedding-token" LLM_STREAM_INTERNAL_TOKEN="ask-replay-llm-token"
 export QUERY_EMBEDDING_INTERNAL_URL="http://127.0.0.1:${listener_port}" LLM_STREAM_INTERNAL_URL="http://127.0.0.1:${listener_port}"
+export QUERY_EMBEDDING_TIMEOUT_SECONDS=20
+export QUERY_EMBEDDING_RATE_CAPACITY=500 QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND=10
+export LLM_STREAM_RATE_CAPACITY=500 LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND=10
 export ASK_COST_POLICIES="{\"${LLM_MODEL}\":{\"reserve_micros\":200000,\"max_input_bytes\":1000000,\"max_tokens\":1500,\"version\":\"ask-replay-v1\"}}"
 export GIT_SHA="$(git -C "${code_root}" rev-parse --short HEAD)$(git -C "${code_root}" diff --quiet HEAD || echo '+dirty')"
 export RAILWAY_GIT_COMMIT_SHA="${GIT_SHA}"
 
 cd "${code_root}"
+# 키는 제외하고 실제 API·워커 설정만 평가 재현 조건으로 남긴다.
+uv run --all-packages python - "${log_dir}/evaluation-runtime.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+from api.settings import ApiSettings
+from worker.settings import WorkerSettings
+sys.path.insert(0, str(Path.cwd() / "scripts"))
+from evidence_research_eval import execution_sha256
+
+api, worker = ApiSettings(), WorkerSettings()
+runtime = {
+    "execution_sha256": execution_sha256(),
+    "model": worker.LLM_MODEL,
+    "model_settings": worker.ASK_COST_POLICIES.get(worker.LLM_MODEL),
+    "context_tokens": api.ASK_MAX_CONTEXT_TOKENS,
+    "quality_mode": api.AI_CONTROL_QUALITY_MODE,
+    "embedding_model": worker.EMBEDDING_MODEL,
+    "embedding_provider": worker.EMBEDDING_PROVIDER,
+    "concurrency": worker.LLM_STREAM_MAX_CONCURRENCY,
+}
+Path(sys.argv[1]).write_text(json.dumps(runtime, sort_keys=True), encoding="utf-8")
+PY
 uv run --package worker python -m worker >"${log_dir}/worker.log" 2>&1 &
 worker_pid=$!
 PORT="${api_port}" uv run --package api python -m api >"${log_dir}/api.log" 2>&1 &
 api_pid=$!
-trap 'kill "${worker_pid}" "${api_pid}" 2>/dev/null || true' EXIT INT TERM
+research_api_pid=""
+if [[ -n "${ASK_REPLAY_RESEARCH_API_PORT:-}" ]]; then
+  # 같은 워커와 데이터에서 모드만 다른 두 API를 준비한다. 평가 요청은 직렬 실행한다.
+  ASK_EVIDENCE_RESEARCH_ENABLED=true PORT="${ASK_REPLAY_RESEARCH_API_PORT}" \
+    uv run --package api python -m api >"${log_dir}/research-api.log" 2>&1 &
+  research_api_pid=$!
+fi
+trap 'kill "${worker_pid}" "${api_pid}" ${research_api_pid:+"${research_api_pid}"} 2>/dev/null || true' EXIT INT TERM
 # macOS 기본 bash 3.2에는 `wait -n`이 없다. 둘 중 하나가 죽으면 함께 내린다.
 while kill -0 "${worker_pid}" 2>/dev/null && kill -0 "${api_pid}" 2>/dev/null; do
   sleep 2

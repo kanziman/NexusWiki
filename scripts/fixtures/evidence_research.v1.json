@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "base": "ask_replay.v1.json",
+  "questions": [
+    {"id":"r01","type":"comparison","doc":"warehouse+returns","query":"처음 들어온 물건과 고객에게서 돌아온 물건은 검수를 마치는 시한이 어떻게 달라요?","expect_all":[["2시간"],["48시간"]]},
+    {"id":"r02","type":"comparison","doc":"safety+training","query":"냉동실에서 연속으로 일할 수 있는 시간과 야간조 임금 가산 비율을 비교해 알려주세요.","expect_all":[["45분"],["50퍼센트","50%"]]},
+    {"id":"r03","type":"comparison","doc":"billing+delivery","query":"섬 지역에 소형 물건을 보낼 때 추가 요금과 도착 일정은 각각 어떤 제약이 있나요?","expect_all":[["5,000원","5000원"],["1일"]]},
+    {"id":"r04","type":"comparison","doc":"security+incident","query":"창고 감시 영상과 운영 DB 백업은 보관 기한이 어떻게 달라요?","expect_all":[["30일"],["35일"]]},
+    {"id":"r05","type":"comparison","doc":"warehouse+safety","query":"냉동 구역에서 물건을 보관하는 온도와 사람이 일하는 시간 제한을 함께 비교해주세요.","expect_all":[["18도"],["45분"],["15분"]]},
+    {"id":"r06","type":"comparison","doc":"returns+billing","query":"고객이 반품을 접수하는 기한과 화주가 정산에 이의를 제기하는 기한은 어떻게 달라요?","expect_all":[["7일"],["10영업일"]]},
+    {"id":"r07","type":"mismatch","doc":"warehouse","query":"센터에서 전기가 끊기면 예비 전원은 얼마나 빨리 켜지고 얼마나 버틸 수 있죠?","expect_all":[["30초"],["72시간"]]},
+    {"id":"r08","type":"mismatch","doc":"returns","query":"뜯지 않았고 차갑게 유지된 먹거리가 돌아왔어요. 무조건 버려야 하나요, 다시 팔 수 있는 예외가 있나요?","expect_all":[["온도"],["미개봉"],["서면"]]},
+    {"id":"r09","type":"mismatch","doc":"billing","query":"맡긴 물건이 비싼데 배송 중 망가지면 원래 보상 상한보다 더 받으려면 뭘 해야 하죠?","expect_all":[["신고"],["보험"],["0.3퍼센트","0.3%"]]},
+    {"id":"r10","type":"mismatch","doc":"safety","query":"작업장 운반차가 뒤로 갈 때 소리만 나고 화면이 안 보여도 계속 몰아도 되나요?","expect_all":[["중단"],["카메라"]]},
+    {"id":"r11","type":"mismatch","doc":"delivery","query":"보낼 물건을 오늘 받고 싶었는데 오후 두 시를 넘겨 맡기면 언제로 바뀌고 연락은 언제 오나요?","expect_all":[["익일"],["10분"]]},
+    {"id":"r12","type":"mismatch","doc":"warehouse","query":"유통기한이 얼마 남지 않은 먹거리를 먼저 꺼내 보내도 되나요? 주인에게 물어봐야 하는 선은요?","expect_all":[["30퍼센트","30%"],["승인"]]}
+  ]
+}

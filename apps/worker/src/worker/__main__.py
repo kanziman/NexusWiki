@@ -172,11 +172,19 @@ async def _stream_llm_chat(
     """`_embed_query`와 같은 형태 — per-call client를 열고 스트림이 끝날 때까지 붙든다."""
     async with openrouter_client(settings) as client:
         kwargs = {}
+        if request.evidence_research:
+            kwargs["evidence_research"] = True
         if request._cost_call is not None:
-            kwargs = {
-                "max_tokens": request._cost_call["max_tokens"],
-                "on_generation": request._on_generation,
-            }
+            kwargs.update(
+                {
+                    "max_tokens": (
+                        min(request._cost_call["max_tokens"], 256)
+                        if request.evidence_research
+                        else request._cost_call["max_tokens"]
+                    ),
+                    "on_generation": request._on_generation,
+                }
+            )
         async for chunk in open_answer_stream(
             client, settings=settings, messages=request.messages, **kwargs
         ):

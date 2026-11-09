@@ -42,6 +42,39 @@ def build_settings() -> WorkerSettings:
     return WorkerSettings(**COMPLETE_WORKER_ENV)
 
 
+@pytest.mark.parametrize("research", [False, True])
+async def test_stream_sends_only_server_owned_research_tool(research):
+    seen = []
+
+    async def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, text="data: [DONE]\n")
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url=llm.OPENROUTER_BASE_URL,
+    ) as client:
+        chunks = [
+            chunk
+            async for chunk in llm.stream_chat(
+                client,
+                settings=build_settings(),
+                messages=[{"role": "user", "content": "판단"}],
+                evidence_research=research,
+                max_tokens=1500,
+            )
+        ]
+    assert chunks
+    assert seen[0]["provider"]["data_collection"] == "deny"
+    assert seen[0]["max_tokens"] == 1500
+    if research:
+        assert seen[0]["tool_choice"] == "auto"
+        assert [tool["function"]["name"] for tool in seen[0]["tools"]] == ["search_evidence"]
+        assert set(seen[0]["tools"][0]["function"]["parameters"]["properties"]) == {"query"}
+    else:
+        assert "tools" not in seen[0]
+
+
 def scripted_client(
     responses: list[httpx.Response], seen: list[dict[str, Any]]
 ) -> httpx.AsyncClient:
