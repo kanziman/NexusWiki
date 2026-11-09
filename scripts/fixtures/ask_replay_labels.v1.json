@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "notice": "코드가 판정할 수 없는 실패 원인(질문 모호성 · 채점기 오류)을 사람이 근거와 함께 적는다. 답변 본문은 넣지 않는다. 계약: openspec/changes/eval-reliability/",
+  "notice": "코드가 판정할 수 없는 실패 원인(질문 모호성 · 채점기 오류)을 사람이 근거와 함께 적는다. 답변 본문은 넣지 않는다. 계약: openspec/specs/ask-replay-reliability/",
   "labels": [
     {
       "id": "q06",

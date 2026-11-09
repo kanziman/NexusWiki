@@ -43,6 +43,44 @@
 
 기존 #232 `answer.json`은 `.worktrees/ablation-evidence-20261108/`에 있으며 sha256은 `4082cff3d121929338a57a7080bef626333c6524baf753f36f7abaf0cb3740a3`이다.
 
-## 남은 검증
+## 6절 실측 재개 (2026-11-09)
 
-월 예산 게이트를 충족한 뒤 한 문항 점검 → HTTP 3회 → 하네스를 포함한 보고서를 다시 실행하고 실측값으로 문서를 갱신해야 한다. 현재 제약에서는 완료할 수 없다.
+상태: **완료**. 계획 수정(HTTP 2회 · 전체 상한 $2.00)과 사용자의 유료 실행·월 한도 일시 증액 승인에 따라 실행했다. 실행 코드는 `9ae4244+dirty`(변경은 change 문서뿐)다.
+
+### 고정 입력 대조
+
+수집 스냅샷 `65809ec4e3b673c52b9370620dcf31f693b274e4b6f03c231dfc85ae073d4160`, fixture `8250970cc6732378b0208fe9a239e17dbf793d3d087e452eed94ef3b647d5d83`, 답변 프롬프트 `ba39770d282034a31a8b5c04da3b100f6d221c5d805c322c1939e6acfb87a9e6`로 #232와 일치한다. 모델 `anthropic/claude-sonnet-4.6`, 정책 `hybrid-rrf-v2`, k=8. 따라서 #232 `both × body` 하네스 회차를 묶음에 포함했다(설계 D11).
+
+### 실행과 비용
+
+| 단계 | 결과 | 비용 |
+| --- | --- | --- |
+| 검색 1회 | 30문항 정상, hit@1 27/29 · hit@8 28/29 · MRR 0.939655 · 요청/채널 실패 0건 | 임베딩 30 micros |
+| 한 문항 점검 (q01) | `resolved` | 21,010 + 1 micros |
+| `repeat` 2회차 | 상한 1,978,959 micros, 두 회차 `complete` | 1,522,385 micros(답변) + 60 micros(임베딩) |
+
+`usage_events`(`occurred_at >= '2026-11-09T01:03:00Z'`, 워크스페이스 `51b80299…`): 임베딩 91회 91 micros, LLM 61회 1,543,395 micros, 합계 **1,543,486 micros**로 전체 상한 2,000,000 micros 이하다. 같은 구간의 `ask_cost_calls` 61건은 모두 `settled`이며 새 미정산 예약은 없다. 월 유효 예산은 시작 전 7,835,820 → 종료 후 9,379,306 micros다. 월 한도는 5,000,000 → 10,000,000 → 10,500,000(repeat 직전, 내부 예약 여유 확보)으로 일시 조정한 뒤 5,000,000으로 복원했다. 기존 미정산 예약은 삭제하지 않았다. API·워커 중지와 8031·8081 리스너 없음을 확인했다.
+
+### 보고서 결과
+
+HTTP 2회와 하네스 1회 모두 답할 수 있는 문항 28/29(회차별 Wilson 95% 82.8~99.4%), 정확한 거절 1/1, 잘못된 거절 0/29, 위조 앵커 0, 알려진 실패 1(q06) · 예상 밖 실패 0이다. 변동폭은 HTTP [28, 28], 전체 [28, 28, 28]이고 안정 통과 29 · 안정 실패 1 · 흔들림 0 · 미실행 0이다. q06은 보고 단계 질문 모호성, 자동 단계 검색 미적중이다. 회차가 2~3개이고 독립 표본이 아니므로 흔들림 0을 안정성 보장으로 읽지 않는다.
+
+### 원본 해시
+
+기준 경로: Git에서 제외되는 `.worktrees/reliability-evidence-20261109/`. 인증 상태는 복사하지 않고 기존 `.worktrees/reliability-evidence-20261108/state.json`(권한 0600)을 참조했다.
+
+| 파일 | sha256 |
+| --- | --- |
+| `retrieval.json` | `5d35d0b6caa13942cbc4de7980e5ca25b611855252189c2866fbb8502e54e005` |
+| `probe.json` | `ba030fc5c6e139d27a58c6e3940a4db41616ec52c5d975ab1d502743e3b7209b` |
+| `probe-scorecard.jsonl` | `b152c1eb20bb21359c24c4ed233dc214c41f0fdebd3a734acc88972ceaaf1be4` |
+| `budget-before.json` | `6675ddfd540765539b12934ec4f7f8fa9aa734a193f55b0141415a50f3da323a` |
+| `budget-after.json` | `c5953288bec6ffcab5e94aee565b4cde474e288b20c3de4dc63d19d84ec2592b` |
+| `runs/repeat.json` | `5b92bc078424e7f78546ad14c530394a34ddc41bafcbaf2382e2112983c978c1` |
+| `runs/reliability-1.json` | `b1aa9e30f51409bc9c5b9b765383a5a027d05405c7d4faccdab952b5e77760f9` |
+| `runs/reliability-2.json` | `b57380f56e8f4ef69517762b20bb38f427db5d0fd204c9d10de421ca75e2c9de` |
+| `runs/scorecard.jsonl` | `4387444d314ae36e9761979d1a8d10ad88ff90d5722eac6346514fc0c97f8f55` |
+| `reliability-report.json` | `636ffcc6e52e53b04e92877e29ff21d01143b2ee6ec766f80a7e451f4f1d2c35` |
+| `reliability-report.md` | `57190d12f4d25c622c649d9693981f71acd497f95c948e4f8915d874ba6f2d91` |
+
+#232 `answer.json`은 위 절의 해시(`4082cff3…`)와 같은 파일을 썼다.

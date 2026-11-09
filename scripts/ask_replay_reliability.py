@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """같은 조건으로 여러 번 돌린 Ask 재생을 한 묶음으로 읽어 변동폭과 실패 원인을 보고한다.
 
-계약: openspec/changes/eval-reliability/ (spec `ask-replay-reliability` · design.md)
+계약: openspec/specs/ask-replay-reliability/
+설계: openspec/changes/archive/2026-11-09-eval-reliability/design.md
 
 쓰는 순서:
     # 1. 같은 수집 위에서 답변 재생을 회차만큼 돌린다. 총 지출 상한이 없으면 시작하지 않는다.
