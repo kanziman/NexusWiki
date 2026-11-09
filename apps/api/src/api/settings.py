@@ -72,6 +72,7 @@ class ApiSettings(BaseAppSettings):
     # Ask 프롬프트에 실리는 위키·원문 근거 블록의 총 토큰 상한 (ai-context-budget > D1).
     # 자격증명이 아니라 비용·컨텍스트 폭주를 막는 운영 한도 토글이다.
     ASK_MAX_CONTEXT_TOKENS: int = DEFAULT_ASK_MAX_CONTEXT_TOKENS
+    ASK_EVIDENCE_RESEARCH_ENABLED: bool = False
     # Ask 인용 계약 모드 (ai-control-output-contract). 문제가 생기면 코드를 되돌리지 않고
     # `shadow`(기록만)나 `off`로 내린다.
     AI_CONTROL_QUALITY_MODE: Literal["off", "shadow", "enforce"] = "enforce"

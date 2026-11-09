@@ -794,7 +794,11 @@ def _select(
 
 
 def _load_sample(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    sample = json.loads(path.read_text(encoding="utf-8"))
+    if sample.get("base"):
+        base = _load_sample(path.parent / sample["base"])
+        return {**base, "questions": base["questions"] + sample["questions"]}
+    return sample
 
 
 # PostgREST 기본 max_rows. 이 수에 닿으면 오류 없이 잘린 것일 수 있다.
@@ -1005,6 +1009,8 @@ def _ask_once(
     workspace_id: str,
     token: str,
     question: dict[str, Any],
+    *,
+    include_embeddings: bool = False,
 ) -> dict[str, Any]:
     turn_id = str(uuid4())
     started = time.monotonic()
@@ -1025,7 +1031,16 @@ def _ask_once(
                 "error": response.text[:300],
                 "prompt_tokens": None,
             }
-        events = parse_sse(response.iter_lines())
+        first_delta_ms: int | None = None
+
+        def measured_lines() -> Iterable[str]:
+            nonlocal first_delta_ms
+            for line in response.iter_lines():
+                if line.strip() == "event: delta" and first_delta_ms is None:
+                    first_delta_ms = round((time.monotonic() - started) * 1000)
+                yield line
+
+        events = parse_sse(measured_lines())
     elapsed_ms = round((time.monotonic() - started) * 1000)
     answer = answer_text(events)
     citations = next((payload for name, payload in reversed(events) if name == "citations"), {})
@@ -1056,8 +1071,8 @@ def _ask_once(
             {
                 "workspace_id": f"eq.{workspace_id}",
                 "trace_id": f"eq.{message['trace_id']}",
-                "kind": "neq.embedding",
-                "select": "prompt_tokens,completion_tokens,cost_micros,model",
+                **({} if include_embeddings else {"kind": "neq.embedding"}),
+                "select": "prompt_tokens,completion_tokens,cost_micros,model,kind,metadata",
             },
         )
     report = message.get("control_report") or {}
@@ -1073,8 +1088,11 @@ def _ask_once(
         "missing_channels": sorted(
             meta.get("missing_channels") or stored_retrieval.get("missing_channels") or []
         ),
-        "model": next((u["model"] for u in usage if u.get("model")), None),
+        "model": next(
+            (u["model"] for u in usage if u.get("model") and u.get("kind") != "embedding"), None
+        ),
         "elapsed_ms": elapsed_ms,
+        "first_delta_ms": first_delta_ms,
         "prompt_tokens": sum(int(u.get("prompt_tokens") or 0) for u in usage) if usage else None,
         "completion_tokens": sum(int(u.get("completion_tokens") or 0) for u in usage)
         if usage
@@ -1086,7 +1104,15 @@ def _ask_once(
         "cited_anchor_count": citations.get("cited_anchor_count"),
         "cited_wiki_count": _count_kind(citations, "wiki"),
         "cited_source_count": _count_kind(citations, "source"),
-        "keyword_hit": keyword_hit(answer, list(question.get("expect_any") or [])),
+        "keyword_hit": (
+            all(keyword_hit(answer, group) for group in question["expect_all"])
+            if question.get("expect_all")
+            else keyword_hit(answer, list(question.get("expect_any") or []))
+        ),
+        "research": report.get("research"),
+        "retrieval": report.get("retrieval"),
+        "usage_incomplete": not usage
+        or any((u.get("metadata") or {}).get("incomplete") for u in usage),
         "budget": report.get("budget"),
         "route": report.get("route"),
         "answer": answer,

@@ -81,6 +81,7 @@ def _ask_service(request: Request) -> AskService:
         ),
         max_context_tokens=settings.ASK_MAX_CONTEXT_TOKENS,
         quality_mode=settings.AI_CONTROL_QUALITY_MODE,
+        evidence_research_enabled=settings.ASK_EVIDENCE_RESEARCH_ENABLED,
     )
 
 

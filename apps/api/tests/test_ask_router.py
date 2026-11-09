@@ -172,14 +172,19 @@ def _parse_sse(text: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 @pytest.mark.asyncio
-async def test_no_evidence_short_circuits_before_any_llm_call() -> None:
+@pytest.mark.parametrize("research_enabled", [False, True])
+async def test_no_evidence_short_circuits_before_any_llm_call(research_enabled: bool) -> None:
     app = create_app(_settings(), git_sha="test-sha")
     fake_llm = _FakeLlmStream(_UpstreamResponse([]))
     async with app.router.lifespan_context(app):
         app.state.http_client = httpx.AsyncClient(
             transport=_mock_prompt_and_content_transport(), timeout=httpx.Timeout(2.0)
         )
-        app.state.ask_service = AskService(_EmptyRetrievalService(), fake_llm)
+        app.state.ask_service = AskService(
+            _EmptyRetrievalService(),
+            fake_llm,
+            evidence_research_enabled=research_enabled,
+        )
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -198,6 +203,174 @@ async def test_no_evidence_short_circuits_before_any_llm_call() -> None:
     assert citations_payload["text"] == NO_EVIDENCE_MESSAGE
     assert citations_payload["cited_anchor_count"] == 0
     assert fake_llm.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_research_finishes_before_answer_and_issues_citations_for_extra_evidence() -> None:
+    """실제 Ask 제너레이터에서 첫 문맥·도구·재조회·별칭·SSE 순서를 함께 검증한다."""
+    extra_chunk = str(uuid4())
+    calls: list[str] = []
+    finalized: dict[str, Any] = {}
+    base = _mock_prompt_and_content_transport()
+
+    class Retrieval:
+        async def retrieve(self, workspace_id, query, requested_k, user_db):
+            calls.append(query)
+            if len(calls) == 1:
+                return await _NonEmptyRetrievalService().retrieve(
+                    workspace_id, query, requested_k, user_db
+                )
+            return RetrievalResult(
+                evidence=[
+                    EvidenceHit.source(
+                        chunk_id=extra_chunk,
+                        rank=1,
+                        metadata={"raw_source_id": _RAW_SOURCE_ID},
+                    )
+                ],
+                meta={},
+            )
+
+    class Model:
+        def __init__(self):
+            self.requests = []
+
+        def stream(self, **kwargs):
+            self.requests.append(kwargs)
+            if kwargs.get("evidence_research"):
+                assert "기존 방식 상세" not in kwargs["messages"][1]["content"]
+                response = _UpstreamResponse(
+                    [
+                        "data: "
+                        + json.dumps(
+                            {
+                                "choices": [
+                                    {
+                                        "delta": {
+                                            "tool_calls": [
+                                                {
+                                                    "index": 0,
+                                                    "type": "function",
+                                                    "function": {
+                                                        "name": "search_evidence",
+                                                        "arguments": '{"query":"기존 방식"}',
+                                                    },
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        ),
+                        'data: {"choices":[{"finish_reason":"tool_calls"}]}',
+                        "data: [DONE]",
+                    ]
+                )
+            else:
+                assert "기존 방식 상세" in kwargs["messages"][1]["content"]
+                response = _UpstreamResponse(
+                    [
+                        'data: {"choices":[{"delta":{"content":'
+                        '"비교 답변 [[wiki:w1]] [[src:s1]]."}}]}',
+                        "data: [DONE]",
+                    ]
+                )
+            return _FakeLlmStream(response)
+
+    def handler(request):
+        if request.url.path == "/rest/v1/source_chunks":
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": _SOURCE_CHUNK_ID, "content": "새 방식 원문"},
+                    {"id": extra_chunk, "content": "기존 방식 상세"},
+                ],
+            )
+        if request.url.path == "/rest/v1/rpc/has_workspace_role":
+            return httpx.Response(200, json=[True])
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
+            finalized.update(json.loads(request.content))
+        return base.handler(request)
+
+    model = Model()
+    app = create_app(_settings(), git_sha="test")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        app.state.ask_service = AskService(Retrieval(), model, evidence_research_enabled=True)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(requested_k=8),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+    events = _parse_sse(response.text)
+    assert [name for name, _ in events] == ["meta", "delta", "citations", "done"]
+    assert len(calls) == len(model.requests) == 2
+    report = finalized["p_control_report"]["research"]
+    assert report["status"] == "searched"
+    assert len(report["initial_evidence"]) == 2
+    assert len(report["final_evidence"]) == 3
+    assert any(item["id"] == extra_chunk for item in events[2][1]["resolved"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [("decision_402", "budget_exceeded"), ("decision_403", "forbidden"), ("revoked", "forbidden")],
+)
+async def test_research_denial_closes_turn_as_error_without_answer_call(
+    case: str, expected: str
+) -> None:
+    """권한·예산 거부는 보유 근거로 복구하지 않는다. 답변 호출 없이 오류 턴으로 닫는다."""
+    finalized: dict[str, Any] = {}
+    base = _mock_prompt_and_content_transport()
+    tool_call = (
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"type":"function",'
+        '"function":{"name":"search_evidence","arguments":"{\\"query\\":\\"기존\\"}"}}]}}]}'
+    )
+
+    class Model:
+        def __init__(self):
+            self.requests = []
+
+        def stream(self, **kwargs):
+            self.requests.append(kwargs)
+            assert kwargs.get("evidence_research"), "거부 뒤 답변 호출을 하면 안 된다"
+            status = {"decision_402": 402, "decision_403": 403}.get(case, 200)
+            lines = [tool_call, 'data: {"choices":[{"finish_reason":"tool_calls"}]}']
+            return _FakeLlmStream(_UpstreamResponse(lines, status_code=status))
+
+    def handler(request):
+        if request.url.path == "/rest/v1/rpc/has_workspace_role":
+            return httpx.Response(200, json=[False])
+        if request.url.path == "/rest/v1/rpc/finalize_ask_turn":
+            finalized.update(json.loads(request.content))
+        return base.handler(request)
+
+    model = Model()
+    app = create_app(_settings(), git_sha="test")
+    async with app.router.lifespan_context(app):
+        app.state.http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        app.state.ask_service = AskService(
+            _NonEmptyRetrievalService(), model, evidence_research_enabled=True
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                _ASK_PATH.format(workspace_id=uuid4()),
+                json=_ask_body(requested_k=8),
+                headers={"Authorization": "Bearer test-token"},
+            )
+        await app.state.http_client.aclose()
+    events = _parse_sse(response.text)
+    assert [name for name, _ in events] == ["meta", "citations", "done"]
+    assert events[1][1]["error"] == expected
+    assert finalized["p_status"] == "error"
+    assert len(model.requests) == 1
 
 
 @pytest.mark.asyncio

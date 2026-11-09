@@ -5,16 +5,30 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 from uuid import UUID
 
 import httpx
 
+from api.errors import DatabaseError, WorkspaceForbidden
 from nexuswiki_core.retrieval_policy import DEFAULT_RETRIEVAL_POLICY, RetrievalPolicy
 from nexuswiki_core.rrf import EvidenceHit, fuse_ranked_hits
 from nexuswiki_core.tokenizer import TSV_TOKENIZER_VERSION, bigram, normalize
 from nexuswiki_core.trace import trace_headers
+
+# 추가 검색에서만 접근 거부를 채널 장애로 숨기지 않는다. 요청 간 상태는 공유하지 않는다.
+strict_research_access: ContextVar[bool] = ContextVar("strict_research_access", default=False)
+
+
+def _raise_access_denied(exc: Exception) -> None:
+    if strict_research_access.get() and (
+        isinstance(exc, WorkspaceForbidden)
+        or isinstance(exc, DatabaseError)
+        and (exc.status_code in {401, 402, 403} or exc.sqlstate in {"42501", "NW402"})
+    ):
+        raise exc
 
 
 class QueryEmbeddingClient(Protocol):
@@ -60,6 +74,12 @@ class HttpQueryEmbeddingClient:
             timeout=self._timeout_seconds,
         )
         if response.is_error:
+            if strict_research_access.get() and response.status_code in {401, 402, 403}:
+                raise DatabaseError(
+                    status_code=response.status_code,
+                    sqlstate=None,
+                    message="embedding denied",
+                )
             raise RuntimeError("query_embedding_unavailable")
         payload = response.json()
         vector = payload.get("vector") if isinstance(payload, dict) else None
@@ -123,7 +143,8 @@ class RetrievalService:
                     raise ValueError("invalid_vector")
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                _raise_access_denied(exc)
                 vector = None
                 for name in vector_channels:
                     meta[name] = _failed_meta(limits[name], "embedding_unavailable")
@@ -151,6 +172,8 @@ class RetrievalService:
             if isinstance(outcome, asyncio.CancelledError):
                 raise outcome
             if isinstance(outcome, BaseException):
+                if isinstance(outcome, Exception):
+                    _raise_access_denied(outcome)
                 meta[name] = _failed_meta(limits[name], "rpc_unavailable")
                 continue
             hits, envelope = outcome
@@ -275,7 +298,8 @@ class RetrievalService:
             ]
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            _raise_access_denied(exc)
             return [], _failed_meta(self._policy.graph_total_limit, "rpc_unavailable", started)
         return hits, _ok_graph_meta(self._policy.graph_total_limit, hits, started)
 
@@ -304,7 +328,8 @@ async def _rpc_channel(
         hits = [make_hit(row, index) for index, row in enumerate(rows, start=1)]
     except asyncio.CancelledError:
         raise
-    except Exception:
+    except Exception as exc:
+        _raise_access_denied(exc)
         return [], _failed_meta(requested, "rpc_unavailable", started)
     return hits, {
         **_ok_meta(requested, hits, started),

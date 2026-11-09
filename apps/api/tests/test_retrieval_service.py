@@ -6,8 +6,9 @@ import httpx
 import pytest
 
 from api.db.user import UserDb
+from api.errors import DatabaseError
 from api.main import create_app
-from api.services.retrieval import RetrievalResult, RetrievalService
+from api.services.retrieval import RetrievalResult, RetrievalService, strict_research_access
 from api.settings import ApiSettings
 from nexuswiki_core.retrieval_policy import DEFAULT_RETRIEVAL_POLICY
 from nexuswiki_core.rrf import EvidenceHit
@@ -38,6 +39,25 @@ class FourChannelDb:
         else:
             assert params["p_bigrams"] == "he el ll lo wo or rl ld"
         return _rows(function)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 402, 403])
+async def test_research_scope_propagates_denied_channel_instead_of_partial_success(status):
+    class DeniedDb(FourChannelDb):
+        async def rpc(self, function, *, params):
+            if function == "search_chunks":
+                raise DatabaseError(status_code=status, sqlstate=None, message="거부")
+            return await super().rpc(function, params=params)
+
+    context = strict_research_access.set(True)
+    try:
+        with pytest.raises(DatabaseError):
+            await RetrievalService(FakeEmbeddingClient()).retrieve(
+                uuid4(), "hello world", 8, DeniedDb()
+            )
+    finally:
+        strict_research_access.reset(context)
 
 
 @pytest.mark.asyncio

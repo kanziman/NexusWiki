@@ -160,13 +160,14 @@ def open_answer_stream(
     messages: list[dict[str, str]],
     max_tokens: int | None = None,
     on_generation: Callable[[str], Awaitable[None]] | None = None,
+    evidence_research: bool = False,
 ) -> AsyncIterator[bytes]:
     """Ask 답변 스트림을 연다.
 
     스트림 수명은 내부 리스너가 소유하고 종료 시점도 그쪽만 알기 때문에, 사용량은 끝난 뒤
     `record_stream_usage`로 남긴다.
     """
-    if max_tokens is None and on_generation is None:
+    if max_tokens is None and on_generation is None and not evidence_research:
         return llm_provider.stream_chat(client, settings=settings, messages=messages)
     return llm_provider.stream_chat(
         client,
@@ -174,6 +175,7 @@ def open_answer_stream(
         messages=messages,
         max_tokens=max_tokens,
         on_generation=on_generation,
+        **({"evidence_research": True} if evidence_research else {}),
     )
 
 
