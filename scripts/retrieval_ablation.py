@@ -1138,6 +1138,12 @@ def answer_verdict(row: Mapping[str, Any], scope: str) -> dict[str, Any]:
             "classification": "fact_missing",
             "reason": "기대 사실이 답변에 없다",
         }
+    if row.get("forbidden_hit") is True:
+        return {
+            "pass": False,
+            "classification": "forbidden_fact",
+            "reason": "금지 사실(옛 값이나 다른 문서 값)을 말했다",
+        }
     return {
         "pass": True,
         "classification": "fact_included",
@@ -1253,7 +1259,9 @@ def turn_row(
         "cited_wiki_count": replay._count_kind(citations, "wiki"),
         "cited_source_count": replay._count_kind(citations, "source"),
         "dual_citation_rate": citations.get("dual_citation_rate"),
-        "keyword_hit": replay.keyword_hit(answer, list(question.get("expect_any") or [])),
+        # 재생 스크립트와 같은 사실 판정(expect_all · expect_any · 금지 사실)을 쓴다.
+        "keyword_hit": replay.fact_hit(answer, dict(question)),
+        "forbidden_hit": replay.forbidden_hit(answer, list(question.get("expect_none") or [])),
         "answer": answer,
     }
 

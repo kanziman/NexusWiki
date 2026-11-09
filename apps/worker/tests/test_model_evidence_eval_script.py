@@ -722,3 +722,391 @@ def test_summary_shows_stable_pass_fail_and_flaky(tmp_path: Path) -> None:
     page = me.render_html(me.build_view(tmp_path))
     # 위키(2·0·0) / 원문(1·1·0)
     assert "2·0·0 / 1·1·0" in page
+
+
+# --- 위키 유리 시험지 실험 (wiki-advantage-eval) -----------------------------------
+
+COMPILE = "qwen/qwen3.8-flash"
+
+
+def _budget(**overrides: Any) -> dict[str, Any]:
+    sample = {"documents": [], "questions": [{"id": "q01", "doc": "a", "query": "?"}]}
+    args: dict[str, Any] = {
+        "total_cap_micros": 1_000_000,
+        "compile_model": COMPILE,
+        "answer_models": MODELS,
+        "sample": sample,
+        "sample_path": "sample.json",
+    }
+    args.update(overrides)
+    return me.build_budget(**args)
+
+
+def test_budget_refuses_compile_model_equal_to_answer_model() -> None:
+    with pytest.raises(SystemExit, match="컴파일 모델이 답변 모델과 같다"):
+        _budget(compile_model=MODELS[1])
+
+
+def test_registration_refuses_compile_model_among_answer_models() -> None:
+    with pytest.raises(SystemExit, match="컴파일 모델"):
+        _registration(budget={"compile_model": MODELS[0]})
+
+
+def test_ingestion_with_failed_job_blocks_registration_cap() -> None:
+    budget = _budget()
+    ingestion = me.build_ingestion(
+        budget=budget,
+        jobs=[{"type": "compile", "status": "succeeded"}, {"type": "compile", "status": "dead"}],
+        pages=12,
+        documents=29,
+        compile_models=[COMPILE],
+        spent_micros=80_000,
+    )
+    assert ingestion["ok"] is False
+    assert ingestion["failed_jobs"][0]["status"] == "dead"
+    with pytest.raises(SystemExit, match="수집이 실패"):
+        me.replay_cap(budget, ingestion, 80_000)
+
+
+def test_ingestion_with_other_compile_model_or_no_pages_fails() -> None:
+    budget = _budget()
+    other = me.build_ingestion(
+        budget=budget, jobs=[], pages=3, documents=3, compile_models=["x/y"], spent_micros=1
+    )
+    empty = me.build_ingestion(
+        budget=budget, jobs=[], pages=0, documents=3, compile_models=[COMPILE], spent_micros=1
+    )
+    assert other["ok"] is False and "컴파일 모델" in other["reasons"][0]
+    assert empty["ok"] is False and "위키가 없다" in empty["reasons"][0]
+
+
+def test_replay_cap_is_total_minus_spent() -> None:
+    budget = _budget()
+    ok = me.build_ingestion(
+        budget=budget, jobs=[], pages=12, documents=29, compile_models=[COMPILE], spent_micros=0
+    )
+    assert me.replay_cap(budget, ok, 80_000) == 920_000
+    with pytest.raises(SystemExit, match="남지 않았다"):
+        me.replay_cap(budget, ok, 1_000_000)
+
+
+def test_conflict_turn_with_old_value_is_not_fact_correct() -> None:
+    row = {
+        "id": "c01",
+        "doc": "old+new",
+        "status": "resolved",
+        "keyword_hit": True,
+        "forbidden_hit": True,
+        "qtype": "conflict",
+    }
+    assert me.fact_correct(row) is False
+    row["verdict"] = me.judge({**row, "failed_channels": []}, "source_only")
+    assert row["verdict"]["classification"] == "forbidden_fact"
+    summary = me.summarize_rows([row], "source_only")
+    assert summary["fact_included"] == 1
+    assert summary["fact_correct"] == 0
+    assert summary["forbidden_hits"] == 1
+
+
+def test_old_rows_without_forbidden_keep_fact_result() -> None:
+    assert me.fact_correct({"keyword_hit": True}) is True
+    assert me.fact_correct({"keyword_hit": False}) is False
+    assert me.fact_correct({"keyword_hit": None}) is None
+
+
+def _summary(recovered: int, regressed: int, rounds: int) -> dict[str, Any]:
+    return {
+        "rounds": list(range(1, rounds + 1)),
+        "always_recovered": [f"q{i}" for i in range(recovered)],
+        "always_regressed": [f"r{i}" for i in range(regressed)],
+    }
+
+
+def test_effect_verdicts_follow_registered_criterion() -> None:
+    criterion = {"min_net_recovered": 3, "min_models": 2}
+    assert me.model_verdict(_summary(4, 0, 3), criterion, measurement_failures=0) == "supported"
+    assert me.model_verdict(_summary(4, 2, 3), criterion, measurement_failures=0) == (
+        "not_supported"
+    )
+    assert me.model_verdict(_summary(9, 0, 1), criterion, measurement_failures=0) == (
+        "inconclusive"
+    )
+    assert me.model_verdict(_summary(9, 0, 3), criterion, measurement_failures=1) == (
+        "inconclusive"
+    )
+    assert me.overall_verdict(["supported", "supported", "not_supported"], criterion) == (
+        "supported"
+    )
+    assert me.overall_verdict(["not_supported"] * 3, criterion) == "not_supported"
+    assert me.overall_verdict(["supported", "inconclusive", "not_supported"], criterion) == (
+        "inconclusive"
+    )
+
+
+def _typed_run(
+    root: Path,
+    round_no: int,
+    model: str,
+    registration: dict[str, Any],
+    source: dict[str, tuple[str, bool]],
+    both: dict[str, tuple[str, bool]],
+) -> None:
+    def rows(cells: dict[str, tuple[str, bool]], scope: str) -> list[dict[str, Any]]:
+        out = []
+        for qid, (qtype, hit) in cells.items():
+            doc = "none" if qtype == "refusal" else "a"
+            row = _row(qid, hit, scope, doc=doc)
+            row["qtype"] = qtype
+            if qtype == "refusal":
+                row["answer"] = "제공된 자료로는 알 수 없습니다" if hit else "1조원입니다"
+                row["keyword_hit"] = None
+            row["verdict"] = me.judge(row, scope)
+            out.append(row)
+        return out
+
+    conditions = []
+    for name, cells in (("source_onlyxbody", source), ("bothxbody", both)):
+        scope = me.CONDITIONS[name]
+        r = rows(cells, scope)
+        conditions.append(
+            {"condition": name, "scope": scope, "rows": r, "summary": me.summarize_rows(r, scope)}
+        )
+    record = {
+        "schema": me.RUN_SCHEMA,
+        "round": round_no,
+        "model": model,
+        "created_at": f"2026-11-10T10:{round_no:02d}:00+00:00",
+        "stopped": None,
+        "registration_sha256": registration["content_sha256"],
+        "fixed_inputs_sha256": me.canonical_sha256(registration["fixed_inputs"]),
+        "answer_prompt_sha256": "p",
+        "conditions": conditions,
+    }
+    path = me.run_path(root, round_no, model)
+    me.write_new(path, record)
+    for condition in conditions:
+        me.append_line(
+            root / me.SCOREBOARD_NAME,
+            me.scoreboard_line(
+                record=record, condition=condition, run_file=str(path.relative_to(root))
+            ),
+        )
+
+
+def test_effect_view_by_type_and_refusal_excluded(tmp_path: Path) -> None:
+    registration = _registration(
+        effect_criterion={"min_net_recovered": 2, "min_models": 1},
+        budget={"compile_model": COMPILE},
+    )
+    me.write_new(tmp_path / "registration.json", registration)
+    (tmp_path / "plan.json").write_text(
+        json.dumps({"models": MODELS[:1], "rounds": 2, "excluded": []}), encoding="utf-8"
+    )
+    for r in (1, 2):
+        _typed_run(
+            tmp_path,
+            r,
+            MODELS[0],
+            registration,
+            # 원문만: 충돌 2문항을 놓치고, 거절은 1회차에만 성공
+            {
+                "c01": ("conflict", False),
+                "c02": ("conflict", False),
+                "m01": ("multi_doc", True),
+                "r01": ("refusal", r == 1),
+            },
+            # 원문+위키: 충돌을 맞히고, 거절은 2회차에만 성공
+            {
+                "c01": ("conflict", True),
+                "c02": ("conflict", True),
+                "m01": ("multi_doc", True),
+                "r01": ("refusal", r == 2),
+            },
+        )
+    view = me.build_view(tmp_path)
+    summary = view["summaries"][0]
+    assert summary["always_recovered"] == ["c01", "c02"]
+    assert "r01" not in summary["always_recovered"] + summary["always_regressed"]
+    assert summary["by_type"]["conflict"]["recovered"] == ["c01", "c02"]
+    assert summary["by_type"]["multi_doc"]["recovered"] == []
+    assert "refusal" not in summary["by_type"]
+    assert summary["verdict"] == "supported"
+    assert view["effect"]["overall"] == "supported"
+    page = me.render_html(view)
+    assert "효과 판정: 지지" in page
+    assert "거절 문항 (효과 판정에서 제외)" in page
+    assert "1회: 1/1 · 2회: 0/1" in page
+
+
+def test_view_without_criterion_has_no_effect_section(tmp_path: Path) -> None:
+    _write_run(tmp_path, 1, MODELS[0], {"q01": True}, {"q01": True})
+    view = me.build_view(tmp_path)
+    assert view["effect"] is None
+    assert "효과 판정" not in me.render_html(view)
+
+
+def test_register_allows_only_subset_of_budget_answer_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sample_path = _ROOT / "scripts" / "fixtures" / "wiki_advantage.v1.json"
+    sample = me.replay._load_sample(sample_path)
+    budget = me.build_budget(
+        total_cap_micros=890_000,
+        compile_model=COMPILE,
+        answer_models=MODELS,
+        sample=sample,
+        sample_path=str(sample_path),
+    )
+    me.write_new(me.budget_path(tmp_path), budget)
+    ingestion = me.build_ingestion(
+        budget=budget, jobs=[], pages=39, documents=29, compile_models=[COMPILE], spent_micros=1
+    )
+    me.write_new(me.ingestion_path(tmp_path), ingestion)
+    state = tmp_path / "state.json"
+    state.write_text(
+        json.dumps({"stack_url": "http://127.0.0.1:54621", "workspace_id": "ws"}), encoding="utf-8"
+    )
+    retrieve = tmp_path / "retrieve.json"
+    retrieve.write_text(json.dumps({"phase": "retrieval", "fixed_inputs": FIXED}), encoding="utf-8")
+    monkeypatch.setattr(me, "spent_since", lambda *_: 22_932)
+
+    def args(*models: str) -> Any:
+        return me.build_parser().parse_args(
+            [
+                "register",
+                "--dir",
+                str(tmp_path),
+                "--state",
+                str(state),
+                "--query-vectors",
+                "qv.json",
+                "--reference-retrieval",
+                str(retrieve),
+                "--sample",
+                str(sample_path),
+                "--models",
+                *models,
+            ]
+        )
+
+    with pytest.raises(SystemExit, match="부분집합"):
+        me.cmd_register(args(MODELS[0], "other/new-model"))
+    assert me.cmd_register(args(MODELS[0], MODELS[1])) == 0
+    registration = json.loads(me.registration_path(tmp_path).read_text(encoding="utf-8"))
+    assert registration["models"] == MODELS[:2]
+    assert registration["cap_micros"] == 890_000 - 22_932
+    assert registration["effect_criterion"] == me.DEFAULT_EFFECT_CRITERION
+
+
+def test_ingestion_with_pending_job_is_not_ok() -> None:
+    # 리뷰 r1: 제품 재시도로 queued가 된 잡이 끝나기 전에 기록하면 다시 죽어도 ok로 남았다.
+    budget = _budget()
+    ingestion = me.build_ingestion(
+        budget=budget,
+        jobs=[{"type": "embed", "status": "succeeded"}, {"type": "embed", "status": "queued"}],
+        pages=39,
+        documents=29,
+        compile_models=[COMPILE],
+        spent_micros=1,
+        workspace_id="ws-1",
+    )
+    assert ingestion["ok"] is False
+    assert "끝나지 않은 잡 1개" in ingestion["reasons"]
+    assert ingestion["workspace_id"] == "ws-1"
+
+
+def test_capped_select_refuses_truncated_aggregate(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = [{"status": "succeeded"}] * me.replay.POSTGREST_MAX_ROWS
+    monkeypatch.setattr(me.replay, "_select", lambda *_, **__: rows)
+    with pytest.raises(SystemExit, match="잘렸을 수 있다"):
+        me.replay.select_capped(None, "http://127.0.0.1:1", "jobs", {"workspace_id": "eq.x"})
+
+
+def test_overall_verdict_inconclusive_on_any_measurement_failure() -> None:
+    criterion = {"min_net_recovered": 3, "min_models": 1}
+    verdicts = ["supported", "inconclusive"]
+    assert me.overall_verdict(verdicts, criterion) == "supported"
+    assert me.overall_verdict(verdicts, criterion, measurement_failure=True) == "inconclusive"
+
+
+def test_recovered_jobs_listed_and_do_not_block() -> None:
+    # 사용자 결정(리뷰 r1 blocked 2): 실패는 최종 상태 기준, 재시도로 복구한 잡은 기록에 남긴다.
+    retries = [
+        {"job_id": "j1", "type": "embed", "attempt": 1, "status_code": 200},
+        {"job_id": "j1", "type": "embed", "attempt": 2, "status_code": 200},
+        # 받아들여지지 않은 재시도 호출(409)은 세지 않는다(리뷰 r2).
+        {"job_id": "j1", "type": "embed", "attempt": 3, "status_code": 409},
+        {"job_id": "j2", "type": "compile", "attempt": 1, "status_code": 200},
+    ]
+    jobs = [
+        {"id": "j1", "type": "embed", "status": "succeeded", "attempts": 1},
+        {"id": "j2", "type": "compile", "status": "dead", "attempts": 3},
+        # 워커 자동 재시도로 복구한 잡: 재시도 기록에는 없고 attempts로만 보인다(리뷰 r2).
+        {"id": "j3", "type": "embed", "status": "succeeded", "attempts": 2},
+    ]
+    recovered = me.recovered_jobs(retries, jobs)
+    assert recovered == [
+        {"job_id": "j1", "type": "embed", "api_retries": 2, "final_status": "succeeded"},
+        {
+            "job_id": "j3",
+            "type": "embed",
+            "api_retries": 0,
+            "worker_attempts": 2,
+            "final_status": "succeeded",
+        },
+    ]
+    ok = me.build_ingestion(
+        budget=_budget(),
+        jobs=[jobs[0], jobs[2]],
+        pages=39,
+        documents=29,
+        compile_models=[COMPILE],
+        spent_micros=1,
+        recovered=recovered,
+    )
+    assert ok["ok"] is True
+    assert [r["job_id"] for r in ok["recovered_jobs"]] == ["j1", "j3"]
+
+
+def test_failed_status_waiting_for_auto_retry_is_unfinished_not_failed() -> None:
+    ingestion = me.build_ingestion(
+        budget=_budget(),
+        jobs=[{"type": "embed", "status": "failed"}],
+        pages=39,
+        documents=29,
+        compile_models=[COMPILE],
+        spent_micros=1,
+    )
+    assert ingestion["ok"] is False
+    assert ingestion["failed_jobs"] == []
+    assert ingestion["reasons"] == ["끝나지 않은 잡 1개"]
+
+
+def test_type_table_shows_wiki_difference_column(tmp_path: Path) -> None:
+    registration = _registration(
+        effect_criterion={"min_net_recovered": 1, "min_models": 1},
+        budget={"compile_model": COMPILE},
+    )
+    me.write_new(tmp_path / "registration.json", registration)
+    (tmp_path / "plan.json").write_text(
+        json.dumps({"models": MODELS[:1], "rounds": 2, "excluded": []}), encoding="utf-8"
+    )
+    for r in (1, 2):
+        _typed_run(
+            tmp_path,
+            r,
+            MODELS[0],
+            registration,
+            # 충돌은 위키로 +1, 여러 문서는 위키로 −1 → 전체 차이는 0이다.
+            {"c01": ("conflict", False), "m01": ("multi_doc", True)},
+            {"c01": ("conflict", True), "m01": ("multi_doc", False)},
+        )
+    page = me.render_html(me.build_view(tmp_path))
+    # 리뷰 r3: 전체 요약 표에도 같은 머리가 있으니 유형별 구역 안만 본다.
+    start = page.index("유형별 위키 차이")
+    section = page[start : page.index("거절 문항 (효과 판정에서 제외)", start)]
+    assert "<th>위키 차이</th>" in section
+    assert "<b>+1 · +1</b>" in section
+    assert "<b>-1 · -1</b>" in section
+    assert "<b>+0 · +0</b>" not in section
+    assert "<b>+0 · +0</b>" in page  # 전체 요약은 0

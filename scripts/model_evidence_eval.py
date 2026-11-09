@@ -162,7 +162,13 @@ def build_registration(
     fixed_inputs: Mapping[str, Any],
     reference_retrieval_sha256: str,
     paths: Mapping[str, str],
+    effect_criterion: Mapping[str, int] | None = None,
+    budget: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if budget is not None and budget.get("compile_model") in models:
+        raise SystemExit(
+            f"model_evidence: 컴파일 모델이 답변 모델과 같다: {budget.get('compile_model')}"
+        )
     if cap_micros <= 0:
         raise SystemExit("model_evidence: 비용 상한이 없는 실험은 등록하지 않는다")
     if not models or len(set(models)) != len(models):
@@ -199,7 +205,162 @@ def build_registration(
         "reference_retrieval_sha256": reference_retrieval_sha256,
         "paths": dict(paths),
     }
+    # 두 필드는 위키 유리 시험지 실험(wiki-advantage-eval)에서만 쓴다. 없으면 넣지 않아
+    # 이전 실험의 등록 모양이 그대로다.
+    if effect_criterion is not None:
+        body["effect_criterion"] = dict(effect_criterion)
+    if budget is not None:
+        body["budget"] = dict(budget)
     return {**body, "content_sha256": canonical_sha256(body)}
+
+
+# ---------------------------------------------------------------------------
+# 전 단계 상한 (wiki-advantage-eval 설계 D5)
+# ---------------------------------------------------------------------------
+
+BUDGET_SCHEMA = "model-evidence-budget-v1"
+INGESTION_SCHEMA = "model-evidence-ingestion-v1"
+EPOCH = "1970-01-01T00:00:00+00:00"
+DEFAULT_EFFECT_CRITERION = {"min_net_recovered": 3, "min_models": 2}
+
+
+def budget_path(root: Path) -> Path:
+    return root / "budget.json"
+
+
+def ingestion_path(root: Path) -> Path:
+    return root / "ingestion.json"
+
+
+def build_budget(
+    *,
+    total_cap_micros: int,
+    compile_model: str,
+    answer_models: list[str],
+    sample: Mapping[str, Any],
+    sample_path: str,
+) -> dict[str, Any]:
+    """수집 전에 쓰는 총 상한 기록. 시험지 해시도 여기서 고정한다(설계 D9)."""
+    if total_cap_micros <= 0:
+        raise SystemExit("model_evidence: 총 상한이 양수여야 한다")
+    if compile_model in answer_models:
+        raise SystemExit(f"model_evidence: 컴파일 모델이 답변 모델과 같다: {compile_model}")
+    if replay.is_typed_sample(dict(sample)):
+        errors = replay.check_typed_sample(dict(sample))
+        if errors:
+            raise SystemExit(f"model_evidence: 시험지가 구성 조건을 어긴다: {errors}")
+    return {
+        "schema": BUDGET_SCHEMA,
+        "experiment": EXPERIMENT,
+        "created_at": _now(),
+        "total_cap_micros": total_cap_micros,
+        "compile_model": compile_model,
+        "answer_models": list(answer_models),
+        "fixture_sha256": ablation.fingerprint.fixture_sha256(sample),
+        "sample": sample_path,
+    }
+
+
+def build_ingestion(
+    *,
+    budget: Mapping[str, Any],
+    jobs: list[Mapping[str, Any]],
+    pages: int,
+    documents: int,
+    compile_models: list[str],
+    spent_micros: int,
+    workspace_id: str | None = None,
+    recovered: list[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """수집 결과. 잡 실패 · 미완료 · 위키 0쪽 · 다른 컴파일 모델이면 재생을 막는다(스펙).
+
+    ⚠️ 끝나지 않은 잡도 막는다. 제품 재시도 API로 되돌린 잡은 `queued`로 돌아가 실패 흔적이
+       지워지므로, 끝나기 전에 기록하면 다시 죽어도 `ok`로 남는다(리뷰 r1).
+    """
+    # 최종 상태 기준: `dead` · `canceled`만 실패다. `failed`는 워커 자동 재시도 대기라
+    # 아직 끝나지 않은 잡으로 센다(사용자 결정 · 리뷰 r2).
+    failed = [dict(j) for j in jobs if j.get("status") in FINAL_FAILURE_STATES]
+    pending = [dict(j) for j in jobs if j.get("status") not in FINAL_FAILURE_STATES | {"succeeded"}]
+    used = sorted(set(compile_models))
+    reasons = []
+    if failed:
+        reasons.append(f"실패한 잡 {len(failed)}개")
+    if pending:
+        reasons.append(f"끝나지 않은 잡 {len(pending)}개")
+    if pages <= 0:
+        reasons.append("컴파일된 위키가 없다")
+    if used != [budget["compile_model"]]:
+        reasons.append(f"컴파일 모델이 등록과 다르다: {used}")
+    return {
+        "schema": INGESTION_SCHEMA,
+        "experiment": EXPERIMENT,
+        "created_at": _now(),
+        "budget_created_at": budget["created_at"],
+        # 등록이 다른 state(다른 워크스페이스)의 지출로 상한을 계산하지 못하게 묶는다.
+        "workspace_id": workspace_id,
+        "compile_model": budget["compile_model"],
+        "compile_models_used": used,
+        "documents": documents,
+        "wiki_pages": pages,
+        "jobs": len(jobs),
+        "failed_jobs": [
+            {"type": j.get("type"), "status": j.get("status"), "last_error": j.get("last_error")}
+            for j in failed
+        ],
+        # 실패는 최종 상태로 판정하고, 재시도로 복구한 잡은 따로 남긴다(스펙).
+        "recovered_jobs": [dict(r) for r in recovered or []],
+        "spent_micros": spent_micros,
+        "ok": not reasons,
+        "reasons": reasons,
+    }
+
+
+RETRIES_NAME = "job-retries.jsonl"
+FINAL_FAILURE_STATES = frozenset({"dead", "canceled"})
+
+
+def recovered_jobs(
+    retries: list[Mapping[str, Any]], jobs: list[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """한 번 실패했다가 최종 성공한 잡. 두 경로를 모두 센다(스펙: recovered jobs).
+
+    - 제품 재시도 API: 그 함수가 `attempts` · `last_error`를 지워 DB로는 알 수 없으므로
+      `retry-dead`가 남긴 기록을 쓴다. 받아들여진(2xx) 재시도 호출만 센다.
+    - 워커 자동 재시도: `failed`가 됐다가 워커가 다시 잡아 성공하면 `attempts > 1`로 남는다.
+    """
+    final = {str(j.get("id")): j for j in jobs}
+    seen: dict[str, dict[str, Any]] = {}
+    for item in retries:
+        if not 200 <= int(item.get("status_code") or 0) < 300:
+            continue
+        job_id = str(item.get("job_id"))
+        entry = seen.setdefault(
+            job_id, {"job_id": job_id, "type": item.get("type"), "api_retries": 0}
+        )
+        entry["api_retries"] += 1
+    for job_id, job in final.items():
+        if int(job.get("attempts") or 0) > 1:
+            entry = seen.setdefault(
+                job_id, {"job_id": job_id, "type": job.get("type"), "api_retries": 0}
+            )
+            entry["worker_attempts"] = int(job["attempts"])
+    return [
+        {**entry, "final_status": final[job_id].get("status")}
+        for job_id, entry in seen.items()
+        if job_id in final and final[job_id].get("status") == "succeeded"
+    ]
+
+
+def replay_cap(budget: Mapping[str, Any], ingestion: Mapping[str, Any], spent_now: int) -> int:
+    """재생 상한 = 총 상한 − 실험 워크스페이스가 지금까지 쓴 돈(수집 · 컴파일 · 임베딩)."""
+    if not ingestion.get("ok"):
+        raise SystemExit(
+            f"model_evidence: 수집이 실패해 재생하지 않는다: {ingestion.get('reasons')}"
+        )
+    cap = int(budget["total_cap_micros"]) - spent_now
+    if cap <= 0:
+        raise SystemExit(f"model_evidence: 총 상한이 남지 않았다: 지출 {spent_now} micros")
+    return cap
 
 
 def check_registration(registration: Mapping[str, Any]) -> None:
@@ -415,6 +576,16 @@ def judge(row: Mapping[str, Any], scope: str) -> dict[str, Any]:
     return ablation.answer_verdict(row, scope)
 
 
+def fact_correct(row: Mapping[str, Any]) -> bool | None:
+    """사실 정답: 기대 사실을 포함하고 금지 사실은 말하지 않았다(스펙: Per-turn verdicts).
+
+    금지 사실 필드가 없는 옛 행은 기대 사실 포함과 같다.
+    """
+    if row.get("keyword_hit") is None:
+        return None
+    return bool(row["keyword_hit"]) and row.get("forbidden_hit") is not True
+
+
 def counts_for_fact(row: Mapping[str, Any]) -> bool:
     """사실 포함 분모에 드는 턴: 답할 수 있고, 실행됐고, 장애가 없는 턴."""
     if row.get("doc") == "none":
@@ -448,6 +619,8 @@ def summarize_rows(rows: list[Mapping[str, Any]], scope: str) -> dict[str, Any]:
         "answerable": len(answerable),
         "fact_denominator": len(fact_rows),
         "fact_included": sum(1 for r in fact_rows if r.get("keyword_hit")),
+        "fact_correct": sum(1 for r in fact_rows if fact_correct(r)),
+        "forbidden_hits": sum(1 for r in fact_rows if r.get("forbidden_hit") is True),
         # 제품 성적표 규칙(이중 인용 포함)은 `both`에만 묻는다.
         "product_passed": (
             sum(1 for r in answerable if r["verdict"].get("pass")) if scope == "both" else None
@@ -630,6 +803,8 @@ _LINE_SUMMARY_KEYS = (
     "answerable",
     "fact_denominator",
     "fact_included",
+    "fact_correct",
+    "forbidden_hits",
     "product_passed",
     "execution_failures",
     "measurement_failures",
@@ -767,7 +942,12 @@ def complete_rounds(lines: list[Mapping[str, Any]], models: list[str]) -> list[i
 
 
 def _fact_hits(rows: Iterable[Mapping[str, Any]]) -> dict[str, bool]:
-    return {str(r["id"]): bool(r.get("keyword_hit")) for r in rows if counts_for_fact(r)}
+    # 사실 정답 기준이다. 금지 사실이 없는 옛 기록은 기대 사실 포함과 같아 결과가 그대로다.
+    return {str(r["id"]): bool(fact_correct(r)) for r in rows if counts_for_fact(r)}
+
+
+def _types(rows: Iterable[Mapping[str, Any]]) -> dict[str, str | None]:
+    return {str(r["id"]): r.get("qtype") for r in rows}
 
 
 def load_condition_rows(root: Path, line: Mapping[str, Any]) -> list[dict[str, Any]] | None:
@@ -790,8 +970,12 @@ def load_condition_rows(root: Path, line: Mapping[str, Any]) -> list[dict[str, A
 
 def model_summary(
     hits: Mapping[int, Mapping[str, Mapping[str, bool]]],
+    types: Mapping[str, str | None] | None = None,
 ) -> dict[str, Any]:
-    """회차 → 조건 → 문항 → 사실 포함. 모든 회차에 있는 문항만 짝 비교한다."""
+    """회차 → 조건 → 문항 → 사실 정답. 모든 회차에 있는 문항만 짝 비교한다.
+
+    `types`(문항 → 유형)가 있으면 유형별로도 나눈다. 거절 문항은 `hits`에 들어오지 않는다.
+    """
     rounds = sorted(hits)
     per_condition: dict[str, list[int]] = {c: [] for c in CONDITIONS}
     for r in rounds:
@@ -829,6 +1013,17 @@ def model_summary(
         b - s
         for s, b in zip(per_condition["source_onlyxbody"], per_condition["bothxbody"], strict=True)
     ]
+    by_type: dict[str, dict[str, Any]] = {}
+    # 짝 비교에 든 문항의 유형만 쓴다. 거절 문항은 `hits`에 없으니 여기서도 빠진다.
+    for qtype in sorted({t for q in shared if (t := (types or {}).get(q))}):
+        ids = {q for q in shared if (types or {}).get(q) == qtype}
+        by_type[qtype] = {
+            "denominator": len(ids),
+            "source": [sum(1 for q in ids if hits[r]["source_onlyxbody"][q]) for r in rounds],
+            "both": [sum(1 for q in ids if hits[r]["bothxbody"][q]) for r in rounds],
+            "recovered": [q for q in recovered if q in ids],
+            "regressed": [q for q in regressed if q in ids],
+        }
     return {
         "rounds": rounds,
         "denominator": len(shared),
@@ -837,7 +1032,36 @@ def model_summary(
         "stability": stability,
         "always_recovered": recovered,
         "always_regressed": regressed,
+        "by_type": by_type,
     }
+
+
+EFFECT_VERDICTS = ("supported", "not_supported", "inconclusive")
+MIN_ROUNDS_FOR_VERDICT = 2
+
+
+def model_verdict(
+    summary: Mapping[str, Any], criterion: Mapping[str, int], *, measurement_failures: int
+) -> str:
+    """사전 등록 기준으로만 계산한다. 결과를 보고 기준을 고칠 길이 없게 등록 해시가 묶는다(스펙)."""
+    if len(summary.get("rounds") or []) < MIN_ROUNDS_FOR_VERDICT or measurement_failures:
+        return "inconclusive"
+    net = len(summary["always_recovered"]) - len(summary["always_regressed"])
+    return "supported" if net >= int(criterion["min_net_recovered"]) else "not_supported"
+
+
+def overall_verdict(
+    verdicts: Iterable[str], criterion: Mapping[str, int], *, measurement_failure: bool = False
+) -> str:
+    """스펙: 어느 모델이든 측정 장애가 있으면 전체도 판정 불가다. 지지 모델 수가 차도 그렇다."""
+    values = list(verdicts)
+    if measurement_failure:
+        return "inconclusive"
+    if values.count("supported") >= int(criterion["min_models"]):
+        return "supported"
+    if "inconclusive" in values:
+        return "inconclusive"
+    return "not_supported"
 
 
 def _line_record(root: Path, line: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -894,8 +1118,10 @@ def build_view(root: Path) -> dict[str, Any]:
         {"round": r, "model": m} for r, m in (run_order(plan) if plan else []) if (r, m) not in have
     ]
     summaries: list[dict[str, Any]] = []
+    criterion = (registration or {}).get("effect_criterion")
     for model in models:
         hits: dict[int, dict[str, dict[str, bool]]] = {}
+        types: dict[str, str | None] = {}
         for line in lines:
             if line.get("reference") or line.get("model") != model:
                 continue
@@ -904,12 +1130,34 @@ def build_view(root: Path) -> dict[str, Any]:
             rows = load_condition_rows(root, line)
             if rows is not None:
                 hits.setdefault(int(line["round"]), {})[str(line["condition"])] = _fact_hits(rows)
+                types.update(_types(rows))
         complete = {r: v for r, v in hits.items() if set(v) >= set(CONDITIONS)}
-        summaries.append(
-            {"model": model, "reference": False, **model_summary(complete)}
+        summary = (
+            {"model": model, "reference": False, **model_summary(complete, types)}
             if complete
             else {"model": model, "reference": False, "rounds": []}
         )
+        if criterion:
+            failures = sum(
+                int(x.get("measurement_failures") or 0)
+                for x in lines
+                if not x.get("reference") and x.get("model") == model
+            )
+            summary["verdict"] = model_verdict(summary, criterion, measurement_failures=failures)
+            summary["measurement_failures"] = failures
+        summaries.append(summary)
+    effect = (
+        {
+            "criterion": criterion,
+            "overall": overall_verdict(
+                (s["verdict"] for s in summaries if not s.get("reference")),
+                criterion,
+                measurement_failure=any(s.get("measurement_failures") for s in summaries),
+            ),
+        }
+        if criterion
+        else None
+    )
     ref_hits: dict[str, dict[str, bool]] = {}
     ref_model = None
     for line in lines:
@@ -937,6 +1185,7 @@ def build_view(root: Path) -> dict[str, Any]:
         "complete_rounds": rounds,
         "partial_rounds": partial,
         "summaries": summaries,
+        "effect": effect,
     }
 
 
@@ -998,7 +1247,7 @@ _RUN_HEAD = (
     "회차",
     "모델",
     "조건",
-    "사실 포함",
+    "사실 정답",
     "제품 통과",
     "거절",
     "장애·측정·미실행",
@@ -1070,7 +1319,8 @@ def _run_row(line: Mapping[str, Any]) -> str:
             _e("ref" if line.get("reference") else line.get("round")),
             f"{_e(line.get('model'))} {' '.join(tags)}",
             _e(_CONDITION_LABEL.get(condition, condition)),
-            _bar(line.get("fact_included"), line.get("fact_denominator")),
+            # 사실 정답이 있으면 그것을, 옛 줄이면 사실 포함을 그린다(금지 사실이 없으면 같다).
+            _bar(line.get("fact_correct", line.get("fact_included")), line.get("fact_denominator")),
             product,
             f"{_e(line.get('refusal_correct'))}/{_e(line.get('refusal_total'))}",
             failures,
@@ -1083,6 +1333,83 @@ def _run_row(line: Mapping[str, Any]) -> str:
             f'<span class="muted">{_e(line.get("date"))}</span>',
         ]
     )
+
+
+_VERDICT_LABEL = {
+    "supported": "지지",
+    "not_supported": "지지 안 됨",
+    "inconclusive": "판정 불가",
+}
+_TYPE_HEAD = ("모델", "유형", "원문만", "원문+위키", "위키 차이", "늘 복구", "늘 회귀")
+_REFUSAL_HEAD = ("모델", "조건", "회차별 정확한 거절")
+
+
+def _effect_section(view: Mapping[str, Any]) -> list[str]:
+    """사전 등록한 효과 판정과 유형별 표. 등록에 기준이 없으면(이전 실험) 그리지 않는다."""
+    effect = view.get("effect")
+    if not effect:
+        return []
+    criterion = effect["criterion"]
+    per_model = " · ".join(
+        f"{s['model']} {_VERDICT_LABEL.get(s.get('verdict'), s.get('verdict'))}"
+        for s in view["summaries"]
+        if not s.get("reference")
+    )
+    type_rows = ""
+    for s in view["summaries"]:
+        if s.get("reference"):
+            continue
+        for qtype, t in (s.get("by_type") or {}).items():
+            n = _e(t["denominator"])
+            type_rows += _tr(
+                [
+                    _e(s["model"]),
+                    _e(qtype),
+                    f"{_e(' · '.join(map(str, t['source'])))} / {n}",
+                    f"{_e(' · '.join(map(str, t['both'])))} / {n}",
+                    # 스펙 · 설계 D8: 유형별로도 위키 차이(원문+위키 − 원문만)를 회차마다 보인다.
+                    "<b>"
+                    + _e(
+                        " · ".join(
+                            f"{b - s:+d}" for s, b in zip(t["source"], t["both"], strict=True)
+                        )
+                    )
+                    + "</b>",
+                    _e(", ".join(t["recovered"]) or "-"),
+                    _e(", ".join(t["regressed"]) or "-"),
+                ]
+            )
+    refusal_rows = ""
+    for model in sorted({str(x["model"]) for x in view["lines"] if not x.get("reference")}):
+        for condition in CONDITIONS:
+            cells = [
+                f"{x.get('round')}회: {x.get('refusal_correct')}/{x.get('refusal_total')}"
+                for x in sorted(
+                    (
+                        x
+                        for x in view["lines"]
+                        if not x.get("reference")
+                        and x.get("model") == model
+                        and x.get("condition") == condition
+                    ),
+                    key=lambda x: int(x.get("round") or 0),
+                )
+            ]
+            refusal_rows += _tr(
+                [_e(model), _e(_CONDITION_LABEL[condition]), _e(" · ".join(cells) or "-")]
+            )
+    return [
+        f"<h2>효과 판정: {_e(_VERDICT_LABEL.get(effect['overall'], effect['overall']))}</h2>",
+        f"<p>사전 등록 기준: 모델마다 늘 복구 − 늘 회귀 ≥ {_e(criterion['min_net_recovered'])}"
+        f"이면 지지, 지지 모델이 {_e(criterion['min_models'])}개 이상이면 전체 지지. "
+        f"완료 회차가 {MIN_ROUNDS_FOR_VERDICT}개 미만이거나 측정 장애가 있으면 판정 불가.</p>",
+        f"<p>{_e(per_model)}</p>",
+        "<h2>유형별 위키 차이 (완료 회차, 사실 정답)</h2>",
+        _table(_TYPE_HEAD, type_rows, "유형 정보가 없다"),
+        "<h2>거절 문항 (효과 판정에서 제외)</h2>",
+        "<p>⚠️ 채점기는 답이 표준 거절 문구로 시작할 때만 거절로 인정한다(#254 한계).</p>",
+        _table(_REFUSAL_HEAD, refusal_rows, "기록이 없다"),
+    ]
 
 
 def render_html(view: Mapping[str, Any]) -> str:
@@ -1112,10 +1439,11 @@ def render_html(view: Mapping[str, Any]) -> str:
         '<!doctype html><meta charset="utf-8"><title>모델별 위키 기여 성적표</title>',
         f"<style>{_STYLE}</style>",
         "<h1>모델별 위키 기여 성적표</h1>",
-        "<p>같은 수집 · 같은 30문항에서 답변 모델만 바꿔, 원문만과 원문+위키를 회차마다 "
+        "<p>같은 수집 · 같은 문항에서 답변 모델만 바꿔, 원문만과 원문+위키를 회차마다 "
         "비교한다. 합성 샘플 수치다.</p>",
         f"<p>{_e(' · '.join(notes))}</p>",
         broken,
+        *_effect_section(view),
         "<h2>모델 요약 (완료 회차만)</h2>",
         '<p>사실 포함은 회차별 값이다. 위키 차이 = 원문+위키 − 원문만. "늘 복구"는 모든 완료 '
         "회차에서 원문만은 놓치고 원문+위키는 맞힌 문항이다.</p>",
@@ -1301,6 +1629,9 @@ class Harness:
                     trace_calls, self.stack, self.workspace, self.token, trace_id
                 )
                 row = ablation.turn_row(question, events, message, [], elapsed)
+                # 유형 시험지가 아니면 None이다(기존 30문항은 유형이 없다).
+                row["qtype"] = question.get("type")
+                row["fact_correct"] = fact_correct(row)
                 row = enrich_turn(row, calls, model=model, max_tokens=max_tokens)
                 row["verdict"] = judge(row, CONDITIONS[condition])
                 print(
@@ -1326,6 +1657,131 @@ class Harness:
 # ---------------------------------------------------------------------------
 
 
+def cmd_budget_open(args: argparse.Namespace) -> int:
+    root = Path(args.dir)
+    out = budget_path(root)
+    if out.exists():
+        raise SystemExit(f"model_evidence: 이미 있는 예산 기록은 덮어쓰지 않는다: {out}")
+    sample_path = Path(args.sample).resolve()
+    budget = build_budget(
+        total_cap_micros=args.cap_micros,
+        compile_model=args.compile_model,
+        answer_models=list(args.models),
+        sample=replay._load_sample(sample_path),
+        sample_path=str(sample_path),
+    )
+    write_new(out, budget)
+    print(f"model_evidence: 예산 개시 {budget['total_cap_micros']} micros → {out}")
+    return 0
+
+
+def cmd_retry_dead(args: argparse.Namespace) -> int:
+    """수집 잡이 모두 끝나길 기다린 뒤, `dead` 잡만 제품 재시도 API(요청자 JWT)로 다시 넣는다.
+
+    ⚠️ `jobs`를 직접 고치지 않는다(CLAUDE.md Anti-Patterns). 재시도는 `retry_dead_job` RPC를 타는
+       API뿐이다. 그 함수가 실패 흔적을 지우므로 재시도마다 `job-retries.jsonl`에 한 줄을 남긴다.
+    ⚠️ `failed`는 자동 재시도 대기라 기다린다. 끝난 상태로 보면 아직 도는 잡을 기록하게 된다.
+    """
+    root = Path(args.dir)
+    state = _read_json(Path(args.state))
+    stack = replay.assert_loopback(state["stack_url"])
+    api = replay.assert_loopback(args.api_url)
+    workspace = str(state["workspace_id"])
+    done = {"succeeded", "dead", "canceled"}
+
+    def drain(client: httpx.Client) -> list[dict[str, Any]]:
+        deadline = time.monotonic() + args.timeout
+        while True:
+            rows = replay.select_capped(
+                client,
+                stack,
+                "jobs",
+                {"workspace_id": f"eq.{workspace}", "select": "id,type,status"},
+            )
+            if all(r["status"] in done for r in rows):
+                return rows
+            if time.monotonic() > deadline:
+                raise SystemExit("model_evidence: 수집 잡이 시간 안에 끝나지 않았다")
+            time.sleep(5)
+
+    with httpx.Client(timeout=60) as client:
+        rows = drain(client)
+        for attempt in range(1, args.rounds + 1):
+            dead = [r for r in rows if r["status"] == "dead"]
+            if not dead:
+                break
+            token = replay._login(client, stack, state)
+            for row in dead:
+                response = client.post(
+                    f"{api}/workspaces/{workspace}/jobs/{row['id']}/retry",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                append_line(
+                    root / RETRIES_NAME,
+                    {
+                        "job_id": row["id"],
+                        "type": row["type"],
+                        "attempt": attempt,
+                        "status_code": response.status_code,
+                        "at": _now(),
+                    },
+                )
+                print(f"model_evidence: 재시도 {attempt}회 {row['type']} → {response.status_code}")
+            time.sleep(10)
+            rows = drain(client)
+    left = [r for r in rows if r["status"] != "succeeded"]
+    print(f"model_evidence: 남은 실패 잡 {len(left)}개")
+    return 0 if not left else 1
+
+
+def cmd_ingest_record(args: argparse.Namespace) -> int:
+    root = Path(args.dir)
+    budget = _read_json(budget_path(root))
+    out = ingestion_path(root)
+    if out.exists():
+        raise SystemExit(f"model_evidence: 이미 있는 수집 기록은 덮어쓰지 않는다: {out}")
+    state = _read_json(Path(args.state))
+    stack = replay.assert_loopback(state["stack_url"])
+    workspace = str(state["workspace_id"])
+    with httpx.Client(timeout=60) as client:
+        # service_role 조회다. `_select`가 workspace_id 필터 없는 조회를 거부하고,
+        # `select_capped`는 1000행에서 잘린 집계를 거부한다.
+        jobs = replay.select_capped(
+            client,
+            stack,
+            "jobs",
+            {"workspace_id": f"eq.{workspace}", "select": "id,type,status,attempts,last_error"},
+        )
+        pages = replay.select_capped(
+            client, stack, "wiki_pages", {"workspace_id": f"eq.{workspace}", "select": "id"}
+        )
+        sources = replay.select_capped(
+            client, stack, "raw_sources", {"workspace_id": f"eq.{workspace}", "select": "id"}
+        )
+        usage = replay.select_capped(
+            client,
+            stack,
+            "usage_events",
+            {"workspace_id": f"eq.{workspace}", "kind": "eq.llm", "select": "model,metadata"},
+        )
+    compile_models = [
+        str(u["model"]) for u in usage if (u.get("metadata") or {}).get("call") == "compile"
+    ]
+    record = build_ingestion(
+        budget=budget,
+        jobs=jobs,
+        pages=len(pages),
+        documents=len(sources),
+        compile_models=compile_models,
+        spent_micros=spent_since(stack, workspace, EPOCH),
+        workspace_id=workspace,
+        recovered=recovered_jobs(read_lines(root / RETRIES_NAME)[0], jobs),
+    )
+    write_new(out, record)
+    print(json.dumps(record, ensure_ascii=False, indent=2))
+    return 0 if record["ok"] else 1
+
+
 def cmd_register(args: argparse.Namespace) -> int:
     root = Path(args.dir)
     out = registration_path(root)
@@ -1335,11 +1791,47 @@ def cmd_register(args: argparse.Namespace) -> int:
     retrieval = _read_json(reference)
     if retrieval.get("phase") != "retrieval" or "fixed_inputs" not in retrieval:
         raise SystemExit("model_evidence: --reference-retrieval에는 검색 단계 기록을 준다")
+    cap_micros = args.cap_micros
+    budget_summary: dict[str, Any] | None = None
+    effect_criterion: dict[str, int] | None = None
+    if budget_path(root).exists():
+        # 전 단계 상한 실험(설계 D5): 재생 상한은 총 상한에서 이미 쓴 돈을 뺀 값이다.
+        budget = _read_json(budget_path(root))
+        if not ingestion_path(root).exists():
+            raise SystemExit("model_evidence: 수집 기록(ingestion.json)이 없다. 등록하지 않는다")
+        ingestion = _read_json(ingestion_path(root))
+        # 예산 개시 때 적은 답변 모델의 부분집합만 허용한다. 점검 비용으로 상한에 안 들어가는
+        # 모델을 빼고 다시 등록할 수 있게 하되, 컴파일 모델과 겹치는 새 모델은 못 넣는다.
+        if not args.models or not set(args.models) <= set(budget["answer_models"]):
+            raise SystemExit("model_evidence: 답변 모델이 예산 개시 기록의 부분집합이 아니다")
+        sample = replay._load_sample(Path(args.sample))
+        if ablation.fingerprint.fixture_sha256(sample) != budget["fixture_sha256"]:
+            raise SystemExit("model_evidence: 시험지가 예산 개시 뒤에 바뀌었다. 등록하지 않는다")
+        state = _read_json(Path(args.state))
+        recorded = ingestion.get("workspace_id")
+        if recorded is not None and recorded != str(state["workspace_id"]):
+            raise SystemExit("model_evidence: state의 워크스페이스가 수집 기록과 다르다")
+        spent = spent_since(
+            replay.assert_loopback(state["stack_url"]), str(state["workspace_id"]), EPOCH
+        )
+        cap_micros = replay_cap(budget, ingestion, spent)
+        budget_summary = {
+            "total_cap_micros": budget["total_cap_micros"],
+            "compile_model": budget["compile_model"],
+            "spent_before_registration_micros": spent,
+            "fixture_sha256": budget["fixture_sha256"],
+        }
+        effect_criterion = {
+            "min_net_recovered": args.min_net_recovered,
+            "min_models": args.min_models,
+        }
     registration = build_registration(
         models=list(args.models),
         rounds_max=args.rounds_max,
         rounds_min=args.rounds_min,
-        cap_micros=args.cap_micros,
+        cap_micros=cap_micros,
+        effect_criterion=effect_criterion,
+        budget=budget_summary,
         probe_question=args.probe_question,
         probe_estimate_micros=args.probe_estimate_micros,
         safety=args.safety,
@@ -1644,7 +2136,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--probe-estimate-micros", type=int, default=DEFAULT_PROBE_ESTIMATE_MICROS
     )
     register.add_argument("--safety", type=float, default=DEFAULT_SAFETY)
+    # 효과 기준은 예산 개시 기록이 있는 실험(wiki-advantage-eval)에서만 등록에 들어간다.
+    register.add_argument(
+        "--min-net-recovered", type=int, default=DEFAULT_EFFECT_CRITERION["min_net_recovered"]
+    )
+    register.add_argument("--min-models", type=int, default=DEFAULT_EFFECT_CRITERION["min_models"])
     register.set_defaults(func=cmd_register)
+
+    budget_open = sub.add_parser("budget-open", help="수집 전에 총 상한과 시험지 해시를 고정한다")
+    budget_open.add_argument("--dir", required=True)
+    budget_open.add_argument("--sample", required=True)
+    budget_open.add_argument("--compile-model", required=True)
+    budget_open.add_argument("--models", nargs="+", default=list(DEFAULT_MODELS))
+    budget_open.add_argument("--cap-micros", type=int, default=DEFAULT_CAP_MICROS)
+    budget_open.set_defaults(func=cmd_budget_open)
+
+    ingest = sub.add_parser("ingest-record", help="수집 결과(잡 · 위키 · 지출)를 기록한다")
+    ingest.add_argument("--dir", required=True)
+    ingest.add_argument("--state", required=True)
+    ingest.set_defaults(func=cmd_ingest_record)
+
+    retry = sub.add_parser("retry-dead", help="수집 잡을 기다렸다가 dead 잡만 제품 API로 재시도")
+    retry.add_argument("--dir", required=True)
+    retry.add_argument("--state", required=True)
+    retry.add_argument("--api-url", default="http://127.0.0.1:8031")
+    retry.add_argument("--rounds", type=int, default=3)
+    retry.add_argument("--timeout", type=float, default=1500)
+    retry.set_defaults(func=cmd_retry_dead)
 
     for name, func, text in (
         ("probe", cmd_probe, "모델 하나를 한 문항으로 점검한다"),

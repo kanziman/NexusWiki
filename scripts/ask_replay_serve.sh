@@ -11,6 +11,8 @@
 #   ASK_REPLAY_LLM_MODEL=<슬러그>  `.env`의 LLM_MODEL 대신 이 답변 모델로 워커를 띄운다.
 #                                  비용 정책도 이 모델 이름으로 만든다. `.env`는 바꾸지 않는다.
 #   ASK_REPLAY_WORKER_ONLY=1       API를 띄우지 않는다. 프로세스 안에서 Ask를 돌리는 실험 전용이다.
+#   ASK_REPLAY_RESERVE_MICROS=<정수> Ask 호출마다 미리 잡는 예약액(기본 200000). 월 한도를 실험
+#                                  상한으로 낮춘 워크스페이스에서 예약이 한도를 먼저 막지 않게 줄인다.
 #
 # 사용법: scripts/ask_replay_serve.sh <코드 루트> <로그 디렉터리> [API 포트]
 set -euo pipefail
@@ -41,7 +43,8 @@ export QUERY_EMBEDDING_INTERNAL_URL="http://127.0.0.1:${listener_port}" LLM_STRE
 export QUERY_EMBEDDING_TIMEOUT_SECONDS=20
 export QUERY_EMBEDDING_RATE_CAPACITY=500 QUERY_EMBEDDING_RATE_REFILL_TOKENS_PER_SECOND=10
 export LLM_STREAM_RATE_CAPACITY=500 LLM_STREAM_RATE_REFILL_TOKENS_PER_SECOND=10
-export ASK_COST_POLICIES="{\"${LLM_MODEL}\":{\"reserve_micros\":200000,\"max_input_bytes\":1000000,\"max_tokens\":1500,\"version\":\"ask-replay-v1\"}}"
+reserve_micros="${ASK_REPLAY_RESERVE_MICROS:-200000}"
+export ASK_COST_POLICIES="{\"${LLM_MODEL}\":{\"reserve_micros\":${reserve_micros},\"max_input_bytes\":1000000,\"max_tokens\":1500,\"version\":\"ask-replay-v1\"}}"
 export GIT_SHA="$(git -C "${code_root}" rev-parse --short HEAD)$(git -C "${code_root}" diff --quiet HEAD || echo '+dirty')"
 export RAILWAY_GIT_COMMIT_SHA="${GIT_SHA}"
 
