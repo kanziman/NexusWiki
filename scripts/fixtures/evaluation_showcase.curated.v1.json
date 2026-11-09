@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "notice": "평가 지도와 적용 원장의 유일한 원본이다. 공개 쇼케이스(/showcase/evaluation)와 docs/ops/evaluation-map.md가 이 파일을 가리킨다. 반복 측정에서 나오는 숫자(정답성 · 거절)는 여기 적지 않고 화면이 반복 측정 기록에서 만든다. 설계: openspec/changes/archive/2026-11-09-evaluation-showcase/design.md D4",
+  "map": [
+    {
+      "surface": "근거성 · 인용",
+      "status": "measured",
+      "derived_from": null,
+      "summary": "첫 성적표 재생에서 위조 인용 0건",
+      "detail": "원문과 위키를 모두 인용한 턴은 2026-11-03 재생에서 24/30이었다(Step 3 · 4). 이전 지도에 적혀 있던 문장 비율 평균은 출처 문서에서 확인되지 않아 옮기지 않았다.",
+      "denominator": "30턴",
+      "measured_at": "2026-11-07",
+      "source": "ask-sample-replay.md 성적표 절",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/ask-sample-replay.md",
+      "reason": null
+    },
+    {
+      "surface": "테넌트 격리",
+      "status": "measured",
+      "derived_from": null,
+      "summary": "정책을 느슨하게 하면 5개 실패, 되돌리면 모두 통과",
+      "detail": "격리 정책을 일부러 약하게 바꾸는 픽스처로 격리 테스트가 실제로 위반을 잡는지 확인했다. 정상 13 통과 → 느슨 5 실패 · 8 통과 → 복구 13 통과.",
+      "denominator": "격리 테스트 13개",
+      "measured_at": "2026-08-07",
+      "source": "tenant-isolation-proof.md",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/tenant-isolation-proof.md",
+      "reason": null
+    },
+    {
+      "surface": "비용 · 지연",
+      "status": "measured",
+      "derived_from": null,
+      "summary": "문항당 $0.0274 · 지연 중앙값 9.8초 · p95 21.9초",
+      "detail": "클라이언트에서 잰 값이다. 2026-11-09 반복 측정의 회차 비용은 30문항에 약 $0.76이었다(지연은 기록하지 않았다).",
+      "denominator": "30문항, 1회",
+      "measured_at": "2026-11-07",
+      "source": "ask-sample-replay.md 성적표 절",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/ask-sample-replay.md",
+      "reason": null
+    },
+    {
+      "surface": "최종 답 정답성",
+      "status": "partial",
+      "derived_from": "series.answerable",
+      "summary": null,
+      "detail": null,
+      "denominator": null,
+      "measured_at": "2026-11-09",
+      "source": "ask-sample-replay.md 반복 측정 절",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/ask-sample-replay.md",
+      "reason": null
+    },
+    {
+      "surface": "거절",
+      "status": "partial",
+      "derived_from": "series.refusal",
+      "summary": null,
+      "detail": null,
+      "denominator": null,
+      "measured_at": "2026-11-09",
+      "source": "ask-sample-replay.md 반복 측정 절",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/ask-sample-replay.md",
+      "reason": null
+    },
+    {
+      "surface": "검색",
+      "status": "partial",
+      "derived_from": null,
+      "summary": "1순위 적중 27/29 · 상위 8 안 적중 28/29 · MRR 0.940",
+      "detail": "원문 · 위키 · 둘 다 적중(상위 8) 모두 28/29, 요청 · 채널 실패 0건이다. q06만 상위 8 밖이다. 위키는 쪽수가 적어 우연으로도 적중이 높게 나오므로 1순위 적중을 본다. 대규모 워크스페이스의 검색 품질은 현재 코드로 재지 않았다.",
+      "denominator": "답할 수 있는 29문항, 근거 8개",
+      "measured_at": "2026-11-09",
+      "source": "ask-sample-replay.md 반복 측정 절",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/ask-sample-replay.md",
+      "reason": null
+    },
+    {
+      "surface": "모델 선택",
+      "status": "empty",
+      "derived_from": null,
+      "summary": null,
+      "detail": null,
+      "denominator": null,
+      "measured_at": null,
+      "source": "openrouter-contract-record.md",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/docs/ops/openrouter-contract-record.md",
+      "reason": "한 모델(claude-sonnet-4.6)로만 재생했다. 모델은 존재 확인으로 정했고 같은 시험지로 비교한 적이 없다."
+    },
+    {
+      "surface": "판사 자체",
+      "status": "empty",
+      "derived_from": null,
+      "summary": null,
+      "detail": null,
+      "denominator": null,
+      "measured_at": null,
+      "source": null,
+      "source_url": null,
+      "reason": "LLM 판사를 쓰지 않는다. 정답성은 키워드, 근거성은 코드로 판정한다."
+    },
+    {
+      "surface": "위키 컴파일 품질",
+      "status": "empty",
+      "derived_from": null,
+      "summary": null,
+      "detail": null,
+      "denominator": null,
+      "measured_at": null,
+      "source": null,
+      "source_url": null,
+      "reason": "컴파일 결과를 고정 원문으로 채점하는 세트가 없다."
+    },
+    {
+      "surface": "도구 궤적",
+      "status": "empty",
+      "derived_from": null,
+      "summary": null,
+      "detail": null,
+      "denominator": null,
+      "measured_at": null,
+      "source": "ai-request-tracing 스펙",
+      "source_url": "https://github.com/kanziman/NexusWiki/blob/0f9bbbe72f65de47e304f8cd1898fc1853a94274/openspec/specs/ai-request-tracing/spec.md",
+      "reason": "Ask는 도구 루프가 아닌 단발 호출이라 해당이 적다. Router 결정과 단계는 요청 추적에 기록된다."
+    }
+  ],
+  "ledger": [
+    {
+      "date": "2026-11-07",
+      "changed": "스펙 리뷰가 이중 인용 기준이 문장 단위로 구현돼 스펙(답변 단위)과 다르다는 것을 잡아, 인용 종류별 개수를 기록하도록 고쳤다.",
+      "technique": "성적표 · 예/아니오 기준",
+      "applied": "합성 재생 30문항에 질문별 통과 판정(4개 기준), 지연 p50 · p95, 실행 누적 기록, 정적 성적표를 붙였다. 첫 실제 재생은 27/30이었다.",
+      "evidence": "PR #223 · ask-sample-replay.md 성적표 절",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/223"
+    },
+    {
+      "date": "2026-11-08",
+      "changed": "같은 결과 파일을 다시 채점해 27/30이 28/30이 됐다. 모델 성능이 아니라 채점 정정이다.",
+      "technique": "고정 거절 문구 · 채점기 버그 찾기",
+      "applied": "실패로 찍힌 q30의 답을 열어 보니 정확한 거절이었다. 시드 프롬프트의 고정 거절 문구로 판정하도록 채점기를 고치고 실제 답을 테스트로 고정했다.",
+      "evidence": "#224 · PR #225",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/225"
+    },
+    {
+      "date": "2026-11-08",
+      "changed": "위키 적중(상위 8) 29/29가 위키 쪽수가 적어 우연으로도 높게 나오는 부풀려진 지표임을 드러냈다. 채널 장애를 정상 측정으로 기록하던 경로를 고쳐 다시 쟀고, q06의 처음 틀어진 단계가 검색이고 q26은 검색이 아님을 갈랐다.",
+      "technique": "검색 분리 평가 · 기준선 비교",
+      "applied": "재생 질문으로 답변 없이 검색만 돌려 적중률 · MRR · 원문 · 위키 · 둘 다 적중을 쟀다. 정의를 숫자 옆에 적고 요청 실패를 분모에서 빼지 않는다.",
+      "evidence": "PR #226 · ask-sample-replay.md 검색만 채점 절",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/226"
+    },
+    {
+      "date": "2026-11-08",
+      "changed": "위키 반복 합산을 수치로 확인했다. 공식 통과율 26/36 → 27/36, 답변 공통 29문항 통과 23 → 28로 올랐지만 q06은 검색 · 답변 모두 나빠졌다. 사전 성공 기준을 충족했고 사용자가 이 회귀를 포함해 채택을 승인했다.",
+      "technique": "원인 가설 검증 · 같은 수집 전후 비교",
+      "applied": "검색 채널 기여 기록과 융합 비교기를 추가해, 같은 채널의 점수가 여러 번 합산되는지 확인하고 최고 순위 한 번만 쓰는 방식과 비교했다.",
+      "evidence": "PR #231 · ask-sample-replay.md RRF 실험 절",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/231"
+    },
+    {
+      "date": "2026-11-08",
+      "changed": "이 표본에서 위키는 기대 사실 포함을 바꾸지 않았다(원문만 28/29 = 둘 다 28/29). 위키가 더한 것은 이중 인용이고 비용은 약 7% 늘었다. 제목 머리말은 1순위 적중과 MRR을 낮춰 채택하지 않았다. q06은 정답 원문이 6위에 잡힌 조건에서도 틀려 검색만의 실패가 아님을 갈랐다.",
+      "technique": "절제 실험 · 사전 등록",
+      "applied": "같은 수집 위에서 근거 범위(원문만 · 위키만 · 둘 다) × 임베딩 입력(본문 · 제목 머리말)을 비교했다. 검색 6조건을 먼저 재고, 미리 등록한 규칙과 비용 상한으로 3조건만 답변을 재생했다.",
+      "evidence": "PR #237 · ask-sample-replay.md 6조건 절",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/237"
+    },
+    {
+      "date": "2026-11-08",
+      "changed": "모델 정답성 실패와 예산 실행 장애를 분리했다. 실행하지 못한 회차를 실패나 안정성 증거로 세지 않았고, q06은 알려진 질문 모호성(자동 판정: 검색 미적중)으로, 거절은 1/1과 0/29로 따로 보고했다.",
+      "technique": "반복 측정 준비 · 실패 원인 분류 · 거절 분리",
+      "applied": "같은 수집에서 검색 1회와 HTTP 한 문항 점검을 돌렸다. 점검이 예산 한도(402)에 막혀 HTTP 반복은 실행하지 못했고, 기존 스크립트 회차 1회만 오프라인으로 다시 집계했다.",
+      "evidence": "#244 · PR #247 · eval-reliability verification.md",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/247"
+    },
+    {
+      "date": "2026-11-09",
+      "changed": "세 회차 모두 28/29 · 정확한 거절 1/1 · 잘못된 거절 0/29로 같았다. 흔들린 문항은 0이고 q06만 세 번 모두 같은 오답이라, q06은 답변 변동이 아닌 고정 실패임을 확인했다. 2~3회 관측이라 안정성 보장으로 읽지 않는다.",
+      "technique": "반복 측정 · 실패 원인 분류",
+      "applied": "사용자 승인으로 재생 전용 월 한도를 잠시 올리고, 같은 수집에서 검색 1회 · 한 문항 점검 · HTTP 2회를 돌려 기존 스크립트 회차 1회와 한 묶음으로 보고했다. 실측 비용 $1.543486(상한 $2.00).",
+      "evidence": "PR #247 · ask-sample-replay.md 반복 측정 절",
+      "evidence_url": "https://github.com/kanziman/NexusWiki/pull/247"
+    }
+  ]
+}

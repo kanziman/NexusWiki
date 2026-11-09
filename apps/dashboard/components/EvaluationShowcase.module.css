@@ -1,0 +1,329 @@
+/* 시각 기준은 설계 D6: 최대 폭 · 분기점은 evidence-research와 같고, notice는 전체 테두리,
+   표 칸은 줄바꿈을 허용한다(가로 스크롤 대신 읽히게). */
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 32px 80px;
+  color: var(--fg);
+  word-break: keep-all;
+}
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.nav a {
+  color: var(--fg);
+  text-decoration: none;
+  font-weight: 650;
+}
+.navLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.header {
+  padding: 56px 0 28px;
+}
+.header h1 {
+  font-size: 2.75rem;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+.conclusion {
+  max-width: 62ch;
+  font-size: 1.2rem;
+  line-height: 1.7;
+  margin: 0;
+  text-wrap: pretty;
+}
+.notice {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  background: var(--surface);
+  line-height: 1.7;
+}
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 20px 0 8px;
+  font-size: 0.95rem;
+}
+.toc a {
+  color: var(--fg);
+  text-underline-offset: 4px;
+}
+.section {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 16px;
+}
+.section h2 {
+  font-size: 1.5rem;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+.section p {
+  max-width: 72ch;
+  line-height: 1.8;
+}
+.tableWrap {
+  overflow-x: auto;
+  margin: 20px 0;
+}
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.tableWrap caption {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  padding-bottom: 12px;
+}
+.tableWrap th,
+.tableWrap td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.6;
+}
+.tableWrap thead {
+  background: var(--surface);
+}
+.tableWrap tbody th {
+  font-weight: 500;
+  min-width: 10rem;
+}
+.subhead {
+  font-size: 1.15rem;
+  margin: 36px 0 8px;
+}
+.grid tbody th {
+  font-weight: 500;
+  min-width: 16rem;
+}
+.grid td {
+  white-space: nowrap;
+}
+.mark {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+.qid {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.kind {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.explain td {
+  white-space: normal;
+  background: var(--surface);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.qnote {
+  display: block;
+  margin-top: 6px;
+}
+.mapLink {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.875rem;
+  color: var(--fg);
+  text-underline-offset: 4px;
+}
+.steady > summary {
+  cursor: pointer;
+  padding: 16px 0;
+  font-weight: 600;
+}
+.map tbody th {
+  min-width: 8rem;
+}
+.map td:nth-child(3) {
+  min-width: 18rem;
+}
+.map td:nth-child(4) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.denominator {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.section .mapDetail > summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 6px 0 0;
+}
+.mapDetail p {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+.ledger {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.ledger li {
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+}
+.ledger h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.changed {
+  font-size: 1.05rem;
+  margin: 0 0 12px;
+}
+.ledger dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  padding: 4px 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.ledger dt {
+  color: var(--muted);
+}
+.ledger dd {
+  margin: 0;
+}
+.ledger a {
+  color: var(--fg);
+  text-underline-offset: 4px;
+}
+.spread {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+.note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.invalid {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+.limits {
+  padding-left: 1.2em;
+  line-height: 1.8;
+  max-width: 80ch;
+}
+.limits li {
+  overflow-wrap: anywhere;
+}
+.conditions div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
+  padding: 7px 0;
+}
+.conditions dt {
+  color: var(--muted);
+}
+.conditions dd {
+  margin: 0;
+}
+.conditions code {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  font-size: 0.8125rem;
+}
+.section details > summary {
+  cursor: pointer;
+  padding: 16px 0;
+  font-weight: 600;
+}
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-top: 24px;
+}
+.footerLinks a {
+  color: var(--fg);
+  text-underline-offset: 5px;
+  font-weight: 650;
+}
+.page a:focus-visible,
+.page summary:focus-visible,
+.tableWrap:focus-visible {
+  outline: 2px solid var(--nw-focus);
+  outline-offset: 4px;
+}
+@media (max-width: 680px) {
+  .page {
+    padding: 24px 16px 48px;
+  }
+  .header {
+    padding-top: 36px;
+  }
+  .header h1 {
+    font-size: 2rem;
+  }
+  .conclusion {
+    font-size: 1.05rem;
+  }
+  /* 좁은 화면에서는 지도 5열을 가로로 밀지 않고 측정면마다 쌓는다. 칸 이름은 data-label로
+     보이고, 머리 행은 화면에서만 숨겨 보조 기술에는 남긴다. */
+  .map thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .map tr {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .map tbody th,
+  .map td,
+  .map td:nth-child(3) {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+    padding: 4px 0;
+    border: 0;
+    white-space: normal;
+  }
+  .map tbody th {
+    display: block;
+    font-weight: 650;
+  }
+  .map td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+  .conditions div,
+  .ledger dl div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

@@ -173,9 +173,14 @@ export function EvidenceResearchShowcase({
         <Link href="/" prefetch={false}>
           NexusWiki
         </Link>
-        <Link href="/showcase/controlled-ai" prefetch={false}>
-          AI 통제 실험 보기 ↗
-        </Link>
+        <span className={styles.navLinks}>
+          <Link href="/showcase/controlled-ai" prefetch={false}>
+            AI 통제 실험 보기 ↗
+          </Link>
+          <Link href="/showcase/evaluation" prefetch={false}>
+            평가 지도 · 반복 측정 보기 ↗
+          </Link>
+        </span>
       </nav>
       <header className={styles.header}>
         <p className={styles.kicker}>검색 품질 실험 · 실제 모델 호출</p>
