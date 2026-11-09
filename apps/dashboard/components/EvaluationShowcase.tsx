@@ -226,11 +226,21 @@ function MapValue({ entry, series }: { entry: MapEntry; series: Series }) {
   );
 }
 
-function Source({ entry }: { entry: MapEntry }) {
+function Source({
+  entry,
+  embedded = false,
+}: {
+  entry: MapEntry;
+  embedded?: boolean;
+}) {
   if (!entry.source) return <>—</>;
   if (!entry.source_url) return <>{entry.source}</>;
   return (
-    <a href={entry.source_url} rel="noopener noreferrer" target="_blank">
+    <a
+      href={entry.source_url}
+      rel="noopener noreferrer"
+      target={embedded ? undefined : "_blank"}
+    >
       {entry.source}
     </a>
   );
@@ -359,7 +369,14 @@ const sections = [
   { id: "conditions", title: "재현 조건과 한계" },
 ];
 
-export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
+export function EvaluationShowcase({
+  record,
+  embedded = false,
+}: {
+  record: EvaluationRecord;
+  embedded?: boolean;
+}) {
+  const Container = embedded ? "div" : "main";
   const { series, synthetic } = record;
   const valid = series.valid;
   const runs = valid ? series.runs : [];
@@ -379,8 +396,8 @@ export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
   const steady = questions.filter((q) => !isException(q));
 
   return (
-    <main className={styles.page}>
-      <nav className={styles.nav} aria-label="관련 페이지">
+    <Container className={styles.page}>
+      <nav hidden={embedded} className={styles.nav} aria-label="관련 페이지">
         {/* ⚠️ 프리페치를 끈다. 켜 두면 홈 라우트의 미들웨어가 돌아 세션이 있는 방문자에게서
             인증 서버와 DB 요청이 생긴다. */}
         <Link href="/" prefetch={false}>
@@ -396,7 +413,7 @@ export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
         </span>
       </nav>
 
-      <header className={styles.header}>
+      <header hidden={embedded} className={styles.header}>
         <h1>Ask 답변 품질을 무엇으로, 어디까지 쟀나</h1>
         <p className={styles.conclusion}>
           {valid
@@ -413,7 +430,11 @@ export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
           `같은 질문을 ${times(runs.length)} 반복한 결과라 안정성을 보장하지 않습니다. `}
         운영 성과가 아닙니다.
       </aside>
-      <nav className={styles.toc} aria-label="이 페이지의 구역">
+      <nav
+        hidden={embedded}
+        className={styles.toc}
+        aria-label="이 페이지의 구역"
+      >
         {sections.map((s) => (
           <a key={s.id} href={`#${s.id}`}>
             {s.title}
@@ -637,7 +658,7 @@ export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
                   </td>
                   <td data-label="측정일">{entry.measured_at ?? "—"}</td>
                   <td data-label="출처">
-                    <Source entry={entry} />
+                    <Source entry={entry} embedded={embedded} />
                   </td>
                 </tr>
               ))}
@@ -679,7 +700,7 @@ export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
                       <a
                         href={entry.evidence_url}
                         rel="noopener noreferrer"
-                        target="_blank"
+                        target={embedded ? undefined : "_blank"}
                       >
                         {entry.evidence}
                       </a>
@@ -786,14 +807,20 @@ export function EvaluationShowcase({ record }: { record: EvaluationRecord }) {
           <a href="/showcase/evaluation/results.json" download>
             평가 기록 JSON 다운로드 ↓
           </a>
-          <Link href="/showcase/controlled-ai" prefetch={false}>
+          <Link
+            href={embedded ? "#control" : "/showcase/controlled-ai"}
+            prefetch={false}
+          >
             AI 통제 전후 보기 →
           </Link>
-          <Link href="/showcase/evidence-research" prefetch={false}>
+          <Link
+            href={embedded ? "#research" : "/showcase/evidence-research"}
+            prefetch={false}
+          >
             재검색 OFF/ON 평가 보기 →
           </Link>
         </p>
       </section>
-    </main>
+    </Container>
   );
 }

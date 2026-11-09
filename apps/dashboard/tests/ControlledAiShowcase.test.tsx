@@ -4,11 +4,17 @@ import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import ControlledAiShowcasePage, {
-  dynamic,
-} from "@/app/showcase/controlled-ai/page";
+import { dynamic } from "@/app/showcase/controlled-ai/page";
+import {
+  ControlledAiShowcase,
+  type ControlledAiEvidence,
+} from "@/components/ControlledAiShowcase";
 import { config as middlewareConfig } from "@/middleware";
 import evidence from "@/content/controlled-ai/step1.json";
+
+function ControlledAiShowcasePage() {
+  return <ControlledAiShowcase evidence={evidence as ControlledAiEvidence} />;
+}
 
 const SOURCES = [
   "app/showcase/controlled-ai/page.tsx",

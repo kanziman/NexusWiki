@@ -61,12 +61,15 @@ function formatCommit(commit: string): string {
 
 export function ControlledAiShowcase({
   evidence,
+  embedded = false,
 }: {
   evidence: ControlledAiEvidence;
+  embedded?: boolean;
 }) {
+  const Container = embedded ? "div" : "main";
   return (
-    <main className={styles.page}>
-      <header className={styles.header}>
+    <Container className={styles.page}>
+      <header hidden={embedded} className={styles.header}>
         {/* ⚠️ 프리페치를 끈다. 켜 두면 홈 라우트의 미들웨어와 서버 렌더링이 돌아, 세션이 있는
             방문자에게서 이 페이지를 열기만 해도 인증 서버와 DB 요청이 발생한다. */}
         <Link href="/" prefetch={false} className={styles.home}>
@@ -83,12 +86,12 @@ export function ControlledAiShowcase({
         </p>
       </header>
 
-      <p>
+      <p hidden={embedded}>
         <Link href="/showcase/evidence-research" prefetch={false}>
           모델 도구 재검색 · 실제 OFF/ON 평가 보기 →
         </Link>
       </p>
-      <p>
+      <p hidden={embedded}>
         <Link href="/showcase/evaluation" prefetch={false}>
           Ask 평가 지도 · 반복 측정 보기 →
         </Link>
@@ -202,6 +205,6 @@ export function ControlledAiShowcase({
       <footer className={styles.footer}>
         증거 생성기: <code>{evidence.generator}</code>
       </footer>
-    </main>
+    </Container>
   );
 }

@@ -1,19 +1,9 @@
 import type { Metadata } from "next";
-
-import {
-  ControlledAiShowcase,
-  type ControlledAiEvidence,
-} from "@/components/ControlledAiShowcase";
-import evidence from "@/content/controlled-ai/step1.json";
+import { redirect } from "next/navigation";
 
 /**
- * 공개 쇼케이스 라우트 (#168).
- *
- * 설계 근거: openspec/changes/ai-control-flow-accounting/design.md > D10
- *
- * ⚠️ 저장소에 커밋된 합성 증거만 빌드 시점에 읽는다. Supabase나 API 클라이언트를 여기서 import하면
- * 실제 테넌트 데이터가 공개 화면으로 나갈 경로가 생긴다. `tests/ControlledAiShowcase.test.tsx`가
- * 이 파일과 컴포넌트의 import를 검사한다. 쿠키를 읽지 않으므로 세션이 있는 방문자도 같은 내용을 본다.
+ * 기존 공개 주소는 통합 사례의 통제 구역으로 연결한다.
+ * 세션이나 운영 데이터 없이 같은 페이지 안에서 모든 증거를 확인한다.
  */
 export const dynamic = "force-static";
 
@@ -24,5 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function ControlledAiShowcasePage() {
-  return <ControlledAiShowcase evidence={evidence as ControlledAiEvidence} />;
+  redirect("/showcase/evaluation#control");
 }

@@ -1,12 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import {
-  EvidenceResearchShowcase,
-  type ResearchEvaluation,
-} from "@/components/EvidenceResearchShowcase";
-import evaluation from "@/content/evidence-research.json";
-
-// 합성 평가 사본만 정적으로 읽는다. 운영 클라이언트를 이 경계에 넣지 않는다.
+// 기존 공개 주소를 통합 사례로 연결한다. JSON 다운로드 주소는 유지한다.
 export const dynamic = "force-static";
 export const metadata: Metadata = {
   title: "재검색은 답을 더 찾았을까? | NexusWiki",
@@ -15,9 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function EvidenceResearchPage() {
-  return (
-    <EvidenceResearchShowcase
-      evaluation={evaluation as unknown as ResearchEvaluation}
-    />
-  );
+  redirect("/showcase/evaluation#research");
 }

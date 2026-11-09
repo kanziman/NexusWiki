@@ -1,0 +1,305 @@
+.board {
+  margin-block: var(--spacing-xxl);
+  border-top: 2px solid var(--fg);
+  padding-top: var(--spacing-lg);
+}
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-base);
+  align-items: start;
+  justify-content: space-between;
+}
+.header h3 {
+  font-size: 1.3rem;
+  margin: 0 0 var(--spacing-sm);
+  letter-spacing: -0.025em;
+}
+.header p {
+  font-size: 0.9rem;
+  line-height: 1.8;
+  margin: 0;
+  color: var(--muted);
+}
+.badge {
+  font-size: 0.7rem;
+  padding: var(--spacing-sm);
+  background: var(--surface);
+  color: var(--fg);
+}
+.scroll {
+  overflow-x: auto;
+  margin-top: var(--spacing-lg);
+}
+.runs {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.runs caption {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-bottom: var(--spacing-base);
+  line-height: 1.8;
+}
+.runs td,
+.runs th {
+  padding: var(--spacing-base) var(--spacing-sm);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.runs thead {
+  background: var(--surface);
+  font-size: 0.75rem;
+}
+.runs tr[data-selected="true"] {
+  background: var(--soft);
+}
+.runs button {
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  padding: var(--spacing-sm);
+  text-align: left;
+  min-height: 44px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.runs button[aria-pressed="true"] {
+  color: var(--accent-active);
+}
+.runs button span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  margin-top: var(--spacing-sm);
+  text-decoration: none;
+  color: var(--muted);
+}
+.selection {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-base);
+  margin: var(--spacing-xl) 0 var(--spacing-base);
+}
+.selection h4 {
+  font-size: 1rem;
+  margin: 0;
+}
+.selection > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.filters {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+.filters button {
+  padding: var(--spacing-sm) var(--spacing-base);
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+.filters button[aria-pressed="true"] {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+.filters button:hover {
+  border-color: var(--fg);
+}
+.definition,
+.resultCount,
+.footer {
+  font-size: 0.8rem;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.resultCount {
+  margin: var(--spacing-base) 0;
+}
+.question {
+  border-top: 1px solid var(--border);
+}
+.question:last-of-type {
+  border-bottom: 1px solid var(--border);
+}
+.question > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-base);
+  list-style: none;
+  cursor: pointer;
+  padding: var(--spacing-lg) var(--spacing-sm);
+  font-size: 0.95rem;
+}
+.question > summary::-webkit-details-marker {
+  display: none;
+}
+.question > summary::after {
+  content: "+";
+  margin-left: var(--spacing-sm);
+  font-size: 1.2rem;
+}
+.question[open] > summary::after {
+  content: "−";
+}
+.question > summary code {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.question > summary > span {
+  flex: 1;
+}
+.question > summary b {
+  font-size: 0.8rem;
+  color: var(--danger);
+  white-space: nowrap;
+}
+.question > summary b[data-passed="true"] {
+  color: var(--accent-active);
+}
+.questionBody {
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+}
+.questionBody h5 {
+  font-size: 0.9rem;
+  margin: var(--spacing-lg) 0 var(--spacing-base);
+}
+.questionBody h5 span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-left: var(--spacing-sm);
+}
+.expectation {
+  background: var(--surface);
+  padding: var(--spacing-base) var(--spacing-lg);
+}
+.expectation h5 {
+  margin-top: 0;
+}
+.expectation p {
+  font-size: 0.85rem;
+  line-height: 1.8;
+  margin: var(--spacing-sm) 0 0;
+}
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.checks li {
+  display: grid;
+  grid-template-columns: 4rem 9rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--spacing-base);
+  padding: var(--spacing-base) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+.checkStatus {
+  color: var(--accent-active);
+  font-weight: 650;
+}
+.checks li[data-result="fail"] .checkStatus {
+  color: var(--danger);
+}
+.checks li[data-result="unknown"] .checkStatus {
+  color: var(--muted);
+}
+.checks li > span:last-child {
+  color: var(--muted);
+}
+.verdict {
+  padding-block: var(--spacing-base);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+.verdict b {
+  display: block;
+}
+.response {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  line-height: 1.9;
+  padding: var(--spacing-lg);
+  margin: 0;
+  background: var(--surface);
+  max-height: 24rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-base);
+  padding-block: var(--spacing-base);
+  font-size: 0.8rem;
+}
+.metrics dt {
+  color: var(--muted);
+  margin-bottom: var(--spacing-sm);
+}
+.metrics dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.footer {
+  margin-top: var(--spacing-lg);
+}
+.footer a {
+  color: var(--fg);
+  text-underline-offset: 4px;
+  font-weight: 600;
+}
+.board :is(button, summary, pre, a, .scroll):focus-visible {
+  outline: 2px solid var(--nw-focus);
+  outline-offset: 3px;
+}
+.empty {
+  padding: var(--spacing-lg);
+  background: var(--surface);
+}
+@media (max-width: 700px) {
+  .board {
+    margin-block: var(--spacing-xl);
+  }
+  .header h3 {
+    font-size: 1.15rem;
+  }
+  .question > summary {
+    gap: var(--spacing-sm);
+    padding-inline: 0;
+    font-size: 0.88rem;
+  }
+  .questionBody {
+    padding-inline: 0;
+  }
+  .checks li {
+    grid-template-columns: 3rem minmax(0, 1fr);
+    gap: var(--spacing-sm);
+  }
+  .checks li > span:last-child {
+    grid-column: 2;
+  }
+  .metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .response {
+    padding: var(--spacing-base);
+  }
+}

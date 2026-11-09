@@ -94,9 +94,12 @@ const checkLabels: Record<string, string> = {
 
 export function EvidenceResearchShowcase({
   evaluation: data,
+  embedded = false,
 }: {
   evaluation: ResearchEvaluation;
+  embedded?: boolean;
 }) {
+  const Container = embedded ? "div" : "main";
   // 쌍 수와 분모는 기록에서 센다. 고정값을 쓰면 실행 계획이 바뀔 때 화면이 거짓 분모를 보인다.
   const pairs = [
     ...new Set(
@@ -108,12 +111,15 @@ export function EvidenceResearchShowcase({
     (row) => row.type === "regression",
   ).length;
   const perPair = Math.round(data.rows.length / pairs.length);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(embedded ? "changed" : "all");
   const [pair, setPair] = useState(String(pairs[0]));
   const rows = data.rows.filter(
     (row) =>
       String(row.pair) === pair &&
       (filter === "all" ||
+        (filter === "changed" &&
+          !row.measurement_failed &&
+          row.before_pass !== row.after_pass) ||
         (filter === "recovered" && row.answer_recovered) ||
         (filter === "regressed" &&
           !row.measurement_failed &&
@@ -168,8 +174,8 @@ export function EvidenceResearchShowcase({
       : [];
 
   return (
-    <main className={styles.page}>
-      <nav className={styles.nav} aria-label="관련 페이지">
+    <Container className={styles.page}>
+      <nav hidden={embedded} className={styles.nav} aria-label="관련 페이지">
         <Link href="/" prefetch={false}>
           NexusWiki
         </Link>
@@ -182,7 +188,7 @@ export function EvidenceResearchShowcase({
           </Link>
         </span>
       </nav>
-      <header className={styles.header}>
+      <header hidden={embedded} className={styles.header}>
         <p className={styles.kicker}>검색 품질 실험 · 실제 모델 호출</p>
         <h1>
           한 번 더 찾으면,
@@ -295,6 +301,7 @@ export function EvidenceResearchShowcase({
               onChange={(event) => setFilter(event.target.value)}
             >
               <option value="all">전체 문항</option>
+              <option value="changed">판정이 바뀐 문항</option>
               <option value="research">재검색 전용 12문항</option>
               <option value="recovered">답변 복구</option>
               <option value="regressed">통과 → 실패</option>
@@ -406,6 +413,6 @@ export function EvidenceResearchShowcase({
           평가 기록 JSON 다운로드 ↓
         </a>
       </section>
-    </main>
+    </Container>
   );
 }

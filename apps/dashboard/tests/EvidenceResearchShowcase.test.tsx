@@ -26,6 +26,34 @@ const missing: ResearchEvaluation = {
 };
 
 describe("재검색 실험 공개 페이지", () => {
+  it("통합 페이지에서는 개선·회귀로 판정이 바뀐 문항부터 보여준다", () => {
+    render(
+      <EvidenceResearchShowcase
+        evaluation={evaluation as unknown as ResearchEvaluation}
+        embedded
+      />,
+    );
+    expect(screen.getByRole("combobox", { name: "문항 보기" })).toHaveValue(
+      "changed",
+    );
+    expect(
+      screen.getByText("예약배송은 며칠 뒤까지 지정할 수 있나요?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "폭설 경보가 발령되면 회차당 배정 건수는 어떻게 바뀌나요?",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("익일배송의 정시 도착 목표는 몇 퍼센트인가요?"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "문항 보기" }), {
+      target: { value: "all" },
+    });
+    expect(
+      screen.getByText("익일배송의 정시 도착 목표는 몇 퍼센트인가요?"),
+    ).toBeInTheDocument();
+  });
   it("미측정 수치를 개선으로 표시하지 않는다", () => {
     render(<EvidenceResearchShowcase evaluation={missing} />);
     expect(screen.getByRole("note")).toHaveTextContent("합성 평가");
