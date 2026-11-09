@@ -7,6 +7,11 @@
 #
 # ⚠️ 워커 내부 리스너는 8081 고정이다 (apps/worker/src/worker/__main__.py). 한 번에 한 벌만 띄운다.
 #
+# 모델 비교 실험용 선택 옵션(cheap-model-evidence-ablation 설계 D2):
+#   ASK_REPLAY_LLM_MODEL=<슬러그>  `.env`의 LLM_MODEL 대신 이 답변 모델로 워커를 띄운다.
+#                                  비용 정책도 이 모델 이름으로 만든다. `.env`는 바꾸지 않는다.
+#   ASK_REPLAY_WORKER_ONLY=1       API를 띄우지 않는다. 프로세스 안에서 Ask를 돌리는 실험 전용이다.
+#
 # 사용법: scripts/ask_replay_serve.sh <코드 루트> <로그 디렉터리> [API 포트]
 set -euo pipefail
 
@@ -25,7 +30,7 @@ export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54622/postgres"
 export SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
 export SUPABASE_SECRET_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"
 OPENROUTER_API_KEY="$(read_env OPENROUTER_API_KEY)"
-LLM_MODEL="$(read_env LLM_MODEL)"
+LLM_MODEL="${ASK_REPLAY_LLM_MODEL:-$(read_env LLM_MODEL)}"
 EMBEDDING_MODEL="$(read_env EMBEDDING_MODEL)"
 EMBEDDING_PROVIDER="$(read_env EMBEDDING_PROVIDER)"
 export OPENROUTER_API_KEY LLM_MODEL EMBEDDING_MODEL EMBEDDING_PROVIDER
@@ -66,6 +71,11 @@ Path(sys.argv[1]).write_text(json.dumps(runtime, sort_keys=True), encoding="utf-
 PY
 uv run --package worker python -m worker >"${log_dir}/worker.log" 2>&1 &
 worker_pid=$!
+if [[ "${ASK_REPLAY_WORKER_ONLY:-}" == "1" ]]; then
+  trap 'kill "${worker_pid}" 2>/dev/null || true' EXIT INT TERM
+  wait "${worker_pid}"
+  exit $?
+fi
 PORT="${api_port}" uv run --package api python -m api >"${log_dir}/api.log" 2>&1 &
 api_pid=$!
 research_api_pid=""
