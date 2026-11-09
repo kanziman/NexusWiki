@@ -1049,3 +1049,214 @@ def test_new_fields_do_not_change_old_comparison_output() -> None:
 def test_policy_versions_are_unknown_not_empty_when_never_observed() -> None:
     fixed = replay.finalize_fixed_inputs({}, [{"id": "q01", "model": "m/x"}])
     assert fixed["policy_versions"] == replay.UNKNOWN
+
+
+# --- 금지 사실 · 유형 시험지 (wiki-advantage-eval) ------------------------------
+
+
+def _answerable(**overrides: Any) -> dict[str, Any]:
+    return {
+        "id": "q01",
+        "doc": "a",
+        "status": "resolved",
+        "fabricated_anchor_count": 0,
+        "keyword_hit": True,
+        "cited_wiki_count": 1,
+        "cited_source_count": 1,
+        **overrides,
+    }
+
+
+def test_forbidden_fact_fails_after_expected_fact() -> None:
+    result = replay.verdict(_answerable(forbidden_hit=True))
+    assert result["pass"] is False
+    assert "금지 사실" in result["reason"]
+    # 기대 사실이 먼저 실패하면 그 이유가 앞선다(고정 순서).
+    first = replay.verdict(_answerable(keyword_hit=False, forbidden_hit=True))
+    assert first["reason"] == "기대 사실이 답변에 없다"
+
+
+def test_rows_without_forbidden_field_keep_old_verdict() -> None:
+    assert replay.verdict(_answerable())["pass"] is True
+    assert replay.verdict(_answerable(forbidden_hit=None))["pass"] is True
+
+
+def test_forbidden_hit_uses_same_normalization_as_expected() -> None:
+    answer = "새 기준은 1,200 원이고 옛 기준 9 00원은 폐지됐다"
+    assert replay.forbidden_hit(answer, ["900원"]) is True
+    assert replay.forbidden_hit(answer, ["700원"]) is False
+    assert replay.forbidden_hit(answer, []) is None
+
+
+def test_fact_hit_supports_expect_all_groups() -> None:
+    question = {"expect_all": [["3,600원"], ["이틀", "2일"]]}
+    assert replay.fact_hit("합계 3,600원, 2일 소요", question) is True
+    assert replay.fact_hit("합계 3,600원", question) is False
+    assert replay.fact_hit("아무 말", {"expect_any": []}) is None
+
+
+def _typed_sample() -> dict[str, Any]:
+    long_text = "회의록 잡담 " * 700 + "결정: 야간 피킹 수당은 시간당 4,700원으로 한다."
+    docs = [
+        {"id": "rate", "title": "요금표", "text": "기본 보관료는 팔레트당 900원이다."},
+        {"id": "fee", "title": "할증", "text": "냉동 할증은 기본 보관료의 두 배를 더한다."},
+        {
+            "id": "old",
+            "title": "반품 규정 1판",
+            "text": "반품 접수 기한은 7일이다.",
+            "effective_date": "2025-01-01",
+        },
+        {
+            "id": "new",
+            "title": "반품 규정 2판",
+            "text": "반품 접수 기한은 10일이다.",
+            "effective_date": "2026-03-01",
+        },
+        {"id": "minutes", "title": "운영 회의록", "text": long_text},
+        {
+            "id": "c1",
+            "title": "이천 센터 운영",
+            "family": "center",
+            "text": "이천 센터 출고 마감은 16시다.",
+        },
+        {
+            "id": "c2",
+            "title": "평택 센터 운영",
+            "family": "center",
+            "text": "평택 센터 출고 마감은 17시다.",
+        },
+        {
+            "id": "c3",
+            "title": "김해 센터 운영",
+            "family": "center",
+            "text": "김해 센터 출고 마감은 15시다.",
+        },
+    ]
+    questions: list[dict[str, Any]] = []
+    for i in range(8):
+        questions += [
+            {
+                "id": f"m{i}",
+                "type": "multi_doc",
+                "doc": "rate+fee",
+                "query": "냉동 보관료는?",
+                "expect_any": ["2,700원"],
+            },
+            {
+                "id": f"c{i}",
+                "type": "conflict",
+                "doc": "old+new",
+                "query": "반품 기한은?",
+                "expect_any": ["10일"],
+                "expect_none": ["7일"],
+            },
+            {
+                "id": f"l{i}",
+                "type": "long_noisy",
+                "doc": "minutes",
+                "query": "야간 수당은?",
+                "expect_any": ["4,700원"],
+            },
+            {
+                "id": f"d{i}",
+                "type": "distractor",
+                "doc": "c1",
+                "query": "이천 출고 마감은?",
+                "expect_any": ["16시"],
+                "expect_none": ["17시", "15시"],
+            },
+        ]
+    questions += [
+        {"id": f"r{i}", "type": "refusal", "doc": "none", "query": "영업이익은?", "expect_any": []}
+        for i in range(3)
+    ]
+    return {"version": "test", "documents": docs, "questions": questions}
+
+
+def test_valid_typed_sample_passes() -> None:
+    assert replay.check_typed_sample(_typed_sample()) == []
+
+
+def test_multi_doc_fact_in_single_document_fails() -> None:
+    sample = _typed_sample()
+    sample["documents"][0]["text"] += " 냉동은 2,700원이다."
+    errors = replay.check_typed_sample(sample)
+    assert any("m0" in e and "rate" in e for e in errors)
+
+
+def test_conflict_without_old_value_forbidden_fails() -> None:
+    sample = _typed_sample()
+    for q in sample["questions"]:
+        if q["id"] == "c0":
+            q["expect_none"] = ["30일"]
+    assert any(e.startswith("c0:") and "옛 문서" in e for e in replay.check_typed_sample(sample))
+
+
+def test_forbidden_value_in_answer_document_fails() -> None:
+    sample = _typed_sample()
+    sample["documents"][5]["text"] += " 예전에는 17시였다."
+    assert any(e.startswith("d0:") and "답 문서" in e for e in replay.check_typed_sample(sample))
+
+
+def test_question_without_type_and_too_few_per_type_fail() -> None:
+    sample = _typed_sample()
+    sample["questions"][0].pop("type")
+    errors = replay.check_typed_sample(sample)
+    assert any("유형이 없거나" in e for e in errors)
+    assert any("유형 multi_doc: 7문항" in e for e in errors)
+
+
+def test_short_long_noisy_document_fails() -> None:
+    sample = _typed_sample()
+    sample["documents"][4]["text"] = "결정: 야간 피킹 수당은 시간당 4,700원으로 한다."
+    assert any(e.startswith("l0:") for e in replay.check_typed_sample(sample))
+
+
+def test_existing_sample_is_not_typed() -> None:
+    assert replay.is_typed_sample(replay._load_sample(replay.DEFAULT_SAMPLE)) is False
+
+
+def test_seed_refuses_invalid_typed_sample_before_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sample = _typed_sample()
+    sample["questions"][0]["type"] = "unknown"
+    path = tmp_path / "sample.json"
+    path.write_text(json.dumps(sample, ensure_ascii=False), encoding="utf-8")
+
+    def no_network(*_: Any, **__: Any) -> None:
+        raise AssertionError("수집 전에 네트워크를 쓰면 안 된다")
+
+    monkeypatch.setattr(httpx, "Client", no_network)
+    args = replay.build_parser().parse_args(
+        ["seed", "--state", str(tmp_path / "state.json"), "--sample", str(path)]
+    )
+    with pytest.raises(SystemExit, match="구성 조건"):
+        replay.cmd_seed(args)
+    assert not (tmp_path / "state.json").exists()
+
+
+def test_wiki_advantage_fixture_passes_typed_check() -> None:
+    sample = replay._load_sample(_ROOT / "scripts" / "fixtures" / "wiki_advantage.v1.json")
+    assert replay.is_typed_sample(sample)
+    assert replay.check_typed_sample(sample) == []
+    counts = {
+        t: sum(1 for q in sample["questions"] if q["type"] == t) for t in replay.QUESTION_TYPES
+    }
+    assert all(counts[t] >= replay.MIN_PER_ANSWERABLE_TYPE for t in replay.QUESTION_TYPES[:4])
+    assert counts["refusal"] >= replay.MIN_REFUSAL
+
+
+def test_multi_doc_fact_in_unrelated_document_is_warning_only() -> None:
+    # 사용자 결정(리뷰 r1 blocked 1): 근거 밖 문서의 우연한 겹침은 실패가 아니라 경고다.
+    sample = _typed_sample()
+    sample["documents"][4]["text"] += " 참고로 2,700원짜리 비품을 샀다."
+    assert replay.check_typed_sample(sample) == []
+    warnings = replay.typed_sample_warnings(sample)
+    assert any(w.startswith("m0:") and "minutes" in w for w in warnings)
+
+
+def test_wiki_advantage_fixture_reports_m09_coincidence() -> None:
+    sample = replay._load_sample(_ROOT / "scripts" / "fixtures" / "wiki_advantage.v1.json")
+    warnings = replay.typed_sample_warnings(sample)
+    assert warnings == ["m09: 기대 사실이 근거 밖 문서(l_email)에 있다"]

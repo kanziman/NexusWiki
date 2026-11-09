@@ -62,7 +62,7 @@ Runs SHALL execute in round-major order: every planned model and condition of ro
 - **THEN** the run is refused naming the missing round-one run
 
 ### Requirement: Per-turn verdicts and failure signals
-For every turn the experiment SHALL record status, expected-fact inclusion, fabricated anchor count, cited source and wiki counts, whether a repair call was made, whether the answer ended as a fallback, whether any answer-model call reached the output token limit, tokens, cost, and latency. `source_onlyxbody` results MUST be labeled diagnostic and MUST NOT be judged on dual citation. A turn ended by a channel failure, provider error, or missing usage MUST be classified as an execution failure and excluded from fact-inclusion denominators while still being counted and shown. The refusal question MUST be reported separately from answerable questions.
+For every turn the experiment SHALL record the question type when the question set defines one, status, expected-fact inclusion, whether a forbidden fact was stated, fabricated anchor count, cited source and wiki counts, whether a repair call was made, whether the answer ended as a fallback, whether any answer-model call reached the output token limit, tokens, cost, and latency. A turn MUST count as fact-correct only when its expected fact is included and none of its forbidden facts is stated; a question set without forbidden facts keeps the previous fact-inclusion result. `source_onlyxbody` results MUST be labeled diagnostic and MUST NOT be judged on dual citation. A turn ended by a channel failure, provider error, or missing usage MUST be classified as an execution failure and excluded from fact-inclusion denominators while still being counted and shown. Refusal questions MUST be reported separately from answerable questions.
 
 #### Scenario: Answer ends as a fallback
 - **WHEN** a cheap model's answer violates the citation contract, the repair also fails, and the turn ends as a fallback
@@ -71,6 +71,14 @@ For every turn the experiment SHALL record status, expected-fact inclusion, fabr
 #### Scenario: Source-only answer
 - **WHEN** a `source_onlyxbody` answer cites only raw sources and contains the expected fact
 - **THEN** it counts as fact-included, is labeled diagnostic, and is not marked as missing a dual citation
+
+#### Scenario: Answer lists the old and the new value
+- **WHEN** a `conflict` question's answer states the newer value and also the older forbidden value
+- **THEN** the turn records the forbidden fact as stated and does not count as fact-correct
+
+#### Scenario: Existing sample without types or forbidden facts
+- **WHEN** a turn comes from the existing 30-question sample
+- **THEN** its type is recorded as absent and its fact-correct result equals its expected-fact inclusion
 
 ### Requirement: Append-only JSONL scoreboard
 Each completed or stopped run SHALL append exactly one line to the experiment's JSONL scoreboard and MUST NOT rewrite or delete earlier lines. A line MUST contain the experiment id, round, model, condition, diagnostic flag, planned and asked counts, execution failures, fact-inclusion count over answerable questions, product dual-citation pass count for `bothxbody` only, refusal result, fabricated anchors, repairs, fallbacks, truncations, prompt and completion tokens, total cost, cost per question, latency p50 and p95, git revision, fixed-input hash, and the run record path. Lines MUST NOT contain question text, answer text, credentials, or tokens. Reference lines imported from the prior Sonnet records MUST be marked as reference and MUST NOT be counted as rounds of this experiment.

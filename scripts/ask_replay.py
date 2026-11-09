@@ -35,7 +35,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 from urllib.parse import urlparse
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 
@@ -126,6 +126,26 @@ def keyword_hit(answer: str, expect_any: list[str]) -> bool | None:
     return any("".join(item.split()) in normalized for item in expect_any)
 
 
+def fact_hit(answer: str, question: dict[str, Any]) -> bool | None:
+    """질문의 기대 사실 판정. `expect_all`이 있으면 묶음마다 하나 이상, 없으면 `expect_any`.
+
+    재생 · 6조건 · 모델 비교가 이 함수 하나를 쓴다. 두 곳에 두면 같은 답을 다르게 채점한다.
+    """
+    if question.get("expect_all"):
+        return all(keyword_hit(answer, list(group)) for group in question["expect_all"])
+    return keyword_hit(answer, list(question.get("expect_any") or []))
+
+
+def forbidden_hit(answer: str, expect_none: list[str]) -> bool | None:
+    """답변이 금지 사실(옛 규정 값 · 다른 문서 값)을 말했는지. 정의가 없으면 None이다.
+
+    ⚠️ 기대 사실과 같은 정규화를 쓴다. 다르면 같은 값을 한쪽은 잡고 한쪽은 놓친다.
+    """
+    if not expect_none:
+        return None
+    return bool(keyword_hit(answer, expect_none))
+
+
 def _mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
@@ -165,7 +185,8 @@ def verdict(row: dict[str, Any], answerable: bool | None = None) -> dict[str, An
     """질문 한 개의 통과 여부와 실패 이유 한 줄. 행에 이미 있는 필드만 읽는다.
 
     저장된 값이 아니라 행에서 매번 다시 계산하므로, 기준을 고쳐도 옛 결과 파일을 재채점할 수 있다.
-    이유는 아래 고정 순서의 첫 실패만 적는다: 상태 → 위조 앵커 → 기대 사실 → 이중 인용.
+    이유는 아래 고정 순서의 첫 실패만 적는다: 상태 → 위조 앵커 → 기대 사실 → 금지 사실 → 이중 인용.
+    금지 사실 필드가 없는 옛 행(`forbidden_hit` 없음 · None)은 그 기준을 건너뛰어 판정이 그대로다.
 
     ⚠️ 답할 수 없는 질문(`doc == "none"`)은 거절이 정답이다. 거절은 두 모양이다: 검색이 근거를 못
        찾아 `no-evidence`로 끝나거나, 무관한 근거가 잡혀 모델까지 갔다가 표준 문구로 거절한
@@ -197,6 +218,9 @@ def verdict(row: dict[str, Any], answerable: bool | None = None) -> dict[str, An
         return {"pass": False, "reason": f"위조 앵커 {fabricated}건"}
     if row.get("keyword_hit") is False:
         return {"pass": False, "reason": "기대 사실이 답변에 없다"}
+    if row.get("forbidden_hit") is True:
+        # 새 값과 옛 값을 함께 늘어놓은 답은 어느 쪽이 맞는지 사용자가 가릴 수 없다.
+        return {"pass": False, "reason": "금지 사실(옛 값이나 다른 문서 값)을 말했다"}
     # 기대값이 없으면(None) 이 기준은 건너뛴다.
     wiki, source = row.get("cited_wiki_count"), row.get("cited_source_count")
     if wiki is not None and source is not None:
@@ -918,13 +942,27 @@ def _login(client: httpx.Client, stack: str, state: dict[str, Any]) -> str:
     return response.json()["access_token"]
 
 
+def select_capped(
+    client: httpx.Client, stack: str, table: str, params: dict[str, str]
+) -> list[dict[str, Any]]:
+    """service_role 집계 조회. max_rows에 닿으면 멈춘다.
+
+    ⚠️ PostgREST는 1000행에서 오류 없이 자른다. 집계(잡 실패 · 지출 · 컴파일 모델)가 잘리면
+       실패 잡이나 지출이 조용히 빠진다.
+    """
+    rows = _select(client, stack, table, params)
+    if len(rows) >= POSTGREST_MAX_ROWS:
+        raise SystemExit(f"ask_replay: {table}가 {POSTGREST_MAX_ROWS}행 이상이라 잘렸을 수 있다")
+    return rows
+
+
 def _wait_for_jobs(
     client: httpx.Client, stack: str, workspace_id: str, timeout: float
 ) -> list[dict[str, Any]]:
     """체인 전체가 끝날 때까지 기다린다. 실패 잡을 조용히 넘기면 샘플이 비어 수치가 왜곡된다."""
     deadline = time.monotonic() + timeout
     while True:
-        jobs = _select(
+        jobs = select_capped(
             client,
             stack,
             "jobs",
@@ -944,7 +982,7 @@ def _wait_for_jobs(
 
 
 def _usage_total(client: httpx.Client, stack: str, workspace_id: str) -> int:
-    rows = _select(
+    rows = select_capped(
         client,
         stack,
         "usage_events",
@@ -953,10 +991,157 @@ def _usage_total(client: httpx.Client, stack: str, workspace_id: str) -> int:
     return sum(int(row.get("cost_micros") or 0) for row in rows)
 
 
+QUESTION_TYPES = ("multi_doc", "conflict", "long_noisy", "distractor", "refusal")
+MIN_PER_ANSWERABLE_TYPE = 8
+MIN_REFUSAL = 3
+LONG_NOISY_MIN_CHARS = 4000
+
+
+def is_typed_sample(sample: dict[str, Any]) -> bool:
+    """질문에 유형이 하나라도 있으면 유형 시험지다. 기존 30문항 시험지는 검사 대상이 아니다."""
+    return any("type" in q for q in sample.get("questions") or [])
+
+
+def check_typed_sample(sample: dict[str, Any]) -> list[str]:
+    """위키 유리 시험지의 구성 조건을 검사해 어긴 항목을 돌려준다(wiki-advantage-eval 설계 D3).
+
+    ⚠️ 이 검사를 통과하지 않은 시험지로 수집하면, 원문 하나로 풀리는 "여러 문서" 문항이나
+       옛 값이 금지되지 않은 충돌 문항이 섞여 위키 효과가 조용히 희석된다.
+    """
+    docs = {str(d["id"]): d for d in sample.get("documents") or []}
+    errors: list[str] = []
+    counts = dict.fromkeys(QUESTION_TYPES, 0)
+    for q in sample.get("questions") or []:
+        qid, qtype = str(q.get("id")), q.get("type")
+        if qtype not in QUESTION_TYPES:
+            errors.append(f"{qid}: 유형이 없거나 허용 밖이다 ({qtype})")
+            continue
+        counts[qtype] += 1
+        doc_field = str(q.get("doc"))
+        if qtype == "refusal":
+            if doc_field != "none":
+                errors.append(f"{qid}: 거절 문항의 doc은 none이어야 한다")
+            continue
+        ids = doc_field.split("+")
+        missing = [d for d in ids if d not in docs]
+        if missing:
+            errors.append(f"{qid}: 없는 문서 {missing}")
+            continue
+        texts = {d: str(docs[d]["text"]) for d in ids}
+        forbidden = list(q.get("expect_none") or [])
+        if not (q.get("expect_any") or q.get("expect_all")):
+            errors.append(f"{qid}: 기대 사실이 없다")
+            continue
+        if qtype == "multi_doc":
+            if len(ids) < 2:
+                errors.append(f"{qid}: 여러 문서 문항은 문서가 둘 이상이어야 한다")
+            for d, text in texts.items():
+                if fact_hit(text, q):
+                    errors.append(f"{qid}: 기대 사실이 한 문서({d})에 그대로 있다")
+        elif qtype == "conflict":
+            dated = [d for d in ids if docs[d].get("effective_date")]
+            if len(ids) != 2 or len(dated) != 2:
+                errors.append(f"{qid}: 충돌 문항은 시행일 있는 문서 두 개여야 한다")
+                continue
+            older, newer = sorted(ids, key=lambda d: str(docs[d]["effective_date"]))
+            if docs[older]["effective_date"] == docs[newer]["effective_date"]:
+                errors.append(f"{qid}: 두 문서의 시행일이 같다")
+            if not fact_hit(texts[newer], q) or fact_hit(texts[older], q):
+                errors.append(f"{qid}: 기대 사실은 새 문서({newer})에만 있어야 한다")
+            if not forbidden or not forbidden_hit(texts[older], forbidden):
+                errors.append(f"{qid}: 옛 문서({older})의 값이 금지 사실에 없다")
+            if forbidden and forbidden_hit(texts[newer], forbidden):
+                errors.append(f"{qid}: 금지 사실이 새 문서({newer})에 나온다")
+            continue
+        elif qtype == "long_noisy":
+            if len(ids) != 1 or len(texts[ids[0]]) < LONG_NOISY_MIN_CHARS:
+                errors.append(f"{qid}: 답 문서가 {LONG_NOISY_MIN_CHARS}자 이상 한 개여야 한다")
+        elif qtype == "distractor":
+            family = docs[ids[0]].get("family") if len(ids) == 1 else None
+            siblings = [
+                str(d["text"])
+                for key, d in docs.items()
+                if family and d.get("family") == family and key != ids[0]
+            ]
+            if len(siblings) < 2:
+                errors.append(f"{qid}: 같은 family의 다른 문서가 둘 이상이어야 한다")
+            if not forbidden:
+                errors.append(f"{qid}: 형제 문서의 값이 금지 사실에 없다")
+            for value in forbidden:
+                if not any(keyword_hit(text, [value]) for text in siblings):
+                    errors.append(f"{qid}: 금지 사실 {value!r}이 형제 문서에 없다")
+        if qtype != "multi_doc" and not fact_hit("\n".join(texts.values()), q):
+            errors.append(f"{qid}: 기대 사실이 답 문서에 없다")
+        if forbidden and any(forbidden_hit(text, forbidden) for text in texts.values()):
+            errors.append(f"{qid}: 금지 사실이 답 문서에 나온다")
+    for qtype, count in counts.items():
+        need = MIN_REFUSAL if qtype == "refusal" else MIN_PER_ANSWERABLE_TYPE
+        if count < need:
+            errors.append(f"유형 {qtype}: {count}문항 < 최소 {need}")
+    return errors
+
+
+def typed_sample_warnings(sample: dict[str, Any]) -> list[str]:
+    """실패는 아니지만 사람이 알아야 할 겹침. `multi_doc` 기대 사실이 근거로 지정하지 않은 다른
+    문서에 우연히 그대로 있는 경우다(스펙: 근거 문서 단일 포함만 실패, 나머지는 경고)."""
+    docs = {str(d["id"]): str(d["text"]) for d in sample.get("documents") or []}
+    warnings = []
+    for q in sample.get("questions") or []:
+        if q.get("type") != "multi_doc":
+            continue
+        own = set(str(q.get("doc")).split("+"))
+        for doc_id, text in docs.items():
+            if doc_id not in own and fact_hit(text, q):
+                warnings.append(f"{q['id']}: 기대 사실이 근거 밖 문서({doc_id})에 있다")
+    return warnings
+
+
+def cmd_check_sample(args: argparse.Namespace) -> int:
+    sample = _load_sample(Path(args.sample))
+    if not is_typed_sample(sample):
+        raise SystemExit("ask_replay: 유형이 없는 시험지다. 검사 대상이 아니다")
+    errors = check_typed_sample(sample)
+    for error in errors:
+        print(f"ask_replay: 시험지 위반 {error}")
+    for warning in typed_sample_warnings(sample):
+        print(f"ask_replay: 시험지 경고 {warning}")
+    counts = {t: sum(1 for q in sample["questions"] if q.get("type") == t) for t in QUESTION_TYPES}
+    print(f"ask_replay: 유형별 문항 {counts}, 문서 {len(sample['documents'])}개")
+    return 1 if errors else 0
+
+
+def _set_monthly_budget(container: str, workspace_id: str, micros: int) -> None:
+    """실험 워크스페이스의 월 한도를 실험 총 상한으로 낮춘다. 로컬 재생 DB 컨테이너 전용이다.
+
+    `workspaces`는 service_role에도 UPDATE 권한이 없어서(REST 403) 재생 DB에 psql로 직접 쓴다.
+    지난 실험들의 월 한도 조정과 같은 경로다.
+    ⚠️ SQL 문자열에 값을 넣으므로 UUID와 정수만 받는다. 바뀐 행이 정확히 1이 아니면 멈춘다.
+    """
+    import subprocess
+
+    workspace = str(UUID(workspace_id))
+    if not isinstance(micros, int) or micros < 0:
+        raise SystemExit("ask_replay: 월 한도는 0 이상의 정수여야 한다")
+    # UUID 정규화와 int 검사를 거친 값만 넣는다.
+    sql = f"update public.workspaces set monthly_budget_micros = {micros} where id = '{workspace}' returning monthly_budget_micros;"  # noqa: E501, S608
+    result = subprocess.run(  # noqa: S603 - 고정 인자, 값은 위에서 형식 검증
+        ["docker", "exec", container, "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", sql],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 or result.stdout.strip().splitlines()[:1] != [str(micros)]:
+        raise SystemExit("ask_replay: 워크스페이스 월 한도를 바꾸지 못했다. 수집하지 않는다")
+
+
 def cmd_seed(args: argparse.Namespace) -> int:
     stack = assert_loopback(args.stack_url)
     api = assert_loopback(args.api_url)
     sample = _load_sample(Path(args.sample))
+    if is_typed_sample(sample):
+        errors = check_typed_sample(sample)
+        if errors:
+            raise SystemExit(f"ask_replay: 시험지가 구성 조건을 어긴다. 수집하지 않는다: {errors}")
     documents = sample["documents"][: args.limit_docs] if args.limit_docs else sample["documents"]
     with httpx.Client(timeout=60) as client:
         state = {
@@ -964,6 +1149,12 @@ def cmd_seed(args: argparse.Namespace) -> int:
             "stack_url": stack,
             "documents": [d["id"] for d in documents],
         }
+        if args.monthly_budget_micros is not None:
+            # 문서를 넣기 전에 낮춰야 컴파일 잡 인큐부터 이 한도가 막는다(설계 D5).
+            _set_monthly_budget(
+                args.db_container, state["workspace_id"], args.monthly_budget_micros
+            )
+            state["monthly_budget_micros"] = args.monthly_budget_micros
         Path(args.state).write_text(
             json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -1104,11 +1295,8 @@ def _ask_once(
         "cited_anchor_count": citations.get("cited_anchor_count"),
         "cited_wiki_count": _count_kind(citations, "wiki"),
         "cited_source_count": _count_kind(citations, "source"),
-        "keyword_hit": (
-            all(keyword_hit(answer, group) for group in question["expect_all"])
-            if question.get("expect_all")
-            else keyword_hit(answer, list(question.get("expect_any") or []))
-        ),
+        "keyword_hit": fact_hit(answer, question),
+        "forbidden_hit": forbidden_hit(answer, list(question.get("expect_none") or [])),
         "research": report.get("research"),
         "retrieval": report.get("retrieval"),
         "usage_incomplete": not usage
@@ -1486,7 +1674,18 @@ def build_parser() -> argparse.ArgumentParser:
     seed.add_argument("--sample", default=str(DEFAULT_SAMPLE))
     seed.add_argument("--limit-docs", type=int, default=0)
     seed.add_argument("--job-timeout", type=float, default=900)
+    seed.add_argument(
+        "--monthly-budget-micros",
+        type=int,
+        default=None,
+        help="새 워크스페이스 월 한도. 실험 총 상한으로 낮춰 제품 예산 관문이 지출을 막게 한다",
+    )
+    seed.add_argument("--db-container", default="supabase_db_NexusWikiReplay")
     seed.set_defaults(func=cmd_seed)
+
+    check_sample = sub.add_parser("check-sample", help="유형 시험지의 구성 조건을 검사한다")
+    check_sample.add_argument("--sample", required=True)
+    check_sample.set_defaults(func=cmd_check_sample)
 
     ask = sub.add_parser("ask", help="고정 질문을 재생한다")
     ask.add_argument("--state", required=True)

@@ -7,7 +7,7 @@ ask 합성 재생의 결과를 질문별 통과 여부, 지연 백분위, 실행
 ## Requirements
 
 ### Requirement: Per-question pass verdict
-The system SHALL assign every replayed question a pass or fail verdict with a single-line reason when it fails. An answerable question MUST pass only when all of the following hold: the turn completed normally, the answer contains zero fabricated anchors, the expected-fact check is not false, and the answer cites both a wiki page and a raw source at least once. A question whose expected-fact check is undefined MUST NOT fail on that criterion. A question marked unanswerable MUST pass only when it contains zero fabricated anchors and either the turn ended in the no-evidence outcome or the turn completed normally with an answer whose first body line, ignoring heading lines and whitespace differences, begins with the standard refusal statement the answer prompt instructs the model to use. A turn that never reached the model MUST fail with a reason naming its outcome.
+The system SHALL assign every replayed question a pass or fail verdict with a single-line reason when it fails. An answerable question MUST pass only when all of the following hold: the turn completed normally, the answer contains zero fabricated anchors, the expected-fact check is not false, the answer states none of the question's forbidden facts, and the answer cites both a wiki page and a raw source at least once. A question whose expected-fact check is undefined MUST NOT fail on that criterion. A question with no forbidden facts defined MUST NOT fail on that criterion. A question marked unanswerable MUST pass only when it contains zero fabricated anchors and either the turn ended in the no-evidence outcome or the turn completed normally with an answer whose first body line, ignoring heading lines and whitespace differences, begins with the standard refusal statement the answer prompt instructs the model to use. A turn that never reached the model MUST fail with a reason naming its outcome.
 
 #### Scenario: Answerable question meets every criterion
 - **WHEN** an answerable question completes normally with zero fabricated anchors, a true expected-fact check, and at least one wiki and one raw-source citation
@@ -24,6 +24,14 @@ The system SHALL assign every replayed question a pass or fail verdict with a si
 #### Scenario: No expected fact defined
 - **WHEN** an answerable question has no expected-fact list and meets every other criterion
 - **THEN** the verdict is pass
+
+#### Scenario: Answer states a forbidden fact
+- **WHEN** an answerable question's answer contains its expected fact and also states one of its forbidden facts
+- **THEN** the verdict is fail and the reason states that a forbidden fact was stated
+
+#### Scenario: No forbidden facts defined
+- **WHEN** an answerable question from the existing sample has no forbidden-fact list
+- **THEN** the verdict is the same as it was before forbidden facts existed
 
 #### Scenario: Unanswerable question correctly refused
 - **WHEN** a question marked unanswerable ends in the no-evidence outcome with zero fabricated anchors
