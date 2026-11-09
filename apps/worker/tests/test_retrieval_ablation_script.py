@@ -925,3 +925,67 @@ def test_answer_rows_record_succeeded_channels() -> None:
     row = record["conditions"][1]["rows"][0]
 
     assert row["succeeded_channels"] == sorted(ablation.SCOPES["both"])
+
+
+# --- eval-reliability 2.1: 지문 정의를 공용 모듈로 옮겨도 값이 같다 --------------------------
+
+# 공용 모듈로 옮기기 전(커밋 a8280fa)의 `retrieval_ablation.snapshot_inputs`로 계산한 값이다.
+# ⚠️ 이 값이 바뀌면 #232 기록(`fixed_inputs.snapshot_sha256`)과 새 재생의 지문이 어긋나
+#    반복 묶음과 원인 판정이 같은 수집을 거부한다.
+_PINNED_TABLES: dict[str, list[dict[str, Any]]] = {
+    "raw_sources": [{"id": "r2", "title": "창고 운영"}, {"id": "r1", "title": "배송 정책"}],
+    "source_chunks": [
+        {
+            "id": "c2",
+            "raw_source_id": "r1",
+            "chunk_index": 1,
+            "content": "둘째",
+            "char_start": 10,
+            "char_end": 20,
+            "embedding_version": "e@p-v1",
+        },
+        {
+            "id": "c1",
+            "raw_source_id": "r1",
+            "chunk_index": 0,
+            "content": "첫째",
+            "char_start": 0,
+            "char_end": 10,
+            "embedding_version": "e@p-v1",
+        },
+    ],
+    "wiki_pages": [{"id": "w1", "title": "배송", "content": "위키 본문", "sources": ["r1", "r2"]}],
+    "wiki_chunks": [
+        {
+            "id": "e1",
+            "wiki_id": "w1",
+            "chunk_index": 0,
+            "chunk_content": "위키 청크",
+            "embedding_version": "e@p-v1",
+        }
+    ],
+}
+
+
+def test_moved_snapshot_hash_matches_the_value_before_the_move() -> None:
+    snapshot = ablation.snapshot_inputs(**_PINNED_TABLES)
+    assert snapshot["snapshot_sha256"] == (
+        "c4ef3428656a57ffaf83300baa3315fdb176338c0b1859c0f6a4bd8e84f92e67"
+    )
+    assert snapshot["chunk_boundaries_sha256"] == (
+        "92eda4f7b0c71a9b829ee8663302c797d6254f5e722e937539fd259f05551025"
+    )
+    assert ablation.canonical_sha256({"b": [1, "가"], "a": None}) == (
+        "e483c604031883b8301a82a1ee191d969c0f5a014ca02361264c79c4533f2f4d"
+    )
+
+
+def test_ablation_and_replay_share_one_fingerprint_definition() -> None:
+    assert ablation.snapshot_inputs is ablation.replay.fingerprint.snapshot_inputs
+    assert ablation.fingerprint is ablation.replay.fingerprint
+    assert set(ablation.replay.SNAPSHOT_COLUMNS) == {
+        "raw_sources",
+        "source_chunks",
+        "wiki_pages",
+        "wiki_chunks",
+    }

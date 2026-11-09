@@ -170,6 +170,9 @@ jobs:
       - name: uv run pytest
         run: uv run pytest -rs
 
+      - name: 저장된 합성 답변 회귀 관문
+        run: uv run python scripts/check_eval_regression.py
+
   # 5. 재생성된 검색 함수가 계약을 흘리지 않았는지 소스에서 검사한다. COMP-06.
   #
   # 이 잡은 DB를 세우지 **않는다**. 위 pytest 잡의 주석이 밝힌 것과 같은 이유이며,

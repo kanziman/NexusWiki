@@ -1,0 +1,489 @@
+{
+  "version": 1,
+  "source": "RRF v2 실제 합성 물류 30문항; docs/ops/ask-sample-replay.md의 RRF 실험; 원본 ask-after-valid.json",
+  "source_sha256": "f3a8c416735cf2fa76f47450121da0c2873104fb83d7a0e8d8f776f6a1c1b2ea",
+  "question_ids": [
+    "q01",
+    "q02",
+    "q03",
+    "q04",
+    "q05",
+    "q06",
+    "q07",
+    "q08",
+    "q09",
+    "q10",
+    "q11",
+    "q12",
+    "q13",
+    "q14",
+    "q15",
+    "q16",
+    "q17",
+    "q18",
+    "q19",
+    "q20",
+    "q21",
+    "q22",
+    "q23",
+    "q24",
+    "q25",
+    "q26",
+    "q27",
+    "q28",
+    "q29",
+    "q30"
+  ],
+  "rows": [
+    {
+      "id": "q01",
+      "doc": "delivery",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.75,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q02",
+      "doc": "delivery",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.8333333333333334,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q03",
+      "doc": "delivery",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 1.0,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q04",
+      "doc": "delivery",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.5,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q05",
+      "doc": "warehouse",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.75,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q06",
+      "doc": "warehouse",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": false,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.625,
+      "expected": {
+        "pass": false,
+        "reason": "기대 사실이 답변에 없다"
+      }
+    },
+    {
+      "id": "q07",
+      "doc": "warehouse",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.5,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q08",
+      "doc": "warehouse",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.3333333333333333,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q09",
+      "doc": "safety",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.6666666666666666,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q10",
+      "doc": "safety",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.5555555555555556,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q11",
+      "doc": "safety",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 1.0,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q12",
+      "doc": "billing",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.6,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q13",
+      "doc": "billing",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.8,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q14",
+      "doc": "billing",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.7142857142857143,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q15",
+      "doc": "billing",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.8,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q16",
+      "doc": "returns",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.875,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q17",
+      "doc": "returns",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.4166666666666667,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q18",
+      "doc": "returns",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.5,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q19",
+      "doc": "incident",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.8,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q20",
+      "doc": "incident",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 3,
+      "dual_citation_rate": 0.8333333333333334,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q21",
+      "doc": "incident",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.7142857142857143,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q22",
+      "doc": "security",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.6,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q23",
+      "doc": "security",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.3,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q24",
+      "doc": "security",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.2857142857142857,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q25",
+      "doc": "training",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 1,
+      "dual_citation_rate": 0.5714285714285714,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q26",
+      "doc": "training",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 1,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.42857142857142855,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q27",
+      "doc": "delivery+billing",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 4,
+      "dual_citation_rate": 0.3333333333333333,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q28",
+      "doc": "warehouse+safety",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 3,
+      "dual_citation_rate": 0.7777777777777778,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q29",
+      "doc": "returns+warehouse",
+      "status": "resolved",
+      "answer": "",
+      "keyword_hit": true,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 3,
+      "dual_citation_rate": 0.5,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "q30",
+      "doc": "none",
+      "status": "resolved",
+      "answer": "## 핵심 답변\n\n제공된 자료로는 알 수 없습니다.\n\n푸른나래로지스의 영업이익 등 재무 실적 데이터가 포함된 자료가 필요합니다.\n\n---\n\n**참고:** 제공된 컨텍스트([[wiki:w1]]~[[wiki:w4]], [[src:s1]]~[[src:s4]])는 화주 요금 및 정산 정책, 배송 상품 및 정시 도착률 관리, 차량 적재 기준, 물류 시스템 장애 등급, 이천 허브 창고 운영 기준에 관한 내용만 포함하고 있으며, 재무 성과에 관한 정보는 담겨 있지 않습니다.",
+      "keyword_hit": null,
+      "fabricated_anchor_count": 0,
+      "cited_wiki_count": 2,
+      "cited_source_count": 2,
+      "dual_citation_rate": 0.3333333333333333,
+      "expected": {
+        "pass": true,
+        "reason": null
+      }
+    }
+  ]
+}

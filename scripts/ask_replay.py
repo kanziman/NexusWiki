@@ -23,14 +23,16 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import statistics
 import sys
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -39,6 +41,28 @@ import httpx
 
 _ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SAMPLE = _ROOT / "scripts" / "fixtures" / "ask_replay.v1.json"
+
+
+def _load_fingerprint() -> ModuleType:
+    """같은 폴더의 지문 모듈. 스크립트 폴더는 패키지가 아니라 경로로 불러온다."""
+    name = "_ask_replay_eval_fingerprint"
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(
+        name, Path(__file__).with_name("eval_fingerprint.py")
+    )
+    if spec is None or spec.loader is None:
+        raise SystemExit("ask_replay: eval_fingerprint.py를 불러오지 못했다")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+fingerprint = _load_fingerprint()
+# 값을 얻지 못한 고정 입력. 묶음에서는 어떤 값과도 같지 않은 것으로 본다
+# (빈 값을 같다고 가정하지 않는다).
+UNKNOWN = "unknown"
 
 # Supabase CLI가 모든 로컬 스택에 동일하게 발급하는 공개 데모 키다 (apps/api/tests/conftest.py).
 LOCAL_ANON_KEY = (
@@ -192,6 +216,41 @@ def verdict(row: dict[str, Any], answerable: bool | None = None) -> dict[str, An
     return {"pass": True, "reason": None}
 
 
+def is_answerable(row: dict[str, Any]) -> bool:
+    """`verdict`와 같은 기준. `doc`이 없는 옛 행은 답할 수 있는 질문으로 본다."""
+    return row.get("doc") != "none"
+
+
+def is_false_refusal(row: dict[str, Any]) -> bool:
+    """답할 수 있는 질문을 거절했는지. 근거 없음 단락과 표준 문구 거절을 모두 센다.
+
+    `verdict`는 이 행을 이미 실패로 센다. 여기서는 실패 중 "거절해서 틀린" 것만 따로 드러낸다.
+    """
+    status = str(row.get("status"))
+    return is_answerable(row) and (
+        status == "no-evidence" or (status == "resolved" and is_refusal(row.get("answer")))
+    )
+
+
+def refusal_split(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """통과율 안에 섞인 거절 성능을 세 수치로 나눈다. 판정은 `verdict`를 그대로 쓴다.
+
+    ⚠️ 거절 문항이 없으면 정확한 거절은 0이 아니라 None이다. 0/0을 0으로 쓰면 "거절을 하나도
+       못 했다"로 읽힌다.
+    """
+    answerable = [row for row in rows if is_answerable(row)]
+    unanswerable = [row for row in rows if not is_answerable(row)]
+    return {
+        "answerable_asked": len(answerable),
+        "answerable_passed": sum(1 for row in answerable if verdict(row)["pass"]),
+        "refusal_asked": len(unanswerable),
+        "refusal_correct": (
+            sum(1 for row in unanswerable if verdict(row)["pass"]) if unanswerable else None
+        ),
+        "false_refusals": sum(1 for row in answerable if is_false_refusal(row)),
+    }
+
+
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """질문별 결과를 집계한다. 인용 지표는 LLM이 답한 턴만 본다.
 
@@ -215,6 +274,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "asked": len(rows),
         "passed": passed,
         "pass_rate": passed / len(rows) if rows else None,
+        # 통과율은 거절 문항을 포함한 전체 기준 그대로 두고, 거절 성능은 따로 센다.
+        **refusal_split(rows),
         # 클라이언트가 잰 시간이다: 큐 대기와 네트워크가 섞이고 서버 처리 시간이 아니다.
         # n이 작아 p95는 최댓값 가까이에 붙는다(기존 `_percentile`의 인덱스 방식 그대로).
         "latency_p50_ms": _percentile(elapsed, 0.5),
@@ -304,6 +365,10 @@ def scorecard_line(result: dict[str, Any], result_file: str | None) -> dict[str,
     summary = result.get("summary") or summarize(result.get("rows") or [])
     asked = int(summary.get("asked") or 0)
     cost_total = int(summary.get("cost_micros_total") or 0)
+    # 거절 수치가 없는 옛 요약이면 행에서 다시 센다. 행도 없으면 줄에 넣지 않는다(0과 구분).
+    split = {key: summary[key] for key in _REFUSAL_KEYS if key in summary}
+    if len(split) != len(_REFUSAL_KEYS) and result.get("rows"):
+        split = refusal_split(result["rows"])
     return {
         "label": result.get("label") or "unknown",
         "git_sha": result.get("git_sha") or "unknown",
@@ -321,7 +386,17 @@ def scorecard_line(result: dict[str, Any], result_file: str | None) -> dict[str,
         "latency_p50_ms": summary.get("latency_p50_ms"),
         "latency_p95_ms": summary.get("latency_p95_ms"),
         "result_file": result_file,
+        **split,
     }
+
+
+_REFUSAL_KEYS = (
+    "answerable_asked",
+    "answerable_passed",
+    "refusal_asked",
+    "refusal_correct",
+    "false_refusals",
+)
 
 
 def append_scorecard(path: Path, line: dict[str, Any]) -> None:
@@ -355,9 +430,12 @@ def read_scorecard(path: Path) -> tuple[list[dict[str, Any]], int]:
 def _run_for_report(line: dict[str, Any], rows: list[dict[str, Any]] | None) -> dict[str, Any]:
     """화면에 실을 실행 한 개. 판정은 여기서 행마다 다시 계산한다(저장된 값을 믿지 않는다)."""
     detail = None
+    split = {key: line[key] for key in _REFUSAL_KEYS if key in line}
     if rows is not None:
         detail = [{**row, "verdict": verdict(row)} for row in rows]
-    return {**line, "rows": detail}
+        # 판정처럼 거절 수치도 행에서 다시 센다. 필드가 없는 옛 줄도 같은 값을 얻는다.
+        split = refusal_split(rows)
+    return {**line, **split, "rows": detail}
 
 
 def build_report_data(
@@ -437,7 +515,8 @@ details pre{white-space:pre-wrap;margin:6px 0 0;font:inherit;color:var(--fg)}
 <h1>Ask 성적표</h1>
 <div class="notice">합성 샘플 수치이며 운영 트래픽이 아닙니다. 질문 수가 적고 LLM 답변이 매번 달라 작은 차이는 의미가 없습니다.
 기대 사실은 키워드 포함 여부일 뿐이고, 지연은 클라이언트가 잰 시간(큐 대기·네트워크 포함)입니다.
-n이 작아 p95는 최댓값에 가깝습니다.</div>
+n이 작아 p95는 최댓값에 가깝습니다.
+통과율은 답하면 안 되는 문항을 포함한 전체 기준입니다. 거절 성능은 옆 칸에 분모와 함께 따로 적으며, 거절 문항이 적으면 그 수치는 의미가 작습니다.</div>
 <div id="problems" class="muted"></div>
 <h2>실행별 성적표</h2>
 <div id="runs"></div>
@@ -454,6 +533,8 @@ function fmt(n){return n==null?"-":Number(n).toLocaleString("ko-KR")}
 function sec(ms){return ms==null?"-":(ms/1000).toFixed(1)+"초"}
 function usd(m){return m==null?"-":"$"+(m/1e6).toFixed(4)}
 function pct(r){return r==null?"-":Math.round(r*100)+"%"}
+function frac(a,b){return a==null||b==null?"-":a+"/"+b}
+function refusal(r){if(r.refusal_asked==null)return"-";if(r.refusal_asked===0)return"없음 (거절 문항 0개)";return frac(r.refusal_correct,r.refusal_asked)}
 function th(row,labels){var tr=document.createElement("tr");labels.forEach(function(l){tr.appendChild(el("th",l))});row.appendChild(tr)}
 var problems=document.getElementById("problems");
 if(data.broken)problems.appendChild(el("p","읽지 못한 성적표 줄 "+data.broken+"개는 건너뛰었습니다."));
@@ -465,7 +546,7 @@ function renderRuns(){
   box.appendChild(el("p","uv run python scripts/ask_replay.py ask --state state.json --label 이름 --out 결과.json","mono"));
   return}
  var wrap=el("div",null,"wrap"),t=document.createElement("table"),head=document.createElement("thead");
- th(head,["실행","모델","통과율","문항","입력 토큰","$/문항","p50","p95","날짜"]);t.appendChild(head);
+ th(head,["실행","모델","통과율","답할 수 있는 문항 통과","정확한 거절 (거절 문항)","잘못된 거절","문항","입력 토큰","$/문항","p50","p95","날짜"]);t.appendChild(head);
  var body=document.createElement("tbody");
  runs.forEach(function(r,i){
   var tr=document.createElement("tr");if(i===sel)tr.className="sel";
@@ -474,6 +555,9 @@ function renderRuns(){
   tr.appendChild(el("td",r.model));
   var p=document.createElement("td"),bar=el("span",null,"bar"),fill=document.createElement("i");fill.style.width=Math.round((r.pass_rate||0)*100)+"%";bar.appendChild(fill);
   p.appendChild(bar);p.appendChild(el("span",pct(r.pass_rate)+" ("+r.passed+"/"+r.asked+")"));tr.appendChild(p);
+  tr.appendChild(el("td",frac(r.answerable_passed,r.answerable_asked),"num"));
+  tr.appendChild(el("td",refusal(r),"num"));
+  tr.appendChild(el("td",frac(r.false_refusals,r.answerable_asked),"num"));
   var q=r.asked<r.planned?r.asked+"/"+r.planned+" (중단)":String(r.asked);tr.appendChild(el("td",q,"num"));
   tr.appendChild(el("td",fmt(r.prompt_tokens_total),"num"));
   tr.appendChild(el("td",usd(r.cost_micros_per_question),"num"));
@@ -713,6 +797,73 @@ def _load_sample(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# PostgREST 기본 max_rows. 이 수에 닿으면 오류 없이 잘린 것일 수 있다.
+POSTGREST_MAX_ROWS = 1000
+
+# 수집 스냅샷 지문의 입력 열. ⚠️ 열 목록이 곧 해시 대상이다. 바꾸면 #232 기록과 지문이 달라진다.
+SNAPSHOT_COLUMNS: dict[str, tuple[str, str]] = {
+    "raw_sources": ("raw_sources", "id,title"),
+    "source_chunks": (
+        "source_chunks",
+        "id,raw_source_id,chunk_index,content,char_start,char_end,embedding_version",
+    ),
+    "wiki_pages": ("wiki_pages", "id,title,content,sources"),
+    "wiki_chunks": ("wiki_embeddings", "id,wiki_id,chunk_index,chunk_content,embedding_version"),
+}
+
+
+def select_all(
+    client: httpx.Client, stack: str, table: str, workspace: str, columns: str, token: str
+) -> list[dict[str, Any]]:
+    """워크스페이스의 행 전부를 요청자 JWT로 읽는다."""
+    rows = _select(
+        client,
+        stack,
+        table,
+        {"workspace_id": f"eq.{workspace}", "select": columns, "order": "id"},
+        token=token,
+    )
+    # ⚠️ PostgREST는 max_rows(1000)에서 오류 없이 자른다. 잘린 스냅샷의 해시는 조용히 틀린다.
+    if len(rows) >= POSTGREST_MAX_ROWS:
+        raise SystemExit(f"ask_replay: {table}가 {POSTGREST_MAX_ROWS}행 이상이라 잘렸을 수 있다")
+    return rows
+
+
+def snapshot_tables(
+    client: httpx.Client, stack: str, workspace: str, token: str
+) -> dict[str, list[dict[str, Any]]]:
+    """수집 스냅샷 지문의 입력 테이블. 재생 · 검색 채점 · #232 실험이 모두 이 함수로 읽는다."""
+    return {
+        key: select_all(client, stack, table, workspace, columns, token)
+        for key, (table, columns) in SNAPSHOT_COLUMNS.items()
+    }
+
+
+def answer_prompt_sha256(
+    client: httpx.Client, stack: str, workspace: str, token: str
+) -> str | None:
+    """답변에 쓰인 기본 Ask 템플릿의 해시. 워크스페이스 템플릿이 없으면 전역 시드 템플릿이다.
+
+    회차 사이에 프롬프트가 바뀌면 같은 조건의 반복이 아니다.
+    """
+    for scope in (f"eq.{workspace}", "is.null"):
+        rows = _select(
+            client,
+            stack,
+            "prompt_templates",
+            {
+                "workspace_id": scope,
+                "target_type": "eq.ask",
+                "is_default": "eq.true",
+                "select": "id,system_prompt,template",
+            },
+            token=token,
+        )
+        if rows:
+            return fingerprint.canonical_sha256(rows[0])
+    return None
+
+
 def _actor(client: httpx.Client, stack: str) -> dict[str, str]:
     """일회용 사용자와 워크스페이스를 만든다. 워크스페이스는 요청자 JWT로 만든다."""
     tag = uuid4().hex[:12]
@@ -861,12 +1012,15 @@ def _ask_once(
         "POST",
         f"{api}/workspaces/{workspace_id}/ask",
         headers={"Authorization": f"Bearer {token}"},
-        json={"query": question["query"], "client_turn_id": turn_id},
+        # k를 서버 기본값에 맡기지 않고 보낸 값을 고정 입력으로 기록한다.
+        json={"query": question["query"], "client_turn_id": turn_id, "requested_k": RETRIEVAL_K},
     ) as response:
         if response.status_code != 200:
             response.read()
             return {
                 "id": question["id"],
+                # 거절 문항이 HTTP 오류로 끝나도 답할 수 있는 문항으로 잘못 세지 않게 남긴다.
+                "doc": question.get("doc"),
                 "status": f"http_{response.status_code}",
                 "error": response.text[:300],
                 "prompt_tokens": None,
@@ -907,10 +1061,18 @@ def _ask_once(
             },
         )
     report = message.get("control_report") or {}
+    meta = next((payload for name, payload in events if name == "meta"), {})
+    stored_retrieval = report.get("retrieval") or {}
     return {
         "id": question["id"],
         "doc": question.get("doc"),
         "status": message.get("status") or "unknown",
+        # 근거 없음 경로의 meta에는 정책 버전이 없어 저장된 control_report로 보탠다.
+        "policy_version": meta.get("policy_version") or stored_retrieval.get("policy_version"),
+        # 검색 API처럼 Ask도 채널 장애를 200 안에 숨긴다. 원인 판정의 실행 장애가 이 값을 읽는다.
+        "missing_channels": sorted(
+            meta.get("missing_channels") or stored_retrieval.get("missing_channels") or []
+        ),
         "model": next((u["model"] for u in usage if u.get("model")), None),
         "elapsed_ms": elapsed_ms,
         "prompt_tokens": sum(int(u.get("prompt_tokens") or 0) for u in usage) if usage else None,
@@ -938,53 +1100,175 @@ def _api_sha(client: httpx.Client, api: str) -> str | None:
         return None
 
 
-def cmd_ask(args: argparse.Namespace) -> int:
-    api = assert_loopback(args.api_url)
-    state = json.loads(Path(args.state).read_text(encoding="utf-8"))
-    stack = assert_loopback(state["stack_url"])
-    sample = _load_sample(Path(args.sample))
+def select_questions(
+    sample: dict[str, Any], state: dict[str, Any], limit: int = 0
+) -> list[dict[str, Any]]:
+    """재생할 질문. 수집하지 않은 문서를 묻는 질문은 기대 사실 포함률을 깎아 비교를 흐려 뺀다."""
     seeded = set(state["documents"])
-    # 수집하지 않은 문서를 묻는 질문은 기대 사실 포함률을 깎아 비교를 흐린다.
     questions = [
         q
         for q in sample["questions"]
         if q.get("doc") == "none" or set(str(q.get("doc")).split("+")) <= seeded
     ]
-    if args.limit:
-        questions = questions[: args.limit]
+    return questions[:limit] if limit else questions
+
+
+def collect_fixed_inputs(
+    client: httpx.Client,
+    stack: str,
+    workspace: str,
+    token: str,
+    sample: dict[str, Any],
+    *,
+    with_prompt: bool = True,
+) -> dict[str, Any]:
+    """회차 시작 시 고정 입력을 잰다. 얻지 못한 값은 `unknown`으로 남기고 회차는 계속한다.
+
+    ⚠️ 지문은 #232 실험과 같은 정의(`eval_fingerprint`)다. 같은 수집이면 #232 기록의
+       `fixed_inputs.snapshot_sha256`과 같은 값이 나와야 한 묶음으로 읽힌다.
+    """
+    fixed: dict[str, Any] = {
+        "fixture_sha256": fingerprint.fixture_sha256(sample),
+        "requested_k": RETRIEVAL_K,
+        "snapshot_sha256": UNKNOWN,
+    }
+    try:
+        tables = snapshot_tables(client, stack, workspace, token)
+        fixed["snapshot_sha256"] = fingerprint.snapshot_inputs(**tables)["snapshot_sha256"]
+    # 잘린 조회는 select_all이 SystemExit로 알린다. 재생은 멈추지 않고 지문만 unknown으로 둔다.
+    except (httpx.HTTPError, ValueError, KeyError, SystemExit) as exc:
+        print(f"ask_replay: 수집 스냅샷 지문을 얻지 못해 unknown으로 둔다: {exc}")
+    if not with_prompt:
+        return fixed
+    fixed["answer_prompt_sha256"] = UNKNOWN
+    try:
+        fixed["answer_prompt_sha256"] = (
+            answer_prompt_sha256(client, stack, workspace, token) or UNKNOWN
+        )
+    except (httpx.HTTPError, ValueError) as exc:
+        print(f"ask_replay: 답변 프롬프트 해시를 얻지 못해 unknown으로 둔다: {exc}")
+    return fixed
+
+
+def finalize_fixed_inputs(fixed: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """턴에서만 알 수 있는 값(모델 · 정책 버전)을 더한다.
+
+    정책 버전은 회차 안에서 관측한 값 전부를 남긴다. 둘 이상이면 같은 조건의 회차가 아니다.
+    """
+    models = sorted({str(r["model"]) for r in rows if r.get("model")})
+    policies = sorted({str(r["policy_version"]) for r in rows if r.get("policy_version")})
+    return {
+        **fixed,
+        "model": models[0] if len(models) == 1 else UNKNOWN,
+        # 하나도 관측하지 못하면 빈 목록이 아니라 unknown이다(얻지 못한 값을 0과 구분).
+        "policy_versions": policies or UNKNOWN,
+    }
+
+
+# 질문을 하나 끝낼 때마다 불린다. 멈출 이유를 돌려주면 남은 질문을 묻지 않는다.
+StopCheck = Callable[[int, dict[str, Any] | None], str | None]
+
+
+def run_replay(
+    client: httpx.Client,
+    api: str,
+    stack: str,
+    workspace: str,
+    token: str,
+    questions: list[dict[str, Any]],
+    *,
+    before_question: StopCheck | None = None,
+    after_question: StopCheck | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """질문들을 한 회차로 재생한다. (행, 멈춘 이유)를 돌려준다.
+
+    `before_question`은 질문을 시작하기 전(지금까지의 지출, 직전 행), `after_question`은 끝난 뒤에
+    불린다. 반복 재생은 앞의 것으로 상한을 넘기 전에 멈추고, `ask`는 기존대로 뒤의 것을 쓴다.
+    """
     rows: list[dict[str, Any]] = []
     spent = 0
-    with httpx.Client(timeout=180) as client:
-        token = _login(client, stack, state)
-        sha = _api_sha(client, api)
-        for question in questions:
-            row = _ask_once(client, api, stack, state["workspace_id"], token, question)
-            rows.append(row)
-            spent += int(row.get("cost_micros") or 0)
-            print(
-                f"ask_replay: {row['id']} {row['status']} prompt={row.get('prompt_tokens')} "
-                f"hit={row.get('keyword_hit')} 누적={spent} micros"
-            )
-            if spent > args.max_spend_micros:
-                print(f"ask_replay: 지출 상한 {args.max_spend_micros} micros를 넘어 중단한다")
-                break
+    for question in questions:
+        if before_question is not None:
+            reason = before_question(spent, rows[-1] if rows else None)
+            if reason:
+                return rows, reason
+        row = _ask_once(client, api, stack, workspace, token, question)
+        rows.append(row)
+        spent += int(row.get("cost_micros") or 0)
+        print(
+            f"ask_replay: {row['id']} {row['status']} prompt={row.get('prompt_tokens')} "
+            f"hit={row.get('keyword_hit')} 누적={spent} micros"
+        )
+        if after_question is not None:
+            reason = after_question(spent, row)
+            if reason:
+                return rows, reason
+    return rows, None
+
+
+def build_result(
+    *,
+    label: str,
+    sha: str | None,
+    questions: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    fixed: dict[str, Any],
+    stopped: str | None,
+    path: str = "http",
+) -> dict[str, Any]:
     for row in rows:
         row["verdict"] = verdict(row)
-    result = {
-        "label": args.label,
+    return {
+        "label": label,
         "git_sha": sha,
+        # 반복 묶음이 HTTP 회차와 #232 하네스 회차를 구분하는 값이다.
+        "execution_path": path,
         "planned_questions": len(questions),
+        # 개수만으로는 일찍 멈춘 회차에서 어떤 문항을 묻지 못했는지 알 수 없다(일부 문서만 수집하면
+        # 계획이 fixture 앞부분과 다르다). 반복 보고서가 미실행 문항을 정확히 세려고 남긴다.
+        "planned_question_ids": [str(q["id"]) for q in questions],
+        "stopped": {"reason": stopped, "asked": len(rows)} if stopped else None,
+        "fixed_inputs": finalize_fixed_inputs(fixed, rows),
         "rows": rows,
         "summary": summarize(rows),
     }
-    out = Path(args.out)
+
+
+def write_result(result: dict[str, Any], out: Path, scorecard_path: str | None) -> Path:
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result["summary"], ensure_ascii=False, indent=2))
     # 성적표 한 줄을 쌓는다. 결과 파일은 성적표 옆 상대 경로로 가리켜 디렉터리를 옮겨도 이어진다.
-    scorecard = Path(args.scorecard) if args.scorecard else out.with_name("scorecard.jsonl")
+    scorecard = Path(scorecard_path) if scorecard_path else out.with_name("scorecard.jsonl")
     relative = os.path.relpath(out.resolve(), scorecard.resolve().parent)
     append_scorecard(scorecard, scorecard_line(result, relative))
     print(f"ask_replay: 성적표에 한 줄을 더했다 → {scorecard}")
+    return scorecard
+
+
+def cmd_ask(args: argparse.Namespace) -> int:
+    api = assert_loopback(args.api_url)
+    state = json.loads(Path(args.state).read_text(encoding="utf-8"))
+    stack = assert_loopback(state["stack_url"])
+    sample = _load_sample(Path(args.sample))
+    questions = select_questions(sample, state, args.limit)
+
+    def over_cap(spent: int, _row: dict[str, Any] | None) -> str | None:
+        if spent > args.max_spend_micros:
+            print(f"ask_replay: 지출 상한 {args.max_spend_micros} micros를 넘어 중단한다")
+            return "spend_cap"
+        return None
+
+    with httpx.Client(timeout=180) as client:
+        token = _login(client, stack, state)
+        sha = _api_sha(client, api)
+        fixed = collect_fixed_inputs(client, stack, state["workspace_id"], token, sample)
+        rows, stopped = run_replay(
+            client, api, stack, state["workspace_id"], token, questions, after_question=over_cap
+        )
+    result = build_result(
+        label=args.label, sha=sha, questions=questions, rows=rows, fixed=fixed, stopped=stopped
+    )
+    write_result(result, Path(args.out), args.scorecard)
     return 0 if len(rows) == len(questions) else 1
 
 
@@ -1029,6 +1313,9 @@ def cmd_retrieval_eval(args: argparse.Namespace) -> int:
     with httpx.Client(timeout=60) as client:
         token = _login(client, stack, state)
         sha = _api_sha(client, api)
+        # 답변 재생과 같은 정의의 지문을 남겨, 원인 판정이 같은 수집의 검색 기록만 쓰게 한다.
+        # 검색 채점은 답변 프롬프트를 쓰지 않으므로 그 해시는 남기지 않는다.
+        fixed = collect_fixed_inputs(client, stack, workspace, token, sample, with_prompt=False)
         # 조회는 모두 요청자 토큰으로 한다. RLS 아래에서 읽으므로 service_role이 필요 없다.
         sources = _select(
             client,
@@ -1144,6 +1431,7 @@ def cmd_retrieval_eval(args: argparse.Namespace) -> int:
         "k": RETRIEVAL_K,
         # 두 기록을 비교할 때 같은 검색 정책에서 잰 것인지 확인하는 값이다.
         "policy_versions": sorted(policies),
+        "fixed_inputs": fixed,
         "rows": rows,
         "summary": summarize_retrieval(rows),
     }

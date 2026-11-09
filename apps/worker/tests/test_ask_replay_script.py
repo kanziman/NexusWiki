@@ -251,11 +251,15 @@ def _result(label: str = "after", **kwargs: Any) -> dict[str, Any]:
 
 
 def test_scorecard_line_has_no_text_and_marks_early_stops(tmp_path: Path) -> None:
-    line = replay.scorecard_line(_result(planned=30), "after.json")
+    result = _result(planned=30)
+    result["rows"][0]["answer"] = "답변-본문-표식"
+    line = replay.scorecard_line(result, "after.json")
     assert (line["asked"], line["planned"]) == (2, 30)
     assert line["pass_rate"] == 0.5
     assert set(line) >= {"label", "git_sha", "model", "latency_p50_ms", "latency_p95_ms"}
-    assert "answer" not in json.dumps(line)
+    # `answerable_*` 필드 이름이 아니라 답변 본문이 줄에 새지 않는지를 본다.
+    assert "answer" not in line
+    assert "답변-본문-표식" not in json.dumps(line, ensure_ascii=False)
 
 
 def test_scorecard_line_records_unknown_revision_and_model() -> None:
@@ -634,6 +638,8 @@ def _run_retrieval_eval(
             return httpx.Response(200, json=[{"id": "w-a", "sources": ["raw-a"]}])
         if path == "/rest/v1/source_chunks":
             return httpx.Response(200, json=[])  # 청크 조회로도 원문을 못 찾는다
+        if path == "/rest/v1/wiki_embeddings":
+            return httpx.Response(200, json=[])  # 수집 스냅샷 지문 입력
         if path == f"/workspaces/{_WS}/retrieval":
             query = json.loads(request.content)["query"]
             calls.append(query)
@@ -765,3 +771,281 @@ def test_records_without_contributions_still_compare() -> None:
         {"label": "old", "rows": [old]}, {"label": "new", "rows": [new]}
     )
     assert "| hit@1 | 1.000 | 1.000 |" in table
+
+
+# --- eval-reliability 1절: 거절 성능을 통과율과 분리 ------------------------------------------
+
+
+def _split_rows() -> list[dict[str, Any]]:
+    """답할 수 있는 29문항 중 28개 통과 + 거절 문항 1개 정확 거절."""
+    rows = [_good(id=f"q{i:02d}") for i in range(1, 30)]
+    rows[5]["keyword_hit"] = False  # q06처럼 사실을 놓친 한 문항
+    rows.append(_unanswerable(_Q30_REFUSAL, id="q30"))
+    return rows
+
+
+def test_refusal_split_reports_three_figures_and_keeps_the_pass_rate() -> None:
+    summary = replay.summarize(_split_rows())
+    assert (summary["answerable_passed"], summary["answerable_asked"]) == (28, 29)
+    assert (summary["refusal_correct"], summary["refusal_asked"]) == (1, 1)
+    assert summary["false_refusals"] == 0
+    assert (summary["passed"], summary["asked"]) == (29, 30)
+
+
+def test_answerable_question_refused_by_the_model_is_a_false_refusal() -> None:
+    row = _good(answer=_Q30_REFUSAL, keyword_hit=False)
+    assert replay.verdict(row)["pass"] is False
+    assert replay.refusal_split([row])["false_refusals"] == 1
+
+
+def test_answerable_question_ending_in_no_evidence_is_a_false_refusal() -> None:
+    row = _good(status="no-evidence", answer="")
+    assert replay.verdict(row)["pass"] is False
+    assert replay.refusal_split([row])["false_refusals"] == 1
+
+
+def test_wrong_answer_that_is_not_a_refusal_is_not_a_false_refusal() -> None:
+    row = _good(answer="## 핵심 답변\n\n48시간입니다.", keyword_hit=False)
+    assert replay.refusal_split([row])["false_refusals"] == 0
+
+
+def test_correct_refusal_is_absent_not_zero_without_unanswerable_questions() -> None:
+    split = replay.refusal_split([_good(id="q01")])
+    assert split["refusal_asked"] == 0
+    assert split["refusal_correct"] is None
+
+
+def test_unanswerable_question_ending_in_http_error_stays_unanswerable() -> None:
+    """HTTP 오류 행에도 `doc`이 남아야 거절 문항이 답할 수 있는 문항으로 새지 않는다."""
+    row = {"id": "q30", "doc": "none", "status": "http_500", "prompt_tokens": None}
+    split = replay.refusal_split([row])
+    assert (split["refusal_correct"], split["refusal_asked"]) == (0, 1)
+    assert split["answerable_asked"] == 0
+
+
+def test_scorecard_line_carries_the_refusal_split() -> None:
+    rows = _split_rows()
+    result = {"label": "r", "rows": rows, "summary": replay.summarize(rows)}
+    line = replay.scorecard_line(result, "r.json")
+    assert (line["answerable_passed"], line["refusal_correct"], line["false_refusals"]) == (
+        28,
+        1,
+        0,
+    )
+
+
+def test_scorecard_line_rederives_the_split_for_an_old_summary() -> None:
+    rows = _split_rows()
+    old_summary = {k: v for k, v in replay.summarize(rows).items() if k not in replay._REFUSAL_KEYS}
+    line = replay.scorecard_line({"label": "old", "rows": rows, "summary": old_summary}, None)
+    assert (line["answerable_asked"], line["refusal_asked"]) == (29, 1)
+
+
+def test_report_rederives_the_split_for_an_old_line_with_its_result_file(tmp_path: Path) -> None:
+    rows = _split_rows()
+    (tmp_path / "old.json").write_text(json.dumps({"rows": rows}), encoding="utf-8")
+    old_line = {"label": "old", "asked": 30, "passed": 29, "result_file": "old.json"}
+    scorecard = tmp_path / "scorecard.jsonl"
+    replay.append_scorecard(scorecard, old_line)
+    before = scorecard.read_text(encoding="utf-8")
+    runs, _, _ = replay.build_report_data(scorecard, [])
+    assert (runs[0]["answerable_passed"], runs[0]["refusal_correct"]) == (28, 1)
+    assert scorecard.read_text(encoding="utf-8") == before
+
+
+def test_report_without_result_file_leaves_the_split_unknown(tmp_path: Path) -> None:
+    scorecard = tmp_path / "scorecard.jsonl"
+    replay.append_scorecard(scorecard, {"label": "old", "asked": 30, "passed": 29})
+    runs, broken, notes = replay.build_report_data(scorecard, [])
+    assert "answerable_passed" not in runs[0]
+    html = replay.render_report(runs, broken, notes)
+    assert "정확한 거절 (거절 문항)" in html
+    assert "거절 성능은 옆 칸에 분모와 함께 따로" in html
+
+
+# --- eval-reliability 2.2: 재생 기록이 고정 입력을 남긴다 --------------------------------------
+
+_SNAPSHOT_ROWS: dict[str, list[dict[str, Any]]] = {
+    "raw_sources": [{"id": "raw-a", "title": "A"}],
+    "source_chunks": [
+        {
+            "id": "c1",
+            "raw_source_id": "raw-a",
+            "chunk_index": 0,
+            "content": "본문",
+            "char_start": 0,
+            "char_end": 2,
+            "embedding_version": "m@p-v1",
+        }
+    ],
+    "wiki_pages": [{"id": "w-a", "title": "A", "content": "위키", "sources": ["raw-a"]}],
+    "wiki_embeddings": [
+        {
+            "id": "e1",
+            "wiki_id": "w-a",
+            "chunk_index": 0,
+            "chunk_content": "위키",
+            "embedding_version": "m@p-v1",
+        }
+    ],
+}
+
+
+def _sse(*events: tuple[str, dict[str, Any]]) -> bytes:
+    return "".join(
+        f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        for name, payload in events
+    ).encode("utf-8")
+
+
+def _mock_stack(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    ask_meta: dict[str, Any] | None = None,
+    prompt_status: int = 200,
+    seen: list[dict[str, Any]] | None = None,
+) -> None:
+    """요청자 JWT 조회 · 검색 · Ask SSE를 흉내 낸다. 수집 테이블은 `_SNAPSHOT_ROWS`다."""
+    meta = ask_meta or {"policy_version": "hybrid-rrf-v2", "missing_channels": []}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        table = path.removeprefix("/rest/v1/")
+        if path == "/auth/v1/token":
+            return httpx.Response(200, json={"access_token": "secret-token"})
+        if path == "/health":
+            return httpx.Response(200, json={"git_sha": "abc1234"})
+        if table == "prompt_templates":
+            if prompt_status != 200:
+                return httpx.Response(prompt_status, json={"message": "boom"})
+            return httpx.Response(200, json=[{"id": "p", "system_prompt": "s", "template": "t"}])
+        if table in _SNAPSHOT_ROWS:
+            return httpx.Response(200, json=_SNAPSHOT_ROWS[table])
+        if table == "ask_messages":
+            return httpx.Response(
+                200, json=[{"status": "resolved", "trace_id": "t1", "control_report": {}}]
+            )
+        if table == "usage_events":
+            return httpx.Response(
+                200,
+                json=[
+                    {"prompt_tokens": 10, "completion_tokens": 2, "cost_micros": 5, "model": "m/x"}
+                ],
+            )
+        if path == f"/workspaces/{_WS}/retrieval":
+            return httpx.Response(
+                200, json={"evidence": [], "meta": {"policy_version": "hybrid-rrf-v2"}}
+            )
+        if path == f"/workspaces/{_WS}/ask":
+            if seen is not None:
+                seen.append(json.loads(request.content))
+            body = _sse(
+                ("meta", meta),
+                ("delta", {"text": "답"}),
+                ("citations", {"text": "답", "resolved": [], "fabricated_anchor_count": 0}),
+                ("done", {}),
+            )
+            return httpx.Response(200, content=body)
+        raise AssertionError(f"예상하지 못한 요청: {request.method} {path}")
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        replay.httpx,
+        "Client",
+        lambda *a, **k: real_client(transport=httpx.MockTransport(handler)),
+    )
+
+
+def _write_inputs(tmp_path: Path) -> tuple[Path, Path]:
+    sample = {
+        "documents": [{"id": "a", "title": "A", "text": "."}],
+        "questions": [{"id": "q01", "doc": "a", "query": "질문", "expect_any": ["답"]}],
+    }
+    state = {
+        "stack_url": _STACK,
+        "workspace_id": _WS,
+        "documents": ["a"],
+        "email": "e@example.com",
+        "credential": "secret-credential",
+    }
+    (tmp_path / "sample.json").write_text(json.dumps(sample), encoding="utf-8")
+    (tmp_path / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    return tmp_path / "sample.json", tmp_path / "state.json"
+
+
+def _run(tmp_path: Path, command: str, out: str) -> dict[str, Any]:
+    sample, state = _write_inputs(tmp_path)
+    argv = [command, "--state", str(state), "--label", "t", "--out", str(tmp_path / out)]
+    argv += ["--api-url", _API, "--sample", str(sample)]
+    args = replay.build_parser().parse_args(argv)
+    args.func(args)
+    return json.loads((tmp_path / out).read_text(encoding="utf-8"))
+
+
+def test_ask_records_fixed_inputs_and_sends_requested_k(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[dict[str, Any]] = []
+    _mock_stack(monkeypatch, seen=seen)
+    result = _run(tmp_path, "ask", "ask.json")
+    fixed = result["fixed_inputs"]
+    tables = {**_SNAPSHOT_ROWS, "wiki_chunks": _SNAPSHOT_ROWS["wiki_embeddings"]}
+    tables.pop("wiki_embeddings")
+    expected = replay.fingerprint.snapshot_inputs(**tables)["snapshot_sha256"]
+    assert fixed["snapshot_sha256"] == expected
+    assert fixed["fixture_sha256"] == replay.fingerprint.fixture_sha256(
+        json.loads((tmp_path / "sample.json").read_text(encoding="utf-8"))
+    )
+    assert fixed["requested_k"] == 8 and seen[0]["requested_k"] == 8
+    assert fixed["answer_prompt_sha256"] not in (None, replay.UNKNOWN)
+    assert (fixed["model"], fixed["policy_versions"]) == ("m/x", ["hybrid-rrf-v2"])
+    assert result["execution_path"] == "http"
+    assert result["rows"][0]["policy_version"] == "hybrid-rrf-v2"
+
+
+def test_ask_and_retrieval_eval_share_the_snapshot_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mock_stack(monkeypatch)
+    ask = _run(tmp_path, "ask", "ask.json")
+    retrieval = _run(tmp_path, "retrieval-eval", "retrieval.json")
+    assert ask["fixed_inputs"]["snapshot_sha256"] == retrieval["fixed_inputs"]["snapshot_sha256"]
+    assert ask["fixed_inputs"]["fixture_sha256"] == retrieval["fixed_inputs"]["fixture_sha256"]
+    assert "answer_prompt_sha256" not in retrieval["fixed_inputs"]
+
+
+def test_unreadable_prompt_is_recorded_as_unknown_and_the_run_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mock_stack(monkeypatch, prompt_status=500)
+    result = _run(tmp_path, "ask", "ask.json")
+    assert result["fixed_inputs"]["answer_prompt_sha256"] == replay.UNKNOWN
+    assert len(result["rows"]) == 1
+    assert (tmp_path / "scorecard.jsonl").exists()
+
+
+def test_failed_channel_in_ask_meta_is_kept_on_the_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    meta = {"policy_version": "hybrid-rrf-v2", "missing_channels": ["source_vector"]}
+    _mock_stack(monkeypatch, ask_meta=meta)
+    result = _run(tmp_path, "ask", "ask.json")
+    assert result["rows"][0]["missing_channels"] == ["source_vector"]
+
+
+def test_new_fields_do_not_change_old_comparison_output() -> None:
+    old = _result("before")
+    new = _result("after")
+    plain = replay.compare_table(old, new)
+    for result in (old, new):
+        result["fixed_inputs"] = {"snapshot_sha256": "x"}
+        result["execution_path"] = "http"
+        for row in result["rows"]:
+            row["policy_version"] = "hybrid-rrf-v2"
+            row["missing_channels"] = []
+    assert replay.compare_table(old, new) == plain
+
+
+def test_policy_versions_are_unknown_not_empty_when_never_observed() -> None:
+    fixed = replay.finalize_fixed_inputs({}, [{"id": "q01", "model": "m/x"}])
+    assert fixed["policy_versions"] == replay.UNKNOWN
