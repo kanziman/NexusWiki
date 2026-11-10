@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocalEvaluationPanel } from "./LocalEvaluationPanel";
+import { GoldenJudgePanel } from "./GoldenJudgePanel";
 import {
   ArrowLeftRight,
   ArrowUpRight,
@@ -992,6 +993,9 @@ export function RegressionDashboard({
         </a>
         <a href="#history">실행 기록</a>
         <a href="#review">검토 메모</a>
+        {process.env.NODE_ENV === "development" && (
+          <a href="#judge-workbench">골든셋과 AI 심사</a>
+        )}
         <div className={styles.sideTitle}>확인할 주제</div>
         <div role="group" aria-label="평가 세트 선택">
           {suites.map((item) => (
@@ -1063,6 +1067,7 @@ export function RegressionDashboard({
             </div>
           )}
           <LocalEvaluationPanel onSuite={receiveSuite} enabled={localEnabled} />
+          <GoldenJudgePanel enabled={localEnabled} />
         </main>
       </div>
     </div>

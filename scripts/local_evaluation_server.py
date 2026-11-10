@@ -22,6 +22,7 @@ import ask_replay as replay
 import httpx
 from ask_replay import assert_loopback, build_result, keyword_hit
 from evaluation_run_export import SENSITIVE
+from golden_answer_judge import Conflict, JudgeStore
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_STORE = ROOT / ".worktrees/evaluation-dashboard"
@@ -162,6 +163,7 @@ class Store:
             )
             atomic(root / "run-000-seed.json", seed)
             atomic(root / "baseline.json", {"id": seed["id"]})
+        self.judge = JudgeStore(self)
 
     def snapshot(self):
         runs = [read(path) for path in sorted(self.root.glob("run-*.json"))]
@@ -205,9 +207,7 @@ class Store:
         ):
             raise ValueError("로컬 재생 설정과 0.20달러 이상 서버 상한 이하 예산이 필요합니다")
         with self.guard:
-            if any(
-                read(p)["status"] in {"queued", "running"} for p in self.root.glob("job-*.json")
-            ):
+            if self.judge.busy():
                 raise ValueError("진행 중인 실행이 있습니다")
             job_id = uuid.uuid4().hex
             job = {
@@ -344,6 +344,9 @@ def handler(store):
                 if self.command == "GET" and self.path == "/status":
                     self.reply(200, store.snapshot())
                     return
+                if self.command == "GET" and self.path == "/judge/status":
+                    self.reply(200, store.judge.snapshot())
+                    return
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= 4096:
                     raise ValueError("요청 크기를 확인하세요")
@@ -353,8 +356,14 @@ def handler(store):
                 elif self.command == "POST" and self.path == "/baseline":
                     store.baseline(payload.get("run_id"))
                     self.reply(200, {"saved": True})
+                elif self.command == "POST" and self.path == "/judge/jobs":
+                    self.reply(202, store.judge.start(payload))
+                elif self.command == "POST" and self.path == "/judge/reviews":
+                    self.reply(200, store.judge.review(payload))
                 else:
                     self.reply(404, {"error": "없는 경로입니다"})
+            except Conflict as exc:
+                self.reply(409, {"error": str(exc)})
             except (ValueError, TypeError, KeyError):
                 self.reply(
                     400,

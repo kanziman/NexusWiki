@@ -20,6 +20,52 @@ const snapshot = {
 };
 
 describe("로컬 실행 경계", () => {
+  it("심사 조회·검토는 고정 로컬 경로에만 전달한다", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("LOCAL_EVALUATION_ENABLED", "1");
+    const fetcher = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(Response.json({ saved: true })),
+      );
+    vi.stubGlobal("fetch", fetcher);
+    expect(
+      (
+        await GET(
+          new Request("http://127.0.0.1:54410/api/local-evaluation?view=judge"),
+        )
+      ).status,
+    ).toBe(200);
+    expect(fetcher.mock.calls[0][0]).toBe(
+      "http://127.0.0.1:54411/judge/status",
+    );
+    expect(
+      (
+        await POST(
+          new Request("http://127.0.0.1:54410/api/local-evaluation", {
+            method: "POST",
+            headers: { origin: "http://127.0.0.1:54410" },
+            body: JSON.stringify({
+              action: "judge-review",
+              kind: "sample",
+              id: "x",
+            }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(fetcher.mock.calls[1][0]).toBe(
+      "http://127.0.0.1:54411/judge/reviews",
+    );
+    vi.stubEnv("NODE_ENV", "production");
+    expect(
+      (
+        await GET(
+          new Request("http://127.0.0.1:54410/api/local-evaluation?view=judge"),
+        )
+      ).status,
+    ).toBe(403);
+  });
   it("운영·미활성 개발·외부 origin은 요청을 전달하지 않는다", async () => {
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);

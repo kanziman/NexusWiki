@@ -33,19 +33,28 @@ async function proxy(request: Request) {
       resolve(process.cwd(), "../../.worktrees/evaluation-dashboard/token"),
       "utf8",
     );
-    let path = "/status",
+    let path =
+        new URL(request.url).searchParams.get("view") === "judge"
+          ? "/judge/status"
+          : "/status",
       body: string | undefined;
     if (request.method === "POST") {
       const text = await request.text();
       if (text.length > 4096)
         return Response.json({ error: "요청이 너무 큽니다." }, { status: 413 });
       const { action, ...payload } = JSON.parse(text);
-      if (!["run", "baseline"].includes(action))
+      const paths: Record<string, string> = {
+        run: "/jobs",
+        baseline: "/baseline",
+        "judge-run": "/judge/jobs",
+        "judge-review": "/judge/reviews",
+      };
+      if (!Object.hasOwn(paths, action))
         return Response.json(
           { error: "알 수 없는 작업입니다." },
           { status: 400 },
         );
-      path = action === "run" ? "/jobs" : "/baseline";
+      path = paths[action];
       body = JSON.stringify(payload);
     }
     const response = await fetch(`http://127.0.0.1:54411${path}`, {
