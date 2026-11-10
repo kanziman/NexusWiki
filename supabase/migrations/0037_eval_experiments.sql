@@ -2,8 +2,8 @@
 -- NexusWiki 0037: 평가 실험 · 판정 기준 · 채택 정책 · 결정 기록
 --
 -- 관련 이슈: #272, #273
--- 설계 근거: openspec/changes/evaluation-experiment-registry/design.md > D2
--- 계약:     openspec/changes/evaluation-experiment-registry/specs/evaluation-experiment-registry/spec.md
+-- 설계 근거: openspec/changes/archive/2026-11-10-evaluation-experiment-registry/design.md > D2
+-- 계약:     openspec/specs/evaluation-experiment-registry/spec.md
 --
 -- 실험은 테넌트 데이터가 아니라 프로젝트 운영 기록이다. workspace_id가 없고, 등록·내보내기
 -- 스크립트가 service_role로만 읽고 쓴다. 공개 화면은 이 테이블을 읽지 않고 커밋된 스냅샷만 읽는다.

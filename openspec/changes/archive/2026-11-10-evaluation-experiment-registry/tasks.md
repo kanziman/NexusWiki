@@ -62,7 +62,7 @@ Then: 재검색 화면에는 실행 서랍과 로컬 기록 안내가 없고, �
 
 이슈: https://github.com/kanziman/NexusWiki/issues/277
 
-- [ ] 5.1 관련 Python·프런트엔드 테스트, typecheck·lint·포맷, SQL 경계 테스트, `openspec validate evaluation-experiment-registry --strict`를 새로 실행하고, 데스크톱·모바일 폭에서 세 실험 화면을 확인한다. `spec-conformance-reviewer`·`tenant-isolation-reviewer`를 병렬로 돌려 pass를 받고, `docs/reference/stack.md`의 마이그레이션 표에 `0037`(로컬 검증, 운영 미적용)을 기록한 뒤 스펙 동기화와 아카이브를 브랜치에서 커밋한다.
+- [x] 5.1 관련 Python·프런트엔드 테스트, typecheck·lint·포맷, SQL 경계 테스트, `openspec validate evaluation-experiment-registry --strict`를 새로 실행하고, 데스크톱·모바일 폭에서 세 실험 화면을 확인한다. `spec-conformance-reviewer`·`tenant-isolation-reviewer`를 병렬로 돌려 pass를 받고, `docs/reference/stack.md`의 마이그레이션 표에 `0037`(로컬 검증, 운영 미적용)을 기록한 뒤 스펙 동기화와 아카이브를 브랜치에서 커밋한다.
 
 AC:
 Given: 1~4절이 모두 완료됐다.

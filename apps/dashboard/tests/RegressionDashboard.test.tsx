@@ -259,6 +259,9 @@ describe("회귀 분석 작업대", () => {
     expect(
       screen.getByText(/채택 정책을 적용하지 않습니다/),
     ).toBeInTheDocument();
+    // 이 기록은 실행 시각을 남기지 않았다. 시각을 지어내지 않고 없다고 보인다.
+    const compared = within(screen.getByLabelText("비교한 실행"));
+    expect(compared.getAllByText(/실행 시각 기록 없음/)).toHaveLength(2);
   });
   it("반복 측정은 별도 세트로 고르고 실제 답변을 나란히 본다", () => {
     render(<RegressionDashboard />);

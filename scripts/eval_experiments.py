@@ -7,7 +7,7 @@
 
 새 실행·재채점·모델 호출은 하지 않는다. 로컬 DB 컨테이너의 psql로 접속해 트랜잭션 안에서
 service_role로 전환하므로 REST 키를 읽지 않는다.
-설계: openspec/changes/evaluation-experiment-registry/design.md
+설계: openspec/changes/archive/2026-11-10-evaluation-experiment-registry/design.md
 """
 
 from __future__ import annotations
