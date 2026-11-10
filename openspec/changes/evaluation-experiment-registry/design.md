@@ -2,7 +2,7 @@
 
 - 공개 화면 `/showcase/regression`은 `force-static`이며 `apps/dashboard/content/*.json`에 커밋된 공개 기록만 읽는다. 공개 배포는 DB 자격증명이 없다.
 - 실행 자체는 DB에 없다. 재검색 OFF/ON은 `content/evidence-research.json`, Ask 반복 측정은 `content/evaluation-runs.json`, 로컬 재채점은 gitignore된 `.worktrees/evaluation-dashboard/run-*.json`에 있다.
-- 재검색 실험의 원래 채택 기준은 `openspec/changes/archive/2026-11-09-ask-evidence-research/design.md` D4에 있고, 조건별 판정은 `content/evidence-research.json`의 `checks`·`adopted`로 저장돼 있다. 이 문서가 git에 처음 들어온 커밋은 `8a1800d`(2026-11-09 09:43 KST)로, ON 실행(08:53 KST)보다 늦다.
+- 재검색 실험의 원래 채택 기준은 `openspec/changes/archive/2026-11-09-ask-evidence-research/design.md` D4에 있고, 조건별 판정은 `content/evidence-research.json`의 `checks`·`adopted`로 저장돼 있다. 이 문서가 HEAD 이력에 처음 들어온 커밋은 `0f9bbbe`(2026-11-09 11:00 KST)로, ON 실행(08:53 KST)보다 늦다. squash 전 브랜치 커밋 `8a1800d`(09:43)도 실행보다 늦지만 클론마다 있을 수도 없을 수도 있어 기준으로 쓰지 않는다.
 - 비용 ×1.5·p95 15000ms는 `scripts/evidence_research_eval.py`에, 50%·15초 기본값은 `RegressionDashboard.tsx`에 각각 하드코딩돼 있다.
 - 운영 DB는 `0035`까지 적용, `0036`은 로컬 검증만 됐다(`docs/reference/stack.md`). 이 change의 마이그레이션은 `0037`이다.
 - 같은 브랜치(`codex/golden-answer-judge`)에 다른 작업의 미커밋 변경이 함께 있다. 구현은 별도 브랜치에서 한다.
@@ -50,7 +50,7 @@ DB에는 정책·기준 세트·실험·결정만 두고, 정책 v1 참고 판�
 
 ### D3. 등록 스크립트: 저장 결과 → DB, 멱등
 
-`scripts/eval_experiment_register.py`가 로컬 Supabase(544xx)에 `service_role`로 연결해 정책 v1, 재검색 원래 기준 세트, 실험 세 개, 재검색 결정을 upsert한다.
+`scripts/eval_experiments.py register`가 로컬 DB 컨테이너(`supabase_db_NexusWiki`)의 `psql`로 접속해 트랜잭션 안에서 `set local role service_role`로 전환한 뒤 정책 v1, 재검색 원래 기준 세트, 실험 세 개, 재검색 결정을 upsert한다. REST 키를 읽지 않으므로 비밀값이 스크립트나 로그에 들어가지 않고, 쓰기 역할은 여전히 `service_role` 하나다. 같은 파일의 `export`가 D4를 맡는다.
 
 - 실행 id는 `run_source`별 저장 파일에서 존재를 확인하고, 없으면 그 실험을 쓰지 않고 실패한다.
 - 원래 기준 세트의 조건별 결과는 `content/evidence-research.json`의 `checks`에서 복사한다. 숫자 허용값(×1.5, 15000ms)은 D4 문서 문구가 아니라 실제 판정을 낸 스크립트 상수에서 가져온다.
@@ -59,7 +59,7 @@ DB에는 정책·기준 세트·실험·결정만 두고, 정책 v1 참고 판�
 
 ### D4. 내보내기 스크립트: DB → 허용 필드 스냅샷
 
-`scripts/eval_experiment_export.py`가 `public = true` 실험과 그 참조를 `apps/dashboard/content/experiments.json`으로 쓴다.
+`scripts/eval_experiments.py export`가 같은 방식으로 `service_role`로 읽어 `public = true` 실험과 그 참조를 `apps/dashboard/content/experiments.json`으로 쓴다.
 
 - 허용 필드 목록을 코드에 두고, 목록 밖 필드나 금지 이름(`workspace_id`, `user_id`, `answer` 등)이 있으면 쓰기 전에 실패한다.
 - 키 정렬, 고정 들여쓰기, 내보낸 시각 미포함으로 같은 DB 상태에서 같은 바이트를 낸다.

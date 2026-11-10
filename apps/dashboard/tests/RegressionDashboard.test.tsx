@@ -92,12 +92,10 @@ describe("회귀 분석 작업대", () => {
     render(<RegressionDashboard localEnabled />);
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading).toHaveTextContent(regressionSuites[0].guide!.question);
-    // 배지·제목·조건 목록이 같은 판정을 말해야 한다: 새로 실패 1개와 비용 +66.4%가 막는다.
-    expect(screen.getByText("검토 필요")).toBeInTheDocument();
+    // 재검색은 도입 실험이라 원래 기준(D4)의 저장 판정이 공식 판정이다. 화면이 다시 계산하지 않는다.
+    expect(screen.getByText("원래 기준 미충족")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", {
-        name: "적용을 막는 조건 2개가 있습니다",
-      }),
+      screen.getByRole("heading", { name: "원래 기준 6개 중 3개 미충족" }),
     ).toBeInTheDocument();
     // 이름만으로는 실행을 짚을 수 없다. id·리비전·역할이 함께 보여야 한다.
     const compared = within(screen.getByLabelText("비교한 실행"));
@@ -106,9 +104,35 @@ describe("회귀 분석 작업대", () => {
     expect(compared.getByText(/^on · 5dded7b\+dirty · /)).toBeInTheDocument();
     expect(compared.getByText(/^off · 5dded7b\+dirty · /)).toBeInTheDocument();
     const gates = within(screen.getByRole("list", { name: "적용 조건" }));
-    expect(gates.getAllByLabelText("미충족")).toHaveLength(2);
-    expect(gates.getByText("새로 실패 1개")).toBeInTheDocument();
-    expect(gates.getByText("비용 +66.4%")).toBeInTheDocument();
+    expect(gates.getAllByLabelText("미충족")).toHaveLength(3);
+    expect(gates.getAllByLabelText("충족")).toHaveLength(3);
+    for (const label of [
+      "답변 복구 1건 이상",
+      "전체 통과 수 증가",
+      "총비용 증가 50% 이하",
+    ])
+      expect(
+        gates.getByText(label).closest("li")!.querySelector("[aria-label]"),
+      ).toHaveAttribute("aria-label", "미충족");
+    expect(gates.getByText("+66.4% · 허용 +50%")).toBeInTheDocument();
+    // 기준 출처가 실행보다 늦게 커밋됐으므로 사전 등록이라고 말하면 안 된다.
+    const provenance = within(screen.getByLabelText("판정 기준과 결정"));
+    expect(
+      provenance.getByText("실행보다 먼저 기록됐음을 증명하지 못함"),
+    ).toBeInTheDocument();
+    expect(provenance.getByText("0f9bbbe")).toBeInTheDocument();
+    expect(provenance.queryByText(/사전 등록 ·/)).not.toBeInTheDocument();
+    expect(provenance.getByText("미채택")).toBeInTheDocument();
+    // 공식 판정 쌍은 고정이다. 맞바꾸기와 기준 입력이 있으면 판정과 목록이 다른 쌍을 말한다.
+    expect(
+      screen.queryByRole("button", { name: "기준선과 후보 맞바꾸기" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("허용 비용 증가 (%)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "실험 기록 JSON" }),
+    ).toHaveAttribute("href", "/showcase/regression/experiments.json");
     expect(screen.getByText(/통과 39\/42 → 39\/42/)).toBeInTheDocument();
     expect(
       screen.getByText("실행 고르기와 기준 설정").closest("details"),
@@ -122,9 +146,6 @@ describe("회귀 분석 작업대", () => {
     ).toBeTruthy();
     expect(gates.getByText("채점 방식")).toBeInTheDocument();
     expect(gates.getAllByLabelText("참고")).toHaveLength(1);
-    fireEvent.click(gates.getAllByRole("button", { name: "기준 바꾸기" })[0]);
-    expect(settings.closest("details")).toHaveAttribute("open");
-    expect(screen.getByLabelText("허용 비용 증가 (%)")).toHaveFocus();
     await screen.findByRole("button", { name: "내 검사 결과 보기" });
     expect(heading).toHaveTextContent(regressionSuites[0].guide!.question);
     fireEvent.click(screen.getByRole("button", { name: "내 검사 결과 보기" }));
@@ -142,13 +163,13 @@ describe("회귀 분석 작업대", () => {
     expect(
       detail.getByText("재검색 실행 안 됨 · 처음 찾은 근거로 충분하다고 판단"),
     ).toBeInTheDocument();
-    const gates = within(screen.getByRole("list", { name: "적용 조건" }));
-    expect(
-      gates.getByText(/재검색이 실행되지 않은 질문이라/),
-    ).toBeInTheDocument();
+    // 원래 기준은 회귀를 합계로 봐서 q04를 막지 않는다. 질문 단위 사실은 참고로 남긴다.
+    expect(screen.getByText(/질문 단위로는 새로 실패 1개/)).toHaveTextContent(
+      "재검색이 실행되지 않은 질문이라",
+    );
     expect(screen.getByText(/재검색 실제 실행 1\/42개/)).toBeInTheDocument();
   });
-  it("회귀부터 선택하고 검색·필터·실행 맞바꾸기가 동작한다", () => {
+  it("회귀부터 선택하고 검색·필터가 동작하며 측정 실험만 맞바꾼다", () => {
     render(<RegressionDashboard />);
     expect(
       screen.getByRole("region", { name: "q04 문항 상세" }),
@@ -163,14 +184,12 @@ describe("회귀 분석 작업대", () => {
     expect(screen.getByText("해당하는 질문이 없습니다")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "전체 문항 보기" }));
     expect(screen.getByRole("status")).toHaveTextContent("42문항 표시");
+    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "기준선과 후보 맞바꾸기" }),
     );
-    expect(screen.getByLabelText("기준선")).toHaveValue("on");
-    expect(screen.getByLabelText("후보")).toHaveValue("off");
-    expect(
-      screen.getByRole("region", { name: "q03 문항 상세" }),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("기준선")).toHaveValue("run-2");
+    expect(screen.getByLabelText("후보")).toHaveValue("run-1");
   });
   it("반복 측정은 별도 세트로 고르고 실제 답변을 나란히 본다", () => {
     render(<RegressionDashboard />);
@@ -184,8 +203,9 @@ describe("회귀 분석 작업대", () => {
   });
   it("같은 실행 선택 시 지표·검토 메모를 숨기고 내보내기를 막는다", () => {
     render(<RegressionDashboard />);
+    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
     fireEvent.change(screen.getByLabelText("후보"), {
-      target: { value: "off" },
+      target: { value: "run-1" },
     });
     expect(screen.getByRole("alert")).toHaveTextContent("같은 실행");
     expect(
@@ -199,6 +219,7 @@ describe("회귀 분석 작업대", () => {
     ).not.toBeInTheDocument();
   });
   it("메모를 브라우저에 저장·복원하고 다른 비교와 분리한다", async () => {
+    window.history.replaceState(null, "", "#reliability");
     const { unmount } = render(<RegressionDashboard />);
     fireEvent.click(screen.getByRole("button", { name: "메모 저장" }));
     expect(screen.getByRole("alert")).toHaveTextContent("판단의 근거");
@@ -229,6 +250,7 @@ describe("회귀 분석 작업대", () => {
       screen.getByRole("button", { name: "기준선과 후보 맞바꾸기" }),
     );
     expect(screen.getByRole("textbox", { name: "판단 근거" })).toHaveValue("");
+    window.history.replaceState(null, "", window.location.pathname);
   });
   it("저장 실패를 성공으로 표시하지 않고 빈 데이터도 설명한다", () => {
     vi.stubGlobal("localStorage", {

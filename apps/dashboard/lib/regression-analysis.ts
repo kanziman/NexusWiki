@@ -1,3 +1,5 @@
+import type { Experiment } from "./experiments";
+
 /** 같은 평가 세트 안에서 문항을 맞춰 개선·회귀를 계산한다. 합계가 같아도 개별 회귀는 남긴다. */
 export type AnalysisRow = {
   id: string;
@@ -41,6 +43,8 @@ export type AnalysisSuite = {
   candidateId?: string;
   /** 이 세트에서 기준선과 후보가 각각 무엇인지. 없으면 일반 용어만 쓴다. */
   roles?: { baseline: string; candidate: string };
+  /** 실험 기록. 도입 실험이면 공식 판정은 이 기록의 기준 세트가 정한다. */
+  experiment?: Experiment;
   id: string;
   name: string;
   description: string;

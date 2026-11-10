@@ -32,6 +32,7 @@ import {
   type Outcome,
 } from "@/lib/regression-analysis";
 import { regressionSuites } from "@/lib/regression-data";
+import { decisionLabels, kst } from "@/lib/experiments";
 import styles from "./RegressionDashboard.module.css";
 
 const usd = (value: number | null) =>
@@ -359,8 +360,36 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
   const regressedRows = analysis.rows.filter(
     (row) => row.outcome === "regressed",
   );
+  // 도입 실험은 등록된 기준 세트가 공식 판정을 정한다. 화면은 저장된 조건별 결과를 다시 계산하지 않는다.
+  const adoption =
+    suite.experiment?.kind === "adoption" && suite.experiment.criteria
+      ? suite.experiment
+      : undefined;
+  const criteria = adoption?.criteria;
+  const judgeGate = {
+    key: "judge",
+    ok: null,
+    label: "채점 방식",
+    detail:
+      "기대 표현·인용 조건을 확인하는 코드 판정 · 사람 판정과 대조하지 않음 · 통과가 답변 전체의 정확성을 보장하지 않음",
+  };
+  const regressedLinks = regressedRows.length > 0 && (
+    <>
+      {regressedRows.slice(0, 3).map((row) => (
+        <button
+          type="button"
+          key={row.id}
+          className={styles.gateLink}
+          onClick={() => jumpToQuestions("regressed", row.id)}
+        >
+          {row.id}
+        </button>
+      ))}
+      {regressedRows.length > 3 && ` 외 ${regressedRows.length - 3}개`}
+    </>
+  );
   // ok가 boolean인 항목은 within 판정과 같은 네 조건이어야 한다. 하나라도 빠지면 배지와 목록이 서로 다른 말을 한다.
-  const gates: {
+  const thresholdGates: {
     key: string;
     ok: boolean | null;
     label: string;
@@ -375,17 +404,7 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           "기준선에서 통과하고 후보에서 실패한 질문 없음"
         ) : (
           <>
-            {regressedRows.slice(0, 3).map((row) => (
-              <button
-                type="button"
-                key={row.id}
-                className={styles.gateLink}
-                onClick={() => jumpToQuestions("regressed", row.id)}
-              >
-                {row.id}
-              </button>
-            ))}
-            {regressedRows.length > 3 && ` 외 ${regressedRows.length - 3}개`}
+            {regressedLinks}
             {regressedRows[0].after?.reason &&
               ` · ${regressedRows[0].after.reason}`}
             {regressedRows.every((row) => row.after?.research?.calls === 0) &&
@@ -445,16 +464,29 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
       ),
     },
     // 판정에 들어가지 않는 참고 줄이다. 판정을 얼마나 믿을지를 조건 옆에 두어 따로 읽지 않게 한다.
-    {
-      key: "judge",
-      ok: null,
-      label: "채점 방식",
-      detail:
-        "기대 표현·인용 조건을 확인하는 코드 판정 · 사람 판정과 대조하지 않음 · 통과가 답변 전체의 정확성을 보장하지 않음",
-    },
+    judgeGate,
   ];
+  const gates = criteria
+    ? [
+        ...criteria.conditions.map((condition) => ({
+          key: condition.key,
+          ok: condition.met as boolean | null,
+          label: condition.label,
+          detail: `${condition.actual} · 허용 ${condition.limit}` as ReactNode,
+        })),
+        judgeGate,
+      ]
+    : thresholdGates;
   const blocking = gates.filter((gate) => gate.ok === false).length;
-  const gateState = !thresholdsValid ? "invalid" : within ? "pass" : "review";
+  const gateState = criteria
+    ? criteria.adopted
+      ? "pass"
+      : "review"
+    : !thresholdsValid
+      ? "invalid"
+      : within
+        ? "pass"
+        : "review";
   const priority: Record<Outcome, number> = {
     regressed: 0,
     excluded: 1,
@@ -539,13 +571,7 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
     [
       run.id.length > 12 ? run.id.slice(0, 8) : run.id,
       run.revision,
-      run.createdAt &&
-        new Date(run.createdAt).toLocaleString("ko-KR", {
-          month: "numeric",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+      run.createdAt && kst(run.createdAt),
     ]
       .filter(Boolean)
       .join(" · ");
@@ -582,18 +608,26 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
         >
           <div className={styles.gateHead}>
             <span className={styles.gateBadge} data-state={gateState}>
-              {gateState === "pass"
-                ? "조건 충족"
-                : gateState === "review"
-                  ? "검토 필요"
-                  : "기준 확인 필요"}
+              {criteria
+                ? criteria.adopted
+                  ? "원래 기준 충족"
+                  : "원래 기준 미충족"
+                : gateState === "pass"
+                  ? "조건 충족"
+                  : gateState === "review"
+                    ? "검토 필요"
+                    : "기준 확인 필요"}
             </span>
             <h2 id="reading-title">
-              {gateState === "pass"
-                ? "설정한 조건을 모두 충족했습니다"
-                : gateState === "review"
-                  ? `적용을 막는 조건 ${blocking}개가 있습니다`
-                  : "허용 기준 값을 확인해 주세요"}
+              {criteria
+                ? blocking > 0
+                  ? `원래 기준 ${criteria.conditions.length}개 중 ${blocking}개 미충족`
+                  : "원래 기준을 모두 충족했습니다"
+                : gateState === "pass"
+                  ? "설정한 조건을 모두 충족했습니다"
+                  : gateState === "review"
+                    ? `적용을 막는 조건 ${blocking}개가 있습니다`
+                    : "허용 기준 값을 확인해 주세요"}
             </h2>
           </div>
           <dl className={styles.gateRuns} aria-label="비교한 실행">
@@ -635,7 +669,54 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
               </li>
             ))}
           </ul>
+          {criteria && (
+            <dl className={styles.provenance} aria-label="판정 기준과 결정">
+              <div>
+                <dt>판정 기준</dt>
+                <dd>
+                  <b>{criteria.name}</b>
+                  <code>{criteria.source_path}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>기록 시점</dt>
+                <dd>
+                  {criteria.preregistered
+                    ? "사전 등록 · 실행 전에 기록됨"
+                    : "실행보다 먼저 기록됐음을 증명하지 못함"}
+                  <span>
+                    기준 첫 커밋 <code>{criteria.source_commit}</code>{" "}
+                    {kst(criteria.source_first_commit_at)} · 첫 실행{" "}
+                    {kst(criteria.earliest_run_at)} (한국 시간)
+                  </span>
+                </dd>
+              </div>
+              {adoption?.decision && (
+                <div>
+                  <dt>결정</dt>
+                  <dd>
+                    <b data-status={adoption.decision.status}>
+                      {decisionLabels[adoption.decision.status]}
+                    </b>
+                    {adoption.decision.decided_on}
+                    <span>{adoption.decision.rationale}</span>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
           <p className={styles.gateContext}>
+            {criteria && regressedRows.length > 0 && (
+              <>
+                참고 · 원래 기준은 회귀를 합계로 봅니다. 질문 단위로는 새로 실패{" "}
+                {regressedRows.length}개 {regressedLinks}
+                {regressedRows.every(
+                  (row) => row.after?.research?.calls === 0,
+                ) &&
+                  " · 재검색이 실행되지 않은 질문이라 재검색 효과가 아닐 수 있음"}
+                <br />
+              </>
+            )}
             참고 · 통과 {analysis.beforePassed}/{analysis.total} →{" "}
             {analysis.afterPassed}/{analysis.total} · 새로 통과{" "}
             {analysis.counts.improved}개 · 여전히 실패 {analysis.counts.failed}
@@ -810,106 +891,132 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           실행 고르기와 기준 설정{" "}
           <span>실행 선택 · 허용 기준 · 고정 조건 · JSON</span>
         </summary>
-        <section
-          id="comparison"
-          className={styles.compareControls}
-          aria-label="비교할 실행 선택"
-        >
-          <label>
-            기준선
-            <select
-              value={baselineId}
-              onChange={(e) => {
-                setBaselineId(e.target.value);
-                controlsChanged();
-              }}
-            >
-              {suite.runs.map((run) => (
-                <option key={run.id} value={run.id}>
-                  {runLabel(run)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className={styles.swap}
-            aria-label="기준선과 후보 맞바꾸기"
-            onClick={() => {
-              setBaselineId(candidateId);
-              setCandidateId(baselineId);
-              controlsChanged();
-            }}
+        {adoption ? (
+          // 공식 판정은 등록된 쌍의 저장값이다. 다른 쌍을 고르면 판정과 질문 목록이 서로 다른 쌍을 말한다.
+          <section
+            id="comparison"
+            className={styles.compareControls}
+            aria-label="공식 판정 쌍"
           >
-            <ArrowLeftRight size={18} aria-hidden="true" />
-          </button>
-          <label>
-            후보
-            <select
-              value={candidateId}
-              onChange={(e) => {
-                setCandidateId(e.target.value);
+            <p className={styles.fixedPair}>
+              공식 판정에 쓴 쌍으로 고정 · 기준선 <b>{runLabel(before)}</b> →
+              후보 <b>{runLabel(after)}</b>
+            </p>
+            <div className={styles.match} data-valid={analysis.valid}>
+              {analysis.valid ? (
+                <Check size={15} aria-hidden="true" />
+              ) : (
+                <CircleAlert size={15} aria-hidden="true" />
+              )}
+              {analysis.valid
+                ? "같은 질문과 조건으로 검사했습니다"
+                : "비교 조건 확인 필요"}
+            </div>
+          </section>
+        ) : (
+          <section
+            id="comparison"
+            className={styles.compareControls}
+            aria-label="비교할 실행 선택"
+          >
+            <label>
+              기준선
+              <select
+                value={baselineId}
+                onChange={(e) => {
+                  setBaselineId(e.target.value);
+                  controlsChanged();
+                }}
+              >
+                {suite.runs.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    {runLabel(run)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className={styles.swap}
+              aria-label="기준선과 후보 맞바꾸기"
+              onClick={() => {
+                setBaselineId(candidateId);
+                setCandidateId(baselineId);
                 controlsChanged();
               }}
             >
-              {suite.runs.map((run) => (
-                <option key={run.id} value={run.id}>
-                  {runLabel(run)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={styles.match} data-valid={analysis.valid}>
-            {analysis.valid ? (
-              <Check size={15} aria-hidden="true" />
-            ) : (
-              <CircleAlert size={15} aria-hidden="true" />
-            )}
-            {analysis.valid
-              ? "같은 질문과 조건으로 검사했습니다"
-              : "비교 조건 확인 필요"}
-          </div>
-        </section>
+              <ArrowLeftRight size={18} aria-hidden="true" />
+            </button>
+            <label>
+              후보
+              <select
+                value={candidateId}
+                onChange={(e) => {
+                  setCandidateId(e.target.value);
+                  controlsChanged();
+                }}
+              >
+                {suite.runs.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    {runLabel(run)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className={styles.match} data-valid={analysis.valid}>
+              {analysis.valid ? (
+                <Check size={15} aria-hidden="true" />
+              ) : (
+                <CircleAlert size={15} aria-hidden="true" />
+              )}
+              {analysis.valid
+                ? "같은 질문과 조건으로 검사했습니다"
+                : "비교 조건 확인 필요"}
+            </div>
+          </section>
+        )}
         <p className={styles.scope}>
           <FlaskConical size={15} aria-hidden="true" />
           {suite.limitation}
         </p>
-        <section className={styles.criteria} aria-labelledby="criteria-title">
-          <h3 id="criteria-title">허용 기준</h3>
-          <div className={styles.criteriaFields}>
-            <label>
-              허용 비용 증가 (%)
-              <input
-                id="cost-limit"
-                type="number"
-                min="0"
-                step="1"
-                value={costLimit}
-                onChange={(e) => setCostLimit(e.target.value)}
-              />
-            </label>
-            <label>
-              허용 p95 증가 (초)
-              <input
-                id="latency-limit"
-                type="number"
-                min="0"
-                step="1"
-                value={latencyLimit}
-                onChange={(e) => setLatencyLimit(e.target.value)}
-              />
-            </label>
-            <p>
-              새로 실패 0개 · 검사 중단 0개는 고정 조건입니다. 허용 기준은 이
-              브라우저에만 저장되며 팀 공용 기준이 아닙니다. 기준 충족은 운영
-              적용 승인이 아닙니다.
+        {!adoption && (
+          <section className={styles.criteria} aria-labelledby="criteria-title">
+            <h3 id="criteria-title">허용 기준</h3>
+            <div className={styles.criteriaFields}>
+              <label>
+                허용 비용 증가 (%)
+                <input
+                  id="cost-limit"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={costLimit}
+                  onChange={(e) => setCostLimit(e.target.value)}
+                />
+              </label>
+              <label>
+                허용 p95 증가 (초)
+                <input
+                  id="latency-limit"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={latencyLimit}
+                  onChange={(e) => setLatencyLimit(e.target.value)}
+                />
+              </label>
+              <p>
+                새로 실패 0개 · 검사 중단 0개는 고정 조건입니다. 허용 기준은 이
+                브라우저에만 저장되며 팀 공용 기준이 아닙니다. 기준 충족은 운영
+                적용 승인이 아닙니다.
+              </p>
+            </div>
+            <p className={styles.footnote}>
+              p95는 응답 시간을 빠른 순서로 정렬했을 때 95% 지점의 값입니다.
+              재채점에 표시되는 비용·응답 시간은 원본 답변 생성 당시 값입니다.
             </p>
-          </div>
-          <p className={styles.footnote}>
-            p95는 응답 시간을 빠른 순서로 정렬했을 때 95% 지점의 값입니다.
-            재채점에 표시되는 비용·응답 시간은 원본 답변 생성 당시 값입니다.
-          </p>
-        </section>
+          </section>
+        )}
         <details className={styles.conditionsDetails}>
           <summary>
             고정 조건 지문 · {Object.keys(before.conditions).length}개
@@ -939,6 +1046,15 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
         >
           <Download size={16} aria-hidden="true" /> 비교 결과 JSON
         </button>
+        {suite.experiment && (
+          <a
+            className={styles.secondary}
+            href="/showcase/regression/experiments.json"
+            download
+          >
+            <Download size={16} aria-hidden="true" /> 실험 기록 JSON
+          </a>
+        )}
       </details>
 
       <details className={styles.historyDetails}>

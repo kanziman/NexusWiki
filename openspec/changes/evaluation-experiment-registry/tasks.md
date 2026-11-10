@@ -6,12 +6,12 @@
 
 이슈: https://github.com/kanziman/NexusWiki/issues/273
 
-- [ ] 1.1 `0037_eval_experiments.sql`(테이블 4개, RLS·권한 회수, 종류 CHECK, 측정 실험 결정 금지 복합 외래키, `preregistered` 생성 열)과 SQL 경계 테스트, 등록 스크립트(정책 v1 행, 재검색 원래 기준 세트, 재검색 실험, 미채택 결정)와 내보내기 스크립트(허용 필드, 결정적 출력), `content/experiments.json`·`/showcase/regression/experiments.json` 라우트, 재검색 화면의 공식 판정·기준 출처·두 시각·결정 기록 표시와 기준선·후보 쌍 고정을 연결한다.
+- [x] 1.1 `0037_eval_experiments.sql`(테이블 4개, RLS·권한 회수, 종류 CHECK, 측정 실험 결정 금지 복합 외래키, `preregistered` 생성 열)과 SQL 경계 테스트, 등록 스크립트(정책 v1 행, 재검색 원래 기준 세트, 재검색 실험, 미채택 결정)와 내보내기 스크립트(허용 필드, 결정적 출력), `content/experiments.json`·`/showcase/regression/experiments.json` 라우트, 재검색 화면의 공식 판정·기준 출처·두 시각·결정 기록 표시와 기준선·후보 쌍 고정을 연결한다.
 
 AC:
 Given: 로컬 DB에 `0037`이 적용되고 기존 `content/evidence-research.json`이 있다.
 When: 등록과 내보내기를 실행하고 공개 빌드로 재검색 실험을 연다.
-Then: 원래 기준 6개 중 답변 복구·통과 증가·비용(+66.4%) 미충족, 나머지 3개 충족, 결정 미채택이 보인다. 출처 첫 커밋(`8a1800d`, 09:43)이 ON 실행(08:53)보다 늦어 사전 등록으로 표시되지 않는다. 맞바꾸기·실행 선택이 없고, 다운로드 JSON이 렌더링 스냅샷과 같다. `anon`·`authenticated`는 0행이며, 측정 실험 결정 삽입과 없는 실행 id 등록은 실패하고, 재등록은 행을 늘리지 않으며, 두 번 내보내면 같은 바이트다.
+Then: 원래 기준 6개 중 답변 복구·통과 증가·비용(+66.4%) 미충족, 나머지 3개 충족, 결정 미채택이 보인다. 출처 첫 커밋(`0f9bbbe`, 11:00 KST)이 OFF 실행(08:26 KST)보다 늦어 사전 등록으로 표시되지 않는다. 맞바꾸기·실행 선택이 없고, 다운로드 JSON이 렌더링 스냅샷과 같다. `anon`·`authenticated`는 0행이며, 측정 실험 결정 삽입과 없는 실행 id 등록은 실패하고, 재등록은 행을 늘리지 않으며, 두 번 내보내면 같은 바이트다.
 
 검증:
 `docker exec -i supabase_db_NexusWiki psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/0037_eval_experiments.sql && .venv/bin/python -m pytest apps/worker/tests/test_eval_experiment_registry.py -q && (cd apps/dashboard && npx vitest run tests/RegressionDashboard.test.tsx)`

@@ -1,7 +1,10 @@
 import execution from "@/content/evaluation-runs.json";
 import evaluation from "@/content/evaluation.json";
 import research from "@/content/evidence-research.json";
+import { experimentFor } from "./experiments";
 import type { AnalysisSuite } from "./regression-analysis";
+
+const researchExperiment = experimentFor("research");
 
 /** 공개된 합성 기록만 읽는다. 서로 다른 평가 세트는 비교 후보로 섞지 않는다. */
 export const regressionSuites: AnalysisSuite[] = [
@@ -19,7 +22,14 @@ export const regressionSuites: AnalysisSuite[] = [
     },
     description:
       "동일 문서·모델·검색 정책에서 재검색 기능의 품질과 추가 비용 비교",
-    roles: { baseline: "현재 방식", candidate: "도입 검토안" },
+    // 역할과 비교 쌍은 실험 기록이 정한다. 화면에서 다른 쌍을 고르면 공식 판정과 어긋난다.
+    experiment: researchExperiment,
+    roles: researchExperiment && {
+      baseline: researchExperiment.baseline_role,
+      candidate: researchExperiment.candidate_role,
+    },
+    baselineId: researchExperiment?.baseline_run_id,
+    candidateId: researchExperiment?.candidate_run_id,
     limitation:
       "합성 42문항 · OFF/ON 1쌍. 복구 대상 0개로 복구 효과는 미측정입니다. 공개 기록에는 답변 본문이 없습니다.",
     runs: (["off", "on"] as const)
