@@ -36,10 +36,12 @@ create table public.eval_criteria_sets (
   id                     text primary key check (id ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   name                   text not null,
   source_path            text not null,
-  source_commit          text not null check (source_commit ~ '^[0-9a-f]{7,40}$'),
-  source_first_commit_at timestamptz not null,
+  -- 출처 커밋을 찾지 못하면 null이다. 지어낸 시각을 넣으면 사전 등록 여부가 거짓이 된다.
+  source_commit          text check (source_commit ~ '^[0-9a-f]{7,40}$'),
+  source_first_commit_at timestamptz,
   earliest_run_at        timestamptz not null,
   -- 손으로 쓰지 못하게 생성 열로 둔다. 쓸 수 있으면 결과를 본 뒤 정한 기준도 사전 등록으로 표시된다.
+  -- 출처 시각이 null이면 null(확인 불가)이고, 화면은 이를 사전 등록으로 표시하지 않는다.
   preregistered          boolean generated always as (source_first_commit_at < earliest_run_at) stored,
   conditions             jsonb not null check (
                            jsonb_typeof(conditions) = 'array' and jsonb_array_length(conditions) > 0
@@ -63,6 +65,10 @@ create table public.eval_experiments (
   criteria_set_id  text references public.eval_criteria_sets (id) on delete restrict,
   policy_version   text references public.eval_policies (version) on delete restrict,
   public           boolean not null,
+  -- 판정 근거가 되는 다른 계약(예: 채점 검증의 PR 관문 스펙 경로).
+  reference        text,
+  -- 채점 검증은 PR 관문 계약을 따른다. 출처가 없으면 판정 변화의 의미를 화면이 설명할 수 없다.
+  constraint eval_experiments_grader_reference check (kind <> 'grader' or reference is not null),
   -- 같은 실행끼리의 비교는 변화가 0으로 나와 성과처럼 보인다.
   constraint eval_experiments_distinct_runs check (baseline_run_id <> candidate_run_id),
   -- 채택 판정 근거는 도입 실험에만 있다. 측정 실험에 기준이 붙으면 화면이 채택 배지를 그린다.

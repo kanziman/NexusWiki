@@ -51,7 +51,7 @@
 
 `AI_CONTROL_RISK_MODE`는 API와 worker 두 배포 서비스에 같은 값으로 설정하고 함께 변경한다. 리스크 탭은 API 설정을 표시하지만 실제 쓰기 보류는 worker 설정을 따른다. 두 값이 달라도 자동 탐지되지 않으므로 화면 표시만으로 worker의 적용 모드를 확인할 수 없다.
 
-`supabase/migrations/`에 `0001` ~ `0036`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 2026-11-03 `migration list --linked` 기준 운영은 `0035`까지 적용되어 있다. 표에 운영 미적용으로 표시된 번호는 해당 코드의 머지 전에 운영자가 먼저 적용한다.
+`supabase/migrations/`에 `0001` ~ `0037`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 2026-11-03 `migration list --linked` 기준 운영은 `0035`까지 적용되어 있다. 표에 운영 미적용으로 표시된 번호는 해당 코드의 머지 전에 운영자가 먼저 적용한다.
 
 주요 지점만:
 
@@ -84,6 +84,7 @@
 | `0034` | 통제실 `[리스크]` 탭 집계 RPC (`control_risk_snapshot`) |
 | `0035` | 본문을 보존하는 위키 근거 백필 후보·추가 전용 RPC (`wiki_evidence_backfill_candidates`, `apply_wiki_evidence_backfill`) |
 | `0036` | 통제실 `[품질]` 탭의 측정 건수 분리 (로컬 검증, 운영 미적용). 운영 순서는 `0036`, API, 대시보드다. 순서가 바뀌면 측정 기록 없음으로 잘못 표시된다 |
+| `0037` | 평가 실험·기준 세트·채택 정책·결정 기록 전역 테이블 (로컬 검증, 운영 미적용). `service_role` 전용이며 공개 화면은 커밋된 스냅샷만 읽으므로 운영 적용 없이도 배포에 영향이 없다 |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 

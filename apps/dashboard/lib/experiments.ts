@@ -15,10 +15,11 @@ export type CriteriaSet = {
   id: string;
   name: string;
   source_path: string;
-  source_commit: string;
-  source_first_commit_at: string;
+  /** 출처 커밋을 찾지 못하면 null이다. 그때 사전 등록 여부도 null(확인 불가)이다. */
+  source_commit: string | null;
+  source_first_commit_at: string | null;
   earliest_run_at: string;
-  preregistered: boolean;
+  preregistered: boolean | null;
   conditions: CriteriaCondition[];
   adopted: boolean;
 };
@@ -52,6 +53,8 @@ export type Experiment = {
   candidate_role: string;
   criteria_set_id: string | null;
   policy_version: string | null;
+  /** 판정 근거가 되는 다른 계약 경로. 채점 검증은 PR 관문 스펙을 가리킨다. */
+  reference?: string | null;
   criteria?: CriteriaSet;
   policy?: AdoptionPolicy;
   decision?: Decision;
@@ -71,6 +74,7 @@ export const localGraderExperiment = {
   candidate_role: "새 검증",
   criteria_set_id: null,
   policy_version: null,
+  reference: "openspec/specs/offline-eval-regression-gate/spec.md",
 } as const;
 
 export const decisionLabels: Record<Decision["status"], string> = {

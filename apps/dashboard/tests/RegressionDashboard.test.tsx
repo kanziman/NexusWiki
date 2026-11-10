@@ -169,6 +169,15 @@ describe("회귀 분석 작업대", () => {
       screen.queryByRole("list", { name: "적용 조건" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText(/추가 모델 호출 비용/)).toHaveTextContent(/없/);
+    // 같은 답변을 같은 규칙으로 다시 채점했으니 변화 0이 정상이라는 설명과 PR 관문 출처가 보여야 한다.
+    expect(
+      screen.getByText(
+        /판정 변화 없음 · 채점 규칙을 바꾸지 않았다면 같은 결과가 정상입니다/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/offline-eval-regression-gate/),
+    ).toBeInTheDocument();
   });
   it("공개 배포에는 로컬 개발 도구 구역이 없다", () => {
     render(<RegressionDashboard />);
@@ -316,6 +325,39 @@ describe("회귀 분석 작업대", () => {
     ).toBeInTheDocument();
     expect(criteria.getByText(/질문 단위/)).toBeInTheDocument();
     expect(criteria.getByText(/바꿀 수 없습니다/)).toBeInTheDocument();
+  });
+  it("스냅샷 문자열의 HTML은 실행되지 않고 글자 그대로 보인다", () => {
+    const research = structuredClone(
+      regressionSuites.find((suite) => suite.id === "research")!,
+    );
+    const html = '<img src=x onerror="alert(1)"> 결정 근거';
+    research.experiment!.decision!.rationale = html;
+    research.experiment!.criteria!.name = "<b>기준</b>";
+    const { container } = render(<RegressionDashboard suites={[research]} />);
+    expect(screen.getByText(html)).toBeInTheDocument();
+    expect(screen.getByText("<b>기준</b>")).toBeInTheDocument();
+    expect(container.querySelector("main img")).toBeNull();
+  });
+  it("기준 출처 시각을 확인할 수 없으면 사전 등록으로 표시하지 않는다", () => {
+    const research = structuredClone(
+      regressionSuites.find((suite) => suite.id === "research")!,
+    );
+    Object.assign(research.experiment!.criteria!, {
+      source_commit: null,
+      source_first_commit_at: null,
+      preregistered: null,
+    });
+    render(<RegressionDashboard suites={[research]} />);
+    const provenance = within(screen.getByLabelText("판정 기준과 결정"));
+    expect(
+      provenance.getByText(
+        /기록 시점을 확인할 수 없음 · 사전 등록으로 표시하지 않음/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      provenance.getByText(/기준 출처의 커밋 기록 없음/),
+    ).toBeInTheDocument();
+    expect(provenance.queryByText(/^사전 등록 ·/)).not.toBeInTheDocument();
   });
   it("빈 데이터도 설명한다", () => {
     render(<RegressionDashboard suites={[]} />);

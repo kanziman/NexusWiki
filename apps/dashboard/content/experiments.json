@@ -75,6 +75,7 @@
       "kind": "adoption",
       "policy_version": "adoption-v1",
       "question": "한 번 더 검색하면 답변이 좋아질까요?",
+      "reference": null,
       "run_source": "research",
       "runs": {
         "baseline": {
@@ -102,6 +103,7 @@
       "kind": "stability",
       "policy_version": null,
       "question": "같은 질문에 다시 답해도 결과가 유지될까요?",
+      "reference": null,
       "run_source": "reliability",
       "runs": {
         "baseline": {

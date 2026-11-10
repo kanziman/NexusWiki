@@ -314,7 +314,9 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
     [
       run.id.length > 12 ? run.id.slice(0, 8) : run.id,
       run.revision,
-      run.createdAt && kst(run.createdAt),
+      run.createdAt
+        ? kst(run.createdAt)
+        : suite.experiment && "실행 시각 기록 없음",
     ]
       .filter(Boolean)
       .join(" · ");
@@ -401,7 +403,7 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           <p className={styles.footnote}>
             {measurement.kind === "stability"
               ? "같은 조건의 반복은 독립 표본이 아니며 흔들림 0이 안정성 보장은 아닙니다. 이 흔들림 크기는 도입 실험에서 한두 질문의 차이를 해석하는 참고가 됩니다."
-              : "답변은 그대로 두고 채점 규칙만 다시 적용한 결과입니다. 판정 변화는 답변 품질이 아니라 채점 규칙의 차이를 뜻합니다."}
+              : `답변은 그대로 두고 채점 규칙만 다시 적용한 결과입니다. 판정 변화는 답변 품질이 아니라 채점 규칙의 차이를 뜻합니다. 판정 기준: ${measurement.reference ?? "PR 관문 계약"}`}
           </p>
         </section>
       ) : analysis.valid ? (
@@ -485,13 +487,22 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
               <div>
                 <dt>기록 시점</dt>
                 <dd>
-                  {criteria.preregistered
+                  {criteria.preregistered === true
                     ? "사전 등록 · 실행 전에 기록됨"
-                    : "실행보다 먼저 기록됐음을 증명하지 못함"}
+                    : criteria.preregistered === false
+                      ? "실행보다 먼저 기록됐음을 증명하지 못함"
+                      : "기록 시점을 확인할 수 없음 · 사전 등록으로 표시하지 않음"}
                   <span>
-                    기준 첫 커밋 <code>{criteria.source_commit}</code>{" "}
-                    {kst(criteria.source_first_commit_at)} · 첫 실행{" "}
-                    {kst(criteria.earliest_run_at)} (한국 시간)
+                    {criteria.source_commit &&
+                    criteria.source_first_commit_at ? (
+                      <>
+                        기준 첫 커밋 <code>{criteria.source_commit}</code>{" "}
+                        {kst(criteria.source_first_commit_at)} ·{" "}
+                      </>
+                    ) : (
+                      "기준 출처의 커밋 기록 없음 · "
+                    )}
+                    첫 실행 {kst(criteria.earliest_run_at)} (한국 시간)
                   </span>
                 </dd>
               </div>

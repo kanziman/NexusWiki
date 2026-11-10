@@ -55,7 +55,27 @@ begin
 exception when generated_always then null;
 end $$;
 
+do $$
+begin
+  insert into public.eval_criteria_sets
+    (id, name, source_path, source_commit, source_first_commit_at, earliest_run_at, conditions, adopted)
+  values ('test-unknown', '출처 시각 없음', 'docs/z.md', null, null, '2026-11-09 08:26+09',
+          '[{"key": "a", "met": true}]', true);
+  if (select preregistered from public.eval_criteria_sets where id = 'test-unknown') is not null then
+    raise exception '출처 시각이 없는데 사전 등록 여부가 정해짐';
+  end if;
+end $$;
+
 -- 2. 종류별 제약
+do $$
+begin
+  insert into public.eval_experiments
+    (id, kind, title, question, run_source, baseline_run_id, candidate_run_id,
+     baseline_role, candidate_role, criteria_set_id, policy_version, public)
+  values ('test-grader', 'grader', '채점', '?', 'local', 'a', 'b', 'a', 'b', null, null, false);
+  raise exception '출처 없는 채점 검증이 들어감';
+exception when check_violation then null;
+end $$;
 do $$
 begin
   insert into public.eval_decisions (experiment_id, status, rationale, decided_on, criteria_set_id)
@@ -149,6 +169,13 @@ begin
   raise exception 'anon이 정책을 씀';
 exception when insufficient_privilege then null;
 end $$;
+-- TRUNCATE는 RLS를 거치지 않는다. 권한 회수가 좁혀지면 이 줄이 먼저 깨진다.
+do $$
+begin
+  truncate public.eval_decisions;
+  raise exception 'anon이 결정 기록을 비움';
+exception when insufficient_privilege then null;
+end $$;
 reset role;
 
 set local role authenticated;
@@ -169,6 +196,12 @@ do $$
 begin
   update public.eval_decisions set status = 'adopted' where experiment_id = 'test-adoption';
   raise exception 'authenticated가 결정을 고침';
+exception when insufficient_privilege then null;
+end $$;
+do $$
+begin
+  truncate public.eval_experiments cascade;
+  raise exception 'authenticated가 실험 기록을 비움';
 exception when insufficient_privilege then null;
 end $$;
 reset role;

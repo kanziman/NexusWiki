@@ -28,11 +28,11 @@
 
 #### Scenario: Stability measurement has no adoption verdict
 - **WHEN** Ask 반복 측정을 안정성 측정으로 등록한다
-- **THEN** 실험에 채택 판정과 결정 상태가 없고, 질문별 판정 일치 수와 흔들린 질문이 측정값으로 기록된다
+- **THEN** 실험에 채택 판정과 결정 상태가 없고, 질문별 판정 일치 수와 흔들린 질문은 저장하지 않고 화면이 측정값으로 계산해 보인다
 
 #### Scenario: Grader check has no adoption verdict
 - **WHEN** 로컬 재채점 이력을 채점 검증으로 등록한다
-- **THEN** 실험에 채택 판정이 없고, 판정이 바뀐 질문 수가 측정값으로 기록되며 PR 관문 계약 `offline-eval-regression-gate`를 출처로 참조한다
+- **THEN** 실험에 채택 판정이 없고, 판정이 바뀐 질문 수는 화면이 측정값으로 계산해 보이며, 실험 기록은 PR 관문 계약 `offline-eval-regression-gate`를 출처로 참조한다
 
 ### Requirement: Adoption policy v1
 시스템은 채택 정책 v1을 버전이 있는 정본 하나로 보존해야 MUST 한다. 정책 v1은 다음 조건을 모두 만족할 때만 채택 가능으로 판정해야 MUST 한다: 기준선에서 통과하고 후보에서 실패한 질문 0개(질문 단위 회귀), 검사 중단 질문 0개, 후보 통과 수가 기준선 통과 수보다 많음, 총비용 증가 50% 이하, p95 응답 시간 증가 15초 이하. 비교할 질문 집합이나 고정 조건이 다르면 판정하지 않고 비교 불가로 기록해야 MUST 한다. 정책이 반복 측정 없이 판정한다는 한계를 정책 기록에 포함해야 MUST 한다.

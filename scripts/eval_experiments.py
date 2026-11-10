@@ -46,6 +46,7 @@ LOCAL_EXPERIMENT = {
     "criteria_set_id": None,
     "policy_version": None,
     "public": False,
+    "reference": "openspec/specs/offline-eval-regression-gate/spec.md",
 }
 
 # 원래 경로에서 처음 커밋됐고 아카이브로 옮겨졌다. 두 경로 중 가장 이른 커밋이 기록 시각이다.
@@ -113,6 +114,7 @@ ALLOWED = {
         "candidate_role",
         "criteria_set_id",
         "policy_version",
+        "reference",
         "runs",
     },
     "runs": {"id", "revision", "dirty", "created_at"},
@@ -143,7 +145,10 @@ def utc(value: str) -> str:
     return parsed.astimezone(UTC).isoformat(timespec="seconds")
 
 
-def git_first_commit(paths: tuple[str, ...], root: Path = ROOT) -> tuple[str, str]:
+def git_first_commit(
+    paths: tuple[str, ...], root: Path = ROOT
+) -> tuple[str, str] | tuple[None, None]:
+    """경로들의 가장 이른 커밋. 찾지 못하면 (None, None)이다. 시각을 추측해 넣지 않는다."""
     found: list[tuple[str, str]] = []
     for path in paths:
         out = subprocess.run(  # noqa: S603 - 고정 git 명령, 경로는 코드 상수다
@@ -157,7 +162,7 @@ def git_first_commit(paths: tuple[str, ...], root: Path = ROOT) -> tuple[str, st
             sha, at = out[0].split()
             found.append((sha, utc(at)))
     if not found:
-        raise RegistryError(f"기준 출처의 커밋을 찾지 못함: {paths}")
+        return (None, None)
     return min(found, key=lambda item: item[1])
 
 
@@ -227,6 +232,9 @@ def research_records(record: dict[str, Any], first_commit=git_first_commit) -> d
         raise RegistryError("저장된 adopted가 조건별 판정과 맞지 않는다")
     sha, first_at = first_commit(RESEARCH_CRITERIA_PATHS)
     _, decided_at = first_commit(("apps/dashboard/content/evidence-research.json",))
+    if decided_at is None:
+        # 결정 날짜는 결과 기록이 처음 커밋된 날이다. 이력이 없으면 날짜를 지어내지 않고 멈춘다.
+        raise RegistryError("재검색 결과 기록의 커밋을 찾지 못해 결정 날짜를 정할 수 없다")
     criteria = {
         "id": "ask-evidence-research-d4",
         "name": "재검색 도입 원래 기준 (D4)",
@@ -251,6 +259,7 @@ def research_records(record: dict[str, Any], first_commit=git_first_commit) -> d
         "criteria_set_id": criteria["id"],
         "policy_version": POLICY_V1["version"],
         "public": True,
+        "reference": None,
     }
     decision = {
         "experiment_id": experiment["id"],
@@ -292,6 +301,7 @@ def reliability_records(runs: dict[str, Any]) -> dict[str, list]:
                 "criteria_set_id": None,
                 "policy_version": None,
                 "public": True,
+                "reference": None,
             }
         ]
     }
@@ -338,7 +348,17 @@ def build_records(root: Path = ROOT, first_commit=git_first_commit) -> dict[str,
         ids = [row[key] for row in records[table]]
         if len(ids) != len(set(ids)):
             raise RegistryError(f"{table}에 중복 키가 있다")
+    validate_run_refs(records, root)
     return records
+
+
+def validate_run_refs(records: dict[str, list], root: Path = ROOT) -> None:
+    """실험 행이 가리키는 실행이 저장 결과에 실제로 있는지 등록 전에 확인한다."""
+    for row in records["eval_experiments"]:
+        if row["run_source"] == "local":
+            continue  # local_records가 실행기 디렉터리에서 직접 고른 id다.
+        for role in ("baseline_run_id", "candidate_run_id"):
+            run_identity(row["run_source"], row[role], root)
 
 
 def _tag() -> str:
@@ -476,7 +496,8 @@ def build_snapshot(rows: dict[str, list], root: Path = ROOT) -> dict[str, Any]:
         "criteria_sets": [
             {
                 **row,
-                "source_first_commit_at": utc(row["source_first_commit_at"]),
+                "source_first_commit_at": row["source_first_commit_at"]
+                and utc(row["source_first_commit_at"]),
                 "earliest_run_at": utc(row["earliest_run_at"]),
             }
             for row in rows["eval_criteria_sets"]

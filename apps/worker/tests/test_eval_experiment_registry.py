@@ -239,5 +239,46 @@ def test_local_experiment_matches_dashboard_definition():
     source = (ROOT / "apps/dashboard/lib/experiments.ts").read_text()
     start = source.index("export const localGraderExperiment")
     block = source[start : source.index("} as const;", start)]
-    for key in ("id", "kind", "title", "question", "run_source", "baseline_role", "candidate_role"):
+    for key in (
+        "id",
+        "kind",
+        "title",
+        "question",
+        "run_source",
+        "baseline_role",
+        "candidate_role",
+        "reference",
+    ):
         assert f'{key}: "{registry.LOCAL_EXPERIMENT[key]}"' in block, key
+
+
+def test_unknown_criteria_commit_is_recorded_not_invented():
+    def no_history(paths):
+        if "evidence-research.json" in paths[0]:
+            return late_commit(paths)
+        return (None, None)
+
+    criteria = registry.research_records(copy.deepcopy(RESEARCH), no_history)["eval_criteria_sets"][
+        0
+    ]
+    assert criteria["source_commit"] is None
+    assert criteria["source_first_commit_at"] is None
+
+
+def test_registration_checks_each_experiment_run_against_stored_results(monkeypatch):
+    original = registry.reliability_records
+
+    def renamed(runs):
+        rec = original(runs)
+        rec["eval_experiments"][0]["candidate_run_id"] = "run-9"
+        return rec
+
+    monkeypatch.setattr(registry, "reliability_records", renamed)
+    with pytest.raises(registry.RegistryError, match="없는 실행"):
+        registry.build_records(first_commit=late_commit)
+
+
+def test_grader_check_points_at_the_pr_gate_contract():
+    reference = registry.LOCAL_EXPERIMENT["reference"]
+    assert reference == "openspec/specs/offline-eval-regression-gate/spec.md"
+    assert (ROOT / reference).exists()

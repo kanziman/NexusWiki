@@ -39,8 +39,8 @@ DB에는 정책·기준 세트·실험·결정만 두고, 정책 v1 참고 판�
 `0037_eval_experiments.sql`:
 
 - `eval_policies`: `version text pk`(예: `adoption-v1`), `regression_rule text check (= 'per_question')`, `require_improvement boolean`, `max_excluded int`, `max_cost_increase_pct numeric`, `max_p95_increase_ms int`, `limitation text`, `defined_on date`.
-- `eval_criteria_sets`: `id text pk`, `name`, `source_path`, `source_first_commit_at timestamptz`, `source_commit text`, `earliest_run_at timestamptz`, `preregistered boolean generated always as (source_first_commit_at < earliest_run_at)`, `conditions jsonb`(조건 key·이름·허용값·실제값·충족 여부 배열), `adopted boolean`.
-- `eval_experiments`: `id text pk`, `kind text check (in ('adoption','stability','grader'))`, `title`, `question`, `run_source text check (in ('research','reliability','local'))`, `baseline_run_id`, `candidate_run_id`, `baseline_role`, `candidate_role`, `criteria_set_id` → `eval_criteria_sets`, `policy_version` → `eval_policies`, `public boolean`, `unique (id, kind)`. CHECK: `kind = 'adoption'`이면 `criteria_set_id`와 `policy_version`이 있어야 하고, 아니면 둘 다 null이어야 한다.
+- `eval_criteria_sets`: `id text pk`, `name`, `source_path`, `source_first_commit_at timestamptz`(null 허용), `source_commit text`(null 허용 — 출처 커밋을 찾지 못하면 시각을 지어내지 않고 null로 두며 `preregistered`도 null(확인 불가)이 된다), `earliest_run_at timestamptz`, `preregistered boolean generated always as (source_first_commit_at < earliest_run_at)`, `conditions jsonb`(조건 key·이름·허용값·실제값·충족 여부 배열), `adopted boolean`.
+- `eval_experiments`: `id text pk`, `kind text check (in ('adoption','stability','grader'))`, `title`, `question`, `run_source text check (in ('research','reliability','local'))`, `baseline_run_id`, `candidate_run_id`, `baseline_role`, `candidate_role`, `criteria_set_id` → `eval_criteria_sets`, `policy_version` → `eval_policies`, `public boolean`, `reference text`(판정 근거가 되는 다른 계약 경로, 채점 검증은 `openspec/specs/offline-eval-regression-gate/spec.md` 필수), `unique (id, kind)`. CHECK: `kind = 'adoption'`이면 `criteria_set_id`와 `policy_version`이 있어야 하고, 아니면 둘 다 null이어야 한다.
 - `eval_decisions`: `experiment_id text pk`, `experiment_kind text check (= 'adoption')`, `foreign key (experiment_id, experiment_kind) references eval_experiments (id, kind)`, `status text check (in ('adopted','not_adopted','deferred'))`, `rationale`, `decided_on date`, `criteria_set_id`.
 
 모든 테이블은 `enable row level security`만 하고 정책을 두지 않는다. 안 그러면 `anon`·`authenticated`가 전역 행을 읽는다. 대신 `revoke all ... from anon, authenticated`를 함께 둔다. `workspace_id` 열은 없다. 실험은 테넌트 데이터가 아니라 프로젝트 운영 기록이다.
@@ -63,7 +63,7 @@ DB에는 정책·기준 세트·실험·결정만 두고, 정책 v1 참고 판�
 
 - 허용 필드 목록을 코드에 두고, 목록 밖 필드나 금지 이름(`workspace_id`, `user_id`, `answer` 등)이 있으면 쓰기 전에 실패한다.
 - 키 정렬, 고정 들여쓰기, 내보낸 시각 미포함으로 같은 DB 상태에서 같은 바이트를 낸다.
-- 실행의 id·리비전·실행 시각은 기존 공개 기록에서 다시 읽지 않고, 스냅샷에 넣어 화면이 그대로 표시한다.
+- 실행의 id·리비전·실행 시각을 스냅샷 `runs`에 넣어 내려받는 사람이 기존 기록 없이도 실행을 짚을 수 있게 한다. 화면은 같은 값을 기존 공개 기록(`regression-data.ts`)에서 읽는다. 두 값은 같은 원본에서 나오며, 실행 시각이 없는 기록은 "실행 시각 기록 없음"으로 보인다.
 - `/showcase/regression/experiments.json` 정적 라우트가 같은 파일을 내려준다. 기존 `evaluation/results.json` 라우트와 같은 방식이다.
 
 ### D5. 화면: 기존 계산을 유지하고 정책 평가 함수를 더한다
