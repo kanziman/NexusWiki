@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import {
   compareRuns,
-  outcomeLabels,
+  outcomeLabelsFor,
   researchLabel,
   type AnalysisSuite,
   type ComparedRow,
@@ -54,7 +54,13 @@ function openNewCheck() {
   drawer?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function RowDetail({ row }: { row: ComparedRow }) {
+function RowDetail({
+  row,
+  labels,
+}: {
+  row: ComparedRow;
+  labels: Record<Outcome, string>;
+}) {
   return (
     <section className={styles.detail} aria-label={`${row.id} 문항 상세`}>
       <div className={styles.detailHeading}>
@@ -63,7 +69,7 @@ function RowDetail({ row }: { row: ComparedRow }) {
           <h3>{row.query}</h3>
         </div>
         <span className={styles.status} data-status={row.outcome}>
-          {outcomeLabels[row.outcome]}
+          {labels[row.outcome]}
         </span>
       </div>
       {row.after?.expected && (
@@ -166,6 +172,16 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
     (row) => row.outcome === "regressed",
   );
   // 도입 실험은 등록된 기준 세트가 공식 판정을 정한다. 화면은 저장된 조건별 결과를 다시 계산하지 않는다.
+  // 측정 실험은 채택 판정 없이 측정값만 보인다. 통과 → 실패를 회귀라고 부르지 않는다.
+  const measurement =
+    suite.experiment && suite.experiment.kind !== "adoption"
+      ? suite.experiment
+      : undefined;
+  const labels = outcomeLabelsFor(suite.experiment?.kind);
+  const flipped = analysis.counts.regressed + analysis.counts.improved;
+  const flippedRows = analysis.rows.filter((row) =>
+    ["regressed", "improved"].includes(row.outcome),
+  );
   const adoption =
     suite.experiment?.kind === "adoption" && suite.experiment.criteria
       ? suite.experiment
@@ -335,7 +351,78 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           </button>
         )}
       </header>
-      {analysis.valid ? (
+      {analysis.valid && measurement ? (
+        <section
+          className={styles.readingSummary}
+          aria-labelledby="reading-title"
+          data-kind={measurement.kind}
+        >
+          <p className={styles.measureKind}>
+            {measurement.kind === "stability" ? "안정성 측정" : "채점 검증"} ·
+            채택 판정 대상이 아닙니다
+          </p>
+          <h2 id="reading-title">
+            {measurement.kind === "stability"
+              ? `질문별 판정 일치 ${analysis.total - flipped}/${analysis.total}`
+              : `판정이 바뀐 질문 ${flipped}개`}
+          </h2>
+          <dl className={styles.gateRuns} aria-label="비교한 실행">
+            {(
+              [
+                ["후보", measurement.candidate_role, after],
+                ["기준선", measurement.baseline_role, before],
+              ] as const
+            ).map(([role, meaning, run]) => (
+              <div key={role}>
+                <dt>
+                  {role}
+                  <small>{meaning}</small>
+                </dt>
+                <dd>
+                  <b>{runLabel(run)}</b>
+                  <span>{runIdentity(run)}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className={styles.gateSource}>
+            {isRescore
+              ? "저장 답변 재채점 · 추가 모델 호출 비용 없음"
+              : "저장된 기록 · 모델 호출 없음"}
+          </p>
+          <p className={styles.measureFinding}>
+            {flipped === 0 ? (
+              measurement.kind === "stability" ? (
+                "흔들린 질문 없음"
+              ) : (
+                "판정 변화 없음 · 채점 규칙을 바꾸지 않았다면 같은 결과가 정상입니다"
+              )
+            ) : (
+              <>
+                {measurement.kind === "stability"
+                  ? "흔들린 질문"
+                  : "판정이 바뀐 질문"}{" "}
+                {flipped}개 ·{" "}
+                {flippedRows.slice(0, 5).map((row) => (
+                  <button
+                    type="button"
+                    key={row.id}
+                    className={styles.gateLink}
+                    onClick={() => jumpToQuestions(row.outcome, row.id)}
+                  >
+                    {row.id}
+                  </button>
+                ))}
+              </>
+            )}
+          </p>
+          <p className={styles.footnote}>
+            {measurement.kind === "stability"
+              ? "같은 조건의 반복은 독립 표본이 아니며 흔들림 0이 안정성 보장은 아닙니다. 이 흔들림 크기는 도입 실험에서 한두 질문의 차이를 해석하는 참고가 됩니다."
+              : "답변은 그대로 두고 채점 규칙만 다시 적용한 결과입니다. 판정 변화는 답변 품질이 아니라 채점 규칙의 차이를 뜻합니다."}
+          </p>
+        </section>
+      ) : analysis.valid ? (
         <section
           className={styles.readingSummary}
           aria-labelledby="reading-title"
@@ -506,9 +593,11 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
             </label>
           </div>
           <p className={styles.footnote}>
-            새로 실패는 기준선 통과 → 후보 실패, 새로 통과는 기준선 실패 → 후보
-            통과, 여전히 실패는 둘 다 실패입니다. 시간 순서가 아니라 고른 두
-            실행의 비교이며, 맞바꾸면 의미도 뒤집힙니다.
+            {measurement?.kind === "stability"
+              ? "흔들림은 같은 조건으로 다시 답했을 때 판정이 바뀐 질문입니다. 계속 실패는 두 반복 모두 실패한 질문입니다."
+              : measurement?.kind === "grader"
+                ? "판정 변화는 같은 답변을 다른 채점 규칙으로 다시 채점해 판정이 바뀐 질문입니다."
+                : "새로 실패는 기준선 통과 → 후보 실패, 새로 통과는 기준선 실패 → 후보 통과, 여전히 실패는 둘 다 실패입니다. 시간 순서가 아니라 고른 두 실행의 비교이며, 맞바꾸면 의미도 뒤집힙니다."}
           </p>
           <div
             className={styles.filters}
@@ -523,9 +612,9 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
                   analysis.counts.failed +
                   analysis.counts.excluded,
               ],
-              ["regressed", "새로 실패", analysis.counts.regressed],
-              ["improved", "새로 통과", analysis.counts.improved],
-              ["failed", "여전히 실패", analysis.counts.failed],
+              ["regressed", labels.regressed, analysis.counts.regressed],
+              ["improved", labels.improved, analysis.counts.improved],
+              ["failed", labels.failed, analysis.counts.failed],
               ["all", "전체", analysis.rows.length],
             ].map(([value, label, n]) => (
               <button
@@ -570,7 +659,7 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
                     <div>
                       <code>{row.id}</code>
                       <span className={styles.status} data-status={row.outcome}>
-                        {outcomeLabels[row.outcome]}
+                        {labels[row.outcome]}
                       </span>
                     </div>
                     <p>{row.query}</p>
@@ -596,11 +685,11 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
                 ))
               )}
             </div>
-            {selected && <RowDetail row={selected} />}
+            {selected && <RowDetail row={selected} labels={labels} />}
           </div>
           <p role="status" className={styles.footnote}>
-            {filtered.length}문항 표시 · 새로 실패, 검사 중단, 여전히 실패
-            순서입니다.
+            {filtered.length}문항 표시 · {labels.regressed}, {labels.excluded},{" "}
+            {labels.failed} 순서입니다.
           </p>
         </section>
       )}
@@ -728,55 +817,65 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           <FlaskConical size={15} aria-hidden="true" />
           {suite.limitation}
         </p>
-        <section className={styles.criteria} aria-labelledby="criteria-title">
-          <h3 id="criteria-title">판정 기준 (읽기 전용)</h3>
-          {criteria && (
-            <>
-              <h4>{criteria.name} · 이 실험의 공식 판정 기준</h4>
-              <ul className={styles.policyList}>
-                {criteria.conditions.map((condition) => (
-                  <li key={condition.key}>
-                    {condition.label} <span>허용 {condition.limit}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {policy && (
-            <>
-              <h4>
-                채택 정책 <code>{policy.version}</code> ·{" "}
-                {criteria
-                  ? "이후 도입 실험의 기본 기준, 이 실험에는 참고로만 적용"
-                  : "도입 실험 기본 기준"}{" "}
-                · {policy.defined_on} 정의
-              </h4>
-              <ul className={styles.policyList}>
-                <li>
-                  새로 실패 0개 <span>질문 단위 · 기준선 통과 → 후보 실패</span>
-                </li>
-                <li>검사 중단 {policy.max_excluded}개 이하</li>
-                {policy.require_improvement && (
-                  <li>
-                    통과 수 증가 <span>후보가 기준선보다 많아야 함</span>
-                  </li>
-                )}
-                <li>총비용 증가 {policy.max_cost_increase_pct}% 이하</li>
-                <li>
-                  p95 응답 시간 증가 {policy.max_p95_increase_ms / 1000}초 이하
-                </li>
-              </ul>
-              <p className={styles.footnote}>
-                한계 · {policy.limitation} 기준은 실험 기록에서 오며 이 화면에서
-                바꿀 수 없습니다. 기준 충족은 운영 적용 승인이 아닙니다.
-              </p>
-            </>
-          )}
+        {measurement ? (
           <p className={styles.footnote}>
-            p95는 응답 시간을 빠른 순서로 정렬했을 때 95% 지점의 값입니다.
-            재채점에 표시되는 비용·응답 시간은 원본 답변 생성 당시 값입니다.
+            {measurement.kind === "stability" ? "안정성 측정" : "채점 검증"}은
+            채택 판정 대상이 아니라 채택 정책을 적용하지 않습니다.
           </p>
-        </section>
+        ) : (
+          <section className={styles.criteria} aria-labelledby="criteria-title">
+            <h3 id="criteria-title">판정 기준 (읽기 전용)</h3>
+            {criteria && (
+              <>
+                <h4>{criteria.name} · 이 실험의 공식 판정 기준</h4>
+                <ul className={styles.policyList}>
+                  {criteria.conditions.map((condition) => (
+                    <li key={condition.key}>
+                      {condition.label} <span>허용 {condition.limit}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {policy && (
+              <>
+                <h4>
+                  채택 정책 <code>{policy.version}</code> ·{" "}
+                  {criteria
+                    ? "이후 도입 실험의 기본 기준, 이 실험에는 참고로만 적용"
+                    : "도입 실험 기본 기준"}{" "}
+                  · {policy.defined_on} 정의
+                </h4>
+                <ul className={styles.policyList}>
+                  <li>
+                    새로 실패 0개{" "}
+                    <span>질문 단위 · 기준선 통과 → 후보 실패</span>
+                  </li>
+                  <li>검사 중단 {policy.max_excluded}개 이하</li>
+                  {policy.require_improvement && (
+                    <li>
+                      통과 수 증가 <span>후보가 기준선보다 많아야 함</span>
+                    </li>
+                  )}
+                  <li>총비용 증가 {policy.max_cost_increase_pct}% 이하</li>
+                  <li>
+                    p95 응답 시간 증가 {policy.max_p95_increase_ms / 1000}초
+                    이하
+                  </li>
+                </ul>
+                <p className={styles.footnote}>
+                  한계 · {policy.limitation} 기준은 실험 기록에서 오며 이
+                  화면에서 바꿀 수 없습니다. 기준 충족은 운영 적용 승인이
+                  아닙니다.
+                </p>
+              </>
+            )}
+            <p className={styles.footnote}>
+              p95는 응답 시간을 빠른 순서로 정렬했을 때 95% 지점의 값입니다.
+              재채점에 표시되는 비용·응답 시간은 원본 답변 생성 당시 값입니다.
+            </p>
+          </section>
+        )}
         <details className={styles.conditionsDetails}>
           <summary>
             고정 조건 지문 · {Object.keys(before.conditions).length}개

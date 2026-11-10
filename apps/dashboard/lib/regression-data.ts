@@ -5,6 +5,7 @@ import { experimentFor } from "./experiments";
 import type { AnalysisSuite } from "./regression-analysis";
 
 const researchExperiment = experimentFor("research");
+const reliabilityExperiment = experimentFor("reliability");
 
 /** 공개된 합성 기록만 읽는다. 서로 다른 평가 세트는 비교 후보로 섞지 않는다. */
 export const regressionSuites: AnalysisSuite[] = [
@@ -84,7 +85,13 @@ export const regressionSuites: AnalysisSuite[] = [
         "여기서는 새로운 답변을 만들지 않고 당시 기록을 비교합니다. 몇 번 결과가 같았다고 안정성을 보장하지 않습니다. 프로세스 내부 실행은 HTTP 통신을 거치지 않아 지연을 해석할 때 주의해야 합니다.",
     },
     description: "같은 질문을 HTTP 2회와 프로세스 내부 1회 실행한 기록 비교",
-    roles: { baseline: "기준 반복", candidate: "비교 반복" },
+    experiment: reliabilityExperiment,
+    roles: reliabilityExperiment && {
+      baseline: reliabilityExperiment.baseline_role,
+      candidate: reliabilityExperiment.candidate_role,
+    },
+    baselineId: reliabilityExperiment?.baseline_run_id,
+    candidateId: reliabilityExperiment?.candidate_run_id,
     limitation:
       "합성 30문항 · 같은 질문의 반복은 독립 표본이 아닙니다. HTTP와 하네스는 실행 경로가 다르며 안정성을 보장하지 않습니다.",
     runs: execution.runs

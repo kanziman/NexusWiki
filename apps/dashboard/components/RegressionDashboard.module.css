@@ -381,6 +381,15 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
+.measureKind {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 var(--spacing-xs);
+}
+.readingSummary > .measureFinding {
+  font-size: 0.9rem;
+  margin: 0 0 var(--spacing-sm);
+}
 .policyReference {
   display: block;
   margin-bottom: var(--spacing-xs);

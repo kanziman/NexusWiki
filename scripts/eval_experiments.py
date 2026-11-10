@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "apps/dashboard/content"
 SNAPSHOT = CONTENT / "experiments.json"
 RESEARCH = CONTENT / "evidence-research.json"
+RELIABILITY = CONTENT / "evaluation-runs.json"
 CONTAINER = os.environ.get("NEXUSWIKI_DB_CONTAINER", "supabase_db_NexusWiki")
 
 # 원래 경로에서 처음 커밋됐고 아카이브로 옮겨졌다. 두 경로 중 가장 이른 커밋이 기록 시각이다.
@@ -253,9 +254,44 @@ def research_records(record: dict[str, Any], first_commit=git_first_commit) -> d
     }
 
 
+def reliability_records(runs: dict[str, Any]) -> dict[str, list]:
+    """Ask 반복 측정은 채택할 대상이 없는 안정성 측정이다. 기준·정책·결정을 붙이지 않는다."""
+    ids = {run["id"] for run in runs["runs"]}
+    if not {"run-1", "run-2"} <= ids:
+        raise RegistryError("반복 측정 기록에 run-1/run-2가 모두 있어야 한다")
+    return {
+        "eval_experiments": [
+            {
+                "id": "ask-replay-reliability",
+                "kind": "stability",
+                "title": "같은 질문의 반복 결과",
+                "question": "같은 질문에 다시 답해도 결과가 유지될까요?",
+                "run_source": "reliability",
+                "baseline_run_id": "run-1",
+                "candidate_run_id": "run-2",
+                "baseline_role": "기준 반복",
+                "candidate_role": "비교 반복",
+                "criteria_set_id": None,
+                "policy_version": None,
+                "public": True,
+            }
+        ]
+    }
+
+
+def _merge(*parts: dict[str, list]) -> dict[str, list]:
+    merged: dict[str, list] = {table: [] for table, _ in TABLES}
+    for part in parts:
+        for table, rows in part.items():
+            merged[table].extend(rows)
+    return merged
+
+
 def build_records(root: Path = ROOT, first_commit=git_first_commit) -> dict[str, list]:
-    research = json.loads((root / "apps/dashboard/content/evidence-research.json").read_text())
-    records = research_records(research, first_commit)
+    content = root / "apps/dashboard/content"
+    research = json.loads((content / "evidence-research.json").read_text())
+    reliability = json.loads((content / "evaluation-runs.json").read_text())
+    records = _merge(research_records(research, first_commit), reliability_records(reliability))
     for table, key in TABLES:
         ids = [row[key] for row in records[table]]
         if len(ids) != len(set(ids)):
@@ -338,6 +374,19 @@ def run_identity(source: str, run_id: str, root: Path = ROOT) -> dict[str, Any]:
             "revision": run["revision"],
             "dirty": "작업트리" in run.get("source_state", ""),
             "created_at": utc(run["created_at"]),
+        }
+    if source == "reliability":
+        record = json.loads((root / "apps/dashboard/content/evaluation-runs.json").read_text())
+        runs = {run["id"]: run for run in record["runs"]}
+        if run_id not in runs:
+            raise RegistryError(f"반복 측정 기록에 없는 실행: {run_id}")
+        revision = runs[run_id]["revision"] or ""
+        return {
+            "id": run_id,
+            "revision": revision.removesuffix("+dirty"),
+            "dirty": revision.endswith("+dirty"),
+            # 이 기록은 실행 시각을 남기지 않았다. 추측한 시각을 넣지 않는다.
+            "created_at": None,
         }
     raise RegistryError(f"공개할 수 없는 실행 출처: {source}")
 

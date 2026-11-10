@@ -91,6 +91,33 @@
         }
       },
       "title": "재검색 도입"
+    },
+    {
+      "baseline_role": "기준 반복",
+      "baseline_run_id": "run-1",
+      "candidate_role": "비교 반복",
+      "candidate_run_id": "run-2",
+      "criteria_set_id": null,
+      "id": "ask-replay-reliability",
+      "kind": "stability",
+      "policy_version": null,
+      "question": "같은 질문에 다시 답해도 결과가 유지될까요?",
+      "run_source": "reliability",
+      "runs": {
+        "baseline": {
+          "created_at": null,
+          "dirty": true,
+          "id": "run-1",
+          "revision": "9ae4244"
+        },
+        "candidate": {
+          "created_at": null,
+          "dirty": true,
+          "id": "run-2",
+          "revision": "9ae4244"
+        }
+      },
+      "title": "같은 질문의 반복 결과"
     }
   ],
   "policies": [

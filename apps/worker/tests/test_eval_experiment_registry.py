@@ -29,8 +29,10 @@ def records():
 
 
 def db_rows():
-    """DB가 돌려주는 모양을 흉내 낸다. 생성 열과 내부 열이 함께 온다."""
-    rec = records()
+    """DB가 돌려주는 모양을 흉내 낸다. 생성 열과 내부 열이 함께 오고 키 순서로 정렬된다."""
+    rec = registry.build_records(first_commit=late_commit)
+    for table, key in registry.TABLES:
+        rec[table].sort(key=lambda row, key=key: row[key])
     criteria = [{**row, "preregistered": False} for row in rec["eval_criteria_sets"]]
     decisions = [{**row, "experiment_kind": "adoption"} for row in rec["eval_decisions"]]
     return {**rec, "eval_criteria_sets": criteria, "eval_decisions": decisions}
@@ -114,7 +116,10 @@ def test_upsert_payload_cannot_close_its_dollar_quote(monkeypatch):
 
 def test_snapshot_has_public_experiments_with_run_identity():
     snapshot = registry.build_snapshot(db_rows())
-    assert [e["id"] for e in snapshot["experiments"]] == ["ask-evidence-research"]
+    assert [e["id"] for e in snapshot["experiments"]] == [
+        "ask-evidence-research",
+        "ask-replay-reliability",
+    ]
     runs = snapshot["experiments"][0]["runs"]
     assert runs["baseline"]["id"] == "off" and runs["candidate"]["id"] == "on"
     assert runs["candidate"]["dirty"] is True
@@ -129,7 +134,7 @@ def test_local_only_experiment_and_decision_are_excluded():
     rows["eval_experiments"].append(hidden)
     rows["eval_decisions"].append({**rows["eval_decisions"][0], "experiment_id": "local-grader"})
     snapshot = registry.build_snapshot(rows)
-    assert [e["id"] for e in snapshot["experiments"]] == ["ask-evidence-research"]
+    assert "local-grader" not in [e["id"] for e in snapshot["experiments"]]
     assert [d["experiment_id"] for d in snapshot["decisions"]] == ["ask-evidence-research"]
 
 
@@ -181,3 +186,26 @@ def test_dashboard_has_no_hardcoded_adoption_thresholds():
     source = (ROOT / "apps/dashboard/components/RegressionDashboard.tsx").read_text()
     for needle in ('useState("50")', 'useState("15")', "localStorage"):
         assert needle not in source
+
+
+def test_reliability_is_a_stability_measurement_without_adoption_refs():
+    rec = registry.build_records(first_commit=late_commit)
+    experiments = {e["id"]: e for e in rec["eval_experiments"]}
+    stability = experiments["ask-replay-reliability"]
+    assert stability["kind"] == "stability"
+    assert stability["criteria_set_id"] is None and stability["policy_version"] is None
+    assert [d["experiment_id"] for d in rec["eval_decisions"]] == ["ask-evidence-research"]
+
+
+def test_reliability_missing_run_is_rejected():
+    runs = json.loads(registry.RELIABILITY.read_text())
+    runs["runs"] = [run for run in runs["runs"] if run["id"] != "run-2"]
+    with pytest.raises(registry.RegistryError, match="run-1/run-2"):
+        registry.reliability_records(runs)
+
+
+def test_reliability_identity_does_not_invent_a_run_time():
+    identity = registry.run_identity("reliability", "run-1")
+    assert identity == {"id": "run-1", "revision": "9ae4244", "dirty": True, "created_at": None}
+    with pytest.raises(registry.RegistryError, match="없는 실행"):
+        registry.run_identity("reliability", "run-9")

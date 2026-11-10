@@ -185,6 +185,35 @@ describe("회귀 분석 작업대", () => {
     expect(screen.getByLabelText("기준선")).toHaveValue("run-2");
     expect(screen.getByLabelText("후보")).toHaveValue("run-1");
   });
+  it("반복 측정은 채택 판정 없이 판정 일치 수와 흔들림을 보인다", () => {
+    const suite = regressionSuites.find((item) => item.id === "reliability")!;
+    const analysis = compareRuns(suite.runs[0], suite.runs[1]);
+    const flipped = analysis.counts.regressed + analysis.counts.improved;
+    render(<RegressionDashboard />);
+    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+    expect(
+      screen.getByRole("heading", {
+        name: `질문별 판정 일치 ${analysis.total - flipped}/${analysis.total}`,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/안정성 측정 · 채택 판정 대상이 아닙니다/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "적용 조건" }),
+    ).not.toBeInTheDocument();
+    for (const badge of ["원래 기준 미충족", "검토 필요", "조건 충족"])
+      expect(screen.queryByText(badge)).not.toBeInTheDocument();
+    expect(screen.queryByText(/허용 \+50%/)).not.toBeInTheDocument();
+    // 측정 실험에서 통과 → 실패를 회귀라고 부르면 도입을 막는 결함처럼 읽힌다.
+    expect(document.querySelector("main")!.textContent).not.toMatch(/회귀/);
+    expect(
+      screen.getByRole("button", { name: /^흔들림 \(통과→실패\)/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/채택 정책을 적용하지 않습니다/),
+    ).toBeInTheDocument();
+  });
   it("반복 측정은 별도 세트로 고르고 실제 답변을 나란히 본다", () => {
     render(<RegressionDashboard />);
     fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));

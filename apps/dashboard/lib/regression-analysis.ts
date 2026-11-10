@@ -1,4 +1,4 @@
-import type { Experiment } from "./experiments";
+import type { Experiment, ExperimentKind } from "./experiments";
 
 /** 같은 평가 세트 안에서 문항을 맞춰 개선·회귀를 계산한다. 합계가 같아도 개별 회귀는 남긴다. */
 export type AnalysisRow = {
@@ -67,6 +67,31 @@ export const outcomeLabels: Record<Outcome, string> = {
   passed: "계속 통과",
   excluded: "검사 중단",
 };
+
+/**
+ * 실험 종류에 맞는 변화 이름. 측정 실험에서 통과 → 실패를 회귀라고 부르면 도입을 막는 결함처럼 읽힌다.
+ */
+export function outcomeLabelsFor(
+  kind?: ExperimentKind,
+): Record<Outcome, string> {
+  if (kind === "stability")
+    return {
+      regressed: "흔들림 (통과→실패)",
+      improved: "흔들림 (실패→통과)",
+      failed: "계속 실패",
+      passed: "계속 통과",
+      excluded: "검사 중단",
+    };
+  if (kind === "grader")
+    return {
+      regressed: "판정 변화 (통과→실패)",
+      improved: "판정 변화 (실패→통과)",
+      failed: "계속 실패",
+      passed: "계속 통과",
+      excluded: "검사 중단",
+    };
+  return outcomeLabels;
+}
 
 export function researchLabel(research: NonNullable<AnalysisRow["research"]>) {
   if (research.calls > 0) return `재검색 ${research.calls}회 실행`;
