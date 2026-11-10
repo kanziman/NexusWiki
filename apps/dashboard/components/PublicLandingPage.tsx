@@ -339,8 +339,9 @@ export function PublicLandingPage() {
               AI의 답변을, 검증하며 개선합니다.
             </h2>
             <p className="text-base leading-relaxed text-[var(--muted)]">
-              질문별 기준으로 답변을 평가하고, 실패 원인을 확인하며, 변경 전후의
-              품질과 비용을 비교합니다. 실제 실험의 결과와 한계까지 공개합니다.
+              기대한 사실과 실제 답변을 대조합니다. 변경 전후의 품질과 비용을
+              비교하고, 실험 결과로 기능 도입을 결정합니다. 실제 실험의 결과와
+              한계까지 공개합니다.
             </p>
           </div>
           <Link

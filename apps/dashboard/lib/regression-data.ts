@@ -1,7 +1,11 @@
 import execution from "@/content/evaluation-runs.json";
 import evaluation from "@/content/evaluation.json";
 import research from "@/content/evidence-research.json";
+import { experimentFor } from "./experiments";
 import type { AnalysisSuite } from "./regression-analysis";
+
+const researchExperiment = experimentFor("research");
+const reliabilityExperiment = experimentFor("reliability");
 
 /** 공개된 합성 기록만 읽는다. 서로 다른 평가 세트는 비교 후보로 섞지 않는다. */
 export const regressionSuites: AnalysisSuite[] = [
@@ -19,19 +23,32 @@ export const regressionSuites: AnalysisSuite[] = [
     },
     description:
       "동일 문서·모델·검색 정책에서 재검색 기능의 품질과 추가 비용 비교",
+    // 역할과 비교 쌍은 실험 기록이 정한다. 화면에서 다른 쌍을 고르면 공식 판정과 어긋난다.
+    experiment: researchExperiment,
+    roles: researchExperiment && {
+      baseline: researchExperiment.baseline_role,
+      candidate: researchExperiment.candidate_role,
+    },
+    baselineId: researchExperiment?.baseline_run_id,
+    candidateId: researchExperiment?.candidate_run_id,
     limitation:
       "합성 42문항 · OFF/ON 1쌍. 복구 대상 0개로 복구 효과는 미측정입니다. 공개 기록에는 답변 본문이 없습니다.",
     runs: (["off", "on"] as const)
       .filter(() => research.valid && research.conditions_match)
       .map((mode) => {
         const summary = research.summary[mode];
+        const meta = research.runs.find((run) => run.mode === mode);
         return {
           id: mode,
           label: mode === "off" ? "OFF · 기존 검색" : "ON · 모델 재검색",
           path: "HTTP",
           model: research.conditions.model,
-          revision:
-            research.runs.find((run) => run.mode === mode)?.revision ?? null,
+          // 커밋 전 작업트리에서 돌린 실행은 반복 측정 기록과 같은 +dirty 표기로 맞춘다.
+          revision: meta?.revision
+            ? meta.revision.slice(0, 7) +
+              (meta.source_state.includes("작업트리") ? "+dirty" : "")
+            : null,
+          createdAt: meta?.created_at ?? null,
           conditions: research.conditions,
           cost: summary.cost_micros,
           tokens: summary.prompt_tokens + summary.completion_tokens,
@@ -47,6 +64,10 @@ export const regressionSuites: AnalysisSuite[] = [
             answer: null,
             failed: row.measurement_failed,
             kind: row.type,
+            research:
+              mode === "on"
+                ? { status: row.research_status, calls: row.tool_calls }
+                : undefined,
           })),
         };
       }),
@@ -64,6 +85,13 @@ export const regressionSuites: AnalysisSuite[] = [
         "여기서는 새로운 답변을 만들지 않고 당시 기록을 비교합니다. 몇 번 결과가 같았다고 안정성을 보장하지 않습니다. 프로세스 내부 실행은 HTTP 통신을 거치지 않아 지연을 해석할 때 주의해야 합니다.",
     },
     description: "같은 질문을 HTTP 2회와 프로세스 내부 1회 실행한 기록 비교",
+    experiment: reliabilityExperiment,
+    roles: reliabilityExperiment && {
+      baseline: reliabilityExperiment.baseline_role,
+      candidate: reliabilityExperiment.candidate_role,
+    },
+    baselineId: reliabilityExperiment?.baseline_run_id,
+    candidateId: reliabilityExperiment?.candidate_run_id,
     limitation:
       "합성 30문항 · 같은 질문의 반복은 독립 표본이 아닙니다. HTTP와 하네스는 실행 경로가 다르며 안정성을 보장하지 않습니다.",
     runs: execution.runs

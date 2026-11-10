@@ -20,6 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "scripts/fixtures/evidence_research.v1.json"
 # 사용자 비용 절감 요청으로 완료된 첫 쌍만 사용한다. 추가 유료 반복은 실행하지 않는다.
 EVALUATION_PAIRS = (1,)
+# 재검색 실험의 원래 채택 기준(2026-11-09 design.md D4)에서 실제로 판정을 낸 값이다.
+# 실험 기록의 원래 기준 세트가 이 값을 옮겨 쓰며, 둘이 어긋나면 테스트가 실패한다.
+COST_LIMIT_RATIO = 1.5
+P95_LIMIT_MS = 15000
 
 
 def digest(value: object) -> str:
@@ -320,10 +324,10 @@ def build_public(records: list[dict]) -> dict:
         "no_regression": on["regression_passed"] >= off["regression_passed"],
         "no_fabrication_increase": on["fabricated"] <= off["fabricated"],
         "cost_within_limit": bool(off["cost_micros"])
-        and on["cost_micros"] <= off["cost_micros"] * 1.5,
+        and on["cost_micros"] <= off["cost_micros"] * COST_LIMIT_RATIO,
         "latency_within_limit": off["latency_p95"] is not None
         and on["latency_p95"] is not None
-        and on["latency_p95"] - off["latency_p95"] <= 15000,
+        and on["latency_p95"] - off["latency_p95"] <= P95_LIMIT_MS,
     }
     eligible = sum(row["eligible"] for row in rows)
     return {

@@ -209,6 +209,11 @@ class Store:
         with self.guard:
             if self.judge.busy():
                 raise ValueError("진행 중인 실행이 있습니다")
+            # 재채점은 수 ms 만에 끝나 다시 누르기 쉽다. 같은 이름이 쌓이면 목록에서 구분할 수 없다.
+            taken = {read(path).get("label") for path in self.root.glob("job-*.json")}
+            taken |= {read(path).get("label") for path in self.root.glob("run-*.json")}
+            if label in taken:
+                raise Conflict("같은 이름의 실행이 이미 있습니다. 다른 이름을 붙여 주세요")
             job_id = uuid.uuid4().hex
             job = {
                 "id": job_id,

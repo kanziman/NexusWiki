@@ -1,0 +1,139 @@
+{
+  "criteria_sets": [
+    {
+      "adopted": false,
+      "conditions": [
+        {
+          "actual": "0건 (복구 대상 0개)",
+          "key": "answer_recovered",
+          "label": "답변 복구 1건 이상",
+          "limit": "1건 이상",
+          "met": false
+        },
+        {
+          "actual": "39 → 39",
+          "key": "total_pass_improved",
+          "label": "전체 통과 수 증가",
+          "limit": "기준선보다 많음",
+          "met": false
+        },
+        {
+          "actual": "28 → 28",
+          "key": "no_regression",
+          "label": "기존 30문항 통과 수 감소 없음",
+          "limit": "감소 없음 (합계)",
+          "met": true
+        },
+        {
+          "actual": "0 → 0",
+          "key": "no_fabrication_increase",
+          "label": "위조 인용 증가 없음",
+          "limit": "증가 없음",
+          "met": true
+        },
+        {
+          "actual": "+66.4%",
+          "key": "cost_within_limit",
+          "label": "총비용 증가 50% 이하",
+          "limit": "+50%",
+          "met": false
+        },
+        {
+          "actual": "+1.18초",
+          "key": "latency_within_limit",
+          "label": "p95 응답 시간 증가 15초 이하",
+          "limit": "+15초",
+          "met": true
+        }
+      ],
+      "earliest_run_at": "2026-11-08T23:26:20+00:00",
+      "id": "ask-evidence-research-d4",
+      "name": "재검색 도입 원래 기준 (D4)",
+      "preregistered": false,
+      "source_commit": "0f9bbbe",
+      "source_first_commit_at": "2026-11-09T02:00:01+00:00",
+      "source_path": "openspec/changes/archive/2026-11-09-ask-evidence-research/design.md"
+    }
+  ],
+  "decisions": [
+    {
+      "criteria_set_id": "ask-evidence-research-d4",
+      "decided_on": "2026-11-09",
+      "experiment_id": "ask-evidence-research",
+      "rationale": "원래 기준 6개 중 3개 미충족(답변 복구 1건 이상, 전체 통과 수 증가, 총비용 증가 50% 이하). 기준 미달 시 결과를 공개하고 기본 OFF를 유지한다는 사전 결정에 따라 미채택.",
+      "status": "not_adopted"
+    }
+  ],
+  "experiments": [
+    {
+      "baseline_role": "현재 방식",
+      "baseline_run_id": "off",
+      "candidate_role": "도입 검토안",
+      "candidate_run_id": "on",
+      "criteria_set_id": "ask-evidence-research-d4",
+      "id": "ask-evidence-research",
+      "kind": "adoption",
+      "policy_version": "adoption-v1",
+      "question": "한 번 더 검색하면 답변이 좋아질까요?",
+      "reference": null,
+      "run_source": "research",
+      "runs": {
+        "baseline": {
+          "created_at": "2026-11-08T23:26:20+00:00",
+          "dirty": true,
+          "id": "off",
+          "revision": "5dded7b220147489e071d6e7f9d562af07834e11"
+        },
+        "candidate": {
+          "created_at": "2026-11-08T23:53:39+00:00",
+          "dirty": true,
+          "id": "on",
+          "revision": "5dded7b220147489e071d6e7f9d562af07834e11"
+        }
+      },
+      "title": "재검색 도입"
+    },
+    {
+      "baseline_role": "기준 반복",
+      "baseline_run_id": "run-1",
+      "candidate_role": "비교 반복",
+      "candidate_run_id": "run-2",
+      "criteria_set_id": null,
+      "id": "ask-replay-reliability",
+      "kind": "stability",
+      "policy_version": null,
+      "question": "같은 질문에 다시 답해도 결과가 유지될까요?",
+      "reference": null,
+      "run_source": "reliability",
+      "runs": {
+        "baseline": {
+          "created_at": null,
+          "dirty": true,
+          "id": "run-1",
+          "revision": "9ae4244"
+        },
+        "candidate": {
+          "created_at": null,
+          "dirty": true,
+          "id": "run-2",
+          "revision": "9ae4244"
+        }
+      },
+      "title": "같은 질문의 반복 결과"
+    }
+  ],
+  "policies": [
+    {
+      "defined_on": "2026-11-10",
+      "limitation": "기준선과 후보를 한 번씩만 실행해 판정한다. 같은 질문을 다시 답할 때 생기는 흔들림과 실제 회귀를 구분하지 못한다.",
+      "max_cost_increase_pct": 50,
+      "max_excluded": 0,
+      "max_p95_increase_ms": 15000,
+      "regression_rule": "per_question",
+      "require_improvement": true,
+      "version": "adoption-v1"
+    }
+  ],
+  "schema": "eval-experiments.v1",
+  "synthetic": true
+}

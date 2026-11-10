@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AnalysisRun, AnalysisSuite } from "@/lib/regression-analysis";
+import { localGraderExperiment } from "@/lib/experiments";
 import styles from "./RegressionDashboard.module.css";
 
 type Job = {
@@ -13,6 +14,7 @@ type Job = {
   planned: number;
   error: string | null;
   spent_micros?: number;
+  created_at?: string;
 };
 export type LocalSnapshot = {
   runs: (AnalysisRun & { mode: string })[];
@@ -29,11 +31,26 @@ const labels: Record<string, string> = {
   failed: "실행 실패",
   interrupted: "중단됨",
 };
+const when = (iso?: string) =>
+  iso
+    ? new Date(iso).toLocaleString("ko-KR", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : "";
+
 export function LocalEvaluationPanel({
   onSuite,
+  onOpen,
+  defaultOpen = false,
   enabled = process.env.NODE_ENV === "development",
 }: {
   onSuite: (suite: AnalysisSuite) => void;
+  onOpen?: () => void;
+  defaultOpen?: boolean;
   enabled?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<LocalSnapshot | null>(null);
@@ -43,6 +60,8 @@ export function LocalEvaluationPanel({
   const [budget, setBudget] = useState("1");
   const [limit, setLimit] = useState("30");
   const [busy, setBusy] = useState(false);
+  // 방금 요청한 실행. 재채점은 수 ms 만에 끝나서, 결과를 따로 붙잡아 보여 주지 않으면 실행됐는지 알 수 없다.
+  const [lastJobId, setLastJobId] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/local-evaluation", {
@@ -53,7 +72,13 @@ export function LocalEvaluationPanel({
       setSnapshot(data);
       setError("");
       if (data.runs.length) {
-        const runs = data.runs as AnalysisRun[];
+        const created = new Map(
+          (data.jobs as Job[]).map((job) => [job.id, job.created_at]),
+        );
+        const runs = (data.runs as AnalysisRun[]).map((run) => ({
+          ...run,
+          createdAt: created.get(run.id) ?? null,
+        }));
         const baseline = data.baseline_id ?? runs[0].id;
         const candidate = [...runs]
           .reverse()
@@ -63,19 +88,31 @@ export function LocalEvaluationPanel({
           name: "로컬 누적 실행",
           guide: {
             short: "내가 실행한 검증 이력",
-            question: "이번 검증은 기준 실행과 무엇이 달라졌나요?",
+            question: "새 검증은 기준선과 무엇이 달라졌나요?",
             data: "이 컴퓨터에서 완료한 합성 질문 평가를 모았습니다. 실행 이름은 사용자가 붙인 이름이며, 이름이 달라도 사용한 질문과 답변이 같을 수 있습니다.",
             method:
-              "지정한 기준과 새로 완료한 실행을 비교합니다. 무료 재채점은 저장된 답변을 그대로 두고 채점 규칙만 다시 적용합니다. 새 답변 생성은 모델을 다시 호출하는 별도 실행입니다.",
+              "지정한 기준선과 새로 완료한 실행을 비교합니다. 무료 재채점은 저장된 답변을 그대로 두고 채점 규칙만 다시 적용합니다. 새 답변 생성은 모델을 다시 호출하는 별도 실행입니다.",
             interpretation:
               "같은 답변을 같은 규칙으로 두 번 재채점하면 결과가 같은 것이 정상입니다. 실제 답변 품질의 변화를 보려면 새 답변 생성 실행을 비교하세요. 재채점의 비용·지연은 원본 답변 생성 당시 기록입니다.",
           },
-          description: "지정한 기준 실행과 새로 완료된 평가를 자동 비교합니다.",
+          description: "지정한 기준선과 새로 완료된 평가를 자동 비교합니다.",
+          roles: {
+            baseline: localGraderExperiment.baseline_role,
+            candidate: localGraderExperiment.candidate_role,
+          },
           limitation:
             "재채점은 저장된 답변을 다시 채점합니다. 표시되는 모델 비용·지연은 원본 실행 값이며 새 호출 비용이 아닙니다. 유료 실행은 로컬 API·워커 준비가 필요합니다.",
           runs,
           baselineId: baseline,
           candidateId: candidate,
+          // 채점 검증은 채택 판정 대상이 아니다. 비교 쌍은 실행기가 지정한 기준선과 최신 실행이다.
+          experiment: candidate
+            ? {
+                ...localGraderExperiment,
+                baseline_run_id: baseline,
+                candidate_run_id: candidate,
+              }
+            : undefined,
         });
       }
     } catch (e) {
@@ -96,7 +133,7 @@ export function LocalEvaluationPanel({
     };
   }, [enabled, refresh]);
   if (!enabled) return null;
-  async function action(payload: object) {
+  async function action(payload: { action: string } & Record<string, unknown>) {
     setBusy(true);
     setError("");
     try {
@@ -107,6 +144,10 @@ export function LocalEvaluationPanel({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
+      if ("action" in payload && payload.action === "run") {
+        setLastJobId(typeof data.id === "string" ? data.id : null);
+        setLabel("");
+      }
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "실행 요청 실패");
@@ -117,10 +158,37 @@ export function LocalEvaluationPanel({
   const running = snapshot?.jobs.some((job) =>
     ["queued", "running"].includes(job.status),
   );
+  const name = label.trim();
+  const duplicate =
+    !!name &&
+    !!snapshot &&
+    (snapshot.runs.some((run) => run.label === name) ||
+      snapshot.jobs.some((job) => job.label === name));
+  const jobTime = new Map(
+    (snapshot?.jobs ?? []).map((job) => [job.id, job.created_at]),
+  );
+  const runName = (run: AnalysisRun) =>
+    snapshot &&
+    snapshot.runs.filter((item) => item.label === run.label).length > 1
+      ? `${run.label} · ${when(jobTime.get(run.id)) || run.id.slice(0, 6)}`
+      : run.label;
+  const lastJob = snapshot?.jobs.find((job) => job.id === lastJobId);
+  const lastRun = snapshot?.runs.find((run) => run.id === lastJobId);
+  const baselineRun = snapshot?.runs.find(
+    (run) => run.id === snapshot.baseline_id,
+  );
+  const changed =
+    lastRun && baselineRun
+      ? lastRun.rows.filter((row) => {
+          const base = baselineRun.rows.find((item) => item.id === row.id);
+          return !base || base.passed !== row.passed;
+        }).length
+      : null;
   return (
-    <details id="new-check" className={styles.runDrawer}>
+    <details id="new-check" className={styles.runDrawer} open={defaultOpen}>
       <summary>
-        새 검사 시작 <span>저장 답변 다시 채점 · AI 답변 새로 만들기</span>
+        내 검증 실행하기{" "}
+        <span>질문 30개 · 저장 답변 다시 채점 · AI 답변 새로 만들기</span>
       </summary>
       <section className={styles.localPanel} aria-labelledby="local-title">
         <div className={styles.sectionHeader}>
@@ -199,7 +267,8 @@ export function LocalEvaluationPanel({
                 disabled={
                   busy ||
                   running ||
-                  !label.trim() ||
+                  !name ||
+                  duplicate ||
                   (mode === "model" &&
                     (!snapshot.model_ready ||
                       !Number.isFinite(Number(budget)) ||
@@ -228,6 +297,54 @@ export function LocalEvaluationPanel({
                       : "새 답변 만들어 검사하기 · 유료"}
               </button>
             </div>
+            {duplicate && (
+              <p role="alert" className={styles.footnote}>
+                ‘{name}’ 이름의 실행이 이미 있습니다. 목록에서 구분할 수 있게
+                다른 이름을 붙여 주세요.
+              </p>
+            )}
+            {lastJob && (
+              <div
+                className={styles.runResult}
+                role="status"
+                data-status={lastJob.status}
+              >
+                <strong>
+                  ‘{lastJob.label}’{" "}
+                  {lastJob.status === "completed"
+                    ? "완료"
+                    : (labels[lastJob.status] ?? lastJob.status)}
+                </strong>
+                <span>
+                  {lastRun
+                    ? `${lastRun.rows.filter((row) => row.passed && !row.failed).length}/${lastRun.rows.length}개 통과`
+                    : `${lastJob.asked}/${lastJob.planned}문항`}
+                  {lastJob.mode === "rescore"
+                    ? " · 저장 답변 재채점 · 새 모델 호출 없음"
+                    : " · 새 답변 생성"}
+                </span>
+                {changed !== null && (
+                  <p>
+                    {changed === 0
+                      ? "기준선과 판정이 모두 같습니다." +
+                        (lastJob.mode === "rescore"
+                          ? " 채점 규칙을 바꾸지 않았다면 같은 결과가 정상입니다."
+                          : "")
+                      : `기준선과 판정이 다른 질문 ${changed}개가 있습니다.`}
+                  </p>
+                )}
+                {lastJob.error && <p>{lastJob.error}</p>}
+                {lastRun && onOpen && (
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    onClick={onOpen}
+                  >
+                    기준선과 비교한 결과 보기
+                  </button>
+                )}
+              </div>
+            )}
             {!snapshot.model_ready && (
               <p className={styles.footnote}>
                 AI 답변 새로 만들기는 아직 준비되지 않았습니다. 로컬 실행 환경을
@@ -242,6 +359,9 @@ export function LocalEvaluationPanel({
                 워크스페이스 예산 제한도 적용됩니다.
               </p>
             )}
+            {snapshot.jobs.length > 0 && (
+              <h3 className={styles.localJobsTitle}>최근 실행</h3>
+            )}
             <div className={styles.localJobs} aria-live="polite">
               {snapshot.jobs.slice(0, 4).map((job) => (
                 <div key={job.id}>
@@ -250,6 +370,7 @@ export function LocalEvaluationPanel({
                     {labels[job.status] ?? job.status} · {job.asked}/
                     {job.planned}
                     문항{job.mode === "rescore" ? " · 새 모델 호출 없음" : ""}
+                    {job.created_at && ` · ${when(job.created_at)}`}
                   </span>
                   {job.error && <small>{job.error}</small>}
                 </div>
@@ -257,9 +378,9 @@ export function LocalEvaluationPanel({
             </div>
             {snapshot.runs.length > 0 && (
               <label className={styles.baselineSelect}>
-                기준 실행 지정
+                기준선 지정
                 <select
-                  aria-label="로컬 기준 실행 지정"
+                  aria-label="로컬 기준선 지정"
                   value={snapshot.baseline_id ?? ""}
                   disabled={busy || running}
                   onChange={(e) =>
@@ -268,7 +389,7 @@ export function LocalEvaluationPanel({
                 >
                   {snapshot.runs.map((run) => (
                     <option key={run.id} value={run.id}>
-                      {run.label}
+                      {runName(run)}
                     </option>
                   ))}
                 </select>
