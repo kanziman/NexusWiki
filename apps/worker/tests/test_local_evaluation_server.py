@@ -192,3 +192,25 @@ def test_checkpoint_survives_interruption_before_next_question(store, monkeypatc
     store.execute(job)
     assert server.read(store.root / "raw-checkpoint.json")["rows"][0]["answer"] == "정답"
     assert server.read(store.root / "job-checkpoint.json")["status"] == "failed"
+
+
+def test_duplicate_label_is_rejected_as_conflict(store, monkeypatch):
+    """재채점은 수 ms에 끝나 다시 누르기 쉽다. 같은 이름이 쌓이면 목록에서 구분할 수 없다."""
+    monkeypatch.setattr(server.threading.Thread, "start", lambda self: None)
+    with pytest.raises(server.Conflict, match="같은 이름"):
+        store.start({"mode": "rescore", "label": "보존된 HTTP 1 · 초기 기준"})
+    job = {
+        "id": "done",
+        "label": "채점기 수정 후",
+        "mode": "rescore",
+        "status": "queued",
+        "asked": 0,
+        "planned": 1,
+        "budget_micros": 0,
+        "created_at": server.now(),
+        "error": None,
+    }
+    store.execute(job)
+    with pytest.raises(server.Conflict, match="같은 이름"):
+        store.start({"mode": "rescore", "label": "채점기 수정 후"})
+    assert store.start({"mode": "rescore", "label": "다른 이름"})["label"] == "다른 이름"

@@ -153,29 +153,11 @@
   margin-top: var(--spacing-xs);
   font-weight: 400;
 }
-.runCheck {
+.toolLink {
   display: block;
-  width: 100%;
-  text-align: left;
-  margin-top: var(--spacing-base);
-  padding: var(--spacing-base) var(--spacing-sm);
-  border: 1px dashed var(--border);
-  border-radius: var(--rounded-sm);
+  padding: var(--spacing-sm);
   font-size: 0.85rem;
-  font-weight: 650;
-  background: transparent;
-  color: var(--accent-active);
-}
-.runCheck:hover {
-  background: var(--soft);
-}
-.runCheck small {
-  display: block;
-  font-size: 0.7rem;
-  color: var(--muted);
-  margin-top: var(--spacing-xs);
-  font-weight: 400;
-  line-height: 1.6;
+  color: var(--fg);
 }
 .sideNote {
   margin-top: auto;
@@ -521,21 +503,6 @@
 .runDrawer .localPanel {
   margin-block: var(--spacing-base);
 }
-.resultNotice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-base);
-  padding: var(--spacing-base);
-  margin-bottom: var(--spacing-lg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 0.8rem;
-}
-.resultNotice p {
-  margin: 0;
-  line-height: 1.7;
-}
 @media (max-width: 700px) {
   .readingSummary {
     padding-block: var(--spacing-lg);
@@ -552,10 +519,6 @@
   }
   .gateList li > span {
     grid-column: 2;
-  }
-  .resultNotice {
-    align-items: start;
-    flex-direction: column;
   }
   .runDrawer > summary span,
   :is(.methodGuide, .technicalDetails) > summary span {

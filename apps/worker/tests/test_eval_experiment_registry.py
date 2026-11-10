@@ -209,3 +209,35 @@ def test_reliability_identity_does_not_invent_a_run_time():
     assert identity == {"id": "run-1", "revision": "9ae4244", "dirty": True, "created_at": None}
     with pytest.raises(registry.RegistryError, match="없는 실행"):
         registry.run_identity("reliability", "run-9")
+
+
+def _local_dir(tmp_path, ids, baseline):
+    for i, run_id in enumerate(ids):
+        (tmp_path / f"run-{i:03d}.json").write_text(json.dumps({"id": run_id}))
+    (tmp_path / "baseline.json").write_text(json.dumps({"id": baseline}))
+    return tmp_path
+
+
+def test_local_history_is_a_private_grader_check(tmp_path):
+    rec = registry.local_records(_local_dir(tmp_path, ["seed", "a", "b"], "seed"))
+    experiment = rec["eval_experiments"][0]
+    assert experiment["kind"] == "grader" and experiment["public"] is False
+    assert (experiment["baseline_run_id"], experiment["candidate_run_id"]) == ("seed", "b")
+
+
+def test_local_history_absent_or_single_run_registers_nothing(tmp_path):
+    assert registry.local_records(tmp_path / "missing") == {}
+    assert registry.local_records(_local_dir(tmp_path, ["seed"], "seed")) == {}
+
+
+def test_local_baseline_must_exist(tmp_path):
+    with pytest.raises(registry.RegistryError, match="기준선"):
+        registry.local_records(_local_dir(tmp_path, ["a", "b"], "gone"))
+
+
+def test_local_experiment_matches_dashboard_definition():
+    source = (ROOT / "apps/dashboard/lib/experiments.ts").read_text()
+    start = source.index("export const localGraderExperiment")
+    block = source[start : source.index("} as const;", start)]
+    for key in ("id", "kind", "title", "question", "run_source", "baseline_role", "candidate_role"):
+        assert f'{key}: "{registry.LOCAL_EXPERIMENT[key]}"' in block, key

@@ -57,6 +57,22 @@ export type Experiment = {
   decision?: Decision;
 };
 
+/**
+ * 로컬 재채점 이력의 실험 정의. 비공개라 스냅샷에 없으므로 개발 화면이 이 값을 쓴다.
+ * scripts/eval_experiments.py의 등록 값과 같아야 한다(테스트가 대조한다).
+ */
+export const localGraderExperiment = {
+  id: "local-grader-check",
+  kind: "grader",
+  title: "채점 규칙 변경 확인",
+  question: "새 검증은 기준선과 무엇이 달라졌나요?",
+  run_source: "local",
+  baseline_role: "지정한 기준 기록",
+  candidate_role: "새 검증",
+  criteria_set_id: null,
+  policy_version: null,
+} as const;
+
 export const decisionLabels: Record<Decision["status"], string> = {
   adopted: "채택",
   not_adopted: "미채택",

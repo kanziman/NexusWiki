@@ -140,13 +140,46 @@ describe("회귀 분석 작업대", () => {
     ).toBeTruthy();
     expect(gates.getByText("채점 방식")).toBeInTheDocument();
     expect(gates.getAllByLabelText("참고")).toHaveLength(1);
-    await screen.findByRole("button", { name: "내 검사 결과 보기" });
-    expect(heading).toHaveTextContent(regressionSuites[0].guide!.question);
-    fireEvent.click(screen.getByRole("button", { name: "내 검사 결과 보기" }));
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "새 검증은 기준선과 무엇이 달라졌나요?",
-    );
+    // 다른 실험 화면에는 실행 서랍과 로컬 기록 안내가 없다.
+    expect(screen.queryByText("내 검증 실행하기")).not.toBeInTheDocument();
+    expect(screen.queryByText(/이 컴퓨터에 저장된/)).not.toBeInTheDocument();
+    const tools = within(screen.getByRole("group", { name: "로컬 개발 도구" }));
+    fireEvent.click(tools.getByRole("button", { name: /내 검증/ }));
+    const drawer = screen.getByText("내 검증 실행하기").closest("details")!;
+    expect(drawer).toHaveAttribute("open");
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "새 검증은 기준선과 무엇이 달라졌나요?",
+      }),
+    ).toBeInTheDocument();
+    // 서랍은 결과보다 위에 있다.
+    expect(
+      drawer.compareDocumentPosition(
+        screen.getByRole("heading", { level: 1 }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/채점 검증 · 채택 판정 대상이 아닙니다/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /^판정이 바뀐 질문 \d+개$/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "적용 조건" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/추가 모델 호출 비용/)).toHaveTextContent(/없/);
+  });
+  it("공개 배포에는 로컬 개발 도구 구역이 없다", () => {
+    render(<RegressionDashboard />);
+    expect(
+      screen.queryByRole("group", { name: "로컬 개발 도구" }),
+    ).not.toBeInTheDocument();
+    const experiments = within(
+      screen.getByRole("group", { name: "실험 선택" }),
+    );
+    expect(experiments.getAllByRole("button")).toHaveLength(2);
+    expect(screen.queryByText("내 검증 실행하기")).not.toBeInTheDocument();
   });
   it("재검색이 실제로 돌았는지 질문과 조건 줄에 함께 보여 준다", () => {
     render(<RegressionDashboard />);
@@ -178,7 +211,9 @@ describe("회귀 분석 작업대", () => {
     expect(screen.getByText("해당하는 질문이 없습니다")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "전체 문항 보기" }));
     expect(screen.getByRole("status")).toHaveTextContent("42문항 표시");
-    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /같은 질문의 반복 결과/ }),
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "기준선과 후보 맞바꾸기" }),
     );
@@ -190,7 +225,9 @@ describe("회귀 분석 작업대", () => {
     const analysis = compareRuns(suite.runs[0], suite.runs[1]);
     const flipped = analysis.counts.regressed + analysis.counts.improved;
     render(<RegressionDashboard />);
-    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /같은 질문의 반복 결과/ }),
+    );
     expect(
       screen.getByRole("heading", {
         name: `질문별 판정 일치 ${analysis.total - flipped}/${analysis.total}`,
@@ -216,7 +253,9 @@ describe("회귀 분석 작업대", () => {
   });
   it("반복 측정은 별도 세트로 고르고 실제 답변을 나란히 본다", () => {
     render(<RegressionDashboard />);
-    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /같은 질문의 반복 결과/ }),
+    );
     expect(screen.getByLabelText("기준선")).toHaveValue("run-1");
     expect(screen.getByLabelText("q06 기준선 답변")).toHaveTextContent(
       "48시간",
@@ -226,7 +265,9 @@ describe("회귀 분석 작업대", () => {
   });
   it("같은 실행 선택 시 지표를 숨기고 내보내기를 막는다", () => {
     render(<RegressionDashboard />);
-    fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /같은 질문의 반복 결과/ }),
+    );
     fireEvent.change(screen.getByLabelText("후보"), {
       target: { value: "run-1" },
     });
@@ -250,7 +291,9 @@ describe("회귀 분석 작업대", () => {
     render(<RegressionDashboard />);
     for (const name of ["research", "reliability"]) {
       if (name === "reliability")
-        fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+        fireEvent.click(
+          screen.getByRole("button", { name: /같은 질문의 반복 결과/ }),
+        );
       expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
       expect(
         screen.queryByRole("textbox", { name: "판단 근거" }),

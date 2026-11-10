@@ -29,6 +29,24 @@ SNAPSHOT = CONTENT / "experiments.json"
 RESEARCH = CONTENT / "evidence-research.json"
 RELIABILITY = CONTENT / "evaluation-runs.json"
 CONTAINER = os.environ.get("NEXUSWIKI_DB_CONTAINER", "supabase_db_NexusWiki")
+# 로컬 실행기가 쓰는 gitignore 디렉터리. worktree에서 돌릴 때는 원본 체크아웃 경로를 넘긴다.
+LOCAL_RUNS = Path(
+    os.environ.get("NEXUSWIKI_LOCAL_EVAL_DIR", ROOT / ".worktrees/evaluation-dashboard")
+)
+
+# apps/dashboard/lib/experiments.ts의 localGraderExperiment와 같아야 한다(테스트가 대조한다).
+LOCAL_EXPERIMENT = {
+    "id": "local-grader-check",
+    "kind": "grader",
+    "title": "채점 규칙 변경 확인",
+    "question": "새 검증은 기준선과 무엇이 달라졌나요?",
+    "run_source": "local",
+    "baseline_role": "지정한 기준 기록",
+    "candidate_role": "새 검증",
+    "criteria_set_id": None,
+    "policy_version": None,
+    "public": False,
+}
 
 # 원래 경로에서 처음 커밋됐고 아카이브로 옮겨졌다. 두 경로 중 가장 이른 커밋이 기록 시각이다.
 # HEAD 이력만 본다. 다른 로컬 브랜치(squash 전 커밋)까지 보면 클론마다 결과가 달라진다.
@@ -279,6 +297,26 @@ def reliability_records(runs: dict[str, Any]) -> dict[str, list]:
     }
 
 
+def local_records(directory: Path | None = None) -> dict[str, list]:
+    """로컬 재채점 이력을 비공개 채점 검증으로 등록한다. 기록이 없는 클론에서는 등록하지 않는다."""
+    directory = LOCAL_RUNS if directory is None else directory
+    if not directory.is_dir():
+        return {}
+    runs = [json.loads(path.read_text())["id"] for path in sorted(directory.glob("run-*.json"))]
+    baseline_path = directory / "baseline.json"
+    if len(runs) < 2 or not baseline_path.exists():
+        return {}
+    baseline = json.loads(baseline_path.read_text())["id"]
+    if baseline not in runs:
+        raise RegistryError(f"로컬 기준선이 실행 목록에 없다: {baseline}")
+    candidate = next(run for run in reversed(runs) if run != baseline)
+    return {
+        "eval_experiments": [
+            {**LOCAL_EXPERIMENT, "baseline_run_id": baseline, "candidate_run_id": candidate}
+        ]
+    }
+
+
 def _merge(*parts: dict[str, list]) -> dict[str, list]:
     merged: dict[str, list] = {table: [] for table, _ in TABLES}
     for part in parts:
@@ -291,7 +329,11 @@ def build_records(root: Path = ROOT, first_commit=git_first_commit) -> dict[str,
     content = root / "apps/dashboard/content"
     research = json.loads((content / "evidence-research.json").read_text())
     reliability = json.loads((content / "evaluation-runs.json").read_text())
-    records = _merge(research_records(research, first_commit), reliability_records(reliability))
+    records = _merge(
+        research_records(research, first_commit),
+        reliability_records(reliability),
+        local_records(),
+    )
     for table, key in TABLES:
         ids = [row[key] for row in records[table]]
         if len(ids) != len(set(ids)):

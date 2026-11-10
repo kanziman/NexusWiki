@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AnalysisRun, AnalysisSuite } from "@/lib/regression-analysis";
+import { localGraderExperiment } from "@/lib/experiments";
 import styles from "./RegressionDashboard.module.css";
 
 type Job = {
@@ -44,10 +45,12 @@ const when = (iso?: string) =>
 export function LocalEvaluationPanel({
   onSuite,
   onOpen,
+  defaultOpen = false,
   enabled = process.env.NODE_ENV === "development",
 }: {
   onSuite: (suite: AnalysisSuite) => void;
   onOpen?: () => void;
+  defaultOpen?: boolean;
   enabled?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<LocalSnapshot | null>(null);
@@ -93,12 +96,23 @@ export function LocalEvaluationPanel({
               "같은 답변을 같은 규칙으로 두 번 재채점하면 결과가 같은 것이 정상입니다. 실제 답변 품질의 변화를 보려면 새 답변 생성 실행을 비교하세요. 재채점의 비용·지연은 원본 답변 생성 당시 기록입니다.",
           },
           description: "지정한 기준선과 새로 완료된 평가를 자동 비교합니다.",
-          roles: { baseline: "지정한 기준 기록", candidate: "새 검증" },
+          roles: {
+            baseline: localGraderExperiment.baseline_role,
+            candidate: localGraderExperiment.candidate_role,
+          },
           limitation:
             "재채점은 저장된 답변을 다시 채점합니다. 표시되는 모델 비용·지연은 원본 실행 값이며 새 호출 비용이 아닙니다. 유료 실행은 로컬 API·워커 준비가 필요합니다.",
           runs,
           baselineId: baseline,
           candidateId: candidate,
+          // 채점 검증은 채택 판정 대상이 아니다. 비교 쌍은 실행기가 지정한 기준선과 최신 실행이다.
+          experiment: candidate
+            ? {
+                ...localGraderExperiment,
+                baseline_run_id: baseline,
+                candidate_run_id: candidate,
+              }
+            : undefined,
         });
       }
     } catch (e) {
@@ -171,7 +185,7 @@ export function LocalEvaluationPanel({
         }).length
       : null;
   return (
-    <details id="new-check" className={styles.runDrawer}>
+    <details id="new-check" className={styles.runDrawer} open={defaultOpen}>
       <summary>
         내 검증 실행하기{" "}
         <span>질문 30개 · 저장 답변 다시 채점 · AI 답변 새로 만들기</span>

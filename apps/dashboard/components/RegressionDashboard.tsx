@@ -46,14 +46,6 @@ const usd = (value: number | null) =>
 const seconds = (value: number | null) =>
   value === null ? "미측정" : `${(value / 1000).toFixed(2)}초`;
 
-const RUN_CHECK_LABEL = "내 검증 실행하기";
-
-function openNewCheck() {
-  const drawer = document.getElementById("new-check");
-  if (drawer instanceof HTMLDetailsElement) drawer.open = true;
-  drawer?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function RowDetail({
   row,
   labels,
@@ -340,16 +332,6 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
             검사 결과입니다.
           </p>
         </div>
-        {/* 다른 주제 머리말에 두면 그 주제의 검사를 새로 돌리는 버튼으로 오해된다. */}
-        {process.env.NODE_ENV === "development" && suite.id === "local" && (
-          <button
-            type="button"
-            className={styles.secondary}
-            onClick={openNewCheck}
-          >
-            {RUN_CHECK_LABEL}
-          </button>
-        )}
       </header>
       {analysis.valid && measurement ? (
         <section
@@ -973,6 +955,8 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
   );
 }
 
+const LOCAL = "local";
+
 export function RegressionDashboard({
   suites: initialSuites = regressionSuites,
   localEnabled,
@@ -980,8 +964,9 @@ export function RegressionDashboard({
   suites?: AnalysisSuite[];
   localEnabled?: boolean;
 }) {
+  // 로컬 개발 도구는 공개 배포에 보이지 않는다. 실험 목록과 섞으면 세 번째 실험처럼 읽힌다.
+  const toolsEnabled = localEnabled ?? process.env.NODE_ENV === "development";
   const [localSuite, setLocalSuite] = useState<AnalysisSuite | null>(null);
-  const suites = localSuite ? [...initialSuites, localSuite] : initialSuites;
   const localVersion = useRef("");
   const receiveSuite = useCallback((next: AnalysisSuite) => {
     const version = `${next.baselineId}:${next.candidateId}:${next.runs.map((run) => run.id).join(",")}`;
@@ -989,7 +974,7 @@ export function RegressionDashboard({
     localVersion.current = version;
     setLocalSuite(next);
   }, []);
-  const [suiteId, setSuiteId] = useState(suites[0]?.id ?? "");
+  const [suiteId, setSuiteId] = useState(initialSuites[0]?.id ?? "");
   useEffect(() => {
     const selectLinkedSuite = () => {
       const id = window.location.hash.slice(1);
@@ -999,7 +984,10 @@ export function RegressionDashboard({
     window.addEventListener("hashchange", selectLinkedSuite);
     return () => window.removeEventListener("hashchange", selectLinkedSuite);
   }, [initialSuites]);
-  const suite = suites.find((item) => item.id === suiteId);
+  const onLocal = toolsEnabled && suiteId === LOCAL;
+  const suite = onLocal
+    ? (localSuite ?? undefined)
+    : initialSuites.find((item) => item.id === suiteId);
   return (
     <div className={styles.app}>
       <aside className={styles.sidebar}>
@@ -1015,22 +1003,25 @@ export function RegressionDashboard({
           <GitCompareArrows size={17} aria-hidden="true" /> 검사 결과
         </a>
         <a href="#history">실행 기록</a>
-        {process.env.NODE_ENV === "development" && (
-          <a href="#judge-workbench">골든셋과 AI 심사</a>
-        )}
-        <div className={styles.sideTitle}>확인할 주제</div>
-        <div role="group" aria-label="평가 세트 선택">
-          {suites.map((item) => (
+        <div className={styles.sideTitle}>실험</div>
+        <div role="group" aria-label="실험 선택">
+          {initialSuites.map((item) => (
             <button
               type="button"
               key={item.id}
-              aria-pressed={item.id === suiteId}
+              aria-pressed={!onLocal && item.id === suiteId}
               className={styles.suiteButton}
               onClick={() => setSuiteId(item.id)}
             >
               {item.guide?.short ?? item.name}
               {item.guide && (
-                <span className={styles.suiteHint}>{item.name}</span>
+                <span className={styles.suiteHint}>
+                  {item.experiment?.kind === "adoption"
+                    ? "도입 실험"
+                    : item.experiment?.kind === "stability"
+                      ? "안정성 측정"
+                      : item.name}
+                </span>
               )}
               <small>
                 {item.runs[0]?.rows.length ?? 0}문항 · {item.runs.length}개 실행
@@ -1038,34 +1029,50 @@ export function RegressionDashboard({
             </button>
           ))}
         </div>
-        {process.env.NODE_ENV === "development" && (
-          <button
-            type="button"
-            className={styles.runCheck}
-            onClick={openNewCheck}
-          >
-            {RUN_CHECK_LABEL}
-            <small>
-              ‘같은 질문의 반복 결과’ 질문 30개 · 결과는 ‘내가 실행한 검증
-              이력’에 쌓입니다
-            </small>
-          </button>
+        {toolsEnabled && (
+          <>
+            <div className={styles.sideTitle}>로컬 개발 도구</div>
+            <div role="group" aria-label="로컬 개발 도구">
+              <button
+                type="button"
+                aria-pressed={onLocal}
+                className={styles.suiteButton}
+                onClick={() => {
+                  setSuiteId(LOCAL);
+                  window.scrollTo({ top: 0 });
+                }}
+              >
+                내 검증
+                <span className={styles.suiteHint}>
+                  실행과 이력 · 채점 검증
+                </span>
+                <small>
+                  {localSuite
+                    ? `30문항 · ${localSuite.runs.length}개 실행`
+                    : "질문 30개 · 저장 답변 재채점"}
+                </small>
+              </button>
+              <a href="#judge-workbench" className={styles.toolLink}>
+                골든셋과 AI 심사
+              </a>
+            </div>
+          </>
         )}
         <div className={styles.sideNote}>
           <FlaskConical size={16} aria-hidden="true" />
           <strong>저장된 합성 실행</strong>
           <p>
-            보존된 합성 기록을 비교합니다. 로컬 개발 환경에서는 별도로
-            재채점이나 새 답변 생성을 요청할 수 있습니다.
+            보존된 합성 기록과 커밋된 실험 기록을 읽습니다. 이 화면을 열어도
+            모델을 호출하지 않습니다.
           </p>
         </div>
       </aside>
       <div className={styles.content}>
         <div className={styles.topbar}>
           <span>
-            답변 검사 / <b>결과 비교</b>
+            답변 검사 / <b>{onLocal ? "내 검증" : "실험 결과"}</b>
           </span>
-          <span>공개 합성 기록 · 로컬 검토 메모</span>
+          <span>공개 합성 기록 · 실험 기록 스냅샷</span>
         </div>
         <Link
           href={`/showcase/evaluation#${suiteId === "research" ? "research" : "evaluate"}`}
@@ -1075,40 +1082,34 @@ export function RegressionDashboard({
           평가 설계와 실험으로 돌아가기
         </Link>
         <main>
-          {localSuite && suiteId !== "local" && (
-            <div className={styles.resultNotice}>
-              <p>
-                이 컴퓨터에 저장된 검사 기록 {localSuite.runs.length}개가
-                있습니다.
-              </p>
-              <button
-                type="button"
-                className={styles.secondary}
-                onClick={() => setSuiteId("local")}
-              >
-                내 검사 결과 보기
-              </button>
-            </div>
+          {onLocal && (
+            // 실행 서랍은 내 검증 화면 맨 위에만 둔다. 다른 실험 화면에 두면 그 실험을 다시 돌리는 버튼으로 읽힌다.
+            <LocalEvaluationPanel
+              onSuite={receiveSuite}
+              onOpen={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              defaultOpen
+              enabled={toolsEnabled}
+            />
           )}
           {suite ? (
             <Workbench
               key={`${suite.id}:${suite.baselineId ?? ""}:${suite.candidateId ?? ""}`}
               suite={suite}
             />
+          ) : onLocal ? (
+            <div className={styles.empty}>
+              <h1>아직 비교할 내 검증이 없습니다</h1>
+              <p>
+                위에서 검증을 실행하면 지정한 기준선과 비교한 결과가 여기에
+                나옵니다.
+              </p>
+            </div>
           ) : (
             <div className={styles.empty}>
               <h1>평가 실행을 준비해 주세요</h1>
               <p>비교할 저장된 평가 세트가 없습니다.</p>
             </div>
           )}
-          <LocalEvaluationPanel
-            onSuite={receiveSuite}
-            onOpen={() => {
-              setSuiteId("local");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            enabled={localEnabled}
-          />
           <GoldenJudgePanel enabled={localEnabled} />
         </main>
       </div>
