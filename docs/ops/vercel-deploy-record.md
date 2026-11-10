@@ -1,8 +1,18 @@
 # Vercel 배포 기록
 
 - 배포 일시: 2026-08-13
-- 방법: Vercel CLI (`vercel --prod`), GitHub 연동 없이 CLI 업로드 방식
+- 방법: Vercel CLI (`vercel --prod`), GitHub 연동 없이 CLI 업로드 방식 (최초 배포 당시. 현재는 GitHub 연동 — 아래 「GitHub 연동 자동 배포」)
 - 결과: `apps/dashboard`(Next.js 15.5.22)가 Vercel Production에 배포됨
+
+
+## GitHub 연동 자동 배포 (관측, 2026-11-11)
+
+최초 배포는 아래 CLI 업로드 방식이었지만, 현재는 GitHub 연동이 켜져 있다. GitHub Deployments 기록으로 확인했다.
+
+- PR #279 브랜치 커밋 `6e8914d`: `Preview` 배포 (2026-11-10T22:18:33Z)
+- `main` 머지 커밋 `8b0fde4`: `vercel[bot]`이 `Production` 배포 (2026-11-10T22:20:35Z)
+
+⚠️ 따라서 `main` 머지가 곧 대시보드 운영 배포다. 마이그레이션이 든 PR은 머지 전에 운영 DB에 선적용한다.
 
 ## 프로젝트 구성
 
