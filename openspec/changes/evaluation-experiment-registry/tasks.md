@@ -20,7 +20,7 @@ Then: 원래 기준 6개 중 답변 복구·통과 증가·비용(+66.4%) 미충
 
 이슈: https://github.com/kanziman/NexusWiki/issues/274
 
-- [ ] 2.1 `evaluatePolicy`(정책 객체에서만 기준값을 받음)와 정책 v1 전문 보기, 재검색 화면의 참고 판정 문구("정책 v1로 판정했다면 새로 실패 1개도 막는 조건"), 허용 기준 입력칸·`ReviewPanel`·기준과 메모 localStorage 읽기·쓰기 삭제, `scripts/evidence_research_eval.py` 상수 정리와 원래 기준 세트 대조 테스트를 연결한다.
+- [x] 2.1 `evaluatePolicy`(정책 객체에서만 기준값을 받음)와 정책 v1 전문 보기, 재검색 화면의 참고 판정 문구("정책 v1로 판정했다면 새로 실패 1개도 막는 조건"), 허용 기준 입력칸·`ReviewPanel`·기준과 메모 localStorage 읽기·쓰기 삭제, `scripts/evidence_research_eval.py` 상수 정리와 원래 기준 세트 대조 테스트를 연결한다.
 
 AC:
 Given: 스냅샷에 정책 v1과 재검색 원래 기준 세트가 있고, 브라우저 저장소에 이전 버전의 기준값·검토 메모가 남아 있다.

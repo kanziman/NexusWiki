@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RegressionDashboard } from "@/components/RegressionDashboard";
 import { compareRuns } from "@/lib/regression-analysis";
@@ -164,8 +158,8 @@ describe("회귀 분석 작업대", () => {
       detail.getByText("재검색 실행 안 됨 · 처음 찾은 근거로 충분하다고 판단"),
     ).toBeInTheDocument();
     // 원래 기준은 회귀를 합계로 봐서 q04를 막지 않는다. 질문 단위 사실은 참고로 남긴다.
-    expect(screen.getByText(/질문 단위로는 새로 실패 1개/)).toHaveTextContent(
-      "재검색이 실행되지 않은 질문이라",
+    expect(screen.getByText(/로 판정했다면/)).toHaveTextContent(
+      /새로 실패 1개\(q04\)도 막는 조건.*재검색이 실행되지 않은 질문이라/,
     );
     expect(screen.getByText(/재검색 실제 실행 1\/42개/)).toBeInTheDocument();
   });
@@ -201,7 +195,7 @@ describe("회귀 분석 작업대", () => {
     expect(screen.getByLabelText("q06 후보 답변")).toHaveTextContent("48시간");
     expect(screen.getByText("기대 표현 / 2시간")).toBeInTheDocument();
   });
-  it("같은 실행 선택 시 지표·검토 메모를 숨기고 내보내기를 막는다", () => {
+  it("같은 실행 선택 시 지표를 숨기고 내보내기를 막는다", () => {
     render(<RegressionDashboard />);
     fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
     fireEvent.change(screen.getByLabelText("후보"), {
@@ -218,54 +212,40 @@ describe("회귀 분석 작업대", () => {
       screen.queryByRole("textbox", { name: "판단 근거" }),
     ).not.toBeInTheDocument();
   });
-  it("메모를 브라우저에 저장·복원하고 다른 비교와 분리한다", async () => {
-    window.history.replaceState(null, "", "#reliability");
-    const { unmount } = render(<RegressionDashboard />);
-    fireEvent.click(screen.getByRole("button", { name: "메모 저장" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("판단의 근거");
-    fireEvent.change(screen.getByLabelText("허용 비용 증가 (%)"), {
-      target: { value: "70" },
-    });
-    fireEvent.change(screen.getByLabelText("검토 의견"), {
-      target: { value: "hold" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "판단 근거" }), {
-      target: { value: "q04 회귀와 비용 증가로 보류" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "메모 저장" }));
-    expect(
-      screen.getByText("이 브라우저에 검토 메모를 저장했습니다."),
-    ).toBeInTheDocument();
-    unmount();
+  it("브라우저에 남은 기준값과 메모를 읽지도 쓰지도 않는다", () => {
+    const getItem = vi.fn(() =>
+      JSON.stringify({ cost: "999", latency: "999", decision: "adopt" }),
+    );
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", { getItem, setItem, removeItem: vi.fn() });
     render(<RegressionDashboard />);
-    await waitFor(() =>
-      expect(screen.getByLabelText("허용 비용 증가 (%)")).toHaveValue(70),
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("textbox", { name: "판단 근거" })).toHaveValue(
-        "q04 회귀와 비용 증가로 보류",
-      ),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "기준선과 후보 맞바꾸기" }),
-    );
-    expect(screen.getByRole("textbox", { name: "판단 근거" })).toHaveValue("");
-    window.history.replaceState(null, "", window.location.pathname);
+    for (const name of ["research", "reliability"]) {
+      if (name === "reliability")
+        fireEvent.click(screen.getByRole("button", { name: /Ask 반복 측정/ }));
+      expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: "판단 근거" }),
+      ).not.toBeInTheDocument();
+    }
+    expect(getItem).not.toHaveBeenCalled();
+    expect(setItem).not.toHaveBeenCalled();
   });
-  it("저장 실패를 성공으로 표시하지 않고 빈 데이터도 설명한다", () => {
-    vi.stubGlobal("localStorage", {
-      getItem: () => null,
-      setItem: () => {
-        throw new Error("quota");
-      },
-    });
-    const { unmount } = render(<RegressionDashboard />);
-    fireEvent.change(screen.getByRole("textbox", { name: "판단 근거" }), {
-      target: { value: "검토 필요" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "메모 저장" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("저장하지 못했습니다");
-    unmount();
+  it("정책 v1은 읽기 전용으로 보이고 공식 판정과 구분된 참고 판정을 낸다", () => {
+    render(<RegressionDashboard />);
+    expect(screen.getByText(/로 판정했다면/)).toHaveTextContent(
+      /정책 adoption-v1로 판정했다면 채택 불가 · 막는 조건 3개\(새로 실패 1개, 통과 수 39 → 39, 비용 \+66\.4%\)/,
+    );
+    expect(screen.getByText("원래 기준 미충족")).toBeInTheDocument();
+    const criteria = within(
+      screen.getByRole("region", { name: "판정 기준 (읽기 전용)" }),
+    );
+    expect(
+      criteria.getByText(/이후 도입 실험의 기본 기준/),
+    ).toBeInTheDocument();
+    expect(criteria.getByText(/질문 단위/)).toBeInTheDocument();
+    expect(criteria.getByText(/바꿀 수 없습니다/)).toBeInTheDocument();
+  });
+  it("빈 데이터도 설명한다", () => {
     render(<RegressionDashboard suites={[]} />);
     expect(
       screen.getByRole("heading", { name: "평가 실행을 준비해 주세요" }),

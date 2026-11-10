@@ -162,3 +162,22 @@ def test_export_is_byte_identical_and_matches_committed_snapshot():
     committed = json.loads(registry.SNAPSHOT.read_text())
     assert committed["experiments"] == json.loads(first)["experiments"]
     assert committed["decisions"] == json.loads(first)["decisions"]
+
+
+def test_committed_snapshot_thresholds_match_their_single_sources():
+    """기준값이 정본과 어긋나면 실패한다(design.md D6). 화면 쪽은 regression-policy.test.ts."""
+    evaluation = registry._load_research_eval()
+    committed = json.loads(registry.SNAPSHOT.read_text())
+    original = {c["key"]: c for c in committed["criteria_sets"][0]["conditions"]}
+    cost_pct = round((evaluation.COST_LIMIT_RATIO - 1) * 100)
+    assert original["cost_within_limit"]["limit"] == f"+{cost_pct}%"
+    assert original["latency_within_limit"]["limit"] == (f"+{evaluation.P95_LIMIT_MS / 1000:g}초")
+    policies = {p["version"]: p for p in committed["policies"]}
+    assert policies["adoption-v1"] == registry.POLICY_V1
+
+
+def test_dashboard_has_no_hardcoded_adoption_thresholds():
+    """화면 코드에 예전 기본값(50%·15초) 상태가 남으면 정책과 따로 놀 수 있다."""
+    source = (ROOT / "apps/dashboard/components/RegressionDashboard.tsx").read_text()
+    for needle in ('useState("50")', 'useState("15")', "localStorage"):
+        assert needle not in source

@@ -381,6 +381,25 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
+.policyReference {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+}
+.policyList {
+  margin: var(--spacing-sm) 0 var(--spacing-base);
+  padding-left: var(--spacing-lg);
+  font-size: 0.8rem;
+  line-height: 1.9;
+}
+.policyList span {
+  color: var(--muted);
+  margin-left: var(--spacing-sm);
+}
+.criteria h4 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: var(--spacing-base) 0 0;
+}
 .provenance {
   display: grid;
   gap: var(--spacing-sm);
@@ -705,16 +724,6 @@
   cursor: pointer;
   color: var(--muted);
 }
-.criteriaFields {
-  display: grid;
-  grid-template-columns: 1fr 1fr 2fr;
-  gap: var(--spacing-base);
-  padding-block: var(--spacing-base);
-}
-.criteriaFields p {
-  color: var(--muted);
-  line-height: 1.8;
-}
 .conditions {
   margin: 0;
   padding-block: var(--spacing-base);
@@ -743,8 +752,7 @@
   margin-bottom: var(--spacing-base);
 }
 .sectionHeader h2,
-.history h2,
-.review h2 {
+.history h2 {
   font-size: 1rem;
   margin: 0;
   font-weight: 650;
@@ -1002,37 +1010,6 @@
   font-weight: 400;
   margin-top: var(--spacing-xs);
 }
-.review {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: var(--spacing-xl);
-  padding-block: var(--spacing-xl);
-  margin-top: var(--spacing-xl);
-  border-top: 1px solid var(--border);
-  scroll-margin-top: var(--spacing-lg);
-}
-.review p {
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.8;
-}
-.reviewForm {
-  display: grid;
-  gap: var(--spacing-base);
-}
-.reviewForm label:first-child {
-  max-width: 220px;
-}
-.saveRow {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-base);
-}
-.saveRow > span {
-  color: var(--muted);
-  font-size: 0.7rem;
-}
 .blocked,
 .empty {
   padding: var(--spacing-lg);
@@ -1075,12 +1052,6 @@
   }
   .answers article + article {
     margin-top: var(--spacing-base);
-  }
-  .criteriaFields {
-    grid-template-columns: 1fr 1fr;
-  }
-  .criteriaFields p {
-    grid-column: 1/-1;
   }
 }
 @media (max-width: 700px) {
@@ -1160,9 +1131,5 @@
   .conditions div {
     grid-template-columns: 1fr;
     gap: var(--spacing-xs);
-  }
-  .review {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-base);
   }
 }

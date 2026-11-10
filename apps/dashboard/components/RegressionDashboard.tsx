@@ -32,15 +32,19 @@ import {
   type Outcome,
 } from "@/lib/regression-analysis";
 import { regressionSuites } from "@/lib/regression-data";
-import { decisionLabels, kst } from "@/lib/experiments";
+import { decisionLabels, experimentSnapshot, kst } from "@/lib/experiments";
+import { evaluatePolicy } from "@/lib/regression-policy";
+
+// 도입 실험이 아닌 세트에 임시로 쓰는 기본 정책. 값은 스냅샷에서만 온다.
+const defaultPolicy = experimentSnapshot.policies.find(
+  (item) => item.version === "adoption-v1",
+);
 import styles from "./RegressionDashboard.module.css";
 
 const usd = (value: number | null) =>
   value === null ? "미측정" : `$${(value / 1e6).toFixed(4)}`;
 const seconds = (value: number | null) =>
   value === null ? "미측정" : `${(value / 1000).toFixed(2)}초`;
-const signed = (value: number, digits = 0) =>
-  `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
 
 const RUN_CHECK_LABEL = "내 검증 실행하기";
 
@@ -48,130 +52,6 @@ function openNewCheck() {
   const drawer = document.getElementById("new-check");
   if (drawer instanceof HTMLDetailsElement) drawer.open = true;
   drawer?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-type Review = {
-  decision: string;
-  reason: string;
-  savedAt: string;
-  fingerprint: string;
-};
-// 브라우저 메모가 다른 내용의 실행에 붙지 않도록 하는 변경 감지용 지문이다. 보안 서명은 아니다.
-function fingerprint(value: unknown) {
-  let hash = 2166136261;
-  for (const char of JSON.stringify(value))
-    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return (hash >>> 0).toString(16);
-}
-
-function ReviewPanel({
-  storageKey,
-  signature,
-}: {
-  storageKey: string;
-  signature: string;
-}) {
-  const [decision, setDecision] = useState("review");
-  const [reason, setReason] = useState("");
-  const [saved, setSaved] = useState<Review | null>(null);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    try {
-      const value = JSON.parse(
-        localStorage.getItem(storageKey) ?? "null",
-      ) as Review | null;
-      if (
-        value &&
-        value.fingerprint === signature &&
-        ["review", "adopt", "hold"].includes(value.decision) &&
-        typeof value.reason === "string" &&
-        typeof value.savedAt === "string"
-      ) {
-        setDecision(value.decision);
-        setReason(value.reason);
-        setSaved(value);
-      }
-    } catch {
-      setError(true);
-      setMessage(
-        "브라우저 저장소를 읽지 못했습니다. 메모는 현재 화면에서 작성할 수 있습니다.",
-      );
-    }
-  }, [storageKey, signature]);
-  function save() {
-    if (!reason.trim()) {
-      setError(true);
-      setMessage("판단의 근거를 입력해 주세요.");
-      return;
-    }
-    try {
-      const review = {
-        decision,
-        reason: reason.trim(),
-        savedAt: new Date().toISOString(),
-        fingerprint: signature,
-      };
-      localStorage.setItem(storageKey, JSON.stringify(review));
-      setSaved(review);
-      setError(false);
-      setMessage("이 브라우저에 검토 메모를 저장했습니다.");
-    } catch {
-      setError(true);
-      setMessage(
-        "저장하지 못했습니다. 브라우저 저장 공간과 권한을 확인해 주세요.",
-      );
-    }
-  }
-  return (
-    <section
-      id="review"
-      className={styles.review}
-      aria-labelledby="review-title"
-    >
-      <div>
-        <h2 id="review-title">검토 메모</h2>
-        <p>
-          이 비교에 대한 의견을 남깁니다. 메모는 이 브라우저에만 저장되며 운영
-          설정을 변경하지 않습니다.
-        </p>
-      </div>
-      <div className={styles.reviewForm}>
-        <label>
-          검토 의견
-          <select
-            value={decision}
-            onChange={(e) => setDecision(e.target.value)}
-          >
-            <option value="review">검토 중</option>
-            <option value="adopt">채택 의견</option>
-            <option value="hold">보류 의견</option>
-          </select>
-        </label>
-        <label>
-          판단 근거
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="회귀 문항, 비용 증가, 추가로 확인할 점을 기록하세요."
-            rows={3}
-            maxLength={4000}
-          />
-        </label>
-        <div className={styles.saveRow}>
-          <button type="button" className={styles.primary} onClick={save}>
-            메모 저장
-          </button>
-          {saved && (
-            <span>
-              마지막 저장 {new Date(saved.savedAt).toLocaleString("ko-KR")}
-            </span>
-          )}
-        </div>
-        {message && <p role={error ? "alert" : "status"}>{message}</p>}
-      </div>
-    </section>
-  );
 }
 
 function RowDetail({ row }: { row: ComparedRow }) {
@@ -267,70 +147,12 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
   const [filter, setFilter] = useState("attention");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [costLimit, setCostLimit] = useState("50");
-  const [latencyLimit, setLatencyLimit] = useState("15");
-  const [criteriaLoaded, setCriteriaLoaded] = useState("");
   const before = suite.runs.find((run) => run.id === baselineId);
   const after = suite.runs.find((run) => run.id === candidateId);
   const analysis = useMemo(
     () => (before && after ? compareRuns(before, after) : null),
     [before, after],
   );
-  const dataSignature = useMemo(
-    () => fingerprint({ before, after }),
-    [before, after],
-  );
-  const criteriaKey = `nexuswiki:regression:criteria:${suite.id}:${baselineId}:${candidateId}`;
-  useEffect(() => {
-    let cost = "50",
-      latency = "15";
-    try {
-      const value = JSON.parse(localStorage.getItem(criteriaKey) ?? "null");
-      if (
-        value?.fingerprint === dataSignature &&
-        typeof value.cost === "string" &&
-        typeof value.latency === "string" &&
-        value.cost.trim() &&
-        value.latency.trim() &&
-        Number.isFinite(Number(value.cost)) &&
-        Number(value.cost) >= 0 &&
-        Number.isFinite(Number(value.latency)) &&
-        Number(value.latency) >= 0
-      ) {
-        cost = value.cost;
-        latency = value.latency;
-      }
-    } catch {
-      /* 저장소를 읽지 못하면 기본 기준으로 시작하고 메모 영역에서 제한을 알린다. */
-    }
-    setCostLimit(cost);
-    setLatencyLimit(latency);
-    setCriteriaLoaded(criteriaKey);
-  }, [criteriaKey, dataSignature]);
-  useEffect(() => {
-    if (
-      criteriaLoaded !== criteriaKey ||
-      !costLimit.trim() ||
-      !latencyLimit.trim() ||
-      !Number.isFinite(Number(costLimit)) ||
-      Number(costLimit) < 0 ||
-      !Number.isFinite(Number(latencyLimit)) ||
-      Number(latencyLimit) < 0
-    )
-      return;
-    try {
-      localStorage.setItem(
-        criteriaKey,
-        JSON.stringify({
-          fingerprint: dataSignature,
-          cost: costLimit,
-          latency: latencyLimit,
-        }),
-      );
-    } catch {
-      /* 검토 메모의 명시적 저장 시 저장 실패를 사용자에게 알린다. */
-    }
-  }, [criteriaKey, dataSignature, costLimit, latencyLimit, criteriaLoaded]);
   if (!before || !after || !analysis)
     return (
       <section className={styles.empty}>
@@ -338,23 +160,6 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
         <p>같은 평가 세트의 실행이 두 개 이상 필요합니다.</p>
       </section>
     );
-  const thresholdsValid =
-    costLimit.trim() !== "" &&
-    latencyLimit.trim() !== "" &&
-    Number.isFinite(Number(costLimit)) &&
-    Number(costLimit) >= 0 &&
-    Number.isFinite(Number(latencyLimit)) &&
-    Number(latencyLimit) >= 0;
-  const costOk =
-    analysis.costChange !== null && analysis.costChange <= Number(costLimit);
-  const latencyOk =
-    analysis.p95Change !== null &&
-    analysis.p95Change <= Number(latencyLimit) * 1000;
-  const qualityOk =
-    analysis.counts.regressed === 0 &&
-    analysis.counts.excluded === 0 &&
-    analysis.total > 0;
-  const within = qualityOk && costOk && latencyOk;
   const isRescore = after.mode === "rescore" || after.path.includes("재채점");
   const researchRows = analysis.rows.filter((row) => row.after?.research);
   const regressedRows = analysis.rows.filter(
@@ -388,84 +193,27 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
       {regressedRows.length > 3 && ` 외 ${regressedRows.length - 3}개`}
     </>
   );
-  // ok가 boolean인 항목은 within 판정과 같은 네 조건이어야 한다. 하나라도 빠지면 배지와 목록이 서로 다른 말을 한다.
-  const thresholdGates: {
-    key: string;
-    ok: boolean | null;
-    label: string;
-    detail: ReactNode;
-  }[] = [
-    {
-      key: "regressed",
-      ok: analysis.counts.regressed === 0,
-      label: `새로 실패 ${analysis.counts.regressed}개`,
-      detail:
-        regressedRows.length === 0 ? (
-          "기준선에서 통과하고 후보에서 실패한 질문 없음"
-        ) : (
-          <>
-            {regressedLinks}
-            {regressedRows[0].after?.reason &&
-              ` · ${regressedRows[0].after.reason}`}
-            {regressedRows.every((row) => row.after?.research?.calls === 0) &&
-              " · 재검색이 실행되지 않은 질문이라 재검색 효과가 아닐 수 있음"}
-          </>
-        ),
-    },
-    {
-      key: "excluded",
-      ok: analysis.counts.excluded === 0 && analysis.total > 0,
-      label: `검사 중단 ${analysis.counts.excluded}개`,
-      detail:
-        analysis.total > 0
-          ? "끝까지 검사하지 못한 질문은 통과 수에서 제외됩니다"
-          : "검사를 마친 질문이 없습니다",
-    },
-    {
-      key: "cost",
-      ok: costOk,
-      label:
-        (isRescore ? "원본 답변 비용 " : "비용 ") +
-        (analysis.costChange === null
-          ? "미측정"
-          : signed(analysis.costChange, 1) + "%"),
-      detail: (
-        <>
-          {usd(before.cost)} → {usd(after.cost)} · 허용 +{costLimit}%{" "}
-          <button
-            type="button"
-            className={styles.gateLink}
-            onClick={() => openSettings("cost-limit")}
-          >
-            기준 바꾸기
-          </button>
-        </>
-      ),
-    },
-    {
-      key: "latency",
-      ok: latencyOk,
-      label:
-        "응답 시간 p95 " +
-        (analysis.p95Change === null
-          ? "미측정"
-          : signed(analysis.p95Change / 1000, 2) + "초"),
-      detail: (
-        <>
-          {seconds(before.p95)} → {seconds(after.p95)} · 허용 +{latencyLimit}초{" "}
-          <button
-            type="button"
-            className={styles.gateLink}
-            onClick={() => openSettings("latency-limit")}
-          >
-            기준 바꾸기
-          </button>
-        </>
-      ),
-    },
-    // 판정에 들어가지 않는 참고 줄이다. 판정을 얼마나 믿을지를 조건 옆에 두어 따로 읽지 않게 한다.
-    judgeGate,
-  ];
+  // 도입 실험이 아닌 세트도 아직은 정책 v1로 보여 준다. 측정 실험 표시는 3·4절에서 바꾼다.
+  const policy = adoption?.policy ?? defaultPolicy;
+  const policyVerdict = policy ? evaluatePolicy(analysis, policy) : null;
+  const policyGates = (
+    policyVerdict?.comparable ? policyVerdict.conditions : []
+  ).map((condition) => ({
+    key: condition.key,
+    ok: condition.met as boolean | null,
+    label: condition.label,
+    detail: (condition.key === "regression" && regressedRows.length > 0 ? (
+      <>
+        {regressedLinks}
+        {regressedRows[0].after?.reason &&
+          ` · ${regressedRows[0].after.reason}`}
+        {regressedRows.every((row) => row.after?.research?.calls === 0) &&
+          " · 재검색이 실행되지 않은 질문이라 재검색 효과가 아닐 수 있음"}
+      </>
+    ) : (
+      `${condition.actual} · 허용 ${condition.limit}`
+    )) as ReactNode,
+  }));
   const gates = criteria
     ? [
         ...criteria.conditions.map((condition) => ({
@@ -476,17 +224,15 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
         })),
         judgeGate,
       ]
-    : thresholdGates;
+    : [...policyGates, judgeGate];
   const blocking = gates.filter((gate) => gate.ok === false).length;
   const gateState = criteria
     ? criteria.adopted
       ? "pass"
       : "review"
-    : !thresholdsValid
-      ? "invalid"
-      : within
-        ? "pass"
-        : "review";
+    : policyVerdict?.comparable && policyVerdict.adoptable
+      ? "pass"
+      : "review";
   const priority: Record<Outcome, number> = {
     regressed: 0,
     excluded: 1,
@@ -508,19 +254,11 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
         priority[a.outcome] - priority[b.outcome] || a.id.localeCompare(b.id),
     );
   const selected = filtered.find((row) => row.id === selectedId) ?? filtered[0];
-  const signature = fingerprint({ before, after, costLimit, latencyLimit });
   const controlsChanged = () => {
     setFilter("attention");
     setQuery("");
     setSelectedId(null);
   };
-  function openSettings(inputId: string) {
-    const drawer = document.getElementById("settings");
-    if (drawer instanceof HTMLDetailsElement) drawer.open = true;
-    const input = document.getElementById(inputId);
-    input?.scrollIntoView({ behavior: "smooth", block: "center" });
-    input?.focus({ preventScroll: true });
-  }
   function jumpToQuestions(nextFilter: string, id: string | null) {
     setFilter(nextFilter);
     setQuery("");
@@ -537,10 +275,7 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
       baseline: before!.label,
       candidate: after!.label,
       conditions: before!.conditions,
-      thresholds: {
-        cost_increase_percent: Number(costLimit),
-        p95_increase_seconds: Number(latencyLimit),
-      },
+      policy: policy ?? null,
       counts: analysis!.counts,
       rows: analysis!.rows.map((row) => ({
         id: row.id,
@@ -706,16 +441,30 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
             </dl>
           )}
           <p className={styles.gateContext}>
-            {criteria && regressedRows.length > 0 && (
-              <>
-                참고 · 원래 기준은 회귀를 합계로 봅니다. 질문 단위로는 새로 실패{" "}
-                {regressedRows.length}개 {regressedLinks}
-                {regressedRows.every(
-                  (row) => row.after?.research?.calls === 0,
-                ) &&
-                  " · 재검색이 실행되지 않은 질문이라 재검색 효과가 아닐 수 있음"}
-                <br />
-              </>
+            {criteria && policy && policyVerdict?.comparable && (
+              // 공식 판정은 원래 기준이다. 결과 이후 정의한 정책은 판정을 바꾸지 않고 참고로만 보인다.
+              <span className={styles.policyReference}>
+                참고 · 정책 <code>{policy.version}</code>로 판정했다면{" "}
+                {policyVerdict.adoptable ? "채택 가능" : "채택 불가"}
+                {!policyVerdict.adoptable &&
+                  ` · 막는 조건 ${policyVerdict.conditions.filter((c) => !c.met).length}개(${policyVerdict.conditions
+                    .filter((c) => !c.met)
+                    .map((c) => c.finding)
+                    .join(", ")})`}
+                {regressedRows.length > 0 && (
+                  <>
+                    {" "}
+                    · 원래 기준은 회귀를 합계로 봐서 막지 않았지만, 정책{" "}
+                    {policy.version}에서는 새로 실패 {regressedRows.length}개(
+                    {regressedLinks}
+                    )도 막는 조건입니다
+                    {regressedRows.every(
+                      (row) => row.after?.research?.calls === 0,
+                    ) &&
+                      " · 재검색이 실행되지 않은 질문이라 재검색 효과가 아닐 수 있음"}
+                  </>
+                )}
+              </span>
             )}
             참고 · 통과 {analysis.beforePassed}/{analysis.total} →{" "}
             {analysis.afterPassed}/{analysis.total} · 새로 통과{" "}
@@ -979,44 +728,55 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           <FlaskConical size={15} aria-hidden="true" />
           {suite.limitation}
         </p>
-        {!adoption && (
-          <section className={styles.criteria} aria-labelledby="criteria-title">
-            <h3 id="criteria-title">허용 기준</h3>
-            <div className={styles.criteriaFields}>
-              <label>
-                허용 비용 증가 (%)
-                <input
-                  id="cost-limit"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={costLimit}
-                  onChange={(e) => setCostLimit(e.target.value)}
-                />
-              </label>
-              <label>
-                허용 p95 증가 (초)
-                <input
-                  id="latency-limit"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={latencyLimit}
-                  onChange={(e) => setLatencyLimit(e.target.value)}
-                />
-              </label>
-              <p>
-                새로 실패 0개 · 검사 중단 0개는 고정 조건입니다. 허용 기준은 이
-                브라우저에만 저장되며 팀 공용 기준이 아닙니다. 기준 충족은 운영
-                적용 승인이 아닙니다.
+        <section className={styles.criteria} aria-labelledby="criteria-title">
+          <h3 id="criteria-title">판정 기준 (읽기 전용)</h3>
+          {criteria && (
+            <>
+              <h4>{criteria.name} · 이 실험의 공식 판정 기준</h4>
+              <ul className={styles.policyList}>
+                {criteria.conditions.map((condition) => (
+                  <li key={condition.key}>
+                    {condition.label} <span>허용 {condition.limit}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {policy && (
+            <>
+              <h4>
+                채택 정책 <code>{policy.version}</code> ·{" "}
+                {criteria
+                  ? "이후 도입 실험의 기본 기준, 이 실험에는 참고로만 적용"
+                  : "도입 실험 기본 기준"}{" "}
+                · {policy.defined_on} 정의
+              </h4>
+              <ul className={styles.policyList}>
+                <li>
+                  새로 실패 0개 <span>질문 단위 · 기준선 통과 → 후보 실패</span>
+                </li>
+                <li>검사 중단 {policy.max_excluded}개 이하</li>
+                {policy.require_improvement && (
+                  <li>
+                    통과 수 증가 <span>후보가 기준선보다 많아야 함</span>
+                  </li>
+                )}
+                <li>총비용 증가 {policy.max_cost_increase_pct}% 이하</li>
+                <li>
+                  p95 응답 시간 증가 {policy.max_p95_increase_ms / 1000}초 이하
+                </li>
+              </ul>
+              <p className={styles.footnote}>
+                한계 · {policy.limitation} 기준은 실험 기록에서 오며 이 화면에서
+                바꿀 수 없습니다. 기준 충족은 운영 적용 승인이 아닙니다.
               </p>
-            </div>
-            <p className={styles.footnote}>
-              p95는 응답 시간을 빠른 순서로 정렬했을 때 95% 지점의 값입니다.
-              재채점에 표시되는 비용·응답 시간은 원본 답변 생성 당시 값입니다.
-            </p>
-          </section>
-        )}
+            </>
+          )}
+          <p className={styles.footnote}>
+            p95는 응답 시간을 빠른 순서로 정렬했을 때 95% 지점의 값입니다.
+            재채점에 표시되는 비용·응답 시간은 원본 답변 생성 당시 값입니다.
+          </p>
+        </section>
         <details className={styles.conditionsDetails}>
           <summary>
             고정 조건 지문 · {Object.keys(before.conditions).length}개
@@ -1042,7 +802,7 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           type="button"
           className={styles.secondary}
           onClick={exportComparison}
-          disabled={!analysis.valid || !thresholdsValid}
+          disabled={!analysis.valid}
         >
           <Download size={16} aria-hidden="true" /> 비교 결과 JSON
         </button>
@@ -1110,22 +870,6 @@ function Workbench({ suite }: { suite: AnalysisSuite }) {
           </div>
         </section>
       </details>
-      {analysis.valid && thresholdsValid && criteriaLoaded === criteriaKey && (
-        <ReviewPanel
-          key={
-            suite.id + "-" + baselineId + "-" + candidateId + "-" + signature
-          }
-          storageKey={
-            "nexuswiki:regression:" +
-            suite.id +
-            ":" +
-            baselineId +
-            ":" +
-            candidateId
-          }
-          signature={signature}
-        />
-      )}
     </>
   );
 }
@@ -1172,7 +916,6 @@ export function RegressionDashboard({
           <GitCompareArrows size={17} aria-hidden="true" /> 검사 결과
         </a>
         <a href="#history">실행 기록</a>
-        <a href="#review">검토 메모</a>
         {process.env.NODE_ENV === "development" && (
           <a href="#judge-workbench">골든셋과 AI 심사</a>
         )}
