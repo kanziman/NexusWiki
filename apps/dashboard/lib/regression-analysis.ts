@@ -10,6 +10,8 @@ export type AnalysisRow = {
   failed: boolean;
   kind: string;
   expected?: string;
+  /** 재검색 ON 실행에만 있다. 실제로 다시 검색했는지 모르면 결과 차이를 재검색 탓으로 오해한다. */
+  research?: { status: string | null; calls: number };
 };
 export type AnalysisRun = {
   mode?: string;
@@ -18,6 +20,8 @@ export type AnalysisRun = {
   path: string;
   model: string;
   revision: string | null;
+  /** 실행 시각(ISO). 같은 이름의 실행을 구분하는 고유값으로 함께 보여 준다. */
+  createdAt?: string | null;
   conditions: Record<string, string>;
   rows: AnalysisRow[];
   cost: number;
@@ -35,6 +39,8 @@ export type AnalysisSuite = {
   };
   baselineId?: string;
   candidateId?: string;
+  /** 이 세트에서 기준선과 후보가 각각 무엇인지. 없으면 일반 용어만 쓴다. */
+  roles?: { baseline: string; candidate: string };
   id: string;
   name: string;
   description: string;
@@ -57,6 +63,15 @@ export const outcomeLabels: Record<Outcome, string> = {
   passed: "계속 통과",
   excluded: "검사 중단",
 };
+
+export function researchLabel(research: NonNullable<AnalysisRow["research"]>) {
+  if (research.calls > 0) return `재검색 ${research.calls}회 실행`;
+  if (research.status === "sufficient")
+    return "재검색 실행 안 됨 · 처음 찾은 근거로 충분하다고 판단";
+  if (research.status === "decision_or_search_failed")
+    return "재검색 실행 안 됨 · 판단이나 검색이 실패해 처음 근거로 답변";
+  return `재검색 실행 안 됨 · 상태 ${research.status ?? "미기록"}`;
+}
 
 export function compareRuns(before: AnalysisRun, after: AnalysisRun) {
   const problems: string[] = [];

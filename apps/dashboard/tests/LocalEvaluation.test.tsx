@@ -146,9 +146,9 @@ describe("로컬 평가 실행 패널", () => {
       );
     vi.stubGlobal("fetch", fetcher);
     render(<LocalEvaluationPanel enabled onSuite={vi.fn()} />);
-    const drawer = screen.getByText("새 검사 시작").closest("details")!;
+    const drawer = screen.getByText("내 검증 실행하기").closest("details")!;
     expect(drawer).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByText("새 검사 시작"));
+    fireEvent.click(screen.getByText("내 검증 실행하기"));
     await screen.findByText("접속됨 · 결과는 로컬 디스크에 보존");
     expect(
       screen.getByRole("option", { name: /AI 답변 새로 만들기/ }),
@@ -170,5 +170,85 @@ describe("로컬 평가 실행 패널", () => {
       mode: "rescore",
       label: "채점기 재검증",
     });
+  });
+  it("방금 한 실행의 결과를 버튼 아래 붙잡아 보여 주고 같은 이름은 막는다", async () => {
+    const row = (id: string, passed: boolean) => ({
+      id,
+      query: id,
+      passed,
+      reason: null,
+      cost: null,
+      latency: null,
+      answer: null,
+      failed: false,
+      kind: "x",
+    });
+    const run = (id: string, label: string) => ({
+      id,
+      label,
+      mode: "rescore",
+      path: "재채점",
+      model: "m",
+      revision: null,
+      conditions: { corpus: "c" },
+      rows: [row("q1", true), row("q2", false)],
+      cost: 0,
+      tokens: 0,
+      p50: null,
+      p95: null,
+    });
+    let after = false;
+    const fetcher = vi.fn().mockImplementation((_url, options) => {
+      if (options?.method === "POST") {
+        after = true;
+        return Promise.resolve(Response.json({ id: "job-2" }));
+      }
+      return Promise.resolve(
+        Response.json({
+          ...snapshot,
+          baseline_id: "seed",
+          runs: after
+            ? [run("seed", "초기 기준"), run("job-2", "채점기 재검증")]
+            : [run("seed", "초기 기준")],
+          jobs: after
+            ? [
+                {
+                  id: "job-2",
+                  label: "채점기 재검증",
+                  mode: "rescore",
+                  status: "completed",
+                  asked: 2,
+                  planned: 2,
+                  error: null,
+                  created_at: "2026-11-10T03:00:00+00:00",
+                },
+              ]
+            : [],
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const onOpen = vi.fn();
+    render(<LocalEvaluationPanel enabled onSuite={vi.fn()} onOpen={onOpen} />);
+    await screen.findByText("접속됨 · 결과는 로컬 디스크에 보존");
+    const name = screen.getByLabelText("검사 이름");
+    fireEvent.change(name, { target: { value: "초기 기준" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("이미 있습니다");
+    expect(
+      screen.getByRole("button", { name: "다시 채점하기 · 무료" }),
+    ).toBeDisabled();
+    fireEvent.change(name, { target: { value: "채점기 재검증" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "다시 채점하기 · 무료" }),
+    );
+    const result = await screen.findByRole("status");
+    expect(result).toHaveTextContent("‘채점기 재검증’ 완료");
+    expect(result).toHaveTextContent("1/2개 통과");
+    expect(result).toHaveTextContent("기준선과 판정이 모두 같습니다");
+    expect(name).toHaveValue("");
+    fireEvent.click(
+      screen.getByRole("button", { name: "기준선과 비교한 결과 보기" }),
+    );
+    expect(onOpen).toHaveBeenCalled();
   });
 });
