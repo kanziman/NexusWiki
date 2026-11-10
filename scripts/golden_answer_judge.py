@@ -123,6 +123,7 @@ class OpenRouterJudge:
                         {"role": "user", "content": json.dumps(packet, ensure_ascii=False)},
                     ],
                     "max_tokens": cfg["max_output_tokens"],
+                    "usage": {"include": True},
                     "response_format": {"type": "json_object"},
                     "provider": {"data_collection": "deny", "allow_fallbacks": False},
                 },
@@ -173,6 +174,13 @@ def code_verdict(sample):
 
 
 def validate_metrics(raw, packet):
+    # 일부 공급자는 JSON 응답을 단일 코드블록으로 감싼다. 전체가 그 포장일 때만
+    # 벗기며, 앞뒤 설명문에서 JSON 조각을 추측해 추출하지 않는다.
+    wrapped = re.fullmatch(
+        r"```(?:json)?\s*\n(.*)\n```", raw.strip(), flags=re.DOTALL | re.IGNORECASE
+    )
+    if wrapped:
+        raw = wrapped.group(1)
     metrics = json.loads(raw)["metrics"]
     if set(metrics) != set(METRICS):
         raise ValueError("심사 지표 누락")
@@ -189,8 +197,6 @@ def validate_metrics(raw, packet):
             or len(m["evidence"]) > 12
         ):
             raise ValueError("심사 형식 오류")
-        if m["answer_quote"] not in packet["answer"]:
-            raise ValueError("답변 구간 불일치")
         if key.startswith("citation_") and packet["supplied_evidence"] is None:
             result[key] = {
                 "verdict": "not_evaluable",
@@ -199,31 +205,37 @@ def validate_metrics(raw, packet):
                 "evidence": [],
             }
             continue
+        issue = ""
+        if m["answer_quote"] not in packet["answer"]:
+            issue = "답변 구간이 원문과 일치하지 않습니다"
         for ref in m["evidence"]:
             if (
                 not ref.get("quote")
                 or ref.get("anchor") not in sources
                 or ref["quote"] not in sources[ref["anchor"]]
             ):
-                raise ValueError("근거 구간 불일치")
+                issue = "근거 구간이 원문과 일치하지 않습니다"
         if m["verdict"] in {"pass", "fail"}:
             if not m["answer_quote"]:
-                raise ValueError("판정 답변 구간 필요")
+                issue = "판정에 필요한 답변 구간이 없습니다"
             if packet["answerable"] and key in {"facts", "citation_accuracy"} and not m["evidence"]:
-                raise ValueError("판정 근거 필요")
+                issue = "판정에 필요한 근거가 없습니다"
         # 인용의 뒷받침은 생성 시 제공 근거를 대조해야 한다. 정답 근거로 대신하지 않는다.
         if key == "citation_accuracy" and m["verdict"] in {"pass", "fail"}:
             allowed = packet["supplied_evidence"] or {}
             if not any(r["anchor"] in allowed for r in m["evidence"]):
-                raise ValueError("인용 당시 근거 필요")
-        result[key] = {k: m[k] for k in ("verdict", "reason", "answer_quote", "evidence")}
-        if key.startswith("citation_") and packet["supplied_evidence"] is None:
+                issue = "생성 당시 인용 근거와 대조하지 않았습니다"
+        if issue:
+            # 구간을 근사 매칭하거나 모델의 통과를 신뢰하지 않는다. 해당 지표만
+            # 검토 필요로 낮추고 검증된 다른 지표와 관측 비용은 보존한다.
             result[key] = {
-                "verdict": "not_evaluable",
-                "reason": "생성 당시 근거 맵 없음",
+                "verdict": "review_needed",
+                "reason": issue + ". 사람이 직접 대조해야 합니다.",
                 "answer_quote": "",
                 "evidence": [],
             }
+            continue
+        result[key] = {k: m[k] for k in ("verdict", "reason", "answer_quote", "evidence")}
     return result
 
 
@@ -318,6 +330,43 @@ class JudgeStore:
                 "code": None,
             }
             samples.append(sample)
+        # 실제 제품 재생에서 함께 캡처한 답변과 인용 맵만 연결한다.
+        # 정답 문서로 인용 맵을 사후 복원하거나 과거 사람 판정을 재사용하지 않는다.
+        for path in sorted(self.root.glob("answers-*.json")):
+            record = read(path)
+            if (
+                record.get("source") != "ask-product-replay"
+                or record.get("dataset_fingerprint") != self.dataset["fingerprint"]
+            ):
+                continue
+            questions = {q["id"]: q for q in self.dataset["questions"]}
+            for row in record.get("samples", []):
+                q = questions.get(row.get("question_id"))
+                if (
+                    not q
+                    or row.get("question_fingerprint") != q["fingerprint"]
+                    or not isinstance(row.get("answer"), str)
+                    or not row["answer"].strip()
+                    or not isinstance(row.get("supplied_evidence"), dict)
+                    or any(
+                        not isinstance(k, str)
+                        or not re.fullmatch(r"(?:src|wiki):[\w-]+", k)
+                        or not isinstance(v, str)
+                        for k, v in row["supplied_evidence"].items()
+                    )
+                ):
+                    continue
+                samples.append(
+                    {
+                        "id": record["id"] + ":" + q["id"],
+                        "question_id": q["id"],
+                        "origin": "stored",
+                        "label": record["label"],
+                        "answer": row["answer"],
+                        "supplied_evidence": row["supplied_evidence"],
+                        "code": None,
+                    }
+                )
         # 기존 공개 기록을 읽기만 한다. 질문 문구가 달라진 후보는 과거 답변과 매칭하지 않는다.
         for p in sorted(self.parent.root.glob("run-*.json")):
             run = read(p)
@@ -378,11 +427,38 @@ class JudgeStore:
         samples = self.samples()
         reviews = {read(p)["target"]: read(p) for p in self.root.glob("review-*.json")}
         results = self.results()
+        ai_reviews = {}
+        by_fingerprint = {s["fingerprint"]: s for s in samples}
+        questions = {q["id"]: q for q in self.dataset["questions"]}
+        # 대화형 AI의 추가 검토는 사람 제출과 유료 심사 결과를 대체하지 않는다.
+        for path in sorted(self.root.glob("ai-review-*.json")):
+            record = read(path)
+            if (
+                record.get("reviewer_kind") != "ai_assistant"
+                or record.get("dataset_fingerprint") != self.dataset["fingerprint"]
+                or record.get("rubric") != RUBRIC
+            ):
+                continue
+            for row in record.get("rows", []):
+                sample = by_fingerprint.get(row.get("fingerprint"))
+                if not sample:
+                    continue
+                packet = packet_for(self.dataset, questions[sample["question_id"]], sample)
+                try:
+                    checked = validate_metrics(json.dumps({"metrics": row["metrics"]}), packet)
+                except (ValueError, KeyError, TypeError):
+                    continue
+                ai_reviews[sample["fingerprint"]] = {
+                    "metrics": checked,
+                    "reviewed_at": record.get("reviewed_at"),
+                    "reviewer_label": "AI 추가 검토",
+                }
         return {
             "dataset": self.dataset,
             "samples": samples,
             "results": results,
             "reviews": reviews,
+            "ai_reviews": ai_reviews,
             "jobs": sorted(
                 [read(p) for p in self.root.glob("job-*.json")],
                 key=lambda j: j["created_at"],

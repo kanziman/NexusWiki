@@ -2,6 +2,7 @@
 
 // #266 · golden-answer-judge: 후보 검토와 실제 사람 제출을 구분하는 로컬 작업대.
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import styles from "./GoldenJudgePanel.module.css";
 
 const metricNames = {
@@ -73,6 +74,10 @@ export type JudgeSnapshot = {
   samples: Sample[];
   results: Record<string, Result>;
   reviews: Record<string, Review>;
+  ai_reviews?: Record<
+    string,
+    { metrics: Record<Metric, Judgement>; reviewed_at?: string }
+  >;
   models: string[];
   busy: boolean;
   max_budget_micros: number;
@@ -89,18 +94,54 @@ export type JudgeSnapshot = {
   agreement: Record<"synthetic" | "stored", Record<Metric, Stat>>;
 };
 
-function HumanForm({
+export function AdditionalAiReview({
+  review,
+}: {
+  review?: NonNullable<JudgeSnapshot["ai_reviews"]>[string];
+}) {
+  if (!review) return null;
+  return (
+    <details>
+      <summary>AI 추가 검토 보기</summary>
+      <p>
+        대화형 AI가 답변과 실제 인용 자료를 대조한 결과입니다. 사람 판정과
+        별도이며 사람 기준 일치도에 포함하지 않습니다.
+      </p>
+      {metrics.map((key) => {
+        const item = review.metrics[key];
+        return (
+          <section key={key}>
+            <h4>
+              {metricNames[key]} · {verdicts[item.verdict]}
+            </h4>
+            <p>{item.reason}</p>
+            {item.answer_quote && <blockquote>{item.answer_quote}</blockquote>}
+            {item.evidence?.map((ref, index) => (
+              <p key={`${ref.anchor}:${index}`} className={styles.quote}>
+                {ref.anchor} · {ref.quote}
+              </p>
+            ))}
+          </section>
+        );
+      })}
+    </details>
+  );
+}
+
+export function HumanForm({
   id,
   target,
   kind,
   review,
   save,
+  onDirtyChange,
 }: {
   id: string;
   target: string;
   kind: "question" | "sample";
   review?: Review;
   save: (payload: object) => Promise<boolean>;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [reason, setReason] = useState("");
   const [choices, setChoices] = useState<Partial<Record<Metric, string>>>({});
@@ -109,6 +150,11 @@ function HumanForm({
   const [saved, setSaved] = useState(false);
   const [editingRevision, setEditingRevision] = useState(review?.revision ?? 0);
   const stale = (review?.revision ?? 0) !== editingRevision && !saving;
+  useEffect(() => {
+    onDirtyChange?.(
+      !saved && Boolean(reason || confirmed || Object.keys(choices).length),
+    );
+  }, [reason, confirmed, choices, saved, onDirtyChange]);
   return (
     <form
       className={styles.form}
@@ -162,9 +208,10 @@ function HumanForm({
               <select
                 required
                 value={choices[metric] ?? ""}
-                onChange={(e) =>
-                  setChoices({ ...choices, [metric]: e.target.value })
-                }
+                onChange={(e) => {
+                  setChoices({ ...choices, [metric]: e.target.value });
+                  setSaved(false);
+                }}
               >
                 <option value="" disabled>
                   직접 선택
@@ -186,7 +233,10 @@ function HumanForm({
             type="checkbox"
             required
             checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
+            onChange={(e) => {
+              setConfirmed(e.target.checked);
+              setSaved(false);
+            }}
           />
           질문·기대 사실·원문 근거를 직접 확인했습니다.
         </label>
@@ -197,7 +247,10 @@ function HumanForm({
           required
           maxLength={1000}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => {
+            setReason(e.target.value);
+            setSaved(false);
+          }}
           placeholder="대조한 사실과 판단 이유를 남겨 주세요."
         />
       </label>
@@ -319,6 +372,11 @@ export function GoldenJudgePanel({
           질문과 정답 근거를 먼저 확인하고, 저장 답변을 심사한 뒤 사람의 판단과
           비교합니다. 이 작업대는 로컬 전용입니다. 열어 보기에는 모델 비용이
           들지 않습니다.
+        </p>
+        <p>
+          <Link href="/showcase/review" prefetch={false}>
+            검토 전용 페이지 열기 →
+          </Link>
         </p>
         {error && (
           <p role="alert" className={styles.error}>

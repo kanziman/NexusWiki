@@ -113,11 +113,10 @@ def test_structural_validation_and_missing_original_evidence(store):
     )
     bad = json.loads(result["content"])
     bad["metrics"]["facts"]["evidence"][0]["quote"] = "이 근거는 원문에 없음"
-    with pytest.raises(ValueError, match="구간"):
-        judge.validate_metrics(json.dumps(bad), packet)
+    assert judge.validate_metrics(json.dumps(bad), packet)["facts"]["verdict"] == "review_needed"
     bad["metrics"]["facts"]["answer_quote"] = "원문에 없는 답"
-    with pytest.raises(ValueError, match="답변"):
-        judge.validate_metrics(json.dumps(bad), packet)
+    downgraded = judge.validate_metrics(json.dumps(bad), packet)["facts"]
+    assert downgraded["verdict"] == "review_needed" and downgraded["answer_quote"] == ""
 
 
 def test_old_value_in_negation_is_not_keyword_failure(store):
