@@ -15,6 +15,13 @@ const sectionLinks = [
   { href: "#faq", label: "FAQ" },
 ] as const;
 
+// 섹션 앵커가 아니라 페이지 이동이라 sectionLinks와 분리한다.
+// 랜딩 방문만으로 평가 페이지 번들·데이터를 가져오지 않도록 prefetch를 끈다.
+const evaluationLink = {
+  href: "/showcase/evaluation",
+  label: "평가 기록",
+} as const;
+
 export function PublicLandingHeader({
   mobileMenuOpen,
   onToggleMobileMenu,
@@ -44,17 +51,24 @@ export function PublicLandingHeader({
 
         <nav
           aria-label="공개 랜딩 주요 섹션"
-          className="hidden items-center gap-7 text-sm font-medium text-[var(--muted)] md:flex"
+          className="hidden items-center gap-4 lg:gap-7 text-sm font-medium text-[var(--muted)] md:flex"
         >
           {sectionLinks.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className="nw-focus-ring rounded-md px-1.5 py-2 transition-colors hover:text-[var(--fg)]"
+              className="nw-focus-ring rounded-md px-1.5 py-2 whitespace-nowrap transition-colors hover:text-[var(--fg)]"
             >
               {item.label}
             </a>
           ))}
+          <Link
+            href={evaluationLink.href}
+            prefetch={false}
+            className="nw-focus-ring rounded-md px-1.5 py-2 whitespace-nowrap transition-colors hover:text-[var(--fg)]"
+          >
+            {evaluationLink.label}
+          </Link>
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -105,6 +119,14 @@ export function PublicLandingHeader({
                 {item.label}
               </a>
             ))}
+            <Link
+              href={evaluationLink.href}
+              prefetch={false}
+              onClick={onCloseMobileMenu}
+              className="nw-focus-ring rounded-lg px-3 py-2.5 text-sm font-semibold text-[var(--fg)] transition-colors hover:bg-[var(--surface)]"
+            >
+              {evaluationLink.label}
+            </Link>
             <Link
               href="/login"
               onClick={onCloseMobileMenu}
