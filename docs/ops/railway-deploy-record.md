@@ -4,6 +4,16 @@
 - 방법: Railway CLI 로그인 세션과 공개 헬스 엔드포인트로 구성·배포 상태 확인
 - 결과: NexusWiki 프로젝트의 `api`·`worker` 서비스를 싱가포르 리전에 구성
 
+
+## GitHub 연동 자동 배포 (관측, 2026-11-11)
+
+최초 구성은 아래 CLI 확인 기록이지만, 현재는 GitHub 연동으로 `main` 머지가 production 배포를 시작한다. GitHub Deployments 기록으로 확인했다.
+
+- `main` 머지 커밋 `8cd4e1b`(#278): `NexusWiki / production` 배포 (2026-11-10T14:22:56Z)
+- `main` 머지 커밋 `8b0fde4`(#279): `railway-app[bot]`이 `NexusWiki / production` 배포 (2026-11-10T22:19:34Z)
+
+⚠️ API·워커 코드와 마이그레이션의 순서가 중요한 PR은 머지 전에 운영 DB 선적용을 끝낸다.
+
 ## 서비스 구성
 
 | 항목 | api | worker |

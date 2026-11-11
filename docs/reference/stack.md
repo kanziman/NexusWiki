@@ -51,7 +51,7 @@
 
 `AI_CONTROL_RISK_MODE`는 API와 worker 두 배포 서비스에 같은 값으로 설정하고 함께 변경한다. 리스크 탭은 API 설정을 표시하지만 실제 쓰기 보류는 worker 설정을 따른다. 두 값이 달라도 자동 탐지되지 않으므로 화면 표시만으로 worker의 적용 모드를 확인할 수 없다.
 
-`supabase/migrations/`에 `0001` ~ `0037`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 2026-11-03 `migration list --linked` 기준 운영은 `0035`까지 적용되어 있다. 표에 운영 미적용으로 표시된 번호는 해당 코드의 머지 전에 운영자가 먼저 적용한다.
+`supabase/migrations/`에 `0001` ~ `0037`이 있다. **파일명 번호 순서가 곧 적용 순서다.** 2026-11-11 `migration list --linked` 기준 운영은 `0037`까지 적용되어 있다. 표에 운영 미적용으로 표시된 번호는 해당 코드의 머지 전에 운영자가 먼저 적용한다.
 
 주요 지점만:
 
@@ -83,8 +83,8 @@
 | `0033` | 위키 개정 이력·승인 대기 제안과 승인 RPC |
 | `0034` | 통제실 `[리스크]` 탭 집계 RPC (`control_risk_snapshot`) |
 | `0035` | 본문을 보존하는 위키 근거 백필 후보·추가 전용 RPC (`wiki_evidence_backfill_candidates`, `apply_wiki_evidence_backfill`) |
-| `0036` | 통제실 `[품질]` 탭의 측정 건수 분리 (로컬 검증, 운영 미적용). 운영 순서는 `0036`, API, 대시보드다. 순서가 바뀌면 측정 기록 없음으로 잘못 표시된다 |
-| `0037` | 평가 실험·기준 세트·채택 정책·결정 기록 전역 테이블 (로컬 검증, 운영 미적용). `service_role` 전용이며 공개 화면은 커밋된 스냅샷만 읽으므로 운영 적용 없이도 배포에 영향이 없다 |
+| `0036` | 통제실 `[품질]` 탭의 측정 건수 분리 (운영 적용). 운영 순서는 `0036`, API, 대시보드다. 순서가 바뀌면 측정 기록 없음으로 잘못 표시된다 |
+| `0037` | 평가 실험·기준 세트·채택 정책·결정 기록 전역 테이블 (운영 적용, #279). `service_role` 전용이며 공개 화면은 커밋된 스냅샷만 읽는다. 운영 테이블은 비어 있는 것이 정상이다 — 등록 스크립트는 로컬 DB에만 쓴다 |
 
 현재 테이블 15개: `workspaces` `workspace_members` `raw_sources` `wiki_pages` `source_chunks` `wiki_embeddings` `wiki_links` `prompt_templates` `jobs` `usage_events` `workspace_public_settings` `wiki_page_publications` `user_wiki_bookmarks` `ask_threads` `ask_messages`
 
@@ -112,8 +112,10 @@
 | 대상 | 상태 | 근거 |
 | --- | --- | --- |
 | **Supabase Cloud** | ACTIVE_HEALTHY, 리전 `ap-southeast-1`(싱가포르) | `docs/ops/cloud-bootstrap-record.md`, `docs/ops/migration-0007-record.md` |
-| **Railway** | 서비스 2개 — `api`(web) + `worker`(상주). Hobby $5/mo는 워크스페이스 단위 과금 | `docs/ops/railway-deploy-record.md`, `docs/ops/railway-env-checklist.md` |
-| **Vercel** | Production 배포됨 (2026-08-13, CLI 업로드 방식) | `docs/ops/vercel-deploy-record.md` |
+| **Railway** | 서비스 2개 — `api`(web) + `worker`(상주). ⚠️ GitHub 연동으로 `main` 머지 시 production 자동 배포. Hobby $5/mo는 워크스페이스 단위 과금 | `docs/ops/railway-deploy-record.md`, `docs/ops/railway-env-checklist.md` |
+| **Vercel** | ⚠️ GitHub 연동으로 PR마다 Preview, `main` 머지 시 Production 자동 배포 (최초 2026-08-13 CLI 업로드) | `docs/ops/vercel-deploy-record.md` |
+
+⚠️ `main` 머지가 API·워커·대시보드 운영 배포를 자동으로 시작한다. 마이그레이션이 든 PR은 머지 전에 운영 DB에 선적용해야 한다(`openspec/specs/pull-request-workflow/spec.md` 마이그레이션 게이트).
 
 ⚠️ 리전은 프로젝트 생성 후 변경 불가다. Railway에 서울·도쿄 리전이 없어 교차 리전 왕복이 검색 채널 수만큼 곱해진다 — `docs/ops/rtt-baseline.md` 참조.
 
