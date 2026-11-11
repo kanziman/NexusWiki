@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -268,6 +271,10 @@ describe("PublicWikiPage route", () => {
     expect(
       screen.getByRole("button", { name: "링크 복사" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "NexusWiki 홈" })).toHaveAttribute(
+      "href",
+      "/",
+    );
     expect(
       screen.getAllByRole("link", { name: "시작하기" })[0],
     ).toHaveAttribute("href", "/signup");
@@ -318,5 +325,18 @@ describe("PublicWikiPage route", () => {
     }
     expect(container.querySelectorAll('a[href^="/w/"]')).toHaveLength(0);
     expect(screen.getByLabelText("공개 문서")).toHaveTextContent("2");
+  });
+
+  it("홈 링크는 / 를 프리페치하지 않는다", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "app/p/[slug]/[page]/page.tsx"),
+      "utf8",
+    );
+    const homeLinks = (source.match(/<Link\b[^>]*>/g) ?? []).filter((link) =>
+      link.includes('href="/"'),
+    );
+
+    expect(homeLinks).toHaveLength(1);
+    expect(homeLinks[0]).toContain("prefetch={false}");
   });
 });

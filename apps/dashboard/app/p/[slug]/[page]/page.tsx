@@ -120,9 +120,16 @@ export default async function PublicWikiPage({ params }: PublicWikiPageProps) {
       <header className="public-header">
         <div className="public-header-grid">
           <div className="public-header-left">
-            <div className="public-brand-logo">
+            {/* ⚠️ 프리페치를 끈다. 켜 두면 홈 라우트의 미들웨어와 서버 렌더링이 돌아,
+                세션이 있는 방문자에게서 공개 문서를 열기만 해도 인증 서버와 DB 요청이 발생한다. */}
+            <Link
+              href="/"
+              prefetch={false}
+              className="public-brand-logo nw-focus-ring"
+              aria-label="NexusWiki 홈"
+            >
               <Image src="/nexuswiki-mark.png" alt="" width={18} height={18} />
-            </div>
+            </Link>
             <strong className="public-workspace-name">
               {workspaceDisplayName}
             </strong>
