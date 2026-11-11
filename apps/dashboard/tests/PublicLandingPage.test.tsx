@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -29,6 +32,62 @@ describe("PublicLandingPage", () => {
       "aria-expanded",
       "false",
     );
+  });
+
+  it("데스크톱·모바일 상단 메뉴의 FAQ 다음에 평가 기록 링크를 둔다", async () => {
+    const user = userEvent.setup();
+    render(<PublicLandingPage />);
+
+    const desktopNavigation = screen.getByRole("navigation", {
+      name: "공개 랜딩 주요 섹션",
+    });
+    const desktopLinks = within(desktopNavigation)
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(desktopLinks.slice(-2)).toEqual(["FAQ", "평가 기록"]);
+    expect(
+      within(desktopNavigation).getByRole("link", { name: "평가 기록" }),
+    ).toHaveAttribute("href", "/showcase/evaluation");
+
+    await user.click(screen.getByRole("button", { name: "메뉴 열기" }));
+    const mobileNavigation = screen.getByRole("navigation", {
+      name: "모바일 공개 랜딩 메뉴",
+    });
+    const mobileEvaluation = within(mobileNavigation).getByRole("link", {
+      name: "평가 기록",
+    });
+    expect(mobileEvaluation).toHaveAttribute("href", "/showcase/evaluation");
+    // 모바일 메뉴는 끝에 「로그인」이 붙으므로 FAQ 바로 다음 자리를 인덱스로 본다.
+    const mobileLabels = within(mobileNavigation)
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(mobileLabels[mobileLabels.indexOf("FAQ") + 1]).toBe("평가 기록");
+
+    await user.click(mobileEvaluation);
+
+    expect(screen.getByRole("button", { name: "메뉴 열기" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("평가 기록 링크는 대상 페이지를 프리페치하지 않는다", () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        "components/public-landing/PublicLandingHeader.tsx",
+      ),
+      "utf8",
+    );
+    // 홈·로그인 링크는 프리페치 대상이므로 평가 기록 링크만 골라 본다.
+    const evaluationLinks = (source.match(/<Link\b[^>]*>/g) ?? []).filter(
+      (link) => link.includes("href={evaluationLink.href}"),
+    );
+
+    expect(evaluationLinks).toHaveLength(2);
+    for (const link of evaluationLinks) {
+      expect(link).toContain("prefetch={false}");
+    }
   });
 
   it("쇼케이스에 공개된 두 위키 워크스페이스와 대표 문서 링크를 보여준다", () => {
