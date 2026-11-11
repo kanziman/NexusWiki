@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { PublicLandingEvaluation } from "./public-landing/PublicLandingEvaluation";
 import { PublicLandingFaq } from "./public-landing/PublicLandingFaq";
 import { PublicLandingHeader } from "./public-landing/PublicLandingHeader";
 import { PublicLandingShowcase } from "./public-landing/PublicLandingShowcase";
@@ -325,48 +326,9 @@ export function PublicLandingPage() {
         </div>
       </section>
 
-      {/* Use Cases */}
-      <section
-        aria-labelledby="evaluation-intro-title"
-        className="border-t border-[var(--border)] px-6 py-16 md:py-20"
-      >
-        <div className="mx-auto max-w-5xl flex flex-col gap-6 md:flex-row md:items-center md:justify-between md:gap-12">
-          <div className="max-w-2xl">
-            <h2
-              id="evaluation-intro-title"
-              className="scroll-mt-28 mb-4 text-2xl font-extrabold tracking-tight md:text-3xl"
-            >
-              AI의 답변을, 검증하며 개선합니다.
-            </h2>
-            <p className="text-base leading-relaxed text-[var(--muted)]">
-              기대한 사실과 실제 답변을 대조합니다. 변경 전후의 품질과 비용을
-              비교하고, 실험 결과로 기능 도입을 결정합니다. 실제 실험의 결과와
-              한계까지 공개합니다.
-            </p>
-          </div>
-          <Link
-            href="/showcase/evaluation"
-            prefetch={false}
-            className="nw-focus-ring inline-flex shrink-0 items-center gap-3 self-start rounded-xl border border-[var(--border)] px-5 py-3 text-sm font-semibold transition-colors hover:bg-[var(--surface)] md:self-center"
-          >
-            평가 설계와 실험 보기
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 12h14m-7-7 7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-      </section>
+      <PublicLandingEvaluation />
 
+      {/* Use Cases */}
       <section
         id="usecases"
         className="py-20 px-6 scroll-mt-28 border-t border-[var(--border)] bg-[var(--surface)]"

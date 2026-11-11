@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GET } from "@/app/showcase/regression/experiments.json/route";
-import { experimentFor, experimentSnapshot, kst } from "@/lib/experiments";
+import {
+  experimentFor,
+  experimentSnapshot,
+  featuredAdoption,
+  kst,
+} from "@/lib/experiments";
 import { regressionSuites } from "@/lib/regression-data";
 
 describe("실험 스냅샷", () => {
@@ -25,6 +30,32 @@ describe("실험 스냅샷", () => {
     const broken = structuredClone(experimentSnapshot);
     broken.criteria_sets = [];
     expect(experimentFor("research", broken)).toBeUndefined();
+  });
+
+  it("대표 실험은 결정 기록이 있는 도입 실험이고 참조가 끊기면 없다", () => {
+    expect(featuredAdoption()?.id).toBe("ask-evidence-research");
+
+    const noPolicy = structuredClone(experimentSnapshot);
+    noPolicy.policies = [];
+    expect(featuredAdoption(noPolicy)).toBeUndefined();
+
+    const noDecision = structuredClone(experimentSnapshot);
+    noDecision.decisions = [];
+    expect(featuredAdoption(noDecision)).toBeUndefined();
+  });
+
+  it("같은 실행 출처의 실험이 앞에 있어도 결정이 있는 도입 실험을 고른다", () => {
+    const crowded = structuredClone(experimentSnapshot);
+    const research = crowded.experiments.find(
+      (item) => item.id === "ask-evidence-research",
+    )!;
+    crowded.experiments.unshift({
+      ...research,
+      id: "research-draft",
+      title: "결정 전 초안",
+    });
+
+    expect(featuredAdoption(crowded)?.id).toBe("ask-evidence-research");
   });
 
   it("시각은 브라우저 시간대와 관계없이 한국 시간으로 보인다", () => {
